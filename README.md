@@ -541,9 +541,10 @@ dispatcher or emulator dependency.
 
 This is a composition of selected stages, **not a complete physics tick**. The
 original intervening world-coordinate transform, wheel-speed update and
-view-angle calculation remain to be recovered. Inputs normally produced by
-those stages are supplied explicitly, and the original D1/D2 register
-preconditions are established at test entry. The composed native state keeps
+view-angle calculation are omitted by this earlier composition. They are now
+recovered and connected in the next section. The earlier test supplies their
+external inputs explicitly and establishes the original D1/D2 register
+preconditions at each entry. The composed native state keeps
 named results for each stage even where the original reuses a scratch address.
 Tests verify matching computation from matching inputs, not that an arbitrary
 snapshot's stored outputs belong to its current inputs.
@@ -566,12 +567,108 @@ a reusable snapshot are under `analysis/rea/road-suspension-*`, indexed in
 other extracted snapshots. The earlier wheel, matrix, interpolation, expected
 height and spring-force regression suites also pass.
 
-Next: recover the intervening world transform, wheel-speed and view-angle
-stages, then the remaining motion/angle integration and suspension tail. This
-will let us compare a complete physics update and, eventually, recorded input
-sequences. Full gameplay, audio fidelity, asset formats, physical units and
-complete function boundaries remain outstanding; these tests do not establish
-full-game timing or exhaust every combined input.
+### Motion transforms, wheel speed, damping and integration
+
+The next stages are implemented in `src/motion_transforms.*`,
+`src/wheel_motion.*` and `src/motion_integration.*`. They are ordinary native
+functions over named inputs and state, using the original integer arithmetic.
+
+| Recovered stage | Original runtime range, end exclusive | Native behavior |
+| --- | --- | --- |
+| World-coordinate transform | `0x6158c–0x615e6` | Converts world speed to local X/Z velocity; retains local Y |
+| View-angle terms | `0x615e6–0x61618` | Scales selected matrix coefficients by -317 or +317 |
+| Secondary coordinates | `0x61618–0x61672` | Produces three world-acceleration words from the adjusted inputs |
+| Tertiary coordinates | `0x61672–0x616d6` | Transforms angular velocity, including the dependent Z calculation |
+| Wheel speed | `0x60fbe–0x61012` | Updates speed magnitude and wheel rotation speed |
+| Velocity damping | `0x62138–0x6217a` | Produces angular acceleration X/Z, retaining Y |
+| Angular-velocity integration | `0x61b26–0x61b70` | Adds the scaled angular acceleration to rotation velocity |
+| World-velocity integration | `0x61adc–0x61b26` | Adds the scaled world acceleration to world velocity |
+| Position/angle integration | `0x61950–0x61ad4` | Advances position and angles, applies limits and updates pitch/view state |
+
+The shared matrix helpers occupy `0x61338–0x6135a`. Each signed product is
+rounded and truncated before summing; rounding a complete dot product would
+change results. The reference's `getNegativeTrigValue` and
+`getPositiveTrigValue` names describe coefficient scaling here, not fresh
+sine/cosine lookups. Axis names and physical units remain provisional.
+The 22-byte selector table at `0x1ec46` and four angle-limit words at `0x61ad4`
+are supplied from the verified local payload, not embedded in tracked source.
+
+Further original/enhanced-source differences are preserved explicitly:
+
+- Original wheel speed lives at `0x1bc62`; the enhanced source names
+  `0x1bc60`. The original decay subtracts one quarter, using a logical shift
+  by two; the enhanced source shifts by five.
+- Original angular damping always shifts rotation velocity by four. Wheel
+  contact controls only the additional yaw contribution. The enhanced source
+  adds separate ground-damping branches with a shift by one.
+- All twelve integration timestep writes use the original factor **238/256**.
+  The enhanced reference uses 39/256 for PAL and 34/256 for NTSC. Three original
+  branches removed from that source are also accounted for in the comparison.
+
+Position integration preserves 32-bit wrapping, the fractional low word when
+clamping world height, and the asymmetry at angle limits: equality at the
+negative limit enters the clamp and can clear rotation, while positive
+equality does not. The pitch flag uses the high byte of the big-endian angle.
+These are fixed original-step calculations, not a variable-delta-time model.
+
+Two native entrypoints connect the recovered stages in the original order:
+
+- `scr::updatePhysicsPrefix` in `src/physics_prefix.cpp` covers the first
+  eight driver calls: matrices, wheel coordinates, road sampling, expected
+  heights, world transform, wheel speed, view terms and suspension response.
+  It stops inside suspension immediately before the countdown call at
+  `0x62042`. Sampling uses the previous speed magnitude, and wheel speed uses
+  the previous contact flag, matching the original update order.
+- `scr::updateMotionTail` in `src/motion_step.cpp` covers the last five calls:
+  damping, angular integration, angular transformation, world-velocity
+  integration and position/angle integration. Earlier acceleration and
+  steering results remain explicit inputs.
+
+The combined oracles execute the actual, unmodified driver sections at
+`0x6185c` and `0x618ae`. Registers and flags flow continuously between calls;
+they are not reset at each function. D1/D2 high-byte preconditions are set once
+at entry, and all other initial registers/flags are randomized. The comparison
+checks all 512 KiB of RAM except the test's vectors, sentinel and stack, with
+permitted writes and boundary/return behavior checked separately.
+
+Individual motion-transform tests cover **2,019,256 cases**, wheel-speed/damping
+tests **1,157,446**, and integration tests **1,466,186**, all with zero mismatches.
+The first-eight-call sequence passes **1,281 cases**, including the race input,
+sequential state updates and randomized replays. The menu captures have no
+loaded track and are explicitly skipped for this prefix. Integration also has
+**1,024 separate original-code probes** demonstrating its D2 high-byte
+precondition; these are not counted as native differential cases.
+
+The five-call motion tail passes **10,627 cases**: three captured input sets,
+384 angle-boundary cases, 8,192 randomized inputs and 2,048 sequential updates.
+It also verifies all ten driver/helper calls and their exact stack writes.
+Across this milestone, **4,654,796 differential comparisons pass with zero
+mismatches**. These are bounded stage/sequence checks, not complete driving
+sessions or exhaustive tests of every input combination.
+
+Reproduce all motion stages and both connected sequences:
+
+```powershell
+. .\scripts\env.ps1
+& $AmigaPython scripts/check_motion_stages.py
+```
+
+The wrapper verifies the retained source/payload, code/table spans, captures
+and pinned Musashi sources, rebuilds, and records all results and source hashes
+in `analysis/motion-stages/check-results.json`. Detailed comparisons and original
+listings are in `analysis/motion-transforms/`, `analysis/wheel-motion/` and
+`analysis/motion-integration/`. REA evidence, snapshot and finding index are in
+`analysis/rea/motion-stages-*`. Musashi remains a test-only dependency.
+
+The prefix and tail are **not yet one complete physics tick**. The remaining
+work between them is the suspension tail (countdown, opponent collision and
+impact audio), car orientation, steering response and collision/drag adjustment.
+The secondary transform is recovered individually but still needs wiring to
+those producers. The driver's conditional scheduling also needs coverage.
+After those gaps are closed, we can test full updates and recorded input
+sequences. Current tests do not establish full-game timing, rendering/audio
+fidelity or every combined input; captured inputs and stored outputs can belong
+to different updates.
 
 ## Sources and installation provenance
 

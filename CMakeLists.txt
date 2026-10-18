@@ -4,7 +4,8 @@ project(stunt_car_racer_recovery LANGUAGES C CXX)
 add_library(scr_physics STATIC src/wheel_coordinates.cpp src/transform_matrices.cpp
   src/expected_wheel_heights.cpp src/track_interpolation.cpp src/suspension_springs.cpp
   src/wheel_contact.cpp src/suspension_response.cpp src/track_sampling.cpp
-  src/road_suspension_step.cpp)
+  src/road_suspension_step.cpp src/motion_transforms.cpp src/wheel_motion.cpp
+  src/motion_integration.cpp src/physics_prefix.cpp src/motion_step.cpp)
 target_include_directories(scr_physics PUBLIC src)
 target_compile_features(scr_physics PUBLIC cxx_std_17)
 if(MSVC)
@@ -63,4 +64,9 @@ if(SCR_BUILD_ORACLE)
   add_executable(road_suspension_step_oracle tests/road_suspension_step_oracle.cpp)
   target_link_libraries(road_suspension_step_oracle PRIVATE scr_physics musashi_oracle)
   target_compile_features(road_suspension_step_oracle PRIVATE cxx_std_17)
+  foreach(stage motion_transforms wheel_motion motion_integration physics_prefix motion_step)
+    add_executable(${stage}_oracle tests/${stage}_oracle.cpp)
+    target_link_libraries(${stage}_oracle PRIVATE scr_physics musashi_oracle)
+    target_compile_features(${stage}_oracle PRIVATE cxx_std_17)
+  endforeach()
 endif()

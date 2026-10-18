@@ -383,10 +383,90 @@ coefficient memory and wheel outputs, not original registers, CPU flags or
 timing. Captured-input replay is not an instruction trace or proof of full-game
 fidelity. The native library still has no emulator dependency.
 
-Next: track-height lookup and suspension, keeping this differential-test
-pattern. A recorded input sequence,
-full gameplay, audio fidelity, asset formats and complete function boundaries
-remain outstanding.
+### Road interpolation, expected wheel heights and spring forces
+
+Three further stages are now readable C++ with comparisons against original
+68000 execution. They extend the `scr_physics` library and have no emulator
+dependency. The full track-height selector and suspension update are still to
+be connected; these functions cover the arithmetic stages described below.
+
+| Native function | Original runtime range | Purpose | Passing differential cases |
+| --- | --- | --- | --- |
+| `interpolateTrackCoordinate` | `0x5c554–0x5c5f1` | Blend four track control values using lateral and longitudinal fractions | 1,393,658 |
+| `calculateExpectedWheelHeights` | `0x61b70–0x61bcb` | Derive the body's three expected wheel heights from height, pitch and roll | 497,269 |
+| `calculateSuspensionSpringForces` | `0x622dc–0x62423` | Convert suspension travel and average wheel velocity into spring components and angles | 755,206 |
+
+Implementations and contracts are in `src/track_interpolation.*`,
+`src/expected_wheel_heights.*`, and `src/suspension_springs.*`. All **2,646,133**
+comparisons passed with zero mismatches, including inputs from both menu
+captures and the race capture. The earlier wheel and matrix suites also pass.
+The five newly recovered original routines, including two spring helpers,
+match all **157 instructions and resolved operands** of the pinned reference.
+
+The track interpolation preserves wrapped 16-bit endpoint differences, the
+large-delta scaling branch, and the negative-product low-byte truncation.
+A generic floating-point bilinear interpolation would change results. Tests
+cover every pair of 8-bit fractions for 12 representative sets of control
+values, complete independent control-word sweeps, exact branch boundaries and
+random combinations. All four arithmetic paths executed. The function is
+named for coordinates because the original helper can be reused beyond heights.
+
+Expected wheel heights use the already verified original sine table. The rear
+height subtracts the pitch offset; the two front heights add it and apply
+opposite roll offsets. Each intermediate retains the original 32-bit wrap,
+followed by a signed right shift of eight bits. Tests compare the three output
+longwords and the shared pitch-sine scratch word, including overflow and
+negative rounding cases. These body heights are later compared with sampled
+road heights; they are not themselves road samples.
+
+The spring stage includes `attenuateDisplacementValue` (`0x62424–0x62453`)
+and the helper labelled `multiplyAndRandomize` (`0x612a2–0x612bd`). Despite that
+name, the latter is a deterministic byte multiply: the high product byte is
+returned and the low byte is retained in scratch memory. Its C++ name reflects
+the actual operation. Attenuation uses the locally extracted 128-byte table
+at `0x1eeca–0x1ef49`, with no table bytes embedded in tracked source.
+The port reproduces all six scratch bytes and retains five untouched bytes in
+the output block. Tests compare all 26 bytes, sweep both derived displacement words
+exhaustively, and cover travel/velocity boundaries and random combinations.
+
+The original attenuation helper implicitly requires bits 8–15 of register D1
+to be zero. The preceding view-angle calculation and intervening caller code
+establish this for the normal physics path; the native spring contract covers
+that path. **1,280 separate interpreter probes** confirm what happens with
+every possible D1 high byte. They are evidence for the precondition, not native
+differential cases. In particular, the original `-32768` displacement wraps on
+negation and selects a zero magnitude: the port preserves that behavior.
+
+Run the complete new verification on this machine:
+
+```powershell
+. .\scripts\env.ps1
+& $AmigaPython scripts/check_track_physics.py
+```
+
+This validates the pinned ADF/payload, reference source, original code/table
+spans, capture hashes and Musashi sources, then builds and runs all three
+oracles. Results, source/executable identities and limitations are recorded in
+`analysis/track-physics/check-results.json`; compiler output is in `build.log`
+beside it. Repeatable `--capture <directory>` selects other extracted captures.
+Detailed original listings, source comparisons and caller evidence are under
+`analysis/track-interpolation/`, `analysis/expected-heights/` and
+`analysis/suspension-springs/`. REA evidence and a reusable snapshot are in
+`analysis/rea/track-physics-*`, indexed by `analysis/rea/index.json`.
+
+The oracles check original code paths, permitted memory accesses, stack/return
+behavior and final native outputs. Stored capture values are reported separately:
+they can be stale, shared scratch can have been reused, and current inputs need
+not belong to the same update. These tests do not exhaust every combined input,
+establish physical units, or verify full-loop timing and gameplay fidelity.
+
+Next: recover track-segment selection and transitions around the interpolation,
+then height smoothing/edge bounce and the suspension compression/damping caller.
+The original caller contains timestep constants that differ from the enhanced
+reference; preserve the disk behavior. Damage, collision impulses, countdown
+and impact audio are also dependencies of the complete suspension update.
+A recorded input sequence, full gameplay, audio fidelity, asset formats and
+complete function boundaries remain outstanding.
 
 ## Sources and installation provenance
 

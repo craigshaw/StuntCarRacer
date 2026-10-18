@@ -1,0 +1,46 @@
+# Original game/firmware images and emulator states stay local.
+*.adf
+*.adz
+*.ipf
+*.dms
+*.hdf
+*.rom
+*.uss
+
+# Captures, extracted game data, analysis databases and downloaded references.
+/analysis/
+/working/
+/captures/
+/setup/upstream/
+/setup/rea-*.json
+/setup/rea-*.log
+*.bin
+*.dump
+*.gpr
+*.rep/
+
+# Native build outputs (including builds outside analysis/).
+/build/
+/build-*/
+/out/
+cmake-build-*/
+CMakeFiles/
+CMakeCache.txt
+.vs/
+*.exe
+*.dll
+*.lib
+*.a
+*.so
+*.dylib
+*.obj
+*.o
+*.pdb
+*.ilk
+
+# Python environments and caches.
+.venv/
+venv/
+__pycache__/
+*.py[cod]
+.pytest_cache/

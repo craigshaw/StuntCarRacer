@@ -1,0 +1,109 @@
+{
+  "repository": "https://github.com/kstenerud/Musashi",
+  "commit": "313ebf1bd9f4d0d93341eb5ce21fd8a119e9dbdd",
+  "purpose": "Test-only MC68000 oracle; not linked into scr_physics",
+  "files": [
+    {
+      "path": "m68k.h",
+      "bytes": 15856,
+      "sha256": "7fb10f51ee36d45f6e2be38d72aa0c57853810a816f1cf19e0f0c600bd1afa4a",
+      "git_blob_sha1": "2868f505bdc16a73aa44e27b8f2c25674fb40ded"
+    },
+    {
+      "path": "m68k_in.c",
+      "bytes": 239644,
+      "sha256": "7a5836fa60ac5c59f77adbcfe086a288d5356c3d373ab15d337986a4e51e0132",
+      "git_blob_sha1": "e8dd8d98c7777114da67b1c4f3e8425a40d964f1"
+    },
+    {
+      "path": "m68kconf.h",
+      "bytes": 10040,
+      "sha256": "8193cf670f6bfe61ad373055e7f44039427174195109bee78167ff3e0630dca4",
+      "git_blob_sha1": "0d921fbbadef265928800a64d2e40af13bca5a8d"
+    },
+    {
+      "path": "m68kcpu.c",
+      "bytes": 52531,
+      "sha256": "0d98c1bfd104929ca393ab6020c05adaa3de5433961cbf924d0ab78a82778405",
+      "git_blob_sha1": "4c9981fd935a3dd25eb2b2dd9faf34e978193875"
+    },
+    {
+      "path": "m68kcpu.h",
+      "bytes": 72113,
+      "sha256": "372d2086a9c39aadf87d9e0fa42104c5849bd4972ce74b191c0d458208193635",
+      "git_blob_sha1": "a743cdbd6b8a2f29c1ced80e86d4adda8cd35970"
+    },
+    {
+      "path": "m68kfpu.c",
+      "bytes": 41351,
+      "sha256": "e86c9eaaa51993c2d0fac1f6d489bafbe3d4209ff74163e97b7720011fe4327a",
+      "git_blob_sha1": "0367a7400b92f8f49015835d09b30217078de357"
+    },
+    {
+      "path": "m68kmake.c",
+      "bytes": 43967,
+      "sha256": "c6da040b9f9b4a2a30aabc7b26f7228796ef6090934002d9c8a788d754904788",
+      "git_blob_sha1": "c7f1efba33fad9104b841e3da58df37cc4f03e64"
+    },
+    {
+      "path": "m68kmmu.h",
+      "bytes": 9002,
+      "sha256": "66bdbef424dc672c79d316cad6060d487a9cd574b0c12d008e82505a4a27df89",
+      "git_blob_sha1": "b6d90986cff80f0a8f752e8b89cdb839294161ae"
+    },
+    {
+      "path": "Makefile",
+      "bytes": 2051,
+      "sha256": "914550fc5e01cc7f11d24a7e32ba3d498ce175216b0b9db906fecac9e12249df",
+      "git_blob_sha1": "a8afe8f684359577aae2008523273031a1c1e86f"
+    },
+    {
+      "path": "readme.txt",
+      "bytes": 12285,
+      "sha256": "ecff54ee43a229d39aaa6def046c95d5133f8f936ba83a6e62af50ac01832a4f",
+      "git_blob_sha1": "0a1bc8361dff802c098ae408b7d6bcfe82670db6"
+    },
+    {
+      "path": "softfloat/mamesf.h",
+      "bytes": 2856,
+      "sha256": "0060a07e2a2292bb98a79917a8ddd02ae3225173ce37d919eb7e76a8cc661aac",
+      "git_blob_sha1": "c4195039486dc26129df41dfc71b96aa0b04d17d"
+    },
+    {
+      "path": "softfloat/milieu.h",
+      "bytes": 2232,
+      "sha256": "48da7850cbd2481c3d87f7bde42815d0e64d08a2772afb847b5f91d90afcf9be",
+      "git_blob_sha1": "10687b755d0deba0ad8aa0841e210cb8d91f2f5c"
+    },
+    {
+      "path": "softfloat/README.txt",
+      "bytes": 3450,
+      "sha256": "c71e555b87858bcbd6629ca2a1b181babaf8fe129172c15489a9eeeb56a6dc1f",
+      "git_blob_sha1": "9500d25e8a3c605a5bd474779de9872b098a39fb"
+    },
+    {
+      "path": "softfloat/softfloat-macros",
+      "bytes": 24993,
+      "sha256": "003fd1da7dac65e74c3129af0a45a2fb238140d281ccf456b2f3d18ac633e840",
+      "git_blob_sha1": "5de9031de545e9674f9cf64295c2b4d9a50e0344"
+    },
+    {
+      "path": "softfloat/softfloat-specialize",
+      "bytes": 16695,
+      "sha256": "ec8df128b1ebd711215e39d35ac62c8bde59f8bcd0cf88718d8fa5d18a475d72",
+      "git_blob_sha1": "a3113badfda7c2873bb30afcfae24e1599022ce7"
+    },
+    {
+      "path": "softfloat/softfloat.c",
+      "bytes": 158817,
+      "sha256": "a9249098c1be64f346a20d72250be47e779764819afed2c6ecce7f8687476db6",
+      "git_blob_sha1": "400fd593fdca4c299c935caaabaf54e5b0049b2e"
+    },
+    {
+      "path": "softfloat/softfloat.h",
+      "bytes": 17855,
+      "sha256": "5cf048506ee233be66e1ec0ce7f15e0184e3758c14c41829a7f3ab0195f7b509",
+      "git_blob_sha1": "92135e6634818e11a9e3d076de4ada5428ed2e10"
+    }
+  ]
+}

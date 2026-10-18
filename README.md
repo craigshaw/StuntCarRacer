@@ -387,8 +387,8 @@ fidelity. The native library still has no emulator dependency.
 
 Three further stages are now readable C++ with comparisons against original
 68000 execution. They extend the `scr_physics` library and have no emulator
-dependency. The full track-height selector and suspension update are still to
-be connected; these functions cover the arithmetic stages described below.
+dependency. These arithmetic stages now feed the track-height selector and
+suspension response described in the next section.
 
 | Native function | Original runtime range | Purpose | Passing differential cases |
 | --- | --- | --- | --- |
@@ -460,13 +460,118 @@ they can be stale, shared scratch can have been reused, and current inputs need
 not belong to the same update. These tests do not exhaust every combined input,
 establish physical units, or verify full-loop timing and gameplay fidelity.
 
-Next: recover track-segment selection and transitions around the interpolation,
-then height smoothing/edge bounce and the suspension compression/damping caller.
-The original caller contains timestep constants that differ from the enhanced
-reference; preserve the disk behavior. Damage, collision impulses, countdown
-and impact audio are also dependencies of the complete suspension update.
-A recorded input sequence, full gameplay, audio fidelity, asset formats and
-complete function boundaries remain outstanding.
+### Track sampling, wheel contact and suspension response
+
+The surrounding road and suspension calculations are now readable native C++17.
+The implementation preserves the original disk's fixed-point arithmetic,
+including word/byte wraparound and branches that depend on instruction flags.
+
+| Native function | Original runtime span(s), end exclusive | Passing differential cases |
+| --- | --- | --- |
+| `applyWheelHeightContact` | `0x5c5f8–0x5c65a`, `0x5c808–0x5c890` | 672,663 |
+| `sampleTrackWheelHeights` | Selector `0x5c1d0–0x5c3da`, plus five configuration/point/transition helpers | 251,353 |
+| `updateSuspensionResponse` | Prefix `0x61bcc–0x62042`, momentum helper `0x6180e–0x6181e`, and the recovered spring helpers | 618,379 |
+| `updateRoadSuspensionStep` | Composition of five recovered entrypoints | 1,281 |
+
+All **1,543,676 comparisons passed with zero mismatches**. Implementations and
+input/state contracts are in `src/wheel_contact.*`, `src/track_sampling.*`,
+`src/suspension_response.*` and `src/road_suspension_step.*`.
+
+Track sampling now selects segments, loads their geometry configuration, moves
+across adjacent segment boundaries and samples the rear, right and left wheels
+in the original order. It calls the recovered interpolation and contact code.
+Its geometry and generated segment arrays are explicit inputs, extracted from
+RAM or constructed by the test fixtures; they are not all immutable disk data.
+The race fixture has 44 segments. Tests cover every segment, both geometry
+formats, descriptor/boundary combinations, complete origin-word sweeps and
+100,000 random cases. The two menu snapshots have no loaded track and are
+explicitly skipped by the complete sampler and composed-step tests.
+
+Wheel contact includes the edge drop, bounce phase and rendering-order flags.
+At low speed and small pitch, it smooths height using the original unsigned
+33-bit sum before halving. The lateral sign used for bounce comes from the
+high byte of the big-endian position word. Tests cover all 16-bit lateral
+positions, every speed/pitch byte pair, boundary flags and arbitrary 32-bit
+heights, as well as interpolation followed by contact handling.
+
+Suspension response compares sampled road heights with expected body heights,
+clamps travel, derives compression velocity and applies the original momentum
+factor. It updates impact/damage accumulation counters, derives target roll
+and pitch rates, applies the settling rules and calls the spring-force stage.
+It preserves details such as clearing only the high byte of the maximum
+compression word and updating one shared compression counter sequentially for
+all three wheels. The native boundary is immediately before the countdown call
+at `0x62042`; later opponent collision and impact-audio work is still unported.
+
+Comparison with the pinned enhanced disassembly found differences that matter
+to fidelity:
+
+- The original sampler reads its lateral origin from `0x1bc5e`; the enhanced
+  source names `0x1bc5c`. These words differ in the race capture. The native
+  input is named `lateralOrigin` without assuming the enhanced label is right.
+- The original lateral clamp reads a byte from RAM address `0xff`; the enhanced
+  source substitutes an immediate `0xff`. The native contract supplies that
+  original RAM byte explicitly.
+- The original momentum helper uses factor `0x114` and has a zero-result branch
+  omitted by the enhanced source. Both original behaviors are retained.
+
+The sampler's six routines contain 269 verified instructions across 1,190 bytes;
+the comparison resolves every operand and records the two sampler differences
+explicitly. The suspension prefix contains 235 instructions, with the momentum
+helper's differences recorded separately. REA/Ghidra was used to inspect these
+routines, with MC68000 disassembly and execution as cross-checks. In particular,
+the suspension branch after the momentum call depends on the final word-add
+flags; the decompiler's simpler-looking condition is not equivalent.
+
+`scr::updateRoadSuspensionStep` connects the recovered native stages:
+
+```text
+angles -> matrices -> wheel coordinates -> sampled road heights --+
+angles + world height -> expected body heights ------------------+-> suspension response
+                                                                     and spring forces
+```
+
+Its oracle executes the same five original entrypoints with identical external
+inputs, then compares all 512 KiB of RAM except the test's vectors, sentinel and
+stack. It checks the shared scratch aliases in the original write order. The
+1,281 cases comprise the race inputs, 256 sequential state updates and 1,024
+randomized replays. Individual stage tests additionally cover much larger
+input sweeps. Musashi is confined to the tests; the native library has no CPU
+dispatcher or emulator dependency.
+
+This is a composition of selected stages, **not a complete physics tick**. The
+original intervening world-coordinate transform, wheel-speed update and
+view-angle calculation remain to be recovered. Inputs normally produced by
+those stages are supplied explicitly, and the original D1/D2 register
+preconditions are established at test entry. The composed native state keeps
+named results for each stage even where the original reuses a scratch address.
+Tests verify matching computation from matching inputs, not that an arbitrary
+snapshot's stored outputs belong to its current inputs.
+
+Reproduce with the retained payload, captures and pinned test sources:
+
+```powershell
+. .\scripts\env.ps1
+& $AmigaPython scripts/check_road_response.py
+```
+
+The wrapper validates source, payload, original code/table spans, capture and
+Musashi hashes, rebuilds, and runs all four oracles. Results and provenance are
+in `analysis/road-response/check-results.json`, with compiler output in
+`analysis/road-response/build.log`. Detailed listings, source comparisons and
+arithmetic contracts are under `analysis/wheel-contact/`,
+`analysis/track-sampling/` and `analysis/suspension-response/`. REA evidence and
+a reusable snapshot are under `analysis/rea/road-suspension-*`, indexed in
+`analysis/rea/index.json`. Repeatable `--capture <directory>` arguments select
+other extracted snapshots. The earlier wheel, matrix, interpolation, expected
+height and spring-force regression suites also pass.
+
+Next: recover the intervening world transform, wheel-speed and view-angle
+stages, then the remaining motion/angle integration and suspension tail. This
+will let us compare a complete physics update and, eventually, recorded input
+sequences. Full gameplay, audio fidelity, asset formats, physical units and
+complete function boundaries remain outstanding; these tests do not establish
+full-game timing or exhaust every combined input.
 
 ## Sources and installation provenance
 

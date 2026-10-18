@@ -84,6 +84,12 @@ std::uint16_t scaledCoordinate(int coordinate,unsigned shift,std::uint8_t orient
 }
 } // namespace
 
+TrackSegmentConfiguration loadTrackSegmentConfiguration(const TrackGeometryData& data,std::uint8_t segmentIndex) {
+    if(data.segmentCount==0 || data.segmentCount>100)
+        throw std::invalid_argument("Track segment count must be in [1,100]");
+    return configuration(data,segmentIndex);
+}
+
 std::array<WheelTrackSample,3> sampleTrackWheelHeights(
     const TrackGeometryData& data,const TrackSamplingInputs& in,TrackSamplingState& s) {
     if(data.segmentCount==0 || data.segmentCount>100)

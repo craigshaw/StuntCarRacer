@@ -5,7 +5,9 @@ add_library(scr_physics STATIC src/wheel_coordinates.cpp src/transform_matrices.
   src/expected_wheel_heights.cpp src/track_interpolation.cpp src/suspension_springs.cpp
   src/wheel_contact.cpp src/suspension_response.cpp src/track_sampling.cpp
   src/road_suspension_step.cpp src/motion_transforms.cpp src/wheel_motion.cpp
-  src/motion_integration.cpp src/physics_prefix.cpp src/motion_step.cpp)
+  src/motion_integration.cpp src/physics_prefix.cpp src/motion_step.cpp
+  src/steering_response.cpp src/car_dynamics.cpp src/suspension_effects.cpp
+  src/audio_playback.cpp src/physics_update.cpp)
 target_include_directories(scr_physics PUBLIC src)
 target_compile_features(scr_physics PUBLIC cxx_std_17)
 if(MSVC)
@@ -64,7 +66,8 @@ if(SCR_BUILD_ORACLE)
   add_executable(road_suspension_step_oracle tests/road_suspension_step_oracle.cpp)
   target_link_libraries(road_suspension_step_oracle PRIVATE scr_physics musashi_oracle)
   target_compile_features(road_suspension_step_oracle PRIVATE cxx_std_17)
-  foreach(stage motion_transforms wheel_motion motion_integration physics_prefix motion_step)
+  foreach(stage motion_transforms wheel_motion motion_integration physics_prefix motion_step
+      steering_response car_dynamics suspension_effects audio_playback physics_update)
     add_executable(${stage}_oracle tests/${stage}_oracle.cpp)
     target_link_libraries(${stage}_oracle PRIVATE scr_physics musashi_oracle)
     target_compile_features(${stage}_oracle PRIVATE cxx_std_17)

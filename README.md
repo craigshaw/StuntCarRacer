@@ -660,15 +660,123 @@ listings are in `analysis/motion-transforms/`, `analysis/wheel-motion/` and
 `analysis/motion-integration/`. REA evidence, snapshot and finding index are in
 `analysis/rea/motion-stages-*`. Musashi remains a test-only dependency.
 
-The prefix and tail are **not yet one complete physics tick**. The remaining
-work between them is the suspension tail (countdown, opponent collision and
-impact audio), car orientation, steering response and collision/drag adjustment.
-The secondary transform is recovered individually but still needs wiring to
-those producers. The driver's conditional scheduling also needs coverage.
-After those gaps are closed, we can test full updates and recorded input
-sequences. Current tests do not establish full-game timing, rendering/audio
-fidelity or every combined input; captured inputs and stored outputs can belong
-to different updates.
+These earlier prefix/tail entrypoints remain useful stage tests. The complete
+driver, including the intervening producers and conditional scheduling, is now
+connected and verified below.
+
+### Complete native physics update
+
+`scr::updateGamePhysics` in `src/physics_update.cpp` implements the complete
+original driver at **`0x6185c–0x618ce`**, through its final return. It accepts
+typed game inputs, local asset data and persistent state, and returns an ordered
+list of audio-register writes. The production `scr_physics` library has no
+CPU, RAM image, dispatcher, WinUAE or Musashi dependency.
+
+The newly recovered pieces are:
+
+| Stage | Original runtime range, end exclusive | Native implementation |
+| --- | --- | --- |
+| Steering response | `0x61012–0x6125a` | `steering_response.cpp`: bank/direction handling, steering force, automatic yaw correction |
+| Car orientation | `0x620b8–0x62138` | `car_dynamics.cpp`: adjusted inputs and gas accumulator |
+| Roll transition and steering multiplier | `0x6217a–0x621f4` | `car_dynamics.cpp`: contact-dependent roll/slip response |
+| Collision/drag adjustment | `0x621f4–0x622dc` | `car_dynamics.cpp`: ground, countdown, wreck and drafting paths |
+| Remaining suspension body | `0x62042–0x620b6` | `suspension_effects.cpp`: countdown, collision application and impact sound requests |
+| Countdown, lift and roll helpers | `0x5b32e–0x5b506` | `suspension_effects.cpp`: all crane/release branches |
+| Multiplayer side, random byte and message helpers | `0x58758–0x5879e`, `0x62574–0x625a2`, `0x5e4ec–0x5e502` | `suspension_effects.cpp`: native state updates |
+| Opponent collision forces | `0x63e2e–0x63ede` | `suspension_effects.cpp`: applies/clears forces, changes opponent speed and wheel velocities |
+| Sample request | `0xf362–0xf3ee` | `audio_playback.cpp`: audio bookkeeping and ten ordered 16-bit Paula writes |
+
+The update preserves the original order:
+
+```text
+matrices -> wheel coordinates -> road sampling -> expected heights
+ -> world/local transform -> wheel speed -> view terms -> full suspension
+ -> [when frame-processing flag is nonzero:
+       orientation -> steering -> secondary transform -> collision/drag
+       -> damping -> angular integration -> angular transform]
+ -> world-velocity integration -> position/angle integration
+```
+
+On the skipped path, retained acceleration and transformed angular velocity
+still feed the final integration calls. Native state also preserves the
+original scratch aliases, including the shared steering/sampling configuration,
+the suspension/steering scratch word, and the saved yaw spring **before**
+opponent forces are added. These details matter across successive updates.
+
+Original behavior is retained where the enhanced disassembly differs:
+
+- Steering checks the runtime longword at `0x64aec` against `0x9cedcd02` and
+  clears yaw acceleration when it differs. All three captures contain that
+  value; the disk contains `0x2f76ea80`. It is mutable, runtime-patched state,
+  not an immutable table. The enhanced source comments out the check.
+- Automatic yaw correction uses the original direct increment. The enhanced
+  source adds timestep scaling. Countdown roll still uses the original
+  **238/256** factor, with original timer/frame-throttle behavior.
+- Impact volume shifts a byte before clamping it. Its overflow is preserved.
+  Opponent and impact sounds retain their independent cooldowns and request
+  order. Sample 3's volume byte is persistent mutable state.
+
+The new original/source comparisons examine **544 instructions**, with every
+operand resolved and **22 explicit differences** recorded. They include shared
+dependencies previously recovered. REA/Ghidra findings are retained under
+`analysis/rea/full-physics-*` and indexed in `analysis/rea/index.json`; Capstone
+MC68000 and execution of the original bytes provide independent checks.
+
+Verification passes with **zero mismatches**:
+
+| Differential suite | Cases |
+| --- | ---: |
+| Steering | 954,757 |
+| Orientation, roll, multiplier and drag | 1,942,508 |
+| Suspension effects, countdown and opponent collision | 1,592,819 |
+| Sample playback requests | 141,096 |
+| Complete continuous physics driver | 18,961 |
+| **This milestone total** | **4,650,141** |
+
+The complete-driver oracle executes the unmodified original code from entry
+through its final RTS. No callee is stubbed, no physics stage is skipped by the
+harness, and registers/flags flow between calls. The original D1/D2 high-byte
+preconditions are set once at entry. All 512 KiB of RAM are compared except
+the test vectors, return sentinel and stack; original writes are bounded and
+the returned stack pointer is checked. Audio calls execute their actual
+original instructions and their ordered hardware writes are compared too.
+
+The 18,961 cases include the captured race inputs, all countdown byte values
+under eight scheduler/network combinations, boundary inputs on all **44 loaded
+track segments**, 8,192 randomized states and **8,192 sequential native ticks**.
+Those sequence tests keep native state independently across ticks: they never
+reconstruct it from emulator outputs. There are **10,783 full-path** and
+**8,178 skipped-path** updates, and **4,476 original audio requests**. The two
+menu captures have no loaded track and are explicitly skipped for this suite;
+the individual new stage suites test them. All earlier regression suites pass.
+
+Reproduce with the retained local assets and captures:
+
+```powershell
+. .\scripts\env.ps1
+& $AmigaPython scripts/check_physics_update.py
+```
+
+The wrapper verifies the original disk/payload, reference source, code/table
+spans, captures and pinned Musashi sources, rebuilds, and records source and
+executable hashes in `analysis/physics-update/check-results.json`. Compiler
+output is in `analysis/physics-update/build.log`. Detailed source comparisons
+and original listings are under `analysis/steering-response/`,
+`analysis/car-dynamics/`, `analysis/suspension-effects/` and
+`analysis/audio-playback/`. These generated artifacts remain ignored by Git.
+
+This establishes the **complete synchronous physics-driver contract** for the
+tested inputs. The surrounding game loop still supplies controls, track
+progress, collision-detection results and other external state. The native
+collision stage applies those supplied forces; it does not yet generate the
+opponent collision contacts. Audio is represented by register events, not
+rendered waveforms, and interrupts are not interleaved in these tests. The
+sequences are scripted tests, not recorded human-driven laps. Full-game timing,
+rendering, all tracks and every combined input remain outside this proof.
+
+The next useful step is to recover those outer-loop input producers and build
+a replay runner that compares a recorded driving sequence tick by tick. That
+will let us test a self-contained simulation before adding native rendering.
 
 ## Sources and installation provenance
 

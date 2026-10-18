@@ -47,6 +47,11 @@ struct WheelTrackSample {
     std::uint32_t rawHeight{},contactHeight{},sampledHeight{};
 };
 
+// Decode the original loadTrackSegmentConfiguration helper for one valid
+// segment. Shared by road sampling and steering; does not modify track data.
+[[nodiscard]] TrackSegmentConfiguration loadTrackSegmentConfiguration(
+    const TrackGeometryData& data,std::uint8_t segmentIndex);
+
 // Original selector [0x5c1d0,0x5c3da), geometry/transition helpers and all three
 // interpolation/contact calls. Events are ordered rear, front right, front left.
 // Byte/word wrapping, signed comparisons and the absolute RAM[0xff] clamp are

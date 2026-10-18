@@ -6,8 +6,10 @@
 namespace scr {
 
 // Raw 68000 words. The numeric suffixes preserve the reference disassembly's
-// matrix field names; their geometric meaning and fixed-point format are not
-// yet established. The caller reads these words in big-endian order.
+// matrix field names. transform_matrices.cpp now produces these Q15 coefficients
+// from the car/track angle words; physical coordinate conventions remain to map.
+// The caller reads these words in big-endian order. The historical suffixes
+// 44/46/48 correspond to actual matrix-block byte offsets 42/44/46.
 struct WheelTransformWords {
     std::uint16_t matrix34; // RAM 0x1c264
     std::uint16_t matrix38; // RAM 0x1c268

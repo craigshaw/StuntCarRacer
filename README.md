@@ -252,8 +252,9 @@ executed. All game bytes, dumps and reference copies remain excluded by `.gitign
 `src/wheel_coordinates.cpp` implements `scr::calculateWheelCoordinates` as an
 ordinary C++17 function over six input words, returning three coordinate pairs.
 There is no CPU dispatcher or emulator dependency in the `scr_physics` library.
-Point names follow the matched reference; matrix meanings and units remain
-provisional. The implementation explicitly preserves the 68000's downward
+Point names follow the matched reference; the recovered producer below uses
+signed Q15 coefficients. Physical coordinate conventions remain provisional.
+The implementation explicitly preserves the 68000's downward
 rounding for signed shifts and its operation order. Arithmetic bounds show that
 this particular routine cannot overflow its word intermediates for any inputs.
 The detailed contract is in `analysis/wheel/arithmetic.txt`.
@@ -300,8 +301,90 @@ To include a new extracted snapshot, pass repeatable `--capture <directory>`
 options. Generated code, binaries, dumps and upstream source remain local and
 ignored. Native library builds can leave `SCR_BUILD_ORACLE` at its default OFF.
 
-Next: recover the producer of the matrix inputs, then track-height lookup and
-suspension, keeping this differential-test pattern. A recorded input sequence,
+### Readable angle-to-matrix calculation and chained verification
+
+`src/transform_matrices.cpp` now implements `scr::updateTransformMatrices`,
+`scr::gameSine` and `scr::gameCosine` as ordinary native C++17. The matrix producer
+reads the three car angle words and the track heading, including the wrapped
+difference between yaw and track heading. A full turn is 65,536 angle units.
+Pitch/yaw/roll are provisional names for the reference's X/Y/Z fields; the
+physical axes still need to be established in the wider physics model.
+
+| Recovered item | Original runtime range | Verified against pinned reference |
+| --- | --- | --- |
+| Matrix producer | `0x61368–0x6158b` | All 142 instructions and resolved operands |
+| Sine/cosine helpers | `0x64d08–0x64d65` | All 32 instructions and resolved operands |
+| Quarter-wave table | `0x1ca42–0x1cc45` | All 258 words identical in disk payload and race RAM |
+
+REA/Ghidra evidence and snapshots are in `analysis/rea/transform-matrices-*`;
+the independent MC68000/reference comparison is
+`analysis/transform/reference-comparison.json`. The original sine/cosine table
+is extracted locally and supplied through `scr::TrigTable`; no game table bytes
+are embedded in the tracked C++ source. The helpers preserve the game's table
+interpolation and quadrant rules. Matrix products preserve each Q15 rounding
+step and 16-bit wraparound, rather than substituting floating-point trigonometry.
+
+The producer updates 30 words in a 36-word coefficient block and leaves six
+slots untouched. The C++ preserves those slots and exposes the six wheel inputs
+through `TransformMatrices::wheelInputs()`. The reference's historical names
+`matrix44`, `matrix46` and `matrix48` actually correspond to byte offsets
+`0x42`, `0x44` and `0x46` from the block base, respectively.
+
+The native chain is:
+
+```cpp
+scr::TransformMatrices matrices{};
+scr::updateTransformMatrices(angles, originalTrigTable, matrices);
+auto wheels = scr::calculateWheelCoordinates(matrices.wheelInputs());
+```
+
+`tests/transform_oracle.cpp` executes the actual original producer and trig
+bytes in the pinned test-only MC68000 core. Verification passed with **zero
+mismatches**:
+
+- **131,072 trig cases:** every 16-bit angle through both sine and cosine.
+- **381,350 matrix cases:** 262,144 independent angle sweeps, 19,200 quadrant
+  and table-boundary combinations, 100,000 deterministic random combinations,
+  and six replays from the three captures using captured/randomized old buffers.
+- **381,350 chained wheel cases:** original matrix output feeds the original
+  wheel routine; independently produced native matrices feed the native routine.
+- All 36 matrix words are compared. Execution checks constrain reads, writes,
+  call targets, stack traffic and return behavior; unrelated registers and
+  condition flags are randomized. The original wheel suite still passes all
+  **652,480 cases** after adding this implementation.
+
+The race's current angles replay to slightly different coefficients than those
+already stored in the snapshot: for example, two wheel inputs become `-38`
+instead of `-41`. The physics driver calculates matrices before later angle
+updates, which is consistent with this difference; the snapshot alone does not
+establish the exact update history. Both implementations receive identical
+angles in the comparison. Their resulting race wheel coordinates also agree
+with the snapshot's stored coordinates. Stored-state agreement is reported
+separately from original/native agreement.
+
+Reproduce using the retained inputs and pinned Musashi sources:
+
+```powershell
+. .\scripts\env.ps1
+& $AmigaPython scripts/reference/verify_transform_reference.py
+& $AmigaPython scripts/check_transform_matrices.py
+& $AmigaPython scripts/check_wheel_coordinates.py
+```
+
+The transform wrapper verifies payload, code/table spans, captures and source
+hashes before building. Results and provenance are in
+`analysis/transform/check-results.json`; build output is in
+`analysis/transform/build.log`. Repeatable `--capture <directory>` options select
+other extracted captures. Code, table fixtures, RAM and executables stay ignored.
+
+The trig input domain is exhaustive for the original table; the matrix tests
+are not all `2^64` angle combinations. The native contract covers final
+coefficient memory and wheel outputs, not original registers, CPU flags or
+timing. Captured-input replay is not an instruction trace or proof of full-game
+fidelity. The native library still has no emulator dependency.
+
+Next: track-height lookup and suspension, keeping this differential-test
+pattern. A recorded input sequence,
 full gameplay, audio fidelity, asset formats and complete function boundaries
 remain outstanding.
 

@@ -22,6 +22,15 @@ struct Options {
     std::vector<unsigned> snapshots;unsigned startTick{};bool headless{},paused{};
 };
 struct ExportedFrame {unsigned tick{};std::filesystem::path path;scr::RenderStatistics statistics{};};
+struct RenderCoverage {
+    unsigned nearFrames{},highlightFrames{};
+    std::uint64_t queueEntries{},fillCommands{},highlightCommands{},highlightPixels{};
+    void add(const scr::RenderStatistics& stats){
+        nearFrames+=stats.nearQueueEntries>0;highlightFrames+=stats.edgeHighlightPixels>0;
+        queueEntries+=stats.nearQueueEntries;fillCommands+=stats.nearFillCommands;
+        highlightCommands+=stats.edgeHighlightCommands;highlightPixels+=stats.edgeHighlightPixels;
+    }
+};
 std::string utf8(const std::wstring& value){
     if(value.empty())return {};
     const int count=WideCharToMultiByte(CP_UTF8,0,value.data(),int(value.size()),nullptr,0,nullptr,nullptr);
@@ -46,7 +55,7 @@ Options parse(){
         throw std::runtime_error("Use scripts/start-native-replay.ps1 to prepare the verified replay assets and trace");
     return o;
 }
-void report(const Options& o,const Scene* scene,const std::vector<ExportedFrame>& images,unsigned renderedFrames=0,const std::string& error={}) {
+void report(const Options& o,const Scene* scene,const std::vector<ExportedFrame>& images,unsigned renderedFrames=0,const std::string& error={},const RenderCoverage& coverage={}) {
     if(o.report.empty())return;
     std::filesystem::create_directories(o.report.parent_path());std::ofstream out(o.report);
     if(!out)throw std::runtime_error("Cannot write viewer verification report");
@@ -57,12 +66,18 @@ void report(const Options& o,const Scene* scene,const std::vector<ExportedFrame>
        <<",\n  \"mountain_shapes\":"<<(scene?scene->mountainShapeCount():0)
        <<",\n  \"mountain_placements\":"<<(scene?scene->mountainPlacementCount():0)
        <<",\n  \"background_compressed_bytes\":"<<(scene?scene->backgroundCompressedBytes():0)
-       <<",\n  \"rendered_frames\":"<<renderedFrames<<",\n  \"snapshots\":[";
+       <<",\n  \"rendered_frames\":"<<renderedFrames
+       <<",\n  \"near_track_frames\":"<<coverage.nearFrames<<",\n  \"frames_with_edge_highlights\":"<<coverage.highlightFrames
+       <<",\n  \"total_near_queue_entries\":"<<coverage.queueEntries<<",\n  \"total_near_fill_commands\":"<<coverage.fillCommands
+       <<",\n  \"total_edge_highlight_commands\":"<<coverage.highlightCommands<<",\n  \"total_edge_highlight_pixels\":"<<coverage.highlightPixels
+       <<",\n  \"snapshots\":[";
     for(unsigned n=0;n<images.size();++n){if(n)out<<',';const auto& e=images[n];out<<"\n    {\"tick\":"<<e.tick<<",\"path\":"<<jsonString(e.path.generic_string())
         <<",\"road_faces\":"<<e.statistics.roadFaces<<",\"side_faces\":"<<e.statistics.sideFaces
         <<",\"mountain_instances\":"<<e.statistics.mountainInstances<<",\"mountain_polygons\":"<<e.statistics.mountainPolygons
         <<",\"triangles\":"<<e.statistics.triangles<<",\"road_pixels\":"<<e.statistics.roadPixels
-        <<",\"side_pixels\":"<<e.statistics.sidePixels<<",\"mountain_pixels\":"<<e.statistics.mountainPixels<<'}';}
+        <<",\"side_pixels\":"<<e.statistics.sidePixels<<",\"mountain_pixels\":"<<e.statistics.mountainPixels
+        <<",\"near_queue_entries\":"<<e.statistics.nearQueueEntries<<",\"near_fill_commands\":"<<e.statistics.nearFillCommands
+        <<",\"edge_highlight_commands\":"<<e.statistics.edgeHighlightCommands<<",\"edge_highlight_pixels\":"<<e.statistics.edgeHighlightPixels<<'}';}
     out<<"\n  ]";if(!error.empty())out<<",\n  \"error\":"<<jsonString(error);out<<"\n}\n";
 }
 HFONT makeFont(int size,int weight=FW_NORMAL){return CreateFontW(-size,0,0,0,weight,FALSE,FALSE,FALSE,DEFAULT_CHARSET,OUT_DEFAULT_PRECIS,CLIP_DEFAULT_PRECIS,CLEARTYPE_QUALITY,DEFAULT_PITCH,L"Segoe UI");}
@@ -89,6 +104,8 @@ public:
 private:
     Scene& scene_;double position_{};bool paused_{},dragging_{},wireframe_{};unsigned speedIndex_=1;
     std::chrono::steady_clock::time_point last_=std::chrono::steady_clock::now();
+    std::chrono::steady_clock::time_point fpsStart_=std::chrono::steady_clock::now();
+    unsigned presentedFrames_{};double framesPerSecond_{};
     HFONT titleFont_{},bodyFont_{},smallFont_{},buttonFont_{};RECT image_{},timeline_{};std::array<RECT,4> buttons_{};
     static constexpr double speeds_[4]{0.5,1,2,4};
     unsigned index() const{return std::min(unsigned(position_),unsigned(scene_.frames().size()-1));}
@@ -111,6 +128,11 @@ private:
         const auto& frame=scene_.frames()[index()];std::wostringstream right;
         right<<L"Lap "<<std::max(1u,std::min(3u,unsigned(frame.lapCounter)))<<L" / 3     "<<time(frame);
         text(dc,{client.right-320,10,client.right-30,43},right.str(),bodyFont_,rgb(214,224,229),DT_RIGHT|DT_SINGLELINE|DT_VCENTER);
+        std::wostringstream performance;
+        if(paused_)performance<<L"— FPS · paused";
+        else if(framesPerSecond_==0)performance<<L"— FPS";
+        else performance<<std::fixed<<std::setprecision(1)<<framesPerSecond_<<L" FPS";
+        text(dc,{client.right-220,37,client.right-30,58},performance.str(),smallFont_,rgb(158,175,186),DT_RIGHT|DT_SINGLELINE|DT_VCENTER);
         const auto& pixels=scene_.render(index(),wireframe_);
         BITMAPINFO info{};info.bmiHeader.biSize=sizeof(BITMAPINFOHEADER);info.bmiHeader.biWidth=320;info.bmiHeader.biHeight=-200;info.bmiHeader.biPlanes=1;info.bmiHeader.biBitCount=32;info.bmiHeader.biCompression=BI_RGB;
         SetStretchBltMode(dc,COLORONCOLOR);StretchDIBits(dc,image_.left,image_.top,image_.right-image_.left,image_.bottom-image_.top,0,0,320,200,pixels.data(),&info,DIB_RGB_COLORS,SRCCOPY);
@@ -126,9 +148,15 @@ private:
         text(dc,{480,buttons_[0].top,client.right-32,buttons_[0].bottom},details.str(),smallFont_,rgb(157,175,188),DT_RIGHT|DT_SINGLELINE|DT_VCENTER);
         text(dc,{32,client.bottom-24,client.right-32,client.bottom-5},L"SPACE play / pause     ← → step     HOME restart     Click the timeline to seek",smallFont_,rgb(120,140,153));
         BitBlt(target,0,0,client.right,client.bottom,dc,0,0,SRCCOPY);SelectObject(dc,oldBitmap);DeleteObject(bitmap);DeleteDC(dc);EndPaint(window,&ps);
+        if(!paused_){
+            ++presentedFrames_;const auto now=std::chrono::steady_clock::now();
+            const auto elapsed=std::chrono::duration<double>(now-fpsStart_).count();
+            if(elapsed>=1){framesPerSecond_=presentedFrames_/elapsed;presentedFrames_=0;fpsStart_=now;}
+        }
     }
     void seek(int x){const double t=std::clamp(double(x-timeline_.left)/std::max(1L,timeline_.right-timeline_.left),0.0,1.0);position_=t*double(scene_.frames().size()-1);}
-    void toggle(){if(position_>=scene_.frames().size()-1)position_=0;paused_=!paused_;}
+    void resetFrameCounter(){presentedFrames_=0;framesPerSecond_=0;fpsStart_=std::chrono::steady_clock::now();}
+    void toggle(){if(position_>=scene_.frames().size()-1)position_=0;paused_=!paused_;if(!paused_)resetFrameCounter();}
     LRESULT message(HWND window,UINT message,WPARAM w,LPARAM l){
         switch(message){
         case WM_CREATE:SetTimer(window,1,16,nullptr);return 0;
@@ -145,7 +173,7 @@ private:
         case WM_LBUTTONDOWN:{const POINT p{int(short(LOWORD(l))),int(short(HIWORD(l)))};
             if(PtInRect(&timeline_,p)){dragging_=true;SetCapture(window);seek(p.x);}
             else for(unsigned n=0;n<buttons_.size();++n)if(PtInRect(&buttons_[n],p)){
-                if(n==0)toggle();else if(n==1){position_=0;paused_=false;}else if(n==2){paused_=true;position_=std::min(double(scene_.frames().size()-1),std::floor(position_)+1);}else speedIndex_=(speedIndex_+1)%4;
+                if(n==0)toggle();else if(n==1){position_=0;paused_=false;resetFrameCounter();}else if(n==2){paused_=true;position_=std::min(double(scene_.frames().size()-1),std::floor(position_)+1);}else speedIndex_=(speedIndex_+1)%4;
             }InvalidateRect(window,nullptr,FALSE);return 0;}
         case WM_MOUSEMOVE:if(dragging_){seek(int(short(LOWORD(l))));InvalidateRect(window,nullptr,FALSE);}return 0;
         case WM_LBUTTONUP:if(dragging_){dragging_=false;ReleaseCapture();}return 0;
@@ -169,8 +197,8 @@ int WINAPI wWinMain(HINSTANCE instance,HINSTANCE,PWSTR,int show){
         scene=std::make_unique<Scene>();scene->load(options.chip,options.payload,options.inputs,options.reference,options.trace);
         // Exercise every camera and suspension state before accepting a headless
         // check. Snapshot export alone would leave most seek positions untested.
-        unsigned renderedFrames=0;
-        if(options.headless)for(unsigned tick=0;tick<scene->frames().size();++tick){scene->render(tick);++renderedFrames;}
+        unsigned renderedFrames=0;RenderCoverage coverage;
+        if(options.headless)for(unsigned tick=0;tick<scene->frames().size();++tick){scene->render(tick);coverage.add(scene->statistics());++renderedFrames;}
         std::vector<ExportedFrame> images;
         if(!options.snapshots.empty()){
             if(options.framesDirectory.empty())throw std::runtime_error("Frame export requires --frames-dir");
@@ -178,7 +206,7 @@ int WINAPI wWinMain(HINSTANCE instance,HINSTANCE,PWSTR,int show){
             for(auto tick:options.snapshots){if(tick>=scene->frames().size())throw std::runtime_error("Requested snapshot exceeds replay");scene->render(tick);
                 std::ostringstream name;name<<"frame-"<<std::setw(4)<<std::setfill('0')<<tick<<".bmp";const auto path=options.framesDirectory/name.str();scene->saveBitmap(path);images.push_back({tick,path,scene->statistics()});}
         }
-        report(options,scene.get(),images,renderedFrames);if(options.headless)return 0;
+        report(options,scene.get(),images,renderedFrames,{},coverage);if(options.headless)return 0;
         SetProcessDPIAware();Window window(*scene,options);return window.run(instance,show);
     }catch(const std::exception& e){
         try{report(options,scene.get(),{},0,e.what());}catch(...){}

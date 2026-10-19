@@ -1,6 +1,7 @@
 #include "replay_scene.h"
 #include "track_mesh_capture.h"
 #include "../tests/driving_replay_io.h"
+#include "../tests/near_track_geometry_fixture.h"
 #include <algorithm>
 #include <fstream>
 #include <iterator>
@@ -29,10 +30,15 @@ void ReplayScene::load(const std::filesystem::path& chip,const std::filesystem::
     namespace replay=scr::test::replay;namespace a=scr::test::audio;
     auto capture=replay::loadCapture(chip.string().c_str());const auto original=readFile(payload);
     assets_=decodeReplayRenderAssets(original.data(),original.size(),capture->data(),capture->size());
-    mesh_=buildTrackMesh(decodeTrackMesh(*capture));
+    const auto meshData=decodeTrackMesh(*capture);mesh_=buildTrackMesh(meshData);
+    std::array<std::uint8_t,100> segmentRenderFlags{};std::array<bool,100> knownFlags{};
+    for(const auto& section:meshData.sections)if(!knownFlags[section.segment]){
+        segmentRenderFlags[section.segment]=section.flags;knownFlags[section.segment]=true;
+    }
     sides_=buildTrackSides(mesh_,{(*capture)[0x691b3],(*capture)[0x691b2],false});
     mountains_=decodeMountainHorizonData(original.data(),original.size());
     auto state=std::make_unique<replay::NativeReplay>(*capture);
+    auto nearGeometry=scr::test::nearGeometry::readState(*capture);
     projection_.angleTable=state->progressData.angleTable;projection_.magnitudeTable=state->progressData.magnitudeTable;
     const auto input=replay::loadInputs(inputs.string().c_str());
     std::ifstream reference(referenceTrace);if(!reference)throw std::runtime_error("Verified original trace is required");
@@ -46,6 +52,24 @@ void ReplayScene::load(const std::filesystem::path& chip,const std::filesystem::
     for(unsigned tick=0;tick<input.size();++tick){
         state->begin(input[tick].controls);state->ram[0xead6+0x45]=input[tick].quit?0xb3:0;
         state->controlsStage();state->physicsStage();state->engineStage();state->progressStage();
+        // Rendering starts here in the original frame, before collision visual
+        // effects, suspension sprites, timing and outer race transitions.
+        RenderCameraInputs camera{};
+        for(unsigned n=0;n<3;++n)camera.worldPosition[n]=a::longword(state->ram.data(),0x1bcd8+4*n);
+        camera.pitch=a::word(state->ram.data(),0x1bce4);camera.yaw=a::word(state->ram.data(),0x1bce6);camera.roll=a::word(state->ram.data(),0x1bce8);
+        camera.averageWheelVelocity=a::word(state->ram.data(),0x1bd38);
+        auto renderCamera=makeRenderProjectionCamera(camera,state->physicsData.trig);
+        renderCamera.viewportCenterY=a::word(state->ram.data(),0x1bc42);
+        renderCamera.sinRoll=a::word(state->ram.data(),0x1c250);renderCamera.cosRoll=a::word(state->ram.data(),0x1c252);
+        NearTrackFrameInputs nearInputs;
+        nearInputs.progress=scr::test::trackProgress::readState(state->ram);nearInputs.camera=renderCamera;
+        nearInputs.displayUpdate=state->ram[0x5d724];nearInputs.opponentSegment=state->ram[0x1bba6];nearInputs.opponentSubSegment=state->ram[0x1bc24];
+        nearInputs.minimumBoundaryDistance=a::word(state->ram.data(),0x63ede);
+        nearInputs.drawing.minimumQueueOffset=a::word(state->ram.data(),0x1bc1e);
+        nearInputs.drawing.renderingOrderMode=state->ram[0x1bb9a];nearInputs.drawing.raceStartTimer=state->ram[0x1bbdf];
+        nearInputs.drawing.offRoadSideFlags=nearInputs.progress.offRoadSide;nearInputs.drawing.offsetFromRoadCenter=nearInputs.progress.lateralOffset;
+        nearInputs.drawing.sideEdgeColor=(*capture)[0x691b3];nearInputs.drawing.alternateSideColor=(*capture)[0x691b2];
+        auto nearFrame=buildNearTrackFrame(state->progressData,segmentRenderFlags,nearInputs,nearGeometry);
         state->groundStage();state->wheelsStage();state->damageStage();state->timingStage();state->outerStage();
         std::ostringstream row;replay::traceRow(row,state->ram,tick,input[tick].controls,0,unsigned(state->outerAction),state->restarts,input[tick].quit);
         const auto values=columns(row.str().substr(0,row.str().size()-1));
@@ -56,16 +80,7 @@ void ReplayScene::load(const std::filesystem::path& chip,const std::filesystem::
             throw std::runtime_error("Viewer replay differs from original at tick "+std::to_string(tick)+", field "+nativeHeader[n]);
         trace<<row.str();
         ReplaySceneFrame frame;frame.tick=tick;frame.controls=input[tick].controls;frame.restarts=state->restarts;frame.action=unsigned(state->outerAction);
-        RenderCameraInputs camera{};
-        for(unsigned n=0;n<3;++n)camera.worldPosition[n]=a::longword(state->ram.data(),0x1bcd8+4*n);
-        camera.pitch=a::word(state->ram.data(),0x1bce4);camera.yaw=a::word(state->ram.data(),0x1bce6);camera.roll=a::word(state->ram.data(),0x1bce8);
-        frame.cameraYaw=camera.yaw;
-        camera.averageWheelVelocity=a::word(state->ram.data(),0x1bd38);
-        frame.camera=makeRenderProjectionCamera(camera,state->physicsData.trig);
-        // The original screen rotation consumes the matrix produced before
-        // integration. Reuse those independently evolved coefficients rather
-        // than silently recomputing them from post-integration body roll.
-        frame.camera.sinRoll=a::word(state->ram.data(),0x1c250);frame.camera.cosRoll=a::word(state->ram.data(),0x1c252);
+        frame.cameraYaw=camera.yaw;frame.camera=renderCamera;frame.nearTrack=std::move(nearFrame.presentation);
         frame.cockpit=captureCockpitFrame(state->ram.data(),state->ram.size());
         frame.forwardSpeed=a::word(state->ram.data(),0x1bd30);frame.lapCounter=state->ram[0x1bb20];frame.raceComplete=state->ram[0x1bbaf];
         frame.boostFuel=state->ram[0x1ca20];frame.damage=state->ram[0x1bb55];
@@ -80,7 +95,7 @@ const std::vector<std::uint32_t>& ReplayScene::render(unsigned index,bool wirefr
     if(index==cachedFrame_&&wireframe==cachedWireframe_)return pixels_;
     const auto& frame=frames_.at(index);makeReplayBackground(assets_,pixels_);
     const auto mountains=projectMountainHorizon(mountains_,frame.cameraYaw,frame.camera);
-    statistics_=renderer_.drawFrame(mesh_,sides_,mountains,frame.camera,projection_,assets_.palette,pixels_,wireframe);
+    statistics_=renderer_.drawFrame(mesh_,sides_,mountains,frame.camera,projection_,assets_.palette,pixels_,wireframe,&frame.nearTrack);
     composeReplayCockpit(assets_,frame.cockpit,pixels_);
     // The original speedometer uses this word multiply/shift before drawing
     // its two-row span. This changes presentation pixels only.

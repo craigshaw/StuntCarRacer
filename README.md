@@ -901,8 +901,9 @@ opening playback. Space pauses, the arrow keys step, and the timeline seeks.
 The viewer uses recovered road geometry, angular projection and original
 cockpit assets; its executable contains no CPU emulator. It draws raised-road
 sidewalls and the original mountain silhouettes, with segment colors and
-screen roll. Original near-track visibility and edge highlights, interrupt
-timing and audio remain future work. See the [viewer guide](docs/native-replay-viewer.md) for
+screen roll. Dense near-track geometry, visibility, painter order and alternating
+edge highlights now follow the original routines. A live FPS counter measures
+window presentations. Interrupt timing and audio remain future work. See the [viewer guide](docs/native-replay-viewer.md) for
 controls, exported frames, differential evidence and rendering boundaries.
 
 ## Sources and installation provenance

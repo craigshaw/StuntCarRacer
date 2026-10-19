@@ -9,6 +9,7 @@ namespace scr::viewer {
 struct ReplaySceneFrame {
     RenderProjectionCamera camera{};
     CockpitFrame cockpit{};
+    NearTrackPresentation nearTrack;
     unsigned tick{},controls{},restarts{},action{};
     std::uint16_t forwardSpeed{},cameraYaw{};
     std::uint8_t lapCounter{},raceComplete{},boostFuel{},damage{},minutes{},seconds{},subseconds{};

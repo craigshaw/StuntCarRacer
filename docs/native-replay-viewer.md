@@ -25,7 +25,10 @@ Playback controls:
 | W | Toggle the wireframe overlay |
 | Playback buttons | Play/pause, replay, step and playback speed |
 
-The playback clock is a presentation aid. It does not reproduce the original
+The upper-right FPS counter measures completed window presentations over the
+last second. It shows a paused indicator when playback stops. Cached replay
+images can be presented more often than the replay advances: at 1×, one verified
+update lasts 0.12 seconds. The playback clock does not reproduce the original
 interrupt or display timing.
 
 ## Verification and exported frames
@@ -61,7 +64,7 @@ Outputs remain local under `analysis/native-render/`:
 - `contact-sheet.png`: a QA sheet assembled from the exported frames.
 - `assets/assets-manifest.json`: original asset ranges, hashes, palette and
   initialized font provenance.
-- `render-recovery-checks.json`: retained mesh, projection, sidewall, mountain and asset oracle
+- `render-recovery-checks.json`: retained mesh, projection, sidewall, mountain, near-track and asset oracle
   results with source and executable hashes.
 
 Pillow from the bundled workspace runtime converts the BMP files for visual QA.
@@ -101,10 +104,12 @@ cmake -S . -B analysis/native-render/oracle-build `
   "-DMUSASHI_DIR=$PWD/analysis/reference/musashi"
 cmake --build analysis/native-render/oracle-build --config Release `
   --target track_mesh_oracle render_projection_oracle planar_image_oracle `
-    track_sides_oracle mountain_horizon_oracle software_renderer_tests
+    track_sides_oracle mountain_horizon_oracle near_track_geometry_oracle `
+    near_track_visibility_oracle software_renderer_tests
 ```
 
-The five original-code executables accept `payload.bin chipram.bin`; the native
+The original-code executables accept `payload.bin chipram.bin`; both near-track
+oracles also accept the authored controls CSV for the full replay. The native
 `software_renderer_tests` accepts only `payload.bin`. Use the local payload and
 Chip RAM paths recorded in `check-results.json`. To retain an asset comparison
 report using the built oracle:
@@ -133,8 +138,14 @@ recovered boundary; a native coverage regression checks that the notch remains
 open and that winding does not change coverage. See
 [the sidewall and mountain evidence guide](native-sides-and-mountains.md).
 
-Road subdivision, triangles, depth buffering, near clipping and mountain scanline coverage
-are native presentation choices. The original near-track visibility queue and
-its yellow/brown longitudinal highlights remain to be ported. Playback is
-silent. Matching gameplay traces does not establish pixel equality with the
+The three closest segments use the recovered dense geometry, forced lower
+vertices, visibility queue and ordered road/side fills. Yellow and brown
+longitudinal highlights, conditional white cross edges and viewport boundary
+closure follow the original command selection. Coarse far faces are suppressed
+for all three visited segments, including ones culled by near visibility. See
+[the near-track evidence guide](native-near-track.md).
+
+Far-road subdivision, triangles and depth buffering, plus native polygon and
+line raster coverage, remain presentation choices. Playback is silent.
+Matching gameplay traces and draw commands does not establish pixel equality with the
 original blitter, DMA, interrupt schedule or audio output.

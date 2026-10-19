@@ -22,7 +22,8 @@ endif()
 # state. It never links or calls the verification CPU.
 add_library(scr_render STATIC src/track_mesh.cpp src/render_projection.cpp
   src/planar_image.cpp src/software_renderer.cpp src/track_sides.cpp
-  src/mountain_horizon.cpp)
+  src/mountain_horizon.cpp src/near_track_geometry.cpp src/near_track_visibility.cpp
+  src/near_track_frame.cpp)
 target_link_libraries(scr_render PUBLIC scr_physics)
 target_include_directories(scr_render PUBLIC src)
 target_compile_features(scr_render PUBLIC cxx_std_17)
@@ -102,7 +103,7 @@ if(SCR_BUILD_ORACLE)
     target_link_libraries(${stage}_oracle PRIVATE scr_physics musashi_oracle)
     target_compile_features(${stage}_oracle PRIVATE cxx_std_17)
   endforeach()
-  foreach(stage track_mesh render_projection track_sides mountain_horizon)
+  foreach(stage track_mesh render_projection track_sides mountain_horizon near_track_geometry near_track_visibility)
     add_executable(${stage}_oracle tests/${stage}_oracle.cpp)
     target_link_libraries(${stage}_oracle PRIVATE scr_render musashi_oracle)
     target_compile_features(${stage}_oracle PRIVATE cxx_std_17)

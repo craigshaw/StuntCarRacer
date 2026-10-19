@@ -53,6 +53,29 @@ int main(int argc,char** argv)try {
     if(pixels[pixel(128,127)]!=palette[1]||pixels[pixel(1,127)]!=palette[1])
         throw std::runtime_error("Angular near-plane projection left a road gap");
     if(pixels[pixel(128,32)]!=palette[7])throw std::runtime_error("Road coverage escaped above the horizon");
-    std::cout<<"{\"total_cases\":6,\"mismatches\":0,\"concave_notch_preserved\":true,\"winding_independent\":true,\"near_road_gap_absent\":true,\"original_pixel_equality_claimed\":false}\n";
+    scr::NearTrackPresentation nearTrack;nearTrack.coveredSegments[0]=true;
+    renderer.drawFrame(flat,sides,{},camera,tables,palette,pixels,false,&nearTrack);
+    if(pixels[pixel(128,127)]!=palette[13])
+        throw std::runtime_error("Culled near road was reintroduced by the far mesh");
+    const auto rectangle=[](int x0,int y0,int x1,int y1,scr::NearTrackSurface surface,unsigned color){
+        scr::NearTrackDrawCommand command;command.kind=scr::NearTrackCommandKind::fill;command.surface=surface;command.color=std::uint8_t(color);
+        const std::array<scr::NearTrackPoint,4> points{{{x0,y0},{x1,y0},{x1,y1},{x0,y1}}};
+        for(unsigned n=0;n<4;++n)command.edges.push_back(scr::makeNearTrackEdge(points[n],points[(n+1)%4]));
+        return command;
+    };
+    nearTrack.commands.push_back(rectangle(-20,70,276,140,scr::NearTrackSurface::road,1));
+    renderer.drawFrame(flat,sides,{},camera,tables,palette,pixels,false,&nearTrack);
+    if(pixels[pixel(1,127)]!=palette[1]||pixels[pixel(254,127)]!=palette[1]||pixels[pixel(128,32)]!=palette[7])
+        throw std::runtime_error("Offscreen near boundary failed to close the road inside the viewport");
+    scr::NearTrackDrawCommand highlight;highlight.kind=scr::NearTrackCommandKind::line;highlight.color=3;
+    highlight.edges.push_back(scr::makeNearTrackEdge({-100,100},{400,100}));nearTrack.commands.push_back(highlight);
+    auto statistics=renderer.drawFrame(flat,sides,{},camera,tables,palette,pixels,false,&nearTrack);
+    if(pixels[pixel(0,100)]!=palette[3]||pixels[pixel(255,100)]!=palette[3]||statistics.edgeHighlightPixels!=256)
+        throw std::runtime_error("Near highlight was not clipped to the complete viewport span");
+    nearTrack.commands.push_back(rectangle(128,90,270,140,scr::NearTrackSurface::rightSide,15));
+    statistics=renderer.drawFrame(flat,sides,{},camera,tables,palette,pixels,false,&nearTrack);
+    if(pixels[pixel(64,100)]!=palette[3]||pixels[pixel(192,100)]!=palette[15]||statistics.edgeHighlightPixels!=128)
+        throw std::runtime_error("Later near side fill failed to occlude an earlier highlight");
+    std::cout<<"{\"total_cases\":10,\"mismatches\":0,\"concave_notch_preserved\":true,\"winding_independent\":true,\"near_road_gap_absent\":true,\"near_culling_preserved\":true,\"offscreen_near_boundary_closed\":true,\"near_highlight_clipped\":true,\"near_painter_occlusion_preserved\":true,\"original_pixel_equality_claimed\":false}\n";
     return 0;
 }catch(const std::exception& error){std::cerr<<error.what()<<'\n';return 1;}

@@ -54,9 +54,10 @@ and winding invariance, plus a synthetic flat road crossing the camera. Road
 and side faces use native near clipping, triangles and depth buffering. Nearby
 quads are subdivided before angular projection, which would otherwise join
 their curved projected boundaries with a single chord and leave a road gap.
-The original near-track visibility
-queue and its alternating yellow/brown edge highlights remain future work;
-matching gameplay and projected geometry do not establish original pixel
+The closest three segments now use the recovered near-track visibility queue
+and alternating yellow/brown edge highlights; see
+[the near-track evidence guide](native-near-track.md). Matching gameplay,
+projected geometry and ordered draw commands does not establish original pixel
 equality. Playback remains silent.
 
 Build the verification targets using the commands in

@@ -16,7 +16,7 @@ from replay_lap import initial_lap_state, validate_laps
 
 
 RENDER_STEMS = {'track_mesh', 'render_projection', 'planar_image', 'software_renderer',
-                'track_sides', 'mountain_horizon'}
+                'track_sides', 'mountain_horizon', 'near_track_geometry', 'near_track_visibility', 'near_track_frame'}
 SNAPSHOT_TICKS = (0, 24, 128, 272, 505, 961, 1415, 1462)
 
 
@@ -30,7 +30,7 @@ def presentation_source(path):
     return relative == 'CMakeLists.txt' or relative.startswith('app/') or (
         relative.startswith('src/') and path.stem in RENDER_STEMS) or (
         relative.startswith('tests/') and any(path.stem.startswith(stem) for stem in RENDER_STEMS)) or (
-        relative.startswith('scripts/reference/') and path.stem in {'verify_track_mesh', 'verify_render_projection'})
+        relative.startswith('scripts/reference/') and path.stem.removeprefix('verify_') in RENDER_STEMS)
 
 
 def verify_reference(path, inputs, capture_record):
@@ -120,6 +120,15 @@ def verify_viewer_report(report, ticks, snapshots):
             raise ValueError(f'Native viewer must report positive {field}')
     if report['side_mesh_faces'] != 2 * report['mesh_faces']:
         raise ValueError('Native viewer must build both sidewalls for every road strip')
+    if type(report.get('near_track_frames')) is not int or report['near_track_frames'] != ticks:
+        raise ValueError('Native viewer must build the near queue for every replay tick')
+    highlighted = report.get('frames_with_edge_highlights')
+    if type(highlighted) is not int or not 0 < highlighted <= ticks:
+        raise ValueError('Native viewer must show edge highlights during the replay')
+    for field in ('total_near_queue_entries', 'total_near_fill_commands',
+                  'total_edge_highlight_commands', 'total_edge_highlight_pixels'):
+        if type(report.get(field)) is not int or report[field] <= 0:
+            raise ValueError(f'Native viewer must report positive {field}')
     exported = report.get('snapshots')
     if not isinstance(exported, list) or [item.get('tick') for item in exported] != snapshots:
         raise ValueError('Native viewer snapshot ticks differ from the requested QA frames')
@@ -127,12 +136,15 @@ def verify_viewer_report(report, ticks, snapshots):
         if not isinstance(frame.get('path'), str):
             raise ValueError('Native viewer snapshot path missing')
         for field in ('road_faces', 'side_faces', 'mountain_instances', 'mountain_polygons',
-                      'triangles', 'road_pixels', 'side_pixels', 'mountain_pixels'):
+                      'triangles', 'road_pixels', 'side_pixels', 'mountain_pixels',
+                      'near_queue_entries', 'near_fill_commands', 'edge_highlight_commands', 'edge_highlight_pixels'):
             if type(frame.get(field)) is not int or frame[field] < 0:
                 raise ValueError(f'Native viewer snapshot must report nonnegative {field}')
     initial = next((frame for frame in exported if frame['tick'] == 0), None)
-    if initial is None or any(initial[field] <= 0 for field in ('road_pixels', 'side_pixels', 'mountain_pixels')):
-        raise ValueError('Initial QA frame must show road, sidewalls and mountains')
+    if initial is None or any(initial[field] <= 0 for field in (
+            'road_pixels', 'side_pixels', 'mountain_pixels', 'near_queue_entries', 'near_fill_commands',
+            'edge_highlight_commands', 'edge_highlight_pixels')):
+        raise ValueError('Initial QA frame must show road, sidewalls, mountains and near edge highlights')
 
 
 def verify_viewer_trace(trace, reference, inputs, ticks, viewer_report):

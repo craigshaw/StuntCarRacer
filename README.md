@@ -887,7 +887,22 @@ enters its end-message input wait at tick 1,462. The separate build with
 control files have adjacent provenance JSON, and the original/native report is
 `analysis/driving-replay/lap-regressions/check-results.json`.
 
-Native rendering can consume the already separated visual/audio events.
+### Watch the verified race with native rendering
+
+Double-click `Watch Native Replay.cmd`, or run:
+
+```powershell
+.\scripts\start-native-replay.ps1
+```
+
+The launcher verifies the local asset and original-trace hashes, builds the
+native Windows viewer, and checks all 1,463 gameplay and rendered frames before
+opening playback. Space pauses, the arrow keys step, and the timeline seeks.
+The viewer uses recovered road geometry, angular projection and original
+cockpit assets; its executable contains no CPU emulator. The first renderer
+draws the road surface and horizon. Sidewalls, barriers, mountains and audio
+remain future work. See the [viewer guide](docs/native-replay-viewer.md) for
+controls, exported frames, differential evidence and rendering boundaries.
 
 ## Sources and installation provenance
 

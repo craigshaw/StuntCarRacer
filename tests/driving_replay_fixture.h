@@ -33,7 +33,7 @@ struct NativeReplay {
         if(ram[0x1ca33]==5)throw std::invalid_argument("Moving drawbridge track is not yet admitted");
         if(!physicsData.track.segmentCount)throw std::invalid_argument("Replay requires loaded track data");
     }
-    void begin(unsigned mask) {controller=hardware(mask,controller.ciaDataDirection);--ram[0x1bbac];std::fill_n(ram.begin()+0xead6,128,0);audioWrites.clear();}
+    void begin(unsigned mask) {controller=hardware(mask,controller.ciaDataDirection);--ram[0x1bbac];std::fill_n(ram.begin()+0xead6,128,std::uint8_t{});audioWrites.clear();}
     void controlsStage() {
         auto s=controls::readState(ram.data());const auto e=processLocalPlayerInput(controls::readInputs(ram.data(),controller),controls::readKeys(ram.data()),s);
         controls::writeState(ram.data(),s);if(e.joystickRead)controller.ciaDataDirection=e.ciaDataDirection;

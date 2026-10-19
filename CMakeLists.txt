@@ -18,6 +18,20 @@ else()
   target_compile_options(scr_physics PRIVATE -Wall -Wextra -Werror -pedantic)
 endif()
 
+# Recovered audio interrupts and native sample playback are presentation state.
+add_library(scr_audio STATIC src/engine_audio.cpp src/paula_mixer.cpp)
+target_link_libraries(scr_audio PUBLIC scr_physics)
+target_include_directories(scr_audio PUBLIC src)
+target_compile_features(scr_audio PUBLIC cxx_std_17)
+if(MSVC)
+  target_compile_options(scr_audio PRIVATE /W4 /WX /permissive-)
+else()
+  target_compile_options(scr_audio PRIVATE -Wall -Wextra -Werror -pedantic)
+endif()
+add_executable(paula_mixer_tests tests/paula_mixer_tests.cpp)
+target_link_libraries(paula_mixer_tests PRIVATE scr_audio)
+target_compile_features(paula_mixer_tests PRIVATE cxx_std_17)
+
 # The first native rendering backend consumes independently evolved replay
 # state. It never links or calls the verification CPU.
 add_library(scr_render STATIC src/track_mesh.cpp src/render_projection.cpp
@@ -47,10 +61,14 @@ target_include_directories(live_drive_tests PRIVATE app)
 target_link_libraries(live_drive_tests PRIVATE scr_render)
 target_compile_features(live_drive_tests PRIVATE cxx_std_17)
 if(WIN32)
+  add_executable(native_audio_tests tests/native_audio_tests.cpp app/game_audio.cpp app/windows_audio_output.cpp)
+  target_include_directories(native_audio_tests PRIVATE app)
+  target_link_libraries(native_audio_tests PRIVATE scr_audio winmm)
+  target_compile_features(native_audio_tests PRIVATE cxx_std_17)
   add_executable(native_replay_viewer WIN32 app/native_replay_viewer.cpp
     app/replay_scene.cpp app/replay_render_assets.cpp app/replay_interpolation.cpp
-    app/live_drive.cpp app/windows_drive_input.cpp)
-  target_link_libraries(native_replay_viewer PRIVATE scr_render user32 gdi32 shell32 xinput9_1_0)
+    app/live_drive.cpp app/windows_drive_input.cpp app/game_audio.cpp app/windows_audio_output.cpp)
+  target_link_libraries(native_replay_viewer PRIVATE scr_render scr_audio user32 gdi32 shell32 xinput9_1_0 winmm)
   target_compile_features(native_replay_viewer PRIVATE cxx_std_17)
   target_compile_definitions(native_replay_viewer PRIVATE UNICODE _UNICODE)
   if(MSVC)
@@ -78,6 +96,9 @@ if(SCR_BUILD_ORACLE)
     M68K_EMULATE_030=0 M68K_EMULATE_040=0 M68K_EMULATE_PMMU=0
     M68K_INSTRUCTION_HOOK=1 M68K_EMULATE_ADDRESS_ERROR=1
     PRIVATE _CRT_SECURE_NO_WARNINGS)
+  add_executable(engine_audio_oracle tests/engine_audio_oracle.cpp)
+  target_link_libraries(engine_audio_oracle PRIVATE scr_audio musashi_oracle)
+  target_compile_features(engine_audio_oracle PRIVATE cxx_std_17)
   add_executable(wheel_oracle tests/wheel_oracle.cpp)
   target_link_libraries(wheel_oracle PRIVATE scr_physics musashi_oracle)
   target_compile_features(wheel_oracle PRIVATE cxx_std_17)

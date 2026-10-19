@@ -2,6 +2,7 @@
 #include "replay_render_assets.h"
 #include "replay_interpolation.h"
 #include "software_renderer.h"
+#include "game_audio.h"
 #include <filesystem>
 #include <memory>
 #include <string>
@@ -9,6 +10,7 @@
 
 namespace scr::viewer {
 struct ReplaySceneFrame : ReplayVisualState {
+    GameAudioFrame audio;
     NearTrackPresentation nearTrack;
     NearTrackFrameInputs nearInputs;
     NearTrackGeometryState nearSeed;
@@ -34,6 +36,7 @@ public:
     unsigned liveTicks() const noexcept;
     bool liveTerminal() const noexcept;
     const std::filesystem::path& liveRecording() const noexcept;
+    GameAudioSeed audioSeed()const;
     const std::vector<std::uint32_t>& render(unsigned frame,bool wireframe=false);
     const std::vector<std::uint32_t>& renderInterpolated(double position,bool wireframe=false);
     void saveBitmap(const std::filesystem::path&) const;

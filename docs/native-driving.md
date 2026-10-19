@@ -23,6 +23,7 @@ This uses the native C++ physics and renderer; the executable has no CPU emulato
 | Reset to the starting capture | R or Reset button | Back / View |
 | Smooth / exact tick presentation | I or Smooth button | — |
 | Wireframe | F2 | — |
+| Mute / unmute sound | M | — |
 
 The original acceleration is **latched**: a gas press starts acceleration and
 releasing it keeps accelerating. Use brake to slow or reverse. Controller axes
@@ -37,8 +38,11 @@ disconnects. Keyboard input remains available alongside the controller. Losing
 window focus pauses driving and clears pending input; returning to the window
 requires an explicit resume. A reset starts another recording and returns to
 the captured Practice state. Automatic off-track recovery and race-end gates
-still use the recovered native routines. Playback is currently silent; menus,
-track selection and autonomous opponent driving are outside this live mode.
+still use the recovered native routines. Original engine samples and sound
+effects play through native stereo audio. Pause and focus loss stop playback;
+M toggles mute. Menus, track selection and autonomous opponent driving are
+outside this live mode. See [native audio](native-audio.md) for recovery evidence
+and the playback boundaries.
 
 ## Timing and interpolation
 

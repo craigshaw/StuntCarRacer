@@ -84,6 +84,11 @@ void ReplayScene::finishFrame(Simulation& simulation,ReplaySceneFrame& frame){
     frame.forwardSpeed=a::word(state.ram.data(),0x1bd30);frame.lapCounter=state.ram[0x1bb20];frame.raceComplete=state.ram[0x1bbaf];
     frame.boostFuel=state.ram[0x1ca20];frame.damage=state.ram[0x1bb55];
     frame.minutes=state.ram[0x1c908];frame.seconds=state.ram[0x1c920];frame.subseconds=state.ram[0x1c938];
+    frame.audio.writes=state.audioWrites;frame.audio.restarts=state.restarts;frame.audio.action=frame.action;
+    frame.audio.dmaControl=a::word(state.ram.data(),0x69ede);frame.audio.noiseFlag=state.ram[0x5b646];
+    frame.audio.gameExit=state.ram[0x1bb63];
+    frame.audio.forwardSpeed=a::word(state.ram.data(),0x1bd30);
+    frame.audio.wheelMovement=state.ram[0x1bb7e];frame.audio.inputFlags=state.ram[0x1bb47];
 }
 ReplaySceneFrame ReplayScene::advanceSimulation(Simulation& simulation,unsigned controls,bool quit){
     if(controls>31)throw std::invalid_argument("Live controls exceed original digital mask");
@@ -135,6 +140,14 @@ void ReplayScene::resetLive(){const auto chip=chipPath_,payload=payloadPath_,dir
 unsigned ReplayScene::liveTicks()const noexcept{return simulation_?simulation_->ticks:0;}
 bool ReplayScene::liveTerminal()const noexcept{return simulation_&&(simulation_->native.outerAction==RaceTransitionAction::raceEnd||simulation_->native.outerAction==RaceTransitionAction::quit);}
 const std::filesystem::path& ReplayScene::liveRecording()const noexcept{return simulation_->recording;}
+GameAudioSeed ReplayScene::audioSeed()const{
+    namespace a=scr::test::audio;const auto& ram=simulation_->initial;GameAudioSeed seed;
+    seed.samples.assign(ram.begin(),ram.end());seed.parameters=a::readData(ram.data());seed.playback=a::readState(ram.data());
+    seed.engine={a::word(ram.data(),0x1bc34),a::word(ram.data(),0xf472)};seed.pitchDelta=a::word(ram.data(),0x1bbf4);
+    seed.frame.forwardSpeed=a::word(ram.data(),0x1bd30);seed.frame.wheelMovement=ram[0x1bb7e];seed.frame.inputFlags=ram[0x1bb47];
+    seed.frame.dmaControl=a::word(ram.data(),0x69ede);seed.frame.noiseFlag=ram[0x5b646];seed.frame.gameExit=ram[0x1bb63];
+    return seed;
+}
 bool ReplayScene::stepLive(unsigned controls,bool quit){
     if(liveTerminal())return false;
     auto next=advanceSimulation(*simulation_,controls,quit);auto& simulation=*simulation_;

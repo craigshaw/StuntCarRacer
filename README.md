@@ -905,7 +905,7 @@ cockpit assets; its executable contains no CPU emulator. It draws raised-road
 sidewalls and the original mountain silhouettes, with segment colors and
 screen roll. Dense near-track geometry, visibility, painter order and alternating
 edge highlights now follow the original routines. A live FPS counter measures
-window presentations. Interrupt timing and audio remain future work. See the [viewer guide](docs/native-replay-viewer.md) for
+window presentations. See the [viewer guide](docs/native-replay-viewer.md) for
 controls, exported frames, differential evidence and rendering boundaries.
 
 ### Drive the native port
@@ -914,10 +914,18 @@ Double-click `Drive Native.cmd`, or run `scripts/start-native-replay.ps1 -Live`.
 Click **Drive** or press **P** to begin. Arrows/WASD steer and operate gas/brake;
 Space boosts. Xbox controllers use the left stick/D-pad, RT/LT for gas/brake and
 A for boost. Physics retains fixed 120 ms steps with smooth 60 FPS presentation.
+The original engine and effects now play through native stereo audio. M mutes,
 P pauses, R resets, and focus loss pauses automatically. Gas remains latched
 after release, as in the original; use brake to slow down. Inputs are recorded
 under `analysis/live-driving/`. See [native driving](docs/native-driving.md) for
 controls, controller detection and verification.
+
+Audio uses the recovered 50 Hz engine interrupt and original sample completion
+handlers, with separate audio state and 48 kHz native output. Physics remains at
+120 ms per update and rendering at 60 FPS. The recovered audio routines pass
+618,645 original/native comparisons; the complete race also exports checked PCM
+without changing any gameplay trace column. See [native audio](docs/native-audio.md)
+for sample provenance, reproduction and fidelity limits.
 
 ## Sources and installation provenance
 

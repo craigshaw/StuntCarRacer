@@ -4,6 +4,7 @@
 #include <shellapi.h>
 #include "replay_scene.h"
 #include "windows_drive_input.h"
+#include "windows_audio_output.h"
 #include <algorithm>
 #include <chrono>
 #include <cmath>
@@ -19,7 +20,7 @@
 namespace {
 using Scene=scr::viewer::ReplayScene;
 struct Options {
-    std::filesystem::path chip,payload,inputs,reference,trace,report,framesDirectory,recordingsDirectory=L"analysis/live-driving";
+    std::filesystem::path chip,payload,inputs,reference,trace,report,framesDirectory,audioWav,recordingsDirectory=L"analysis/live-driving";
     std::vector<unsigned> snapshots;std::vector<double> smoothSnapshots;
     unsigned startTick{};bool headless{},paused{},interpolate{true},live{};
 };
@@ -61,6 +62,7 @@ Options parse(){
         else if(key==L"--frames-dir")o.framesDirectory=value;else if(key==L"--snapshot")o.snapshots.push_back(unsigned(std::stoul(value)));
         else if(key==L"--interpolated-snapshot")o.smoothSnapshots.push_back(std::stod(value));
         else if(key==L"--recordings-dir")o.recordingsDirectory=value;
+        else if(key==L"--audio-wav")o.audioWav=value;
         else if(key==L"--start-tick")o.startTick=unsigned(std::stoul(value));else throw std::runtime_error("Unknown command-line option: "+utf8(key));
     }}catch(...){LocalFree(args);throw;}LocalFree(args);
     if(o.chip.empty()||o.payload.empty()||((!o.live||o.headless)&&(o.inputs.empty()||o.reference.empty()))||o.trace.empty()||o.report.empty())
@@ -102,6 +104,25 @@ void report(const Options& o,const Scene* scene,const std::vector<ExportedFrame>
 }
 HFONT makeFont(int size,int weight=FW_NORMAL){return CreateFontW(-size,0,0,0,weight,FALSE,FALSE,FALSE,DEFAULT_CHARSET,OUT_DEFAULT_PRECIS,CLIP_DEFAULT_PRECIS,CLEARTYPE_QUALITY,DEFAULT_PITCH,L"Segoe UI");}
 COLORREF rgb(unsigned r,unsigned g,unsigned b){return RGB(r,g,b);}
+void exportAudio(const Scene& scene,const std::filesystem::path& path){
+    const auto frames=std::uint64_t(scene.frames().size())*5760;
+    if(frames>0x3fffffff-44)throw std::runtime_error("Audio export exceeds WAV size limit");
+    std::filesystem::create_directories(path.parent_path());std::ofstream out(path,std::ios::binary);
+    if(!out)throw std::runtime_error("Cannot create audio export");
+    const auto word=[&](std::uint16_t v){out.put(char(v));out.put(char(v>>8));};
+    const auto longword=[&](std::uint32_t v){word(std::uint16_t(v));word(std::uint16_t(v>>16));};
+    out.write("RIFF",4);longword(std::uint32_t(frames*4+36));out.write("WAVEfmt ",8);longword(16);
+    word(1);word(2);longword(48000);longword(192000);word(4);word(16);out.write("data",4);longword(std::uint32_t(frames*4));
+    scr::viewer::GameAudio audio(scene.audioSeed());
+    for(const auto& frame:scene.frames()){
+        audio.submit(frame.audio);const auto pcm=audio.renderFrames(5760);for(auto sample:pcm)word(std::uint16_t(sample));
+    }
+    if(!out)throw std::runtime_error("Audio export write failed");
+    const auto& stats=audio.statistics();std::ofstream report(path.string()+".json");
+    report<<"{\"sample_rate\":48000,\"channels\":2,\"frames\":"<<stats.frames<<",\"vblanks\":"<<stats.vblanks
+          <<",\"interrupts\":"<<stats.interrupts<<",\"effect_starts\":"<<stats.effectStarts
+          <<",\"minimum_period\":"<<stats.minimumPeriod<<",\"maximum_period\":"<<stats.maximumPeriod<<",\"cpu_emulation\":false}\n";
+}
 void fill(HDC dc,RECT r,COLORREF color){auto brush=CreateSolidBrush(color);FillRect(dc,&r,brush);DeleteObject(brush);}
 void text(HDC dc,RECT r,const std::wstring& value,HFONT font,COLORREF color,UINT flags=DT_LEFT|DT_SINGLELINE|DT_VCENTER){
     auto previous=SelectObject(dc,font);SetBkMode(dc,TRANSPARENT);SetTextColor(dc,color);DrawTextW(dc,value.c_str(),int(value.size()),&r,flags);SelectObject(dc,previous);
@@ -110,6 +131,7 @@ class Window {
 public:
     Window(Scene& scene,const Options& options):scene_(scene),position_(std::min(options.startTick,unsigned(scene.frames().size()-1))),paused_(options.paused),interpolate_(options.interpolate),live_(options.live){
         titleFont_=makeFont(22,FW_SEMIBOLD);bodyFont_=makeFont(15);smallFont_=makeFont(13);buttonFont_=makeFont(15,FW_SEMIBOLD);
+        if(live_)audio_=std::make_unique<scr::viewer::WindowsAudioOutput>(scene_.audioSeed());
     }
     ~Window(){if(timer_)CloseHandle(timer_);DeleteObject(titleFont_);DeleteObject(bodyFont_);DeleteObject(smallFont_);DeleteObject(buttonFont_);}
     int run(HINSTANCE instance,int show){
@@ -159,6 +181,8 @@ private:
     scr::viewer::PolledDrivePad drivePad_;
     scr::viewer::DriveInputLatch driveLatch_;
     scr::viewer::FixedDriveClock driveClock_;
+    std::unique_ptr<scr::viewer::WindowsAudioOutput> audio_;
+    bool muted_{};
     std::array<bool,256> keys_{};
     HANDLE timer_{};
     std::chrono::steady_clock::time_point last_=std::chrono::steady_clock::now();
@@ -170,16 +194,21 @@ private:
     unsigned driveMask()const{
         return scr::viewer::mapDriveControls({keys_['W']||keys_[VK_UP],keys_['S']||keys_[VK_DOWN],keys_['A']||keys_[VK_LEFT],keys_['D']||keys_[VK_RIGHT],keys_[VK_SPACE]},drivePad_.pad);
     }
-    void resetLive(){scene_.resetLive();driveClock_.reset();driveLatch_.clear();keys_.fill(false);paused_=false;resetFrameCounter();}
+    void resetLive(){scene_.resetLive();driveClock_.reset();driveLatch_.clear();keys_.fill(false);paused_=false;resetFrameCounter();audio_->reset(scene_.audioSeed());audio_->setPlaying(true);}
     void updateLive(HWND window,double elapsed){
         const bool connected=drivePad_.pad.connected;drivePad_=driveInput_.poll();const bool focused=GetForegroundWindow()==window;
         if(drivePad_.disconnected){paused_=true;driveLatch_.clear();keys_.fill(false);}
         if(focused&&drivePad_.resetPressed)resetLive();else if(focused&&drivePad_.pausePressed)toggle();
         if(!paused_&&focused){
             driveLatch_.sample(driveMask());const auto steps=driveClock_.advance(elapsed);
-            for(unsigned n=0;n<steps;++n)if(!scene_.stepLive(driveLatch_.consume())||scene_.liveTerminal()){paused_=true;break;}
+            for(unsigned n=0;n<steps;++n){
+                if(!scene_.stepLive(driveLatch_.consume())){paused_=true;break;}
+                audio_->submit(scene_.frames().back().audio);
+                if(scene_.liveTerminal()){paused_=true;break;}
+            }
             InvalidateRect(window,nullptr,FALSE);UpdateWindow(window);
         }else if(connected!=drivePad_.pad.connected||drivePad_.pausePressed||drivePad_.resetPressed){InvalidateRect(window,nullptr,FALSE);UpdateWindow(window);}
+        audio_->setPlaying(!paused_&&focused);
     }
     void layout(int width,int height){
         const int availableHeight=std::max(200,height-190);const int scale=std::max(1,std::min((width-48)/320,availableHeight/200));
@@ -220,9 +249,12 @@ private:
         }
         const std::array<std::wstring,4> labels{paused_?(live_?L"Drive":L"Play"):L"Pause",live_?L"Reset":L"Restart",live_?(interpolate_?L"Smooth":L"Exact ticks"):L"Step",std::array<std::wstring,4>{L"0.5×",L"1×",L"2×",L"4×"}[speedIndex_]};
         for(unsigned n=0;n<(live_?3u:4u);++n){fill(dc,buttons_[n],n==0?rgb(150,62,46):rgb(38,47,57));text(dc,buttons_[n],labels[n],buttonFont_,rgb(237,234,226),DT_CENTER|DT_SINGLELINE|DT_VCENTER);}
-        std::wostringstream details;if(live_)details<<L"Update "<<scene_.liveTicks()<<L"   ·   Inputs recorded";else details<<L"Update "<<index()+1<<L" / "<<scene_.frames().size()<<L"   ·   "<<frame.restarts<<L" restarts";
+        std::wostringstream details;if(live_){
+            const auto error=audio_->error();
+            details<<L"Update "<<scene_.liveTicks()<<L"   ·   "<<(error.empty()?(muted_?L"Muted":L"Sound on"):L"Audio unavailable");
+        }else details<<L"Update "<<index()+1<<L" / "<<scene_.frames().size()<<L"   ·   "<<frame.restarts<<L" restarts";
         text(dc,{480,buttons_[0].top,client.right-32,buttons_[0].bottom},details.str(),smallFont_,rgb(157,175,188),DT_RIGHT|DT_SINGLELINE|DT_VCENTER);
-        text(dc,{32,client.bottom-24,client.right-32,client.bottom-5},live_?L"ARROWS / WASD drive     SPACE boost     P pause     R reset     I interpolation     F2 wireframe":L"SPACE play / pause     ← → step     HOME restart     I interpolation     W wireframe",smallFont_,rgb(120,140,153));
+        text(dc,{32,client.bottom-24,client.right-32,client.bottom-5},live_?L"ARROWS / WASD drive    SPACE boost    P pause    R reset    M mute    I smooth    F2 wireframe":L"SPACE play / pause     ← → step     HOME restart     I interpolation     W wireframe",smallFont_,rgb(120,140,153));
         BitBlt(target,0,0,client.right,client.bottom,dc,0,0,SRCCOPY);SelectObject(dc,oldBitmap);DeleteObject(bitmap);DeleteDC(dc);EndPaint(window,&ps);
         if(!paused_){
             ++presentedFrames_;const auto now=std::chrono::steady_clock::now();
@@ -236,19 +268,21 @@ private:
         if(live_){if(scene_.liveTerminal())return;driveLatch_.clear();keys_.fill(false);}
         else if(position_>=scene_.frames().size()-1)position_=0;
         paused_=!paused_;if(!paused_){last_=std::chrono::steady_clock::now();resetFrameCounter();}
+        if(audio_)audio_->setPlaying(!paused_);
     }
     LRESULT message(HWND window,UINT message,WPARAM w,LPARAM l){
         switch(message){
         case WM_ERASEBKGND:return 1;
         case WM_GETMINMAXINFO:{auto* p=reinterpret_cast<MINMAXINFO*>(l);p->ptMinTrackSize={690,650};return 0;}
         case WM_SIZE:InvalidateRect(window,nullptr,FALSE);return 0;
-        case WM_ACTIVATEAPP:if(live_&&!w){paused_=true;keys_.fill(false);driveLatch_.clear();InvalidateRect(window,nullptr,FALSE);}return 0;
+        case WM_ACTIVATEAPP:if(live_&&!w){paused_=true;keys_.fill(false);driveLatch_.clear();audio_->setPlaying(false);InvalidateRect(window,nullptr,FALSE);}return 0;
         case WM_KEYUP:if(live_&&w<keys_.size()){keys_[w]=false;if(!paused_)driveLatch_.sample(driveMask());}return 0;
         case WM_KEYDOWN:
             if(live_){
                 if(w<keys_.size())keys_[w]=true;
                 if(!(l&0x40000000)){
                     if(w=='P'||w==VK_ESCAPE)toggle();else if(w=='R')resetLive();else if(w=='I')interpolate_=!interpolate_;else if(w==VK_F2)wireframe_=!wireframe_;
+                    else if(w=='M'){muted_=!muted_;audio_->setMuted(muted_);}
                 }
                 if(!paused_)driveLatch_.sample(driveMask());InvalidateRect(window,nullptr,FALSE);return 0;
             }
@@ -295,6 +329,7 @@ int WINAPI wWinMain(HINSTANCE instance,HINSTANCE,PWSTR,int show){
             report(options,scene.get(),{});return result;
         }
         scene->load(options.chip,options.payload,options.inputs,options.reference,options.trace);
+        if(!options.audioWav.empty())exportAudio(*scene,options.audioWav);
         // Exercise every camera and suspension state before accepting a headless
         // check. Snapshot export alone would leave most seek positions untested.
         unsigned renderedFrames=0;RenderCoverage coverage;InterpolationCheck smooth;

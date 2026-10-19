@@ -1,5 +1,6 @@
 """Build the native viewer, replay verified controls, and export checked frames."""
 import argparse
+import array
 import csv
 from datetime import datetime, timezone
 import importlib.util
@@ -8,6 +9,7 @@ import os
 from pathlib import Path
 import subprocess
 import sys
+import wave
 
 from check_driving_replay import (ADF_SHA, PAYLOAD_SHA, DISK_OFFSET, PAYLOAD_SIZE, TRACE_FIELDS,
                                   ROOT, identity, read_inputs, verify_native_trace,
@@ -16,7 +18,8 @@ from replay_lap import initial_lap_state, validate_laps
 
 
 RENDER_STEMS = {'track_mesh', 'render_projection', 'planar_image', 'software_renderer',
-                'track_sides', 'mountain_horizon', 'near_track_geometry', 'near_track_visibility', 'near_track_frame'}
+                'track_sides', 'mountain_horizon', 'near_track_geometry', 'near_track_visibility', 'near_track_frame',
+                'engine_audio', 'paula_mixer'}
 SNAPSHOT_TICKS = (0, 24, 128, 272, 505, 961, 1415, 1462)
 SMOOTH_SNAPSHOTS = (86.25, 86.5, 86.75, 505.5, 961.5)
 
@@ -90,7 +93,8 @@ def verify_reference(path, inputs, capture_record):
 
 
 def viewer_sources():
-    paths = {ROOT / 'CMakeLists.txt', ROOT / 'tests/replay_interpolation_tests.cpp', ROOT / 'tests/live_drive_tests.cpp'}
+    paths = {ROOT / 'CMakeLists.txt', ROOT / 'tests/replay_interpolation_tests.cpp', ROOT / 'tests/live_drive_tests.cpp',
+             ROOT / 'tests/paula_mixer_tests.cpp', ROOT / 'tests/native_audio_tests.cpp'}
     for directory in ('src', 'app'):
         for pattern in ('*.cpp', '*.h'):
             paths.update((ROOT / directory).glob(pattern))
@@ -261,12 +265,14 @@ def main():
     executable = build / 'Release/native_replay_viewer.exe'
     interpolation_test = build / 'Release/replay_interpolation_tests.exe'
     live_test = build / 'Release/live_drive_tests.exe'
+    mixer_test = build / 'Release/paula_mixer_tests.exe'
+    audio_test = build / 'Release/native_audio_tests.exe'
     sources = viewer_sources();source_records = [identity(path) for path in sources]
     build_receipt = build / 'viewer-build-receipt.json'
     build_commands = []
     if not args.skip_build:
         build_commands = [['cmake', '-S', str(ROOT), '-B', str(build), '-G', 'Visual Studio 18 2026', '-A', 'x64', '-DSCR_BUILD_ORACLE=OFF'],
-                          ['cmake', '--build', str(build), '--config', 'Release', '--target', 'native_replay_viewer', 'replay_interpolation_tests', 'live_drive_tests', '--parallel', '4']]
+                          ['cmake', '--build', str(build), '--config', 'Release', '--target', 'native_replay_viewer', 'replay_interpolation_tests', 'live_drive_tests', 'paula_mixer_tests', 'native_audio_tests', '--parallel', '4']]
         with (out / 'build.log').open('w', encoding='utf-8') as log:
             for command in build_commands:
                 log.write(json.dumps(command) + '\n');log.flush()
@@ -281,6 +287,8 @@ def main():
             identity(executable, receipt['executable']['sha256'])
             identity(interpolation_test, receipt['interpolation_test']['sha256'])
             identity(live_test, receipt['live_test']['sha256'])
+            identity(mixer_test, receipt['mixer_test']['sha256'])
+            identity(audio_test, receipt['audio_test']['sha256'])
         except (OSError, ValueError, KeyError, RuntimeError) as error:
             raise RuntimeError('No matching native viewer build receipt; rebuild without --skip-build') from error
     else:
@@ -288,7 +296,8 @@ def main():
         # build-file edit. Record content identities rather than compare mtimes.
         for path, record in zip(sources, source_records):
             identity(path, record['sha256'])
-        build_receipt.write_text(json.dumps({'executable': identity(executable), 'interpolation_test': identity(interpolation_test), 'live_test': identity(live_test), 'sources': source_records}, indent=2) + '\n', encoding='utf-8')
+        build_receipt.write_text(json.dumps({'executable': identity(executable), 'interpolation_test': identity(interpolation_test), 'live_test': identity(live_test),
+            'mixer_test': identity(mixer_test), 'audio_test': identity(audio_test), 'sources': source_records}, indent=2) + '\n', encoding='utf-8')
     regression_run = subprocess.run([str(interpolation_test)], capture_output=True, text=True, check=True, cwd=ROOT)
     regression = json.loads(regression_run.stdout)
     if regression.get('mismatches') != 0 or regression.get('total_cases', 0) < 14:
@@ -296,14 +305,21 @@ def main():
     live_regression = json.loads(subprocess.check_output([str(live_test)], text=True, cwd=ROOT))
     if live_regression.get('mismatches') != 0 or live_regression.get('total_cases', 0) < 18:
         raise ValueError('Live input/fixed-step regressions failed')
+    mixer_regression = json.loads(subprocess.check_output([str(mixer_test)], text=True, cwd=ROOT))
+    audio_regression = json.loads(subprocess.check_output([str(audio_test), str(chip)], text=True, cwd=ROOT))
+    if mixer_regression.get('mismatches') != 0 or mixer_regression.get('total_cases', 0) < 16:
+        raise ValueError('Native sample DMA mixer regressions failed')
+    if audio_regression.get('mismatches') != 0 or audio_regression.get('total_cases', 0) < 8:
+        raise ValueError('Native audio integration regressions failed')
     snapshots = [tick for tick in SNAPSHOT_TICKS if tick < inputs['ticks']]
     smooth_snapshots = [position for position in SMOOTH_SNAPSHOTS if position < inputs['ticks'] - 1]
     frame_directory = out / 'frames';frame_directory.mkdir(exist_ok=True)
     trace = out / 'viewer-native.csv';viewer_report_path = out / 'viewer.json'
     trace.unlink(missing_ok=True);viewer_report_path.unlink(missing_ok=True)
+    audio_wav = out / 'replay-audio.wav'
     command = [str(executable), '--chip', str(chip), '--payload', str(payload), '--inputs', str(inputs_path),
                '--reference', str(reference_trace), '--trace', str(trace), '--report', str(viewer_report_path),
-               '--headless', '--frames-dir', str(frame_directory)]
+               '--headless', '--frames-dir', str(frame_directory), '--audio-wav', str(audio_wav)]
     for tick in snapshots:
         command.extend(['--snapshot', str(tick)])
     for position in smooth_snapshots:
@@ -314,6 +330,20 @@ def main():
     if run.returncode:
         raise RuntimeError(f'Native viewer failed({run.returncode}); see {out / "viewer-stderr.txt"}')
     viewer_report = json.loads(viewer_report_path.read_text(encoding='utf-8'))
+    audio_stats = json.loads(Path(str(audio_wav) + '.json').read_text())
+    with wave.open(str(audio_wav), 'rb') as sound:
+        if (sound.getnchannels(), sound.getsampwidth(), sound.getframerate(), sound.getnframes()) != (2, 2, 48000, inputs['ticks'] * 5760):
+            raise ValueError('Replay audio format/duration differs from the120ms gameplay timeline')
+        samples = array.array('h', sound.readframes(sound.getnframes()))
+    if sys.byteorder != 'little':
+        samples.byteswap()
+    peak = max(map(abs, samples), default=0)
+    if not 0 < peak <= 16384 or not any(samples[0::2]) or not any(samples[1::2]):
+        raise ValueError('Replay audio is silent, missing a stereo side, or exceeds its output headroom')
+    if audio_stats.get('cpu_emulation') is not False or audio_stats.get('vblanks') != inputs['ticks'] * 6 or audio_stats.get('effect_starts', 0) <= 0:
+        raise ValueError('Replay audio did not exercise original effects with independent50Hz engine updates')
+    if not 124 <= audio_stats['minimum_period'] <= audio_stats['maximum_period'] < 256:
+        raise ValueError('Engine audio escaped the recovered period range')
     verify_viewer_report(viewer_report, inputs['ticks'], snapshots, smooth_snapshots)
     asset_manifest = json.loads((asset_output / 'assets-manifest.json').read_text())
     if viewer_report['background_compressed_bytes'] != asset_manifest['background']['compressed_bytes']:
@@ -370,6 +400,8 @@ def main():
         'viewer_report': identity(viewer_report_path), 'viewer_results': viewer_report,
         'interpolation_regression': {'executable': identity(interpolation_test), 'results': regression},
         'live_input_regression': {'executable': identity(live_test), 'results': live_regression},
+        'audio_regression': {'mixer': mixer_regression, 'integration': audio_regression,
+                             'wav': identity(audio_wav), 'statistics': audio_stats, 'peak_pcm': peak},
         'live_verification': {'command': live_command, 'report': identity(live_report_path), 'results': live_results,
                               'native_trace': identity(live_trace), 'trace_checks': live_checks, 'recorded_inputs': identity(live_recording)},
         'native_trace': identity(trace), 'trace_checks': trace_checks, 'lap_validation': lap_checks,

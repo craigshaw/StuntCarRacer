@@ -30,6 +30,8 @@ void ReplayScene::load(const std::filesystem::path& chip,const std::filesystem::
     auto capture=replay::loadCapture(chip.string().c_str());const auto original=readFile(payload);
     assets_=decodeReplayRenderAssets(original.data(),original.size(),capture->data(),capture->size());
     mesh_=buildTrackMesh(decodeTrackMesh(*capture));
+    sides_=buildTrackSides(mesh_,{(*capture)[0x691b3],(*capture)[0x691b2],false});
+    mountains_=decodeMountainHorizonData(original.data(),original.size());
     auto state=std::make_unique<replay::NativeReplay>(*capture);
     projection_.angleTable=state->progressData.angleTable;projection_.magnitudeTable=state->progressData.magnitudeTable;
     const auto input=replay::loadInputs(inputs.string().c_str());
@@ -40,6 +42,7 @@ void ReplayScene::load(const std::filesystem::path& chip,const std::filesystem::
     if(expectedHeader!=nativeHeader)throw std::runtime_error("Original trace schema does not match native replay");
     std::ofstream trace(nativeTrace);if(!trace)throw std::runtime_error("Cannot write native viewer trace");replay::traceHeader(trace);
     frames_.clear();frames_.reserve(input.size());
+    cachedFrame_=~0u;
     for(unsigned tick=0;tick<input.size();++tick){
         state->begin(input[tick].controls);state->ram[0xead6+0x45]=input[tick].quit?0xb3:0;
         state->controlsStage();state->physicsStage();state->engineStage();state->progressStage();
@@ -56,6 +59,7 @@ void ReplayScene::load(const std::filesystem::path& chip,const std::filesystem::
         RenderCameraInputs camera{};
         for(unsigned n=0;n<3;++n)camera.worldPosition[n]=a::longword(state->ram.data(),0x1bcd8+4*n);
         camera.pitch=a::word(state->ram.data(),0x1bce4);camera.yaw=a::word(state->ram.data(),0x1bce6);camera.roll=a::word(state->ram.data(),0x1bce8);
+        frame.cameraYaw=camera.yaw;
         camera.averageWheelVelocity=a::word(state->ram.data(),0x1bd38);
         frame.camera=makeRenderProjectionCamera(camera,state->physicsData.trig);
         // The original screen rotation consumes the matrix produced before
@@ -73,14 +77,17 @@ void ReplayScene::load(const std::filesystem::path& chip,const std::filesystem::
     if(frames_.empty())throw std::runtime_error("No native replay frames");
 }
 const std::vector<std::uint32_t>& ReplayScene::render(unsigned index,bool wireframe) {
+    if(index==cachedFrame_&&wireframe==cachedWireframe_)return pixels_;
     const auto& frame=frames_.at(index);makeReplayBackground(assets_,pixels_);
-    statistics_=renderer_.drawTrack(mesh_,frame.camera,projection_,assets_.palette,pixels_,wireframe);
+    const auto mountains=projectMountainHorizon(mountains_,frame.cameraYaw,frame.camera);
+    statistics_=renderer_.drawFrame(mesh_,sides_,mountains,frame.camera,projection_,assets_.palette,pixels_,wireframe);
     composeReplayCockpit(assets_,frame.cockpit,pixels_);
     // The original speedometer uses this word multiply/shift before drawing
     // its two-row span. This changes presentation pixels only.
     int speed=int(frame.forwardSpeed)-0x1100;if(speed<0)speed=0;
     unsigned bar=unsigned((std::uint32_t(speed)*0xb700u)>>16)>>7;if(bar>=128)bar-=128;bar=std::min(127u,bar);
     for(unsigned y=174;y<176;++y)for(unsigned x=0;x<128;++x)pixels_[y*320+96+x]=assets_.palette[x<=bar?3:0];
+    cachedFrame_=index;cachedWireframe_=wireframe;
     return pixels_;
 }
 void ReplayScene::saveBitmap(const std::filesystem::path& path) const {

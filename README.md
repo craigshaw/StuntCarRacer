@@ -899,9 +899,10 @@ The launcher verifies the local asset and original-trace hashes, builds the
 native Windows viewer, and checks all 1,463 gameplay and rendered frames before
 opening playback. Space pauses, the arrow keys step, and the timeline seeks.
 The viewer uses recovered road geometry, angular projection and original
-cockpit assets; its executable contains no CPU emulator. The first renderer
-draws the road surface and horizon. Sidewalls, barriers, mountains and audio
-remain future work. See the [viewer guide](docs/native-replay-viewer.md) for
+cockpit assets; its executable contains no CPU emulator. It draws raised-road
+sidewalls and the original mountain silhouettes, with segment colors and
+screen roll. Original near-track visibility and edge highlights, interrupt
+timing and audio remain future work. See the [viewer guide](docs/native-replay-viewer.md) for
 controls, exported frames, differential evidence and rendering boundaries.
 
 ## Sources and installation provenance

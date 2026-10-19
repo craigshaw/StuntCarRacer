@@ -61,7 +61,7 @@ Outputs remain local under `analysis/native-render/`:
 - `contact-sheet.png`: a QA sheet assembled from the exported frames.
 - `assets/assets-manifest.json`: original asset ranges, hashes, palette and
   initialized font provenance.
-- `render-recovery-checks.json`: retained mesh, projection and asset oracle
+- `render-recovery-checks.json`: retained mesh, projection, sidewall, mountain and asset oracle
   results with source and executable hashes.
 
 Pillow from the bundled workspace runtime converts the BMP files for visual QA.
@@ -93,17 +93,19 @@ pass with zero mismatches. Local evidence is in `analysis/track-mesh/` and
 The original image decoder, palette conversion and masked-object renderer were
 executed in the test-only original-code oracle: 238 comparisons, zero mismatches.
 The masked checks include all six wheel images across their supported suspension
-heights. To build the three original-code rendering comparisons:
+heights. To build the original-code rendering comparisons:
 
 ```powershell
 cmake -S . -B analysis/native-render/oracle-build `
   -G "Visual Studio 18 2026" -A x64 -DSCR_BUILD_ORACLE=ON `
   "-DMUSASHI_DIR=$PWD/analysis/reference/musashi"
 cmake --build analysis/native-render/oracle-build --config Release `
-  --target track_mesh_oracle render_projection_oracle planar_image_oracle
+  --target track_mesh_oracle render_projection_oracle planar_image_oracle `
+    track_sides_oracle mountain_horizon_oracle software_renderer_tests
 ```
 
-Each executable accepts `payload.bin chipram.bin`; use the local payload and
+The five original-code executables accept `payload.bin chipram.bin`; the native
+`software_renderer_tests` accepts only `payload.bin`. Use the local payload and
 Chip RAM paths recorded in `check-results.json`. To retain an asset comparison
 report using the built oracle:
 
@@ -116,8 +118,23 @@ report using the built oracle:
 The original wheel rotation accumulator advances from vertical blank interrupts.
 The headless gameplay replay excludes those interrupts, so the viewer preserves
 the admitted wheel-frame state while showing the recovered suspension motion.
-Road triangles, depth buffering and near clipping are native presentation
-choices. The first viewer draws the road surface, horizon and cockpit; track
-sidewalls, barriers and mountains remain to be recovered. Playback is silent.
-Matching gameplay traces does not establish pixel equality with the original
-blitter, DMA, interrupt schedule or audio output.
+The viewer also draws the original raised-road side panels down to world Y16,
+and the recovered mountain silhouettes. Side fills follow segment parity and
+the captured original palette choices. Road fills follow segment parity and
+the black-surface flag; strip metadata belongs to its ending cross-section.
+There are 102 side quads in the retained track. The side oracle passes 9,499
+original executions, including full edge construction and material ownership
+for every strip, with zero mismatches.
+
+Mountains come from five original templates, 25 variants and 32 placements.
+The loader, yaw selection, coordinate substitution, roll and polygon commands
+pass 6,817 comparisons with zero mismatches. Concave silhouettes use their
+recovered boundary; a native coverage regression checks that the notch remains
+open and that winding does not change coverage. See
+[the sidewall and mountain evidence guide](native-sides-and-mountains.md).
+
+Road subdivision, triangles, depth buffering, near clipping and mountain scanline coverage
+are native presentation choices. The original near-track visibility queue and
+its yellow/brown longitudinal highlights remain to be ported. Playback is
+silent. Matching gameplay traces does not establish pixel equality with the
+original blitter, DMA, interrupt schedule or audio output.

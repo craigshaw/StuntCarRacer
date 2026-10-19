@@ -32,6 +32,7 @@ struct TrackMesh {
 // Converts the original cached cross-sections to a closed strip of road quads.
 // Sections preserve their original order. The final cross-section joins the
 // first, matching transformCoordinates' wrap to segmentGeometryData. Original
-// per-section flags (bank/transition/marked slope) remain available to drawing.
+// face metadata comes from the ending cross-section, as in drawTrackLines.
+// Per-section flags (bank/transition/marked slope) remain available to drawing.
 [[nodiscard]] TrackMesh buildTrackMesh(const TrackMeshData& data);
 } // namespace scr

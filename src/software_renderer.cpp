@@ -40,7 +40,8 @@ Polygon clipNear(const Polygon& input,const RenderProjectionCamera& camera) {
     return out;
 }
 void triangle(const ScreenVertex& a,const ScreenVertex& b,const ScreenVertex& c,std::uint32_t color,
-    std::vector<std::uint32_t>& pixels,std::vector<float>& depth,RenderStatistics& stats) {
+    std::vector<std::uint32_t>& pixels,std::vector<float>& depth,std::vector<std::uint8_t>& coverage,
+    std::uint8_t surface,RenderStatistics& stats) {
     const double area=edge(a,b,c.x,c.y);if(std::abs(area)<0.001)return;
     const auto x0=std::max(0,int(std::floor(std::min({a.x,b.x,c.x}))));
     const auto y0=std::max(0,int(std::floor(std::min({a.y,b.y,c.y}))));
@@ -56,7 +57,8 @@ void triangle(const ScreenVertex& a,const ScreenVertex& b,const ScreenVertex& c,
         const double inverse=wa*a.inverseDepth+wb*b.inverseDepth+wc*c.inverseDepth;
         const auto index=std::size_t(y*256+x);
         if(inverse>depth[index]){
-            depth[index]=float(inverse);pixels[std::size_t((y+16)*320+x+32)]=color;
+            depth[index]=float(inverse);
+            coverage[index]=surface;pixels[std::size_t((y+16)*320+x+32)]=color;
         }
     }
 }
@@ -84,41 +86,117 @@ void line(ScreenVertex a,ScreenVertex b,std::uint32_t color,std::vector<std::uin
         if(inverse*1.015+0.000001>=depth[std::size_t(y*256+x)])pixels[std::size_t((y+16)*320+x+32)]=color;
     }
 }
+// Some original mountain quads are concave. Fill their recovered boundary
+// directly, so a fixed diagonal cannot paint across a notch between peaks.
+void mountainPolygon(const MountainScreenPolygon& polygon,std::uint32_t color,
+    std::vector<std::uint32_t>& pixels,std::vector<std::uint8_t>& coverage) {
+    int top=127,bottom=0;
+    for(unsigned n=0;n<polygon.vertexCount;++n){top=std::min(top,polygon.vertices[n].y);bottom=std::max(bottom,polygon.vertices[n].y);}
+    top=std::max(0,top);bottom=std::min(127,bottom);
+    for(int y=top;y<=bottom;++y){
+        const double scan=y+0.5;std::array<double,4> crossings{};unsigned count=0;
+        for(unsigned n=0;n<polygon.vertexCount;++n){
+            const auto& a=polygon.vertices[n];const auto& b=polygon.vertices[(n+1)%polygon.vertexCount];
+            if((a.y>scan)!=(b.y>scan))crossings[count++]=a.x+(scan-a.y)*(double(b.x)-a.x)/(double(b.y)-a.y);
+        }
+        std::sort(crossings.begin(),crossings.begin()+count);
+        for(unsigned n=0;n+1<count;n+=2){
+            const int left=std::max(0,int(std::ceil(crossings[n]-0.5)));
+            const int right=std::min(255,int(std::ceil(crossings[n+1]-0.5))-1);
+            for(int x=left;x<=right;++x){pixels[std::size_t((y+16)*320+x+32)]=color;coverage[std::size_t(y*256+x)]=3;}
+        }
+    }
+}
 } // namespace
-RenderStatistics SoftwareReplayRenderer::drawTrack(const TrackMesh& mesh,const RenderProjectionCamera& camera,
+RenderStatistics SoftwareReplayRenderer::drawFrame(const TrackMesh& mesh,const std::vector<TrackSideFace>& sides,
+    const MountainHorizonFrame& mountains,const RenderProjectionCamera& camera,
     const RenderProjectionTables& tables,const std::array<std::uint32_t,16>& palette,
     std::vector<std::uint32_t>& pixels,bool wireframe) {
     if(pixels.size()!=std::size_t(width*height))throw std::invalid_argument("Renderer requires a320x200 background");
     inverseDepth_.assign(viewportWidth*viewportHeight,0);
+    coverage_.assign(viewportWidth*viewportHeight,0);
     const auto h0=horizonPoint(-0x500,camera),h1=horizonPoint(0x500,camera);
     for(int y=0;y<viewportHeight;++y)for(int x=0;x<viewportWidth;++x){
-        // Original palette entries: sky7, ground13, road1/2. Horizon coverage is
-        // a simple half-plane; the original mountain/visibility queues follow
-        // in later renderer recovery. Roll and pitch use recovered projection.
+        // Original palette entries: sky7, ground13. The recovered mountain
+        // polygons follow this horizon, before the depth-tested road and sides.
         const double side=(x-h0.x)*double(h1.y-h0.y)-(y-h0.y)*double(h1.x-h0.x);
         const bool sky=side>0;
         pixels[std::size_t((y+viewportY)*width+x+viewportX)]=palette[sky?7:13];
     }
-    struct Face {std::vector<ScreenVertex> vertices;std::uint32_t color{};};
+    struct Face {std::vector<ScreenVertex> vertices;std::uint32_t color{};std::uint8_t surface{};};
     std::vector<Face> faces;RenderStatistics stats{};
-    for(const auto& face:mesh.faces){
-        Polygon points;
-        for(auto index:face.indices){if(index>=mesh.vertices.size())throw std::out_of_range("Road face index outside mesh");const auto& v=mesh.vertices[index];points.push_back({v.x,v.y,v.z});}
-        auto clipped=clipNear(points,camera);if(clipped.size()<3){++stats.clippedFaces;continue;}
-        Face screen;screen.color=palette[(face.flags&1)?2:1];
+    stats.mountainInstances=unsigned(mountains.instances.size());
+    for(const auto& polygon:mountains.polygons){
+        if(polygon.vertexCount<3||polygon.vertexCount>4||polygon.color>=palette.size())
+            throw std::invalid_argument("Invalid mountain polygon");
+        mountainPolygon(polygon,palette[polygon.color],pixels,coverage_);
+        ++stats.mountainPolygons;
+    }
+    const auto projectPatch=[&](const Polygon& points,std::uint32_t color,std::uint8_t surface){
+        const auto clipped=clipNear(points,camera);if(clipped.size()<3)return false;
+        Face screen;screen.color=color;screen.surface=surface;
         for(const auto& point:clipped){
             const auto relative=renderCameraRelative(point,camera);const auto projected=projectRenderWorldPoint(point,camera,tables);
             screen.vertices.push_back({double(projected.x),double(projected.y),1/std::max(nearPlane,relative.forward)});
         }
-        ++stats.roadFaces;faces.push_back(std::move(screen));
+        faces.push_back(std::move(screen));return true;
+    };
+    const auto projectFace=[&](const Polygon& points,std::uint32_t color,std::uint8_t surface){
+        double nearest=std::numeric_limits<double>::max(),farthest=-nearest;
+        for(const auto& point:points){const auto z=renderCameraRelative(point,camera).forward;nearest=std::min(nearest,z);farthest=std::max(farthest,z);}
+        if(farthest<nearPlane){++stats.clippedFaces;return;}
+        // The original projection is angular, so a long straight world edge
+        // can project to a curve. Close quads need intermediate samples before
+        // near clipping; joining their two extreme corners can leave a gap
+        // under the car. This tessellation is a native presentation choice.
+        const unsigned divisions=nearest<48?8:1;bool visible=false;
+        const auto sample=[&](unsigned u,unsigned v){
+            const auto a=blend(points[0],points[1],double(u)/divisions);
+            const auto b=blend(points[3],points[2],double(u)/divisions);
+            return blend(a,b,double(v)/divisions);
+        };
+        for(unsigned u=0;u<divisions;++u)for(unsigned v=0;v<divisions;++v)
+            visible=projectPatch({sample(u,v),sample(u+1,v),sample(u+1,v+1),sample(u,v+1)},color,surface)||visible;
+        if(visible){if(surface==1)++stats.roadFaces;else ++stats.sideFaces;}else ++stats.clippedFaces;
+    };
+    for(const auto& face:mesh.faces){
+        Polygon points;
+        for(auto index:face.indices){if(index>=mesh.vertices.size())throw std::out_of_range("Road face index outside mesh");const auto& v=mesh.vertices[index];points.push_back({v.x,v.y,v.z});}
+        projectFace(points,palette[trackRoadFillColor(face.segment,face.flags)],1);
+    }
+    for(const auto& face:sides){
+        if(face.fillColor>=palette.size())throw std::invalid_argument("Invalid sidewall palette index");
+        Polygon points;for(const auto& v:face.vertices)points.push_back({v.x,v.y,v.z});
+        projectFace(points,palette[face.fillColor],2);
     }
     for(const auto& face:faces)for(std::size_t n=1;n+1<face.vertices.size();++n)
-        triangle(face.vertices[0],face.vertices[n],face.vertices[n+1],face.color,pixels,inverseDepth_,stats);
-    for(const auto& face:faces)for(std::size_t n=0;n<face.vertices.size();++n)
-        line(face.vertices[n],face.vertices[(n+1)%face.vertices.size()],palette[wireframe?3:0],pixels,inverseDepth_);
-    if(wireframe)for(const auto& face:faces)for(std::size_t n=2;n+1<face.vertices.size();++n)
-        line(face.vertices[0],face.vertices[n],palette[3],pixels,inverseDepth_);
-    stats.roadPixels=unsigned(std::count_if(inverseDepth_.begin(),inverseDepth_.end(),[](float value){return value>0;}));
+        triangle(face.vertices[0],face.vertices[n],face.vertices[n+1],face.color,pixels,inverseDepth_,coverage_,face.surface,stats);
+    // The original far strip has filled panels, without generic black outlines.
+    // Marked transverse edges are white. The near renderer's alternating yellow
+    // and brown longitudinal lines require its visibility queue, not distance
+    // guesses; keep those separate from this native depth-buffer presentation.
+    for(const auto& face:mesh.faces)if(trackSurfaceCrossEdge(face.flags)){
+        const auto& a=mesh.vertices.at(face.indices[1]);const auto& b=mesh.vertices.at(face.indices[2]);
+        RenderWorldPoint first{a.x,a.y,a.z},last{b.x,b.y,b.z};
+        const auto firstZ=renderCameraRelative(first,camera).forward,lastZ=renderCameraRelative(last,camera).forward;
+        if(firstZ<nearPlane&&lastZ<nearPlane)continue;
+        if((firstZ<nearPlane)!=(lastZ<nearPlane)){
+            const auto intersection=blend(first,last,(nearPlane-firstZ)/(lastZ-firstZ));
+            if(firstZ<nearPlane)first=intersection;else last=intersection;
+        }
+        const auto endpoint=[&](const RenderWorldPoint& point){const auto p=projectRenderWorldPoint(point,camera,tables);
+            return ScreenVertex{double(p.x),double(p.y),1/std::max(nearPlane,renderCameraRelative(point,camera).forward)};};
+        line(endpoint(first),endpoint(last),palette[15],pixels,inverseDepth_);
+    }
+    if(wireframe)for(const auto& face:faces){
+        for(std::size_t n=0;n<face.vertices.size();++n)
+            line(face.vertices[n],face.vertices[(n+1)%face.vertices.size()],palette[3],pixels,inverseDepth_);
+        for(std::size_t n=2;n+1<face.vertices.size();++n)
+            line(face.vertices[0],face.vertices[n],palette[3],pixels,inverseDepth_);
+    }
+    stats.roadPixels=unsigned(std::count(coverage_.begin(),coverage_.end(),1));
+    stats.sidePixels=unsigned(std::count(coverage_.begin(),coverage_.end(),2));
+    stats.mountainPixels=unsigned(std::count(coverage_.begin(),coverage_.end(),3));
     return stats;
 }
 } // namespace scr

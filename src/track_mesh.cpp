@@ -16,7 +16,10 @@ TrackMesh buildTrackMesh(const TrackMeshData& data) {
             signedWord(point[2])/32.0,(cell>>4)*128.0+signedWord(point[1])/16.0});
     }
     for(unsigned i=0;i<data.sections.size();++i) {
-        const auto next=(i+1)%unsigned(data.sections.size());const auto& section=data.sections[i];
+        // Original drawTrackLines joins previous D2 to current D1, then reads
+        // the current header for the polygon. Cached sections omit the start
+        // vertex of each segment, so the next section owns this strip.
+        const auto next=(i+1)%unsigned(data.sections.size());const auto& section=data.sections[next];
         mesh.faces.push_back({{2*i,2*next,2*next+1,2*i+1},section.segment,section.flags});
     }
     return mesh;

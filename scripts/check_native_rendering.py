@@ -15,7 +15,8 @@ from check_driving_replay import (ADF_SHA, PAYLOAD_SHA, DISK_OFFSET, PAYLOAD_SIZ
 from replay_lap import initial_lap_state, validate_laps
 
 
-RENDER_STEMS = {'track_mesh', 'render_projection', 'planar_image', 'software_renderer'}
+RENDER_STEMS = {'track_mesh', 'render_projection', 'planar_image', 'software_renderer',
+                'track_sides', 'mountain_horizon'}
 SNAPSHOT_TICKS = (0, 24, 128, 272, 505, 961, 1415, 1462)
 
 
@@ -113,18 +114,25 @@ def verify_viewer_report(report, ticks, snapshots):
         raise ValueError('Native viewer must report all input ticks and no CPU emulation')
     if type(report.get('rendered_frames')) is not int or report['rendered_frames'] != ticks:
         raise ValueError('Native viewer must render every replay tick before passing')
-    for field in ('mesh_vertices', 'mesh_faces', 'background_compressed_bytes'):
+    for field in ('mesh_vertices', 'mesh_faces', 'side_mesh_faces', 'mountain_shapes',
+                  'mountain_placements', 'background_compressed_bytes'):
         if type(report.get(field)) is not int or report[field] <= 0:
             raise ValueError(f'Native viewer must report positive {field}')
+    if report['side_mesh_faces'] != 2 * report['mesh_faces']:
+        raise ValueError('Native viewer must build both sidewalls for every road strip')
     exported = report.get('snapshots')
     if not isinstance(exported, list) or [item.get('tick') for item in exported] != snapshots:
         raise ValueError('Native viewer snapshot ticks differ from the requested QA frames')
     for frame in exported:
         if not isinstance(frame.get('path'), str):
             raise ValueError('Native viewer snapshot path missing')
-        for field in ('road_faces', 'triangles', 'road_pixels'):
+        for field in ('road_faces', 'side_faces', 'mountain_instances', 'mountain_polygons',
+                      'triangles', 'road_pixels', 'side_pixels', 'mountain_pixels'):
             if type(frame.get(field)) is not int or frame[field] < 0:
                 raise ValueError(f'Native viewer snapshot must report nonnegative {field}')
+    initial = next((frame for frame in exported if frame['tick'] == 0), None)
+    if initial is None or any(initial[field] <= 0 for field in ('road_pixels', 'side_pixels', 'mountain_pixels')):
+        raise ValueError('Initial QA frame must show road, sidewalls and mountains')
 
 
 def verify_viewer_trace(trace, reference, inputs, ticks, viewer_report):

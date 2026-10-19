@@ -53,10 +53,16 @@ void report(const Options& o,const Scene* scene,const std::vector<ExportedFrame>
     out<<"{\n  \"status\":\""<<(error.empty()?"passed":"failed")<<"\",\n  \"traceMatched\":"<<(error.empty()?"true":"false")
        <<",\n  \"cpu_emulation\":false,\n  \"ticks\":"<<(scene?scene->frames().size():0)
        <<",\n  \"mesh_vertices\":"<<(scene?scene->mesh().vertices.size():0)<<",\n  \"mesh_faces\":"<<(scene?scene->mesh().faces.size():0)
+       <<",\n  \"side_mesh_faces\":"<<(scene?scene->sideFaceCount():0)
+       <<",\n  \"mountain_shapes\":"<<(scene?scene->mountainShapeCount():0)
+       <<",\n  \"mountain_placements\":"<<(scene?scene->mountainPlacementCount():0)
        <<",\n  \"background_compressed_bytes\":"<<(scene?scene->backgroundCompressedBytes():0)
        <<",\n  \"rendered_frames\":"<<renderedFrames<<",\n  \"snapshots\":[";
     for(unsigned n=0;n<images.size();++n){if(n)out<<',';const auto& e=images[n];out<<"\n    {\"tick\":"<<e.tick<<",\"path\":"<<jsonString(e.path.generic_string())
-        <<",\"road_faces\":"<<e.statistics.roadFaces<<",\"triangles\":"<<e.statistics.triangles<<",\"road_pixels\":"<<e.statistics.roadPixels<<'}';}
+        <<",\"road_faces\":"<<e.statistics.roadFaces<<",\"side_faces\":"<<e.statistics.sideFaces
+        <<",\"mountain_instances\":"<<e.statistics.mountainInstances<<",\"mountain_polygons\":"<<e.statistics.mountainPolygons
+        <<",\"triangles\":"<<e.statistics.triangles<<",\"road_pixels\":"<<e.statistics.roadPixels
+        <<",\"side_pixels\":"<<e.statistics.sidePixels<<",\"mountain_pixels\":"<<e.statistics.mountainPixels<<'}';}
     out<<"\n  ]";if(!error.empty())out<<",\n  \"error\":"<<jsonString(error);out<<"\n}\n";
 }
 HFONT makeFont(int size,int weight=FW_NORMAL){return CreateFontW(-size,0,0,0,weight,FALSE,FALSE,FALSE,DEFAULT_CHARSET,OUT_DEFAULT_PRECIS,CLIP_DEFAULT_PRECIS,CLEARTYPE_QUALITY,DEFAULT_PITCH,L"Segoe UI");}

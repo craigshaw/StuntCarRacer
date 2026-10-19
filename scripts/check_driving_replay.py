@@ -10,6 +10,7 @@ import subprocess
 import sys
 
 from prepare_wheel_oracle import prepare, ROOT, LOCK, DEST
+from replay_lap import initial_lap_state, validate_laps
 
 ADF_SHA = '548fd106cd62f2d80159d48ddd5293d8b22b6b17f80c17a84a61d75f5c8a9e06'
 PAYLOAD_SHA = '508646f12af15115de73b06940c79e579f920bf47ce55f7cd8920eca60b7921c'
@@ -20,14 +21,18 @@ VERIFIERS = [
     ('opponent-collision', 'verify_opponent_collision.py'),
     ('driving-effects', 'verify_driving_effects.py'),
     ('race-timing', 'verify_race_timing.py'),
+    ('race-transitions', 'verify_race_transitions.py'),
+    ('race-restart', 'verify_race_restart.py'),
 ]
 CORE_SPANS = [('main_loop_gameplay_interval', 0x5d47e, 0x5d4ba),
+              ('restart_warmup_schedule', 0x5d402, 0x5d47e),
               ('complete_physics_driver', 0x6185c, 0x618ce)]
 REPLAY_STAGES = ('controls', 'physics', 'engine', 'track', 'particles',
                  'particle-rng', 'wheel-bounce', 'damage', 'timing')
 TRACE_FIELDS = ('tick', 'controls', 'world_x', 'world_y', 'world_z', 'pitch', 'yaw',
                 'roll', 'speed', 'segment', 'progress', 'lateral', 'off_track',
-                'boost_fuel', 'damage', 'original_instructions')
+                'boost_fuel', 'damage', 'original_instructions', 'lap_counter',
+                'crossing_armed', 'race_complete', 'outer_action', 'restarts', 'quit')
 # The original setPixelColor changes BSET/BCLR in plotPixel. No other captured
 # opcode differences are admitted, and only bit6 is mutable at these addresses.
 PIXEL_OPCODE_BITS = {address: 0x40 for address in
@@ -55,28 +60,37 @@ def read_inputs(path):
     if '\r' in contents.replace('\r\n', ''):
         raise ValueError(f'{path}: only LF or CRLF line endings are supported')
     lines = contents.splitlines()
-    if not lines or lines[0] != 'tick,controls':
-        raise ValueError(f'{path}: expected exactly tick,controls ASCII header (no BOM)')
-    if any(not re.fullmatch(r'[0-9]+,[0-9]+', line) for line in lines[1:]):
-        raise ValueError(f'{path}: expected one unquoted decimal tick,controls row per line')
+    if not lines or lines[0] not in ('tick,controls', 'tick,controls,quit'):
+        raise ValueError(f'{path}: expected tick,controls or tick,controls,quit ASCII header (no BOM)')
+    extended = lines[0] == 'tick,controls,quit'
+    row_pattern = r'[0-9]+,[0-9]+,[0-9]+' if extended else r'[0-9]+,[0-9]+'
+    if any(not re.fullmatch(row_pattern, line) for line in lines[1:]):
+        raise ValueError(f'{path}: expected one unquoted decimal input row per line')
     with path.open(encoding='ascii', newline='') as stream:
         rows = csv.DictReader(stream)
-        if rows.fieldnames != ['tick', 'controls']:
-            raise ValueError(f'{path}: expected exactly tick,controls header')
-        count, masks = 0, set()
+        if rows.fieldnames != (['tick', 'controls', 'quit'] if extended else ['tick', 'controls']):
+            raise ValueError(f'{path}: invalid input header')
+        count, masks, quit_ticks = 0, set(), []
         for row in rows:
             if None in row or any(value is None for value in row.values()):
                 raise ValueError(f'{path}: malformed row at tick {count}')
             if not row['tick'].isdecimal() or not row['controls'].isdecimal():
                 raise ValueError(f'{path}: tick/controls must be decimal integers')
             tick, controls = int(row['tick']), int(row['controls'])
+            quit_pressed = int(row.get('quit', 0))
             if tick != count or not 0 <= controls <= 31:
                 raise ValueError(f'{path}: ticks must start at zero and be contiguous; controls must be 0..31')
+            if quit_pressed not in (0, 1):
+                raise ValueError(f'{path}: quit must be 0 or 1')
+            if quit_pressed:
+                quit_ticks.append(tick)
             masks.add(controls)
             count += 1
         if not count:
             raise ValueError(f'{path}: replay must contain at least one tick')
-    return {'identity': identity(path), 'ticks': count, 'control_masks': sorted(masks)}
+    return {'identity': identity(path), 'ticks': count, 'control_masks': sorted(masks),
+            'columns': ['tick', 'controls', 'quit'] if extended else ['tick', 'controls'],
+            'quit_ticks': quit_ticks}
 
 
 def verify_trace(trace, inputs, expected_ticks, original_execution=True):
@@ -96,6 +110,8 @@ def verify_trace(trace, inputs, expected_ticks, original_execution=True):
                 raise RuntimeError(f'{trace}: trace row {count} has nondecimal/missing gameplay fields')
             if int(row['tick']) != count or int(row['controls']) != int(expected[count]['controls']):
                 raise RuntimeError(f'{trace}: tick/control mismatch at row {count}')
+            if int(row['quit']) != int(expected[count].get('quit', 0)):
+                raise RuntimeError(f'{trace}: quit input mismatch at row {count}')
             instructions += int(row['original_instructions'])
             if original_execution and not int(row['original_instructions']):
                 raise RuntimeError(f'{trace}: no original instructions recorded at tick {count}')
@@ -107,37 +123,49 @@ def verify_trace(trace, inputs, expected_ticks, original_execution=True):
     return {'rows': count, 'controls_match_inputs': True, 'original_instructions': instructions}
 
 
-def verify_replay_result(checks, ticks):
+def verify_replay_result(checks, ticks, full_loop=False):
     if type(checks.get('mismatches')) is not int or checks['mismatches'] != 0 or type(checks.get('ticks')) is not int or checks['ticks'] != ticks:
         raise RuntimeError('Replay did not report matching comparisons for every requested tick')
     required_flags = {
         'native_state_reseeded': False,
         'original_code_patched_by_harness': False,
-        'registers_reset_between_ticks': True,
+        'registers_reset_between_ticks': not full_loop,
         'ordered_sample_audio_writes_compared': True,
         'whole_ram_compared': False,
         'interrupts_emulated': False,
         'damage_occupancy_compared': True,
         'per_tick_stages_complete': True,
+        'full_loop': full_loop,
     }
     for name, expected in required_flags.items():
         if checks.get(name) is not expected:
             raise RuntimeError(f'Replay must explicitly report {name}={expected}')
-    if checks.get('interval') != {'entry': '0x5d47e', 'boundary_before': '0x5d4ba'}:
+    interval = {'entry': '0x5d47e', 'boundary_before': 'next-0x5d47e-or-exit' if full_loop else '0x5d4ba'}
+    if checks.get('interval') != interval:
         raise RuntimeError('Replay did not execute the declared original gameplay interval')
+    for key in ('restarts', 'frame_wait_vblanks'):
+        if type(checks.get(key)) is not int or checks[key] < 0:
+            raise RuntimeError(f'Replay must report a nonnegative {key}')
+    if not full_loop and (checks['restarts'] or checks['frame_wait_vblanks']):
+        raise RuntimeError('Legacy gameplay interval cannot report outer-loop restarts or frame waits')
     for key in ('compared_bytes', 'original_instructions'):
         if type(checks.get(key)) is not int or checks[key] <= 0:
             raise RuntimeError(f'Replay must report positive {key}')
     if type(checks.get('audio_register_writes')) is not int or checks['audio_register_writes'] < 0:
         raise RuntimeError('Replay must report a nonnegative ordered sample-audio write count')
     stages, projections = checks.get('stages'), checks.get('projection_byte_addresses')
-    if not isinstance(stages, dict) or set(stages) != set(REPLAY_STAGES):
+    expected_stages = {stage: ticks for stage in REPLAY_STAGES}
+    if full_loop:
+        expected_stages['outer'] = ticks
+        if checks['restarts']:
+            expected_stages['restart'] = checks['restarts']
+    if not isinstance(stages, dict) or set(stages) != set(expected_stages):
         raise RuntimeError('Replay stage map does not match the required comparison stages')
-    if not isinstance(projections, dict) or set(projections) != set(REPLAY_STAGES):
+    if not isinstance(projections, dict) or set(projections) != set(expected_stages):
         raise RuntimeError('Replay must declare every stage byte-address projection')
-    for stage in REPLAY_STAGES:
-        if type(stages[stage]) is not int or stages[stage] != ticks:
-            raise RuntimeError(f'Replay did not execute/compare {stage} exactly once per tick')
+    for stage, expected_count in expected_stages.items():
+        if type(stages[stage]) is not int or stages[stage] != expected_count:
+            raise RuntimeError(f'Replay did not execute/compare {stage} exactly {expected_count} times')
         addresses = projections[stage]
         if not isinstance(addresses, list) or not addresses or any(type(address) is not int or not 0 <= address < 0x80000 for address in addresses):
             raise RuntimeError(f'Replay has an invalid/empty byte-address projection for {stage}')
@@ -145,7 +173,7 @@ def verify_replay_result(checks, ticks):
             raise RuntimeError(f'Replay repeats a byte address in the {stage} projection')
     # The executable's legacy compared_bytes counter also includes one comparison
     # for each occupied/unoccupied pixel in the 256x8 damage strip per tick.
-    expected_comparisons = ticks * (sum(len(addresses) for addresses in projections.values()) + 256 * 8)
+    expected_comparisons = sum(expected_stages[stage] * len(addresses) for stage, addresses in projections.items()) + ticks * 256 * 8
     if checks['compared_bytes'] != expected_comparisons:
         raise RuntimeError('Replay comparison count does not match its declared projections and damage occupancy checks')
 
@@ -209,19 +237,25 @@ def main():
     parser.add_argument('--capture', type=Path, default=ROOT / 'analysis/captures/race',
                         help='Extracted loaded local-practice capture directory')
     parser.add_argument('--inputs', type=Path, action='append',
-                        help='CSV with tick,controls; repeat for independent scenarios')
+                        help='CSV with tick,controls[,quit]; repeat for independent scenarios')
     parser.add_argument('--output', type=Path, default=ROOT / 'analysis/driving-replay/check-results.json')
     parser.add_argument('--skip-build', action='store_true', help='Use an existing executable newer than its sources')
     parser.add_argument('--verify-only', action='store_true', help='Check inputs and identities without building or executing a replay')
     parser.add_argument('--run-leaf-tests', action='store_true',
-                        help='Build/run five supporting differential oracles using this capture and record fresh provenance')
+                        help='Build/run supporting differential oracles using this capture and record fresh provenance')
     parser.add_argument('--native-only-verify', action='store_true',
                         help='Also run the executable without Musashi and compare its gameplay trace with the oracle trace')
     parser.add_argument('--additional-reference', type=Path, action='append', default=[],
                         help='Additional original code/table manifest to validate against disk and capture')
+    parser.add_argument('--full-loop', action='store_true',
+                        help='Include outer restart/race-end/buffer gates with persistent original CPU context')
+    parser.add_argument('--require-complete-lap', action='store_true',
+                        help='Require a full observed track cycle between two lap crossings (requires --full-loop)')
     args = parser.parse_args()
     if args.verify_only and (args.run_leaf_tests or args.native_only_verify):
         parser.error('--verify-only cannot be combined with --run-leaf-tests or --native-only-verify')
+    if args.require_complete_lap and (not args.full_loop or args.verify_only):
+        parser.error('--require-complete-lap requires --full-loop and an executed replay')
     output = args.output.resolve()
     out = output.parent
     out.mkdir(parents=True, exist_ok=True)
@@ -259,6 +293,9 @@ def main():
     if not scenarios:
         raise RuntimeError('No input scenarios; supply --inputs or add tests/replays/*.csv')
     inputs = [read_inputs(path) for path in scenarios]
+    if not args.full_loop and any(item['quit_ticks'] for item in inputs):
+        raise ValueError('Quit controls require --full-loop; the legacy interval stops before that query')
+    lap_initial = initial_lap_state(ram) if args.full_loop else None
 
     comparisons = {}
     for directory, script in VERIFIERS:
@@ -350,6 +387,8 @@ def main():
             trace = out / (stem + '-trace.csv')
             trace.unlink(missing_ok=True)
             command = [str(exe), str(chip), str(scenario), str(trace)]
+            if args.full_loop:
+                command.append('--full-loop')
             executable_before = identity(exe)
             run = subprocess.run(command, cwd=ROOT, capture_output=True, text=True)
             stdout = out / (stem + '-stdout.json')
@@ -359,7 +398,7 @@ def main():
             if run.returncode:
                 raise RuntimeError(f'Replay {scenario.name} failed ({run.returncode}); see {stderr} and {stdout}')
             checks = json.loads(run.stdout)
-            verify_replay_result(checks, input_record['ticks'])
+            verify_replay_result(checks, input_record['ticks'], args.full_loop)
             if not trace.exists() or not trace.stat().st_size:
                 raise RuntimeError(f'Replay {scenario.name} did not produce its trace')
             trace_checks = verify_trace(trace, scenario, input_record['ticks'])
@@ -372,10 +411,20 @@ def main():
                             'executable': executable_before,
                             'trace': identity(trace), 'trace_checks': trace_checks,
                             'stdout': identity(stdout), 'stderr': identity(stderr)}
+            if args.full_loop:
+                result['lap_validation'] = validate_laps(trace, lap_initial, args.require_complete_lap)
+                if result['lap_validation']['restart_events']:
+                    trace_restarts = result['lap_validation']['restart_events'][-1]['count']
+                else:
+                    trace_restarts = 0
+                if trace_restarts != checks['restarts']:
+                    raise RuntimeError(f'Replay {scenario.name}: trace/result restart totals differ')
             if args.native_only_verify:
                 native_trace = out / (stem + '-native-trace.csv')
                 native_trace.unlink(missing_ok=True)
                 native_command = [str(native_exe), str(chip), str(scenario), str(native_trace)]
+                if args.full_loop:
+                    native_command.append('--full-loop')
                 native_before = identity(native_exe)
                 native_run = subprocess.run(native_command, cwd=ROOT, capture_output=True, text=True)
                 native_stdout = out / (stem + '-native-stdout.json')
@@ -399,7 +448,7 @@ def main():
     for path, before in zip(native_sources, native_source_identities):
         identity(path, before['sha256'])
 
-    source_paths = native_sources + [Path(__file__), ROOT / 'scripts/prepare_wheel_oracle.py']
+    source_paths = native_sources + [Path(__file__), ROOT / 'scripts/prepare_wheel_oracle.py', ROOT / 'scripts/replay_lap.py']
     source_paths += sorted((ROOT / 'scripts/reference').glob('verify_*.py'))
     leaf_results = {}
     for name, _ in VERIFIERS:
@@ -428,17 +477,21 @@ def main():
         'reference_comparisons': comparisons, 'core_spans': core_spans, 'input_scenarios': inputs,
         'build_commands': commands, 'build_skipped': args.skip_build, 'leaf_tests_requested': args.run_leaf_tests,
         'native_only_verification_requested': args.native_only_verify,
+        'full_loop_requested': args.full_loop, 'complete_lap_required': args.require_complete_lap,
         'executable': None if args.verify_only else identity(exe),
         'sources': [identity(path) for path in source_paths], 'replays': results, 'leaf_verification_results': leaf_results,
         'ticks_compared': sum(item['results']['ticks'] for item in results),
-        'interval': {'entry': '0x5d47e', 'boundary_before': '0x5d4ba'},
+        'complete_laps_observed': sum(item.get('lap_validation', {}).get('complete_laps', 0) for item in results),
+        'interval': {'entry': '0x5d47e', 'boundary_before': 'next-0x5d47e-or-exit' if args.full_loop else '0x5d4ba'},
         'limitations': [
             'Local practice only. Opponent collision stages have separate tests; autonomous opponent AI and network play are outside this replay.',
-            'Inputs are authored control sequences, not captured human play or a complete race demonstration.',
+            'Input origin is not established by CSV controls alone; checked-in scenarios are authored experiments.',
             'The native side independently evolves gameplay state; original outputs must never supply its per-tick track position or physics inputs.',
             'The original CPU renderer executes with a blitter-done boundary. Pixel output, blitter operation, DMA and interrupt timing are not reproduced.',
             'The compared gameplay projection and audio effects are declared by the executable result; this wrapper does not imply whole-RAM/frame equality.',
-            'The interval stops before outer pause/restart/end gates and display-buffer synchronization.',
+            ('Full-loop mode includes outer restart/race-end and buffer gates. Terminal traces stop before waitForFire or quit fade; menu return/presentation are outside this replay.'
+             if args.full_loop else 'The legacy interval stops before outer pause/restart/end gates and display-buffer synchronization.'),
+            'Headless frame waits explicitly supply vblank progress; real interrupt scheduling and display timing are not reproduced.',
             'No interrupts are interleaved. Asynchronous device state is supplied at the explicit headless hardware boundary.',
             'Finite replay agreement does not establish exhaustive input coverage or whole-game fidelity.',
         ],

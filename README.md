@@ -828,8 +828,65 @@ outside the comparison. The moving drawbridge track is rejected. Opponent
 contact/distance has separate differential coverage; autonomous opponent driving
 and network mode are not substituted into the Practice replay.
 
-The next step is to include restart/race-end transitions and a real captured
-input/interrupt timeline, then compare a complete lap under those conditions.
+### Restart, race end and complete-lap replay checks
+
+`src/race_transitions.*` and `src/race_restart.*` now recover the original
+local restart/end decisions, buffer swaps, pause bookkeeping and restart
+initializer. The native reset retains the complete cleared vehicle span,
+including its previously unnamed words. It selects a safe segment, places the
+car using recovered geometry and physics, and restores suspension and chain
+state. Original quirks include the signed wrapped restart countdown, clearing
+only the high byte of wheel speed on race end, and six-frame buffer waits.
+The original initializer stores its road height at `0x1bc60` and uses chain
+velocity 8; the enhanced reference differs on both.
+Practice exit cleanup is also recovered through its return at `0x5d724`.
+The original RNG save writes its tail over the second byte of the saved seed;
+the native API preserves that overlap.
+
+```powershell
+. .\scripts\env.ps1
+& $AmigaPython scripts/check_driving_replay.py --full-loop `
+  --run-leaf-tests --native-only-verify `
+  --output analysis/driving-replay/full-check-results.json
+```
+
+Full-loop mode continues to the next main-loop entry or terminal input/fade
+boundary, preserving original CPU context between iterations. It includes the
+two restart warmup frames, their physics/timing updates and buffer swaps, and
+the engine restart. The original/native comparison still uses explicit gameplay
+projections and ordered sample/audio-disable writes. A headless boundary services
+frame waits; real interrupt timing, renderer pixels and menu return are outside
+this replay. Pause routines have separate coverage; the runner currently takes
+an unpaused capture and has no pause/unpause timeline.
+
+The seven leaf suites pass **3,051,186 cases with zero mismatches**, including
+58,830 transition/exit cases and 704 restart-initializer cases. Full-loop replay
+passes the four earlier sequences across **1,920 updates and five restarts**;
+the separate native executable produces matching traces. The one-update quit
+scenario also matches. Source comparisons cover 183 transition/exit instructions
+and 132 restart instructions, with all differences from the enhanced reference
+recorded explicitly.
+
+The trace now records lap counters, crossing latches, race-end actions and
+restart counts. `--full-loop --require-complete-lap` requires two observed
+crossings with every track segment in order, latch disarm and no intervening
+restart. A first start-line crossing alone cannot satisfy it. The current
+retained authored lap regression completes a full cycle in **506 updates with
+zero mismatches and no restarts**. Its crossings occur at ticks 24 and 505,
+with all 44 segments in order and latch disarm at tick 272. Its controls were
+selected by a native feedback experiment, then replayed independently against
+the original; no position or velocity was injected. No human-driven lap or real
+interrupt timeline has been captured. See the [replay guide](docs/driving-replay.md)
+and [lap evidence guide](docs/replay-lap-validation.md) for the exact contract.
+
+The longer `tests/replays/laps/authored-race-1463.csv` regression also passes:
+**three complete laps and the race-end transition in 1,463 updates**, with
+zero mismatches. Crossings occur at ticks 24, 505, 961 and 1,415; the original
+enters its end-message input wait at tick 1,462. The separate build with
+`SCR_BUILD_ORACLE=OFF` produces an identical gameplay trace. Both retained
+control files have adjacent provenance JSON, and the original/native report is
+`analysis/driving-replay/lap-regressions/check-results.json`.
+
 Native rendering can consume the already separated visual/audio events.
 
 ## Sources and installation provenance

@@ -1,0 +1,57 @@
+{
+  "provenance": "Authored controls selected by deterministic native feedback rollouts; not a human recording.",
+  "input_file": "authored-lap-506.csv",
+  "input_sha256": "0e4bb5af870a097dbc95909584e5665033079fd73dd39eb875b540439bdb2e81",
+  "ticks": 506,
+  "starting_capture": {
+    "source_savestate": "working/captures/play-20261018-192934-740.uss",
+    "source_savestate_sha256": "5ac753f0d452fe628b627d45817a0c27105e2bec12f2640f1518a73adfb58c7f",
+    "chip_ram": "analysis/captures/race/chip-000000.bin",
+    "chip_ram_sha256": "ed0b596a621c99612d759bf2af99c9481d179505a1f50535e8e3f34af1957bf2",
+    "segment": 15,
+    "lap_counter": 0,
+    "lap_line_segment": 16,
+    "crossing_disarm_segment": 37,
+    "track_segment_count": 44
+  },
+  "authoring_experiment": {
+    "local_source": "analysis/lap-authoring/author.cpp",
+    "source_sha256_at_generation": "df518de61a99eb92425253397ce4519122eab2ece11ce46b447e56cadb861c0e",
+    "executable_sha256_at_generation": "22fc04a061f0b0e497aa83710a2e1dd225426fd0f96eca4e1a1d839a215c50c8",
+    "native_library_sha256_at_generation": "a8cdaf0fde2fcf9ba836363eaf8964279bb6ac6195271e0c882b2ce6cf67a448",
+    "controller": {
+      "speed_target": 16384,
+      "held_control_horizon_ticks": 24,
+      "replan_interval_ticks": 2,
+      "steering_candidates": [
+        0,
+        4,
+        8
+      ],
+      "cost": "Sum(lateralOffset^2 + originalHeadingDelta^2/256) plus off-track/restart penalties.",
+      "throttle": "Accelerate if local forward speed below target; otherwise brake.",
+      "gameplay_state_injection": false,
+      "rollout_initialization": "Copies independently evolved native state only for speculative input selection. No speculative state replaces live state."
+    },
+    "deterministic_regeneration_inputs_match": true
+  },
+  "observed_lap": {
+    "first_crossing_tick": 24,
+    "second_crossing_tick": 505,
+    "ordered_forward_segment_boundaries": 44,
+    "crossing_disarmed_tick": 272,
+    "restarts": 0
+  },
+  "verification": {
+    "command": "python scripts/check_driving_replay.py --inputs tests/replays/laps/authored-lap-506.csv --full-loop --require-complete-lap --native-only-verify",
+    "original_native_mismatches": 0,
+    "native_only_trace_matches": true,
+    "scope": "Headless recovered local Practice loop; the original CPU and native gameplay states evolve independently from the same capture."
+  },
+  "limitations": [
+    "This is authored input, not human play.",
+    "Native feedback selected the fixed input masks. Only the independent original/native replay establishes comparison equivalence.",
+    "Real interrupt timing is outside the replay contract."
+  ],
+  "input_encoding": "ASCII with LF line endings (Git canonical form)"
+}

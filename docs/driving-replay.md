@@ -1,7 +1,7 @@
 # Headless driving replay
 
 The replay harness targets the original main-loop gameplay interval
-`0x5d47e..0x5d4ba`. Each tick supplies controls, runs the original game in
+`0x5d47e..0x5d4ba` by default. Each tick supplies controls, runs the original game in
 Musashi, and compares its declared gameplay outputs with independently evolved
 native state. Track position, segment progress, physics inputs and timing state
 must come from each implementation's own previous outputs.
@@ -150,3 +150,73 @@ Gameplay RAM persists across ticks independently on both sides. The original
 keyboard/interrupt boundary is supplied by the test harness, and no interrupts
 run during a tick. Ordered register writes from the recovered sample-audio helper
 are compared; this does not establish complete Paula audio output or timing.
+
+## Restart and race-end mode
+
+Add `--full-loop` to continue through the original outer-loop gates to the
+next `0x5d47e`, the race-end fire-button wait at `0x6488a`, or the quit fade at
+`0x5d674`. This mode preserves the original CPU context between iterations.
+The first entry still establishes the documented register/stack preconditions.
+Both implementations keep their own state across restarts; only external
+controls are supplied. No original output seeds the native simulation.
+
+```powershell
+& $AmigaPython .\scripts\check_driving_replay.py --full-loop `
+  --run-leaf-tests --native-only-verify `
+  --output .\analysis\driving-replay\full-check-results.json
+```
+
+The recovered restart includes unsafe-segment rejection, the full vehicle
+reset, grid placement, geometry and physics, suspended-car placement, wheel
+and debris initialization, two frame/timer warmups, both buffer swaps and engine
+restart. Lap records and damage remain persistent. The original renderer uses
+segment/camera fields as temporary cursors, so final restart comparisons cover
+the declared persistent projection. The separate initializer oracle checks
+seven intermediate boundaries before rendering can reuse those fields.
+
+The original writes a six-frame buffer wait. The headless comparator explicitly
+services that countdown at swaps and presentation delays. This is a deterministic
+external wait boundary, not execution of the original interrupt handlers.
+`frame_wait_vblanks` counts the supplied countdown steps; it is not measured
+display timing. Original sample playback and audio-disable register writes
+remain ordered and compared. Palette and busy-delay CPU instructions run during
+restart. Their pixels, wall-clock duration and interrupt interleaving are excluded.
+
+An optional input header `tick,controls,quit` adds a 0/1 quit-key value, sampled
+at its original query. Quit requires `--full-loop`. A timeline must end on a
+terminal transition; further input rows are rejected. For example:
+
+```powershell
+& $AmigaPython .\scripts\check_driving_replay.py --full-loop `
+  --inputs .\tests\replays\transitions\quit-1.csv --native-only-verify
+```
+
+Trace columns now also contain `lap_counter`, `crossing_armed`, `race_complete`,
+`outer_action`, `restarts` and `quit`. Actions are 0 continue, 1 restart,
+2 race end, 3 quit, and 4 pause wait. The native transition module recovers pause
+bookkeeping, but the full-loop runner currently requires an unpaused capture
+and supplies no pause/unpause timeline. It stops at the end-message input wait
+or quit fade; returning to the menu is outside this composed replay.
+
+Use `--full-loop --require-complete-lap` with a suitable controls timeline to
+require a complete lap, rather than accepting a short matching sequence.
+The validator requires two observed crossings, all track segments in order,
+the crossing-latch disarm and no restart during the candidate lap. It rejects
+the initial counter-zero-to-one crossing as a complete-lap demonstration.
+See [complete-lap evidence and timeline authoring](replay-lap-validation.md).
+The four default short scenarios demonstrate restarts. A separate retained
+controls-only lap regression checks a full cycle with no restarts:
+
+```powershell
+& $AmigaPython .\scripts\check_driving_replay.py --full-loop `
+  --inputs .\tests\replays\laps\authored-lap-506.csv `
+  --require-complete-lap --native-only-verify `
+  --output .\analysis\driving-replay\complete-lap\check-results.json
+```
+
+It passes 506 original/native updates. Crossings at ticks 24 and 505 enclose
+all 44 segment boundaries, with latch disarm at tick 272. These are authored
+controls selected by a native feedback experiment, then checked against the
+original. Its provenance accompanies the CSV; it is not a human recording or
+an interrupt-timing test. The lap input lives in a subdirectory so the default
+short-scenario run remains stable.

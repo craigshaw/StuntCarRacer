@@ -41,4 +41,9 @@ struct TrackProgressState {
 // native bounds checks reject malformed data rather than inventing game behavior.
 [[nodiscard]] bool updateTrackProgress(const TrackProgressData& data,
     const TrackProgressInputs& inputs,TrackProgressState& state);
+// Individual original stages are also used by restart placement, which does
+// not run the normal grid search or progress/lap cache updates.
+void updateTrackCamera(const TrackProgressInputs& inputs,TrackProgressState& state);
+void applyTrackGeometry(const TrackProgressData& data,const TrackProgressInputs& inputs,TrackProgressState& state);
+void checkTrackBoundaries(TrackProgressState& state);
 } // namespace scr

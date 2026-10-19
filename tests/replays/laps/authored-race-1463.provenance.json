@@ -1,0 +1,71 @@
+{
+  "provenance": "Authored controls selected by deterministic native feedback rollouts; not a human recording.",
+  "input_file": "authored-race-1463.csv",
+  "input_sha256": "ff05db96a824875dea591a655e3fe44b9fa81ff62b878c76deb5eacc1facbda8",
+  "ticks": 1463,
+  "starting_capture": {
+    "source_savestate": "working/captures/play-20261018-192934-740.uss",
+    "source_savestate_sha256": "5ac753f0d452fe628b627d45817a0c27105e2bec12f2640f1518a73adfb58c7f",
+    "chip_ram": "analysis/captures/race/chip-000000.bin",
+    "chip_ram_sha256": "ed0b596a621c99612d759bf2af99c9481d179505a1f50535e8e3f34af1957bf2",
+    "segment": 15,
+    "lap_counter": 0,
+    "lap_line_segment": 16,
+    "crossing_disarm_segment": 37,
+    "track_segment_count": 44
+  },
+  "authoring_experiment": {
+    "local_source": "analysis/lap-authoring/author.cpp",
+    "source_sha256_at_generation": "745880d1d1d6b107815fe9dd3c3195300351a003194e5b06adfe59ff136198b6",
+    "executable_sha256_at_generation": "631219a5a892ef73799af44cea14c6f973cf7997010ef62ebfc13e2e61c5a321",
+    "native_library_sha256_at_generation": "a8cdaf0fde2fcf9ba836363eaf8964279bb6ac6195271e0c882b2ce6cf67a448",
+    "controller": {
+      "speed_target": 16384,
+      "held_control_horizon_ticks": 24,
+      "replan_interval_ticks": 2,
+      "steering_candidates": [
+        0,
+        4,
+        8
+      ],
+      "cost": "Sum(lateralOffset^2 + originalHeadingDelta^2/256) plus off-track/restart penalties.",
+      "throttle": "Accelerate if local forward speed below target; otherwise brake.",
+      "gameplay_state_injection": false,
+      "rollout_initialization": "Copies independently evolved native state only for speculative input selection. No speculative state replaces live state."
+    },
+    "deterministic_regeneration_inputs_match": true,
+    "stop_condition": "Continue through lap counter four until native outer_action raceEnd (2)."
+  },
+  "verification": {
+    "command": "python scripts/check_driving_replay.py --inputs tests/replays/laps/authored-race-1463.csv --full-loop --require-complete-lap --native-only-verify",
+    "original_native_mismatches": 0,
+    "native_only_trace_matches": true,
+    "scope": "Headless recovered local Practice loop; the original CPU and native gameplay states evolve independently from the same capture.",
+    "initial_result_artifact": "analysis/driving-replay/complete-race/check-results.json"
+  },
+  "limitations": [
+    "This is authored input, not human play.",
+    "Native feedback selected the fixed input masks. Only the independent original/native replay establishes comparison equivalence.",
+    "Real interrupt timing is outside the replay contract."
+  ],
+  "observed_race": {
+    "crossing_ticks": [
+      24,
+      505,
+      961,
+      1415
+    ],
+    "complete_laps": 3,
+    "crossing_disarmed_ticks": [
+      272,
+      730,
+      1184
+    ],
+    "race_complete_tick": 1415,
+    "race_complete_value": 4,
+    "race_end_tick": 1462,
+    "final_outer_action": 2,
+    "restarts": 0
+  },
+  "input_encoding": "ASCII with LF line endings (Git canonical form)"
+}

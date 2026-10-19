@@ -195,6 +195,10 @@ void progress(TrackProgressState& s) {
 }
 } // namespace
 
+void updateTrackCamera(const TrackProgressInputs& in,TrackProgressState& s) {camera(in,s);}
+void applyTrackGeometry(const TrackProgressData& d,const TrackProgressInputs& in,TrackProgressState& s) {geometry(d,in,s);}
+void checkTrackBoundaries(TrackProgressState& s) {boundaries(s);}
+
 bool updateTrackProgress(const TrackProgressData& data,const TrackProgressInputs& in,TrackProgressState& s) {
     if(!data.track.segmentCount||data.track.segmentCount>100)throw std::invalid_argument("Track progress requires 1..100 loaded segments");
     camera(in,s);

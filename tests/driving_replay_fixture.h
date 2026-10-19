@@ -7,6 +7,8 @@
 #include "track_progress_fixture.h"
 #include "race_timing_fixture.h"
 #include "driving_effects_fixture.h"
+#include "race_transitions_fixture.h"
+#include "race_restart_fixture.h"
 #include <set>
 
 namespace scr::test::replay {
@@ -23,7 +25,10 @@ struct NativeReplay {
     TrackProgressData progressData;
     ControllerHardware controller{};
     std::vector<AudioRegisterWrite> audioWrites;
-    explicit NativeReplay(const Ram& initial):ram(initial),physicsData(physics::readData(initial)),progressData(trackProgress::readData(initial)) {
+    RaceRestartData restartData;
+    RaceTransitionAction outerAction{};
+    unsigned restarts{},waitVblanks{};
+    explicit NativeReplay(const Ram& initial):ram(initial),physicsData(physics::readData(initial)),progressData(trackProgress::readData(initial)),restartData(restart::readData(initial)) {
         if(ram[0x57c3c]||ram[0x1ca22]&0x80)throw std::invalid_argument("Replay currently admits local Practice captures");
         if(ram[0x1ca33]==5)throw std::invalid_argument("Moving drawbridge track is not yet admitted");
         if(!physicsData.track.segmentCount)throw std::invalid_argument("Replay requires loaded track data");
@@ -47,7 +52,46 @@ struct NativeReplay {
     void wheelsStage() {auto s=effects::readState(ram);updateWheelVisuals(effects::readInputs(ram),physicsData.trig,s);effects::writeState(ram,s);}
     void damageStage() {auto s=effects::readState(ram);DrivingVisualEvents v;auto ids=updateDamageFeedback(effects::readInputs(ram),s,v);effects::writeState(ram,s);sounds(ids);}
     void timingStage() {auto s=timing::readState(ram.data());updateRaceTiming(timing::readInputs(ram.data()),s);timing::writeState(ram.data(),s);}
+    void disableAudio() {audioWrites.push_back({0xdff096,0xf});audioWrites.push_back({0xdff09a,0x780});}
+    void swapStage() {
+        auto s=transitions::readState(ram.data());waitVblanks+=s.framesToWait;s.framesToWait=0;
+        if(!swapRaceBuffers(s))throw std::logic_error("Frame boundary failed");transitions::writeState(ram.data(),s);
+    }
+    void frameStage() {progressStage();groundStage();wheelsStage();}
+    void restartStage(std::uint8_t segment) {
+        ++restarts;
+        restart::initialize(ram,segment,restartData,progressData,physicsData,audioWrites);
+        restart::wheels(ram,physicsData.trig);restart::debris(ram);
+        frameStage();timingStage();--ram[0x1bbac];swapStage();
+        physicsStage();frameStage();timingStage();--ram[0x1bbac];swapStage();
+        ram[0x1bb72]=ram[0x5d724]=0x80;
+        // Palette fades and platform delays have no admitted gameplay writes.
+        // The comparator executes their CPU instructions at the wait boundary.
+        waitVblanks+=ram[0x616d8];ram[0x616d8]=0;ram[0x616da]=0;
+        ram[0x1bb1a]=ram[0x1bb1b]=0;
+        scr_test::writeWord(ram,0x69ede,0x8020);sounds({7});engineStage();
+    }
+    void outerStage() {
+        auto s=transitions::readState(ram.data());
+        auto e=inspectRaceEnd(transitions::readInputs(ram.data()),s);transitions::writeState(ram.data(),s);
+        if(e.action==RaceTransitionAction::raceEnd) {
+            swapStage();s=transitions::readState(ram.data());e=finishRaceEnd(s);transitions::writeState(ram.data(),s);disableAudio();
+        } else {
+            swapStage();s=transitions::readState(ram.data());
+            auto pause=beginRacePause(transitions::readInputs(ram.data()),s);
+            if(pause.action==RaceTransitionAction::pauseWait)throw std::invalid_argument("Paused capture needs an unpause timeline");
+            e=continueRaceTransition(transitions::readInputs(ram.data()),s);transitions::writeState(ram.data(),s);
+            if(e.action==RaceTransitionAction::restartRace){disableAudio();restartStage(e.restartSegment);}
+        }
+        outerAction=e.action;
+    }
 };
+inline std::vector<unsigned> transitionOutputs() {
+    std::set<unsigned> v;auto mark=[&](unsigned a,unsigned n){while(n--)v.insert(a++);};
+    for(unsigned a:{0x1bb6f,0x1bbc8,0x1bb41,0x1bb6c,0x1bb75,0x1bbb4,0x1bb63,0x57c5b,0x1bba4,0x1bbb9,0x1bb8e,0x5e65a,0x5e65b,0x1bb8c,0x5dabe,0x616d8,0x1bcc8,0x1b816})mark(a,1);
+    mark(0x1bbf4,2);mark(0x1bc62,2);mark(0x6a584,16);mark(0x1b812,4);
+    return {v.begin(),v.end()};
+}
 inline std::vector<unsigned> physicsOutputs() {
     std::set<unsigned> values;auto mark=[&](unsigned a,unsigned n){for(unsigned i=0;i<n;++i)values.insert(a+i);};
     mark(0x1c230,72);mark(0x1bd02,12);mark(0x1bc94,12);mark(0x1bbf6,2);

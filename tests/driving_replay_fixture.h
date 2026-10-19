@@ -104,6 +104,13 @@ inline std::vector<unsigned> physicsOutputs() {
     for(auto a:steering::outputBytes())mark(a,1);
     for(auto a:carDynamics::wordOutputs)mark(a,2);mark(carDynamics::byteOutput,1);
     for(unsigned i=0;i<4;++i)mark(audio::channels+4*i,2);mark(audio::guard,2);
+    // The suspension adapter's enclosing observed range also contains two
+    // retained renderer bytes. Physics neither reads nor writes them. Original
+    // rendering updates them between ticks, while this gameplay mirror keeps
+    // its own presentation state. 1bb7c: writers66ff0/6704a/670c0, readers670c6/
+    // 670f0. 1bb7f: writers64e2e/65036, readers6587a/65960. Captured races often
+    // already held their eventual values; fresh startup exposes the difference.
+    values.erase(0x1bb7c);values.erase(0x1bb7f);
     return {values.begin(),values.end()};
 }
 inline std::vector<unsigned> timingOutputs() {

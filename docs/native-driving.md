@@ -3,12 +3,12 @@
 Double-click `Drive Native.cmd`, or run:
 
 ```powershell
-.\scripts\start-native-replay.ps1 -Live
+.\scripts\start-native-race.ps1
 ```
 
-The launcher checks local assets and verifies both replay and live simulation
-against the retained original race before opening **Native driving**. It starts
-paused at the same local Practice snapshot used by the verified replays. Click
+The launcher checks the local ADF-derived asset pack and native startup before
+opening **Native driving**. It constructs a fresh Practice race and starts
+paused. No captured state or ROM is needed. Click
 **Drive**, press **P**, or press the controller's **Start** button to begin.
 This uses the native C++ physics and renderer; the executable has no CPU emulator.
 `Watch Native Replay.cmd` continues to open the authored replay.
@@ -20,7 +20,7 @@ This uses the native C++ physics and renderer; the executable has no CPU emulato
 | Steer left / right | Left / Right or A / D | Left stick or D-pad left / right |
 | Boost | Space | A or right shoulder |
 | Pause / resume | P or Escape | Start |
-| Reset to the starting capture | R or Reset button | Back / View |
+| Reset to a fresh race | R or Reset button | Back / View |
 | Smooth / exact tick presentation | I or Smooth button | — |
 | Wireframe | F2 | — |
 | Mute / unmute sound | M | — |
@@ -37,12 +37,17 @@ shows whether one is connected, supports hot plugging, and pauses if it
 disconnects. Keyboard input remains available alongside the controller. Losing
 window focus pauses driving and clears pending input; returning to the window
 requires an explicit resume. A reset starts another recording and returns to
-the captured Practice state. Automatic off-track recovery and race-end gates
+a newly initialised Practice race. Automatic off-track recovery and race-end gates
 still use the recovered native routines. Original engine samples and sound
 effects play through native stereo audio. Pause and focus loss stop playback;
-M toggles mute. Menus, track selection and autonomous opponent driving are
+M toggles mute. `-Track` on the launcher selects a static track (0..7 except 5).
+Menus and autonomous opponent driving are
 outside this live mode. See [native audio](native-audio.md) for recovery evidence
 and the playback boundaries.
+
+See [native startup](native-startup.md) for pack import, source-control safeguards
+and the original-code checks on fresh race state. `start-native-replay.ps1 -Live`
+also forwards to the fresh startup launcher.
 
 ## Timing and interpolation
 

@@ -20,9 +20,9 @@
 namespace {
 using Scene=scr::viewer::ReplayScene;
 struct Options {
-    std::filesystem::path chip,payload,inputs,reference,trace,report,framesDirectory,audioWav,recordingsDirectory=L"analysis/live-driving";
+    std::filesystem::path chip,payload,assetPack,inputs,reference,trace,report,framesDirectory,audioWav,recordingsDirectory=L"analysis/live-driving";
     std::vector<unsigned> snapshots;std::vector<double> smoothSnapshots;
-    unsigned startTick{};bool headless{},paused{},interpolate{true},live{};
+    unsigned startTick{},track{},startupSteps=256;bool headless{},paused{},interpolate{true},live{};
 };
 struct ExportedFrame {unsigned tick{};std::filesystem::path path;scr::RenderStatistics statistics{};};
 struct ExportedSmoothFrame {double position{};std::filesystem::path path;};
@@ -63,9 +63,12 @@ Options parse(){
         else if(key==L"--interpolated-snapshot")o.smoothSnapshots.push_back(std::stod(value));
         else if(key==L"--recordings-dir")o.recordingsDirectory=value;
         else if(key==L"--audio-wav")o.audioWav=value;
+        else if(key==L"--asset-pack"){o.assetPack=value;o.live=true;o.paused=true;}
+        else if(key==L"--track")o.track=unsigned(std::stoul(value));
+        else if(key==L"--steps")o.startupSteps=unsigned(std::stoul(value));
         else if(key==L"--start-tick")o.startTick=unsigned(std::stoul(value));else throw std::runtime_error("Unknown command-line option: "+utf8(key));
     }}catch(...){LocalFree(args);throw;}LocalFree(args);
-    if(o.chip.empty()||o.payload.empty()||((!o.live||o.headless)&&(o.inputs.empty()||o.reference.empty()))||o.trace.empty()||o.report.empty())
+    if((o.assetPack.empty()&&(o.chip.empty()||o.payload.empty()||((!o.live||o.headless)&&(o.inputs.empty()||o.reference.empty()))))||o.trace.empty()||o.report.empty())
         throw std::runtime_error("Use scripts/start-native-replay.ps1 to prepare the verified replay assets and trace");
     return o;
 }
@@ -73,7 +76,8 @@ void report(const Options& o,const Scene* scene,const std::vector<ExportedFrame>
     if(o.report.empty())return;
     std::filesystem::create_directories(o.report.parent_path());std::ofstream out(o.report);
     if(!out)throw std::runtime_error("Cannot write viewer verification report");
-    out<<"{\n  \"status\":\""<<(error.empty()?"passed":"failed")<<"\",\n  \"traceMatched\":"<<(error.empty()&&(!o.live||o.headless)?"true":"false")
+    out<<"{\n  \"status\":\""<<(error.empty()?"passed":"failed")<<"\",\n  \"traceMatched\":"<<(error.empty()&&o.assetPack.empty()&&(!o.live||o.headless)?"true":"false")
+       <<",\n  \"capture_input\":"<<(o.assetPack.empty()?"true":"false")
        <<",\n  \"mode\":\""<<(o.live?"live":"replay")<<"\",\n  \"cpu_emulation\":false,\n  \"ticks\":"<<(scene?(o.live?scene->liveTicks():scene->frames().size()):0)
        <<",\n  \"mesh_vertices\":"<<(scene?scene->mesh().vertices.size():0)<<",\n  \"mesh_faces\":"<<(scene?scene->mesh().faces.size():0)
        <<",\n  \"side_mesh_faces\":"<<(scene?scene->sideFaceCount():0)
@@ -321,8 +325,16 @@ int WINAPI wWinMain(HINSTANCE instance,HINSTANCE,PWSTR,int show){
         options=parse();std::filesystem::create_directories(options.trace.parent_path());
         scene=std::make_unique<Scene>();
         if(options.live){
-            scene->loadLive(options.chip,options.payload,options.recordingsDirectory);
-            const auto presentations=options.headless?scene->verifyLiveReplay(options.inputs,options.reference,options.trace):0;
+            if(options.assetPack.empty())scene->loadLive(options.chip,options.payload,options.recordingsDirectory);
+            else scene->loadNative(options.assetPack,options.recordingsDirectory,options.track);
+            unsigned presentations=0;
+            if(options.headless){
+                if(options.assetPack.empty())presentations=scene->verifyLiveReplay(options.inputs,options.reference,options.trace);
+                else for(unsigned tick=0;tick<options.startupSteps;++tick){
+                    if(!scene->stepLive(tick<options.startupSteps*3/4?1:2))break;
+                    scene->renderLive(0.5);++presentations;if(scene->liveTerminal())break;
+                }
+            }
             report(options,scene.get(),{},presentations);
             if(options.headless)return 0;
             SetProcessDPIAware();Window window(*scene,options);const auto result=window.run(instance,show);

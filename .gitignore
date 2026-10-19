@@ -15,6 +15,12 @@
 /setup/rea-*.json
 /setup/rea-*.log
 *.bin
+*.scr-assets
+*.pack
+*.wav
+*.ogg
+*.mp3
+*.flac
 *.dump
 *.gpr
 *.rep/

@@ -910,7 +910,11 @@ controls, exported frames, differential evidence and rendering boundaries.
 
 ### Drive the native port
 
-Double-click `Drive Native.cmd`, or run `scripts/start-native-replay.ps1 -Live`.
+Double-click `Drive Native.cmd`, or run `scripts/start-native-race.ps1`.
+The launcher imports a local data pack from the supplied ADF when needed and
+constructs a fresh Practice race using native initialisation. It needs no saved
+Practice state, Kickstart ROM or emulator. Seven static tracks are supported;
+`-Track 0` is the default and moving Draw Bridge track 5 remains unsupported.
 Click **Drive** or press **P** to begin. Arrows/WASD steer and operate gas/brake;
 Space boosts. Xbox controllers use the left stick/D-pad, RT/LT for gas/brake and
 A for boost. Physics retains fixed 120 ms steps with smooth 60 FPS presentation.
@@ -926,6 +930,15 @@ handlers, with separate audio state and 48 kHz native output. Physics remains at
 618,645 original/native comparisons; the complete race also exports checked PCM
 without changing any gameplay trace column. See [native audio](docs/native-audio.md)
 for sample provenance, reproduction and fidelity limits.
+
+The local pack and provenance manifest live under ignored `analysis/assets/`.
+Only extraction/decoder code, checksums and tests are tracked. A pre-commit hook
+and source-only CI check reject original media, asset packs, generated binaries
+and bulk encoded data. Fresh-start checks cover 3,584 updates across seven tracks,
+including original-code comparison and deterministic reset. See
+[native startup and assets](docs/native-startup.md) for import, pack format,
+reproduction and Git safeguards. Captures remain test references for the separate
+verified replay mode.
 
 ## Sources and installation provenance
 

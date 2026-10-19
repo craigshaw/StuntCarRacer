@@ -4,6 +4,7 @@
 #include "software_renderer.h"
 #include "game_audio.h"
 #include <filesystem>
+#include <array>
 #include <memory>
 #include <string>
 #include <vector>
@@ -28,6 +29,7 @@ public:
         const std::filesystem::path& nativeTrace);
     void loadLive(const std::filesystem::path& chip,const std::filesystem::path& payload,
         const std::filesystem::path& recordingsDirectory);
+    void loadNative(const std::filesystem::path& pack,const std::filesystem::path& recordingsDirectory,unsigned trackId=0);
     void resetLive();
     bool stepLive(unsigned controls,bool quit=false);
     unsigned verifyLiveReplay(const std::filesystem::path& inputs,const std::filesystem::path& reference,
@@ -51,7 +53,11 @@ private:
     struct Simulation;
     std::unique_ptr<Simulation> simulation_;
     std::filesystem::path chipPath_,payloadPath_,recordingsDirectory_;
+    std::filesystem::path nativePackPath_;
+    unsigned nativeTrack_{};
     void initialise(const std::filesystem::path& chip,const std::filesystem::path& payload);
+    void initialiseMemory(const std::array<std::uint8_t,0x80000>&,const std::vector<std::uint8_t>&);
+    void beginLiveRecording(const std::filesystem::path&);
     ReplaySceneFrame captureFrame(Simulation&,unsigned tick,unsigned controls);
     void finishFrame(Simulation&,ReplaySceneFrame&);
     ReplaySceneFrame advanceSimulation(Simulation&,unsigned controls,bool quit);

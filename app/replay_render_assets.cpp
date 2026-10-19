@@ -17,7 +17,7 @@ void frameSize(const std::vector<std::uint32_t>& pixels) {
     if(pixels.size()!=replayWidth*replayHeight)throw std::invalid_argument("Expected320x200 replay canvas");
 }
 void chipExtent(const std::uint8_t* r,std::size_t size) {
-    if(!r||size!=0x80000)throw std::invalid_argument("Expected512KiB captured Chip RAM");
+    if(!r||size!=0x80000)throw std::invalid_argument("Expected512KiB initialized Chip RAM image");
 }
 }
 ReplayRenderAssets decodeReplayRenderAssets(const std::uint8_t* payload,std::size_t payloadSize,
@@ -30,7 +30,7 @@ ReplayRenderAssets decodeReplayRenderAssets(const std::uint8_t* payload,std::siz
     assets.backgroundCompressedBytes=decoded.consumed;
     for(unsigned i=0;i<16;++i)assets.palette[i]=originalPaletteRgb(word(payload,payloadSize,palette-base+2*i));
     // Original startup patches six font bytes (0x1feed,0x1fef7/8,
-    // 0x2007a,0x20080/1). Preserve the observed initialized font.
+    // 0x2007a,0x20080/1). Read the font after native/captured initialization.
     std::copy_n(chipRam+0x1fe82,assets.font.size(),assets.font.begin());
     std::array<unsigned,52> pointers{};
     for(unsigned id=0;id<pointers.size();++id)pointers[id]=longword(chipRam,chipSize,objectPointers+id*4);

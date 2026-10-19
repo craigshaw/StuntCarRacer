@@ -1,0 +1,3 @@
+#!/bin/sh
+# Reads staged blobs so git add -f cannot bypass the asset policy.
+exec python scripts/check_repository_assets.py --staged

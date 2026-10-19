@@ -1,6 +1,7 @@
 #include "replay_scene.h"
 #include "track_mesh_capture.h"
 #include "live_drive.h"
+#include "native_startup.h"
 #include "../tests/driving_replay_io.h"
 #include "../tests/near_track_geometry_fixture.h"
 #include <algorithm>
@@ -41,16 +42,18 @@ ReplayScene::ReplayScene()=default;
 ReplayScene::~ReplayScene()=default;
 void ReplayScene::initialise(const std::filesystem::path& chip,const std::filesystem::path& payload){
     auto capture=scr::test::replay::loadCapture(chip.string().c_str());const auto original=readFile(payload);
-    chipPath_=chip;payloadPath_=payload;
-    assets_=decodeReplayRenderAssets(original.data(),original.size(),capture->data(),capture->size());
-    const auto meshData=decodeTrackMesh(*capture);mesh_=buildTrackMesh(meshData);
+    chipPath_=chip;payloadPath_=payload;nativePackPath_.clear();initialiseMemory(*capture,original);
+}
+void ReplayScene::initialiseMemory(const std::array<std::uint8_t,0x80000>& memory,const std::vector<std::uint8_t>& original){
+    assets_=decodeReplayRenderAssets(original.data(),original.size(),memory.data(),memory.size());
+    const auto meshData=decodeTrackMesh(memory);mesh_=buildTrackMesh(meshData);
     segmentRenderFlags_.fill(0);std::array<bool,100> knownFlags{};
     for(const auto& section:meshData.sections)if(!knownFlags[section.segment]){
         segmentRenderFlags_[section.segment]=section.flags;knownFlags[section.segment]=true;
     }
-    sides_=buildTrackSides(mesh_,{(*capture)[0x691b3],(*capture)[0x691b2],false});
+    sides_=buildTrackSides(mesh_,{memory[0x691b3],memory[0x691b2],false});
     mountains_=decodeMountainHorizonData(original.data(),original.size());
-    simulation_=std::make_unique<Simulation>(*capture);
+    simulation_=std::make_unique<Simulation>(memory);
     presentationTrack_=simulation_->native.progressData;trig_=simulation_->native.physicsData.trig;
     projection_.angleTable=presentationTrack_.angleTable;projection_.magnitudeTable=presentationTrack_.magnitudeTable;
     frames_.clear();cachedFrame_=~0u;
@@ -125,7 +128,14 @@ void ReplayScene::load(const std::filesystem::path& chip,const std::filesystem::
     if(frames_.empty())throw std::runtime_error("No native replay frames");
 }
 void ReplayScene::loadLive(const std::filesystem::path& chip,const std::filesystem::path& payload,const std::filesystem::path& directory){
-    initialise(chip,payload);recordingsDirectory_=directory;std::filesystem::create_directories(directory);
+    initialise(chip,payload);beginLiveRecording(directory);
+}
+void ReplayScene::loadNative(const std::filesystem::path& pack,const std::filesystem::path& directory,unsigned trackId){
+    auto startup=startNativeRace(pack,trackId);initialiseMemory(*startup.memory,startup.payload);
+    nativePackPath_=pack;nativeTrack_=trackId;chipPath_.clear();payloadPath_.clear();beginLiveRecording(directory);
+}
+void ReplayScene::beginLiveRecording(const std::filesystem::path& directory){
+    recordingsDirectory_=directory;std::filesystem::create_directories(directory);
     const auto stamp=std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::system_clock::now().time_since_epoch()).count();
     auto base=directory/("drive-"+std::to_string(stamp));unsigned suffix=0;
     while(std::filesystem::exists(base.string()+"-controls.csv"))base=directory/("drive-"+std::to_string(stamp)+"-"+std::to_string(++suffix));
@@ -136,7 +146,11 @@ void ReplayScene::loadLive(const std::filesystem::path& chip,const std::filesyst
     const auto seed=simulation.geometry;auto frame=captureFrame(simulation,0,0);simulation.geometry=seed;finishFrame(simulation,frame);
     frames_.push_back(frame);frames_.push_back(std::move(frame));
 }
-void ReplayScene::resetLive(){const auto chip=chipPath_,payload=payloadPath_,directory=recordingsDirectory_;loadLive(chip,payload,directory);}
+void ReplayScene::resetLive(){
+    const auto directory=recordingsDirectory_;
+    if(!nativePackPath_.empty()){const auto pack=nativePackPath_;loadNative(pack,directory,nativeTrack_);}
+    else{const auto chip=chipPath_,payload=payloadPath_;loadLive(chip,payload,directory);}
+}
 unsigned ReplayScene::liveTicks()const noexcept{return simulation_?simulation_->ticks:0;}
 bool ReplayScene::liveTerminal()const noexcept{return simulation_&&(simulation_->native.outerAction==RaceTransitionAction::raceEnd||simulation_->native.outerAction==RaceTransitionAction::quit);}
 const std::filesystem::path& ReplayScene::liveRecording()const noexcept{return simulation_->recording;}

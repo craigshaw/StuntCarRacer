@@ -19,7 +19,7 @@ from replay_lap import initial_lap_state, validate_laps
 
 RENDER_STEMS = {'track_mesh', 'render_projection', 'planar_image', 'software_renderer',
                 'track_sides', 'mountain_horizon', 'near_track_geometry', 'near_track_visibility', 'near_track_frame',
-                'engine_audio', 'paula_mixer'}
+                'engine_audio', 'paula_mixer', 'track_initialization'}
 SNAPSHOT_TICKS = (0, 24, 128, 272, 505, 961, 1415, 1462)
 SMOOTH_SNAPSHOTS = (86.25, 86.5, 86.75, 505.5, 961.5)
 

@@ -26,8 +26,16 @@ inline TrackMeshData decodeTrackMesh(const std::array<std::uint8_t,0x80000>& r) 
     }
     for(unsigned segment=0;segment<d.segmentCount;++segment) {
         const auto pointer=longword(trackMeshPointerTable+4*segment);
-        if(pointer<trackMeshStreamBase||pointer>=end||(pointer-trackMeshStreamBase)%14||r[pointer+1]!=segment)
+        const auto next=segment+1<d.segmentCount?longword(trackMeshPointerTable+4*(segment+1)):end;
+        // Some original segments emit no cached cross-section: their pointer
+        // aliases the next segment, or the stream end. Validate the interval
+        // and require ownership only when that interval contains geometry.
+        if(pointer<trackMeshStreamBase||pointer>end||next<pointer||next>end||
+           (pointer-trackMeshStreamBase)%14||(next-trackMeshStreamBase)%14||
+           (segment==0&&pointer!=trackMeshStreamBase))
             throw std::invalid_argument("Original track pointer table does not select its segment");
+        for(auto at=pointer;at<next;at+=14)if(r[at+1]!=segment)
+            throw std::invalid_argument("Track cache interval has another segment's geometry");
     }
     return d;
 }

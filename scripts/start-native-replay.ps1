@@ -9,6 +9,13 @@ param(
 )
 $ErrorActionPreference = 'Stop'
 $taskRoot = Split-Path -Parent $PSScriptRoot
+if ($Live) {
+    $nativeArguments = @{}
+    if ($ExactTicks) { $nativeArguments.ExactTicks = $true }
+    if ($SkipBuild) { $nativeArguments.SkipBuild = $true }
+    & (Join-Path $PSScriptRoot 'start-native-race.ps1') @nativeArguments
+    exit $LASTEXITCODE
+}
 $pythonTool = 'C:\Tools\amiga-re\venv\Scripts\python.exe'
 $reportPath = Join-Path $taskRoot 'analysis/native-render/check-results.json'
 function Resolve-ReplayPath([string]$Value) {

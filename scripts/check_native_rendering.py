@@ -18,6 +18,7 @@ from replay_lap import initial_lap_state, validate_laps
 RENDER_STEMS = {'track_mesh', 'render_projection', 'planar_image', 'software_renderer',
                 'track_sides', 'mountain_horizon', 'near_track_geometry', 'near_track_visibility', 'near_track_frame'}
 SNAPSHOT_TICKS = (0, 24, 128, 272, 505, 961, 1415, 1462)
+SMOOTH_SNAPSHOTS = (86.25, 86.5, 86.75, 505.5, 961.5)
 
 
 def stored_path(record):
@@ -89,7 +90,7 @@ def verify_reference(path, inputs, capture_record):
 
 
 def viewer_sources():
-    paths = {ROOT / 'CMakeLists.txt'}
+    paths = {ROOT / 'CMakeLists.txt', ROOT / 'tests/replay_interpolation_tests.cpp'}
     for directory in ('src', 'app'):
         for pattern in ('*.cpp', '*.h'):
             paths.update((ROOT / directory).glob(pattern))
@@ -107,7 +108,7 @@ def image_python():
     raise RuntimeError('Pillow is required only for QA image conversion; use the bundled workspace Python runtime')
 
 
-def verify_viewer_report(report, ticks, snapshots):
+def verify_viewer_report(report, ticks, snapshots, smooth_snapshots):
     if report.get('status') != 'passed' or report.get('traceMatched') is not True:
         raise ValueError('Native viewer did not establish matching replay traces')
     if report.get('cpu_emulation') is not False or type(report.get('ticks')) is not int or report['ticks'] != ticks:
@@ -145,6 +146,20 @@ def verify_viewer_report(report, ticks, snapshots):
             'road_pixels', 'side_pixels', 'mountain_pixels', 'near_queue_entries', 'near_fill_commands',
             'edge_highlight_commands', 'edge_highlight_pixels')):
         raise ValueError('Initial QA frame must show road, sidewalls, mountains and near edge highlights')
+    smooth = report.get('interpolation', {})
+    if smooth.get('target_fps') != 60 or smooth.get('physics_tick_seconds') != 0.12:
+        raise ValueError('Presentation must target60Hz while retaining120ms verified ticks')
+    expected_samples = ((ticks - 1) * 36 + 4) // 5 + 1
+    if type(smooth.get('rendered_samples')) is not int or smooth['rendered_samples'] != expected_samples:
+        raise ValueError('Viewer did not exercise the full60Hz presentation timeline')
+    if smooth.get('exact_endpoints_checked') != ticks:
+        raise ValueError('Every exact tick must retain identical pixels after interpolated rendering')
+    if smooth.get('seek_samples_checked') != (expected_samples - 1) // 37 + 1:
+        raise ValueError('Interpolated replay must retain identical pixels when seeking backwards')
+    if ticks > 1 and not 0 < smooth.get('changed_samples', 0) < expected_samples:
+        raise ValueError('Interpolation did not produce intermediate views')
+    if [item.get('position') for item in smooth.get('snapshots', [])] != smooth_snapshots:
+        raise ValueError('Interpolated snapshot positions differ from requested QA views')
 
 
 def verify_viewer_trace(trace, reference, inputs, ticks, viewer_report):
@@ -244,12 +259,13 @@ def main():
     subprocess.run([sys.executable, str(ROOT / 'scripts/prepare_replay_render_assets.py'), '--capture', str(capture), '--output', str(asset_output)], check=True, cwd=ROOT)
     build = ROOT / 'analysis/native-render/viewer-build'
     executable = build / 'Release/native_replay_viewer.exe'
+    interpolation_test = build / 'Release/replay_interpolation_tests.exe'
     sources = viewer_sources();source_records = [identity(path) for path in sources]
     build_receipt = build / 'viewer-build-receipt.json'
     build_commands = []
     if not args.skip_build:
         build_commands = [['cmake', '-S', str(ROOT), '-B', str(build), '-G', 'Visual Studio 18 2026', '-A', 'x64', '-DSCR_BUILD_ORACLE=OFF'],
-                          ['cmake', '--build', str(build), '--config', 'Release', '--target', 'native_replay_viewer', '--parallel', '4']]
+                          ['cmake', '--build', str(build), '--config', 'Release', '--target', 'native_replay_viewer', 'replay_interpolation_tests', '--parallel', '4']]
         with (out / 'build.log').open('w', encoding='utf-8') as log:
             for command in build_commands:
                 log.write(json.dumps(command) + '\n');log.flush()
@@ -262,6 +278,7 @@ def main():
             if receipt['sources'] != source_records:
                 raise ValueError('Native viewer source identities differ from the last build')
             identity(executable, receipt['executable']['sha256'])
+            identity(interpolation_test, receipt['interpolation_test']['sha256'])
         except (OSError, ValueError, KeyError, RuntimeError) as error:
             raise RuntimeError('No matching native viewer build receipt; rebuild without --skip-build') from error
     else:
@@ -269,8 +286,13 @@ def main():
         # build-file edit. Record content identities rather than compare mtimes.
         for path, record in zip(sources, source_records):
             identity(path, record['sha256'])
-        build_receipt.write_text(json.dumps({'executable': identity(executable), 'sources': source_records}, indent=2) + '\n', encoding='utf-8')
+        build_receipt.write_text(json.dumps({'executable': identity(executable), 'interpolation_test': identity(interpolation_test), 'sources': source_records}, indent=2) + '\n', encoding='utf-8')
+    regression_run = subprocess.run([str(interpolation_test)], capture_output=True, text=True, check=True, cwd=ROOT)
+    regression = json.loads(regression_run.stdout)
+    if regression.get('mismatches') != 0 or regression.get('total_cases', 0) < 14:
+        raise ValueError('Presentation interpolation regressions failed')
     snapshots = [tick for tick in SNAPSHOT_TICKS if tick < inputs['ticks']]
+    smooth_snapshots = [position for position in SMOOTH_SNAPSHOTS if position < inputs['ticks'] - 1]
     frame_directory = out / 'frames';frame_directory.mkdir(exist_ok=True)
     trace = out / 'viewer-native.csv';viewer_report_path = out / 'viewer.json'
     trace.unlink(missing_ok=True);viewer_report_path.unlink(missing_ok=True)
@@ -279,13 +301,15 @@ def main():
                '--headless', '--frames-dir', str(frame_directory)]
     for tick in snapshots:
         command.extend(['--snapshot', str(tick)])
+    for position in smooth_snapshots:
+        command.extend(['--interpolated-snapshot', str(position)])
     executable_before = identity(executable)
     run = subprocess.run(command, capture_output=True, text=True, cwd=ROOT)
     (out / 'viewer-stdout.txt').write_text(run.stdout, encoding='utf-8');(out / 'viewer-stderr.txt').write_text(run.stderr, encoding='utf-8')
     if run.returncode:
         raise RuntimeError(f'Native viewer failed({run.returncode}); see {out / "viewer-stderr.txt"}')
     viewer_report = json.loads(viewer_report_path.read_text(encoding='utf-8'))
-    verify_viewer_report(viewer_report, inputs['ticks'], snapshots)
+    verify_viewer_report(viewer_report, inputs['ticks'], snapshots, smooth_snapshots)
     asset_manifest = json.loads((asset_output / 'assets-manifest.json').read_text())
     if viewer_report['background_compressed_bytes'] != asset_manifest['background']['compressed_bytes']:
         raise ValueError('Native viewer background extent differs from verified original asset decoding')
@@ -298,6 +322,13 @@ def main():
             raise ValueError('Native viewer snapshot path differs from requested frame output')
         frames.append(path)
     qa = convert_qa_frames(frames, out / 'contact-sheet.png')
+    smooth_frames = []
+    for item in viewer_report['interpolation']['snapshots']:
+        path = Path(item['path']).resolve()
+        if path.parent != frame_directory.resolve() or path.name != f'interpolated-{item["position"]:.3f}.bmp':
+            raise ValueError('Interpolated snapshot path differs from requested frame output')
+        smooth_frames.append(path)
+    smooth_qa = convert_qa_frames(smooth_frames, out / 'interpolated-contact-sheet.png') if smooth_frames else None
     identity(executable, executable_before['sha256']);identity(inputs_path, inputs['identity']['sha256'])
     identity(chip, capture_record['chip_ram']['sha256']);identity(payload, payload_identity['sha256'])
     for path, record in zip(sources, source_records):
@@ -311,8 +342,10 @@ def main():
         'build_commands': build_commands, 'build_skipped': args.skip_build, 'build_receipt': identity(build_receipt), 'sources': source_records,
         'asset_manifest': identity(asset_output / 'assets-manifest.json'),
         'viewer_report': identity(viewer_report_path), 'viewer_results': viewer_report,
+        'interpolation_regression': {'executable': identity(interpolation_test), 'results': regression},
         'native_trace': identity(trace), 'trace_checks': trace_checks, 'lap_validation': lap_checks,
         'snapshots': [identity(path) for path in frames], 'qa_images': qa,
+        'interpolated_snapshots': [identity(path) for path in smooth_frames], 'interpolated_qa_images': smooth_qa,
         'wrapper_sources': [identity(Path(__file__)), identity(ROOT / 'scripts/prepare_replay_render_assets.py')],
         'limitations': ['The viewer runs native gameplay and software rendering; it does not emulate the68000.',
             'Every declared gameplay trace column is compared with the retained original execution; renderer pixels are not claimed equal to original DMA/blitter output.',

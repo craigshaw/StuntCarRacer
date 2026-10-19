@@ -3,6 +3,7 @@
 #include "../tests/driving_replay_io.h"
 #include "../tests/near_track_geometry_fixture.h"
 #include <algorithm>
+#include <cmath>
 #include <fstream>
 #include <iterator>
 #include <memory>
@@ -31,14 +32,15 @@ void ReplayScene::load(const std::filesystem::path& chip,const std::filesystem::
     auto capture=replay::loadCapture(chip.string().c_str());const auto original=readFile(payload);
     assets_=decodeReplayRenderAssets(original.data(),original.size(),capture->data(),capture->size());
     const auto meshData=decodeTrackMesh(*capture);mesh_=buildTrackMesh(meshData);
-    std::array<std::uint8_t,100> segmentRenderFlags{};std::array<bool,100> knownFlags{};
+    segmentRenderFlags_.fill(0);std::array<bool,100> knownFlags{};
     for(const auto& section:meshData.sections)if(!knownFlags[section.segment]){
-        segmentRenderFlags[section.segment]=section.flags;knownFlags[section.segment]=true;
+        segmentRenderFlags_[section.segment]=section.flags;knownFlags[section.segment]=true;
     }
     sides_=buildTrackSides(mesh_,{(*capture)[0x691b3],(*capture)[0x691b2],false});
     mountains_=decodeMountainHorizonData(original.data(),original.size());
     auto state=std::make_unique<replay::NativeReplay>(*capture);
     auto nearGeometry=scr::test::nearGeometry::readState(*capture);
+    presentationTrack_=state->progressData;trig_=state->physicsData.trig;
     projection_.angleTable=state->progressData.angleTable;projection_.magnitudeTable=state->progressData.magnitudeTable;
     const auto input=replay::loadInputs(inputs.string().c_str());
     std::ifstream reference(referenceTrace);if(!reference)throw std::runtime_error("Verified original trace is required");
@@ -69,7 +71,9 @@ void ReplayScene::load(const std::filesystem::path& chip,const std::filesystem::
         nearInputs.drawing.renderingOrderMode=state->ram[0x1bb9a];nearInputs.drawing.raceStartTimer=state->ram[0x1bbdf];
         nearInputs.drawing.offRoadSideFlags=nearInputs.progress.offRoadSide;nearInputs.drawing.offsetFromRoadCenter=nearInputs.progress.lateralOffset;
         nearInputs.drawing.sideEdgeColor=(*capture)[0x691b3];nearInputs.drawing.alternateSideColor=(*capture)[0x691b2];
-        auto nearFrame=buildNearTrackFrame(state->progressData,segmentRenderFlags,nearInputs,nearGeometry);
+        const auto nearSeed=nearGeometry;
+        const auto progressInputs=scr::test::trackProgress::readInputs(state->ram);
+        auto nearFrame=buildNearTrackFrame(state->progressData,segmentRenderFlags_,nearInputs,nearGeometry);
         state->groundStage();state->wheelsStage();state->damageStage();state->timingStage();state->outerStage();
         std::ostringstream row;replay::traceRow(row,state->ram,tick,input[tick].controls,0,unsigned(state->outerAction),state->restarts,input[tick].quit);
         const auto values=columns(row.str().substr(0,row.str().size()-1));
@@ -81,6 +85,7 @@ void ReplayScene::load(const std::filesystem::path& chip,const std::filesystem::
         trace<<row.str();
         ReplaySceneFrame frame;frame.tick=tick;frame.controls=input[tick].controls;frame.restarts=state->restarts;frame.action=unsigned(state->outerAction);
         frame.cameraYaw=camera.yaw;frame.camera=renderCamera;frame.nearTrack=std::move(nearFrame.presentation);
+        frame.pose=camera;frame.nearInputs=nearInputs;frame.nearSeed=nearSeed;frame.progressInputs=progressInputs;
         frame.cockpit=captureCockpitFrame(state->ram.data(),state->ram.size());
         frame.forwardSpeed=a::word(state->ram.data(),0x1bd30);frame.lapCounter=state->ram[0x1bb20];frame.raceComplete=state->ram[0x1bbaf];
         frame.boostFuel=state->ram[0x1ca20];frame.damage=state->ram[0x1bb55];
@@ -92,18 +97,44 @@ void ReplayScene::load(const std::filesystem::path& chip,const std::filesystem::
     if(frames_.empty())throw std::runtime_error("No native replay frames");
 }
 const std::vector<std::uint32_t>& ReplayScene::render(unsigned index,bool wireframe) {
-    if(index==cachedFrame_&&wireframe==cachedWireframe_)return pixels_;
-    const auto& frame=frames_.at(index);makeReplayBackground(assets_,pixels_);
-    const auto mountains=projectMountainHorizon(mountains_,frame.cameraYaw,frame.camera);
-    statistics_=renderer_.drawFrame(mesh_,sides_,mountains,frame.camera,projection_,assets_.palette,pixels_,wireframe,&frame.nearTrack);
+    if(index==cachedFrame_&&cachedFraction_==0&&wireframe==cachedWireframe_)return pixels_;
+    const auto& frame=frames_.at(index);draw(frame,frame.nearTrack,wireframe);
+    cachedFrame_=index;cachedFraction_=0;cachedWireframe_=wireframe;
+    return pixels_;
+}
+const std::vector<std::uint32_t>& ReplayScene::renderInterpolated(double position,bool wireframe){
+    if(!std::isfinite(position)||frames_.empty())throw std::invalid_argument("Invalid replay presentation position");
+    position=std::clamp(position,0.0,double(frames_.size()-1));
+    const auto index=unsigned(position);const double fraction=position-index;
+    const auto& from=frames_[index];
+    if(fraction<1e-9||index+1==frames_.size())return render(index,wireframe);
+    const auto& to=frames_[index+1];
+    if(!canInterpolateReplay(from.restarts,to.restarts,from.action,to.action))return render(index,wireframe);
+    if(index==cachedFrame_&&fraction==cachedFraction_&&wireframe==cachedWireframe_)return pixels_;
+    const auto visual=interpolateReplayVisuals(from,to,fraction,trig_);
+    // Rebuild near geometry from a private copy of the saved renderer history.
+    // This query never advances gameplay or writes back to verified snapshots.
+    auto inputs=from.nearInputs;auto progress=from.progressInputs;auto seed=from.nearSeed;
+    inputs.progress.worldPosition=visual.pose.worldPosition;
+    progress.pitch=visual.pose.pitch;progress.yaw=visual.pose.yaw;progress.averageWheelVelocity=visual.pose.averageWheelVelocity;
+    (void)updateTrackProgress(presentationTrack_,progress,inputs.progress);
+    inputs.progress.cameraHeight=visual.camera.heightBaseline;inputs.camera=visual.camera;
+    inputs.drawing.offRoadSideFlags=inputs.progress.offRoadSide;inputs.drawing.offsetFromRoadCenter=inputs.progress.lateralOffset;
+    const auto nearFrame=buildNearTrackFrame(presentationTrack_,segmentRenderFlags_,inputs,seed);
+    draw(visual,nearFrame.presentation,wireframe);
+    cachedFrame_=index;cachedFraction_=fraction;cachedWireframe_=wireframe;
+    return pixels_;
+}
+void ReplayScene::draw(const ReplayVisualState& frame,const NearTrackPresentation& nearTrack,bool wireframe){
+    makeReplayBackground(assets_,pixels_);
+    const auto mountains=projectMountainHorizon(mountains_,frame.pose.yaw,frame.camera);
+    statistics_=renderer_.drawFrame(mesh_,sides_,mountains,frame.camera,projection_,assets_.palette,pixels_,wireframe,&nearTrack);
     composeReplayCockpit(assets_,frame.cockpit,pixels_);
     // The original speedometer uses this word multiply/shift before drawing
     // its two-row span. This changes presentation pixels only.
     int speed=int(frame.forwardSpeed)-0x1100;if(speed<0)speed=0;
     unsigned bar=unsigned((std::uint32_t(speed)*0xb700u)>>16)>>7;if(bar>=128)bar-=128;bar=std::min(127u,bar);
     for(unsigned y=174;y<176;++y)for(unsigned x=0;x<128;++x)pixels_[y*320+96+x]=assets_.palette[x<=bar?3:0];
-    cachedFrame_=index;cachedWireframe_=wireframe;
-    return pixels_;
 }
 void ReplayScene::saveBitmap(const std::filesystem::path& path) const {
     if(pixels_.size()!=320*200)throw std::runtime_error("Render a frame before exporting");

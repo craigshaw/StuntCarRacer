@@ -897,7 +897,9 @@ Double-click `Watch Native Replay.cmd`, or run:
 
 The launcher verifies the local asset and original-trace hashes, builds the
 native Windows viewer, and checks all 1,463 gameplay and rendered frames before
-opening playback. Space pauses, the arrow keys step, and the timeline seeks.
+opening playback. It presents interpolated camera/suspension motion at 60 FPS
+while preserving verified physics ticks at their original 0.12-second spacing.
+Space pauses, the arrow keys step, the timeline seeks, and I toggles exact ticks.
 The viewer uses recovered road geometry, angular projection and original
 cockpit assets; its executable contains no CPU emulator. It draws raised-road
 sidewalls and the original mountain silhouettes, with segment colors and

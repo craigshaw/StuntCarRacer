@@ -23,13 +23,31 @@ Playback controls:
 | Home / End | Jump to the start or end |
 | Timeline drag | Scrub the replay |
 | W | Toggle the wireframe overlay |
+| I | Toggle smooth interpolation / exact verified ticks |
 | Playback buttons | Play/pause, replay, step and playback speed |
 
+Playback defaults to **60 FPS interpolation**, with verified physics states
+spaced **0.12 seconds apart** (about 8.33 updates per second) at 1× speed. The
+camera position, shortest wrapped angle paths, original camera baseline/roll,
+suspension placements and speedometer blend between adjacent states. The scene
+is redrawn for each intermediate pose. Near geometry and visibility are rebuilt
+from private copies of saved renderer state; these queries never advance physics
+or write back to the verified timeline. Each exact integer tick uses its original
+camera and draw commands unchanged.
+
+Damage, wheel/flame image selection, boost and lap/race events remain attached
+to verified ticks. Restart and terminal transitions hold their previous view
+until the next tick, so the car does not blend across a relocation. Pausing can
+retain an intermediate view; arrow-key stepping lands on exact ticks. Scrubbing
+is deterministic in either direction. Press I to compare against exact-tick
+playback, or launch with `scripts/start-native-replay.ps1 -ExactTicks`.
+
 The upper-right FPS counter measures completed window presentations over the
-last second. It shows a paused indicator when playback stops. Cached replay
-images can be presented more often than the replay advances: at 1×, one verified
-update lasts 0.12 seconds. The playback clock does not reproduce the original
-interrupt or display timing.
+last second and shows a paused indicator when playback stops. A high-resolution
+waitable timer schedules 60 Hz deadlines independently of the replay clock;
+late presentations are skipped without adding physics updates. Display load and
+hardware can lower the achieved rate. This presentation does not reproduce the
+original interrupt or display timing.
 
 ## Verification and exported frames
 
@@ -48,11 +66,17 @@ If that evidence is absent or stale, it regenerates the original/native replay.
 `--refresh-reference` forces regeneration; `--skip-build` requires a retained
 build receipt matching every native source, capture adapter and executable hash.
 
-The wrapper builds `native_replay_viewer` with `SCR_BUILD_ORACLE=OFF`, runs it
+The wrapper builds `native_replay_viewer` and `replay_interpolation_tests` with `SCR_BUILD_ORACLE=OFF`, runs the viewer
 without opening a window, renders every replay tick, compares every declared
 gameplay trace column with the original trace, and requires at least one complete
-observed lap. It exports
+observed lap. It also renders the entire 60 Hz presentation timeline: **10,528
+samples** for the retained race, followed by reverse-order seeks and checks that
+all **1,463 exact tick images** retain identical pixels. The 14 interpolation
+regressions cover wrapped positions/angles, exact endpoints, suspension placement,
+discrete events and transition cuts. Original gameplay trace comparison remains
+separate from these presentation checks. It exports
 ticks 0, 24, 128, 272, 505, 961, 1,415 and 1,462 when present in the chosen input.
+Five fractional-tick views are exported for interpolation QA.
 
 Outputs remain local under `analysis/native-render/`:
 
@@ -62,6 +86,8 @@ Outputs remain local under `analysis/native-render/`:
   and native gameplay trace.
 - `frames/frame-NNNN.bmp` and `.png`: exported original-resolution frames.
 - `contact-sheet.png`: a QA sheet assembled from the exported frames.
+- `interpolated-contact-sheet.png` and `frames/interpolated-NNN.FFF.png`:
+  intermediate camera views, including three poses within the same physics tick.
 - `assets/assets-manifest.json`: original asset ranges, hashes, palette and
   initialized font provenance.
 - `render-recovery-checks.json`: retained mesh, projection, sidewall, mountain, near-track and asset oracle
@@ -69,6 +95,11 @@ Outputs remain local under `analysis/native-render/`:
 
 Pillow from the bundled workspace runtime converts the BMP files for visual QA.
 The game renderer itself has no Pillow or Python dependency.
+
+Fractional render positions can also be exported directly with the viewer's
+`--interpolated-snapshot 86.5 --frames-dir <directory>` arguments. Headless checks
+always exercise both exact ticks and the full interpolated timeline; the GUI's
+`--no-interpolation` option controls playback presentation only.
 
 ## Original assets and rendering boundaries
 

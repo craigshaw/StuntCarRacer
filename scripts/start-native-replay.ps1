@@ -2,6 +2,7 @@ param(
     [string]$Inputs = 'tests/replays/laps/authored-race-1463.csv',
     [ValidateRange(0,1000000)][int]$StartTick = 0,
     [switch]$Paused,
+    [switch]$ExactTicks,
     [switch]$RefreshReference,
     [switch]$SkipBuild
 )
@@ -34,6 +35,7 @@ try {
         '--start-tick', [string]$StartTick
     )
     if ($Paused) { $viewerArguments += '--paused' }
+    if ($ExactTicks) { $viewerArguments += '--no-interpolation' }
     # ArgumentList is passed directly to this locally built Windows executable.
     # File paths cannot contain quotation marks; quotes preserve their spaces.
     $quotedArguments = ($viewerArguments | ForEach-Object { '"' + $_ + '"' }) -join ' '

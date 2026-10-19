@@ -19,9 +19,16 @@ namespace {
 using Scene=scr::viewer::ReplayScene;
 struct Options {
     std::filesystem::path chip,payload,inputs,reference,trace,report,framesDirectory;
-    std::vector<unsigned> snapshots;unsigned startTick{};bool headless{},paused{};
+    std::vector<unsigned> snapshots;std::vector<double> smoothSnapshots;
+    unsigned startTick{};bool headless{},paused{},interpolate{true};
 };
 struct ExportedFrame {unsigned tick{};std::filesystem::path path;scr::RenderStatistics statistics{};};
+struct ExportedSmoothFrame {double position{};std::filesystem::path path;};
+struct InterpolationCheck {unsigned samples{},changedSamples{},exactEndpoints{},seekSamples{};double milliseconds{};};
+std::uint64_t pixelHash(const std::vector<std::uint32_t>& pixels){
+    std::uint64_t hash=14695981039346656037ULL;
+    for(auto pixel:pixels){hash^=pixel;hash*=1099511628211ULL;}return hash;
+}
 struct RenderCoverage {
     unsigned nearFrames{},highlightFrames{};
     std::uint64_t queueEntries{},fillCommands{},highlightCommands{},highlightPixels{};
@@ -45,17 +52,19 @@ Options parse(){
     try{for(int n=1;n<count;++n){
         const std::wstring key=args[n];
         if(key==L"--headless"){o.headless=true;continue;}if(key==L"--paused"){o.paused=true;continue;}
+        if(key==L"--no-interpolation"){o.interpolate=false;continue;}
         if(n+1==count)throw std::runtime_error("Missing command-line value");const std::wstring value=args[++n];
         if(key==L"--chip")o.chip=value;else if(key==L"--payload")o.payload=value;else if(key==L"--inputs")o.inputs=value;
         else if(key==L"--reference")o.reference=value;else if(key==L"--trace")o.trace=value;else if(key==L"--report")o.report=value;
         else if(key==L"--frames-dir")o.framesDirectory=value;else if(key==L"--snapshot")o.snapshots.push_back(unsigned(std::stoul(value)));
+        else if(key==L"--interpolated-snapshot")o.smoothSnapshots.push_back(std::stod(value));
         else if(key==L"--start-tick")o.startTick=unsigned(std::stoul(value));else throw std::runtime_error("Unknown command-line option: "+utf8(key));
     }}catch(...){LocalFree(args);throw;}LocalFree(args);
     if(o.chip.empty()||o.payload.empty()||o.inputs.empty()||o.reference.empty()||o.trace.empty()||o.report.empty())
         throw std::runtime_error("Use scripts/start-native-replay.ps1 to prepare the verified replay assets and trace");
     return o;
 }
-void report(const Options& o,const Scene* scene,const std::vector<ExportedFrame>& images,unsigned renderedFrames=0,const std::string& error={},const RenderCoverage& coverage={}) {
+void report(const Options& o,const Scene* scene,const std::vector<ExportedFrame>& images,unsigned renderedFrames=0,const std::string& error={},const RenderCoverage& coverage={},const InterpolationCheck& smooth={},const std::vector<ExportedSmoothFrame>& smoothImages={}) {
     if(o.report.empty())return;
     std::filesystem::create_directories(o.report.parent_path());std::ofstream out(o.report);
     if(!out)throw std::runtime_error("Cannot write viewer verification report");
@@ -78,7 +87,14 @@ void report(const Options& o,const Scene* scene,const std::vector<ExportedFrame>
         <<",\"side_pixels\":"<<e.statistics.sidePixels<<",\"mountain_pixels\":"<<e.statistics.mountainPixels
         <<",\"near_queue_entries\":"<<e.statistics.nearQueueEntries<<",\"near_fill_commands\":"<<e.statistics.nearFillCommands
         <<",\"edge_highlight_commands\":"<<e.statistics.edgeHighlightCommands<<",\"edge_highlight_pixels\":"<<e.statistics.edgeHighlightPixels<<'}';}
-    out<<"\n  ]";if(!error.empty())out<<",\n  \"error\":"<<jsonString(error);out<<"\n}\n";
+    out<<"\n  ],\n  \"interpolation\":{\"target_fps\":"<<scr::viewer::replayPresentationHz
+       <<",\"physics_tick_seconds\":"<<scr::viewer::replayTickSeconds<<",\"rendered_samples\":"<<smooth.samples
+       <<",\"changed_samples\":"<<smooth.changedSamples<<",\"exact_endpoints_checked\":"<<smooth.exactEndpoints
+       <<",\"seek_samples_checked\":"<<smooth.seekSamples
+       <<",\"elapsed_ms\":"<<smooth.milliseconds<<",\"snapshots\":[";
+    for(unsigned n=0;n<smoothImages.size();++n){if(n)out<<',';const auto& image=smoothImages[n];
+        out<<"{\"position\":"<<image.position<<",\"path\":"<<jsonString(image.path.generic_string())<<'}';}
+    out<<"]}";if(!error.empty())out<<",\n  \"error\":"<<jsonString(error);out<<"\n}\n";
 }
 HFONT makeFont(int size,int weight=FW_NORMAL){return CreateFontW(-size,0,0,0,weight,FALSE,FALSE,FALSE,DEFAULT_CHARSET,OUT_DEFAULT_PRECIS,CLIP_DEFAULT_PRECIS,CLEARTYPE_QUALITY,DEFAULT_PITCH,L"Segoe UI");}
 COLORREF rgb(unsigned r,unsigned g,unsigned b){return RGB(r,g,b);}
@@ -88,21 +104,53 @@ void text(HDC dc,RECT r,const std::wstring& value,HFONT font,COLORREF color,UINT
 }
 class Window {
 public:
-    Window(Scene& scene,const Options& options):scene_(scene),position_(std::min(options.startTick,unsigned(scene.frames().size()-1))),paused_(options.paused){
+    Window(Scene& scene,const Options& options):scene_(scene),position_(std::min(options.startTick,unsigned(scene.frames().size()-1))),paused_(options.paused),interpolate_(options.interpolate){
         titleFont_=makeFont(22,FW_SEMIBOLD);bodyFont_=makeFont(15);smallFont_=makeFont(13);buttonFont_=makeFont(15,FW_SEMIBOLD);
     }
-    ~Window(){DeleteObject(titleFont_);DeleteObject(bodyFont_);DeleteObject(smallFont_);DeleteObject(buttonFont_);}
+    ~Window(){if(timer_)CloseHandle(timer_);DeleteObject(titleFont_);DeleteObject(bodyFont_);DeleteObject(smallFont_);DeleteObject(buttonFont_);}
     int run(HINSTANCE instance,int show){
         WNDCLASSEXW wc{};wc.cbSize=sizeof(wc);wc.hInstance=instance;wc.lpfnWndProc=procedure;wc.lpszClassName=L"StuntCarRacerNativeReplay";
         wc.hCursor=LoadCursorW(nullptr,IDC_ARROW);wc.hIcon=LoadIconW(nullptr,IDI_APPLICATION);RegisterClassExW(&wc);
         RECT rect{0,0,1024,800};AdjustWindowRect(&rect,WS_OVERLAPPEDWINDOW,FALSE);
         auto window=CreateWindowExW(0,wc.lpszClassName,L"Stunt Car Racer — Native replay",WS_OVERLAPPEDWINDOW,CW_USEDEFAULT,CW_USEDEFAULT,rect.right-rect.left,rect.bottom-rect.top,nullptr,nullptr,instance,this);
         if(!window)throw std::runtime_error("Cannot create the native replay window");
-        ShowWindow(window,show);UpdateWindow(window);MSG msg{};
-        while(GetMessageW(&msg,nullptr,0,0)>0){TranslateMessage(&msg);DispatchMessageW(&msg);}return int(msg.wParam);
+        // A one-shot high-resolution timer retains fractional60Hz deadlines;
+        // WM_TIMER's millisecond/coalesced cadence was about39FPS on this host.
+        timer_=CreateWaitableTimerExW(nullptr,nullptr,CREATE_WAITABLE_TIMER_HIGH_RESOLUTION,TIMER_MODIFY_STATE|SYNCHRONIZE);
+        if(!timer_)timer_=CreateWaitableTimerExW(nullptr,nullptr,0,TIMER_MODIFY_STATE|SYNCHRONIZE);
+        if(!timer_)throw std::runtime_error("Cannot create replay presentation timer");
+        last_=fpsStart_=std::chrono::steady_clock::now();auto deadline=last_;
+        const auto period=std::chrono::duration_cast<std::chrono::steady_clock::duration>(std::chrono::duration<double>(1.0/scr::viewer::replayPresentationHz));
+        const auto arm=[&](){
+            const auto remaining=std::chrono::duration<double>(deadline-std::chrono::steady_clock::now()).count();
+            LARGE_INTEGER due{};due.QuadPart=-std::max<LONGLONG>(1,LONGLONG(std::ceil(remaining*10000000)));
+            if(!SetWaitableTimer(timer_,&due,0,nullptr,nullptr,FALSE))throw std::runtime_error("Cannot arm replay presentation timer");
+        };
+        ShowWindow(window,show);UpdateWindow(window);arm();MSG msg{};
+        for(;;){
+            const auto wake=MsgWaitForMultipleObjectsEx(1,&timer_,INFINITE,QS_ALLINPUT,MWMO_INPUTAVAILABLE);
+            if(wake==WAIT_FAILED)throw std::runtime_error("Replay presentation wait failed");
+            if(wake==WAIT_OBJECT_0){
+                const auto now=std::chrono::steady_clock::now();const double delta=std::min(0.25,std::chrono::duration<double>(now-last_).count());last_=now;
+                if(!paused_&&!dragging_){
+                    position_+=delta*speeds_[speedIndex_]/scr::viewer::replayTickSeconds;
+                    if(position_>=scene_.frames().size()-1){position_=double(scene_.frames().size()-1);paused_=true;}
+                    if(!IsIconic(window)){InvalidateRect(window,nullptr,FALSE);UpdateWindow(window);}
+                }
+                deadline+=period;
+                const auto finished=std::chrono::steady_clock::now();
+                if(deadline<=finished)deadline+=period*((finished-deadline)/period+1);
+                arm();
+            }
+            while(PeekMessageW(&msg,nullptr,0,0,PM_REMOVE)){
+                if(msg.message==WM_QUIT)return int(msg.wParam);
+                TranslateMessage(&msg);DispatchMessageW(&msg);
+            }
+        }
     }
 private:
-    Scene& scene_;double position_{};bool paused_{},dragging_{},wireframe_{};unsigned speedIndex_=1;
+    Scene& scene_;double position_{};bool paused_{},dragging_{},wireframe_{},interpolate_{true};unsigned speedIndex_=1;
+    HANDLE timer_{};
     std::chrono::steady_clock::time_point last_=std::chrono::steady_clock::now();
     std::chrono::steady_clock::time_point fpsStart_=std::chrono::steady_clock::now();
     unsigned presentedFrames_{};double framesPerSecond_{};
@@ -124,7 +172,7 @@ private:
         auto dc=CreateCompatibleDC(target);auto bitmap=CreateCompatibleBitmap(target,std::max(1L,client.right),std::max(1L,client.bottom));auto oldBitmap=SelectObject(dc,bitmap);
         fill(dc,client,rgb(16,20,25));fill(dc,{0,0,client.right,64},rgb(23,29,36));fill(dc,{0,63,client.right,65},rgb(48,56,65));
         text(dc,{30,9,client.right-30,39},L"STUNT CAR RACER",titleFont_,rgb(244,232,213));
-        text(dc,{31,37,client.right-30,58},L"Native replay  ·  Original trace checked",smallFont_,rgb(158,175,186));
+        text(dc,{31,37,client.right-230,58},interpolate_?L"60 FPS interpolation  ·  Verified physics 8.33 Hz":L"Exact ticks  ·  Verified physics 8.33 Hz",smallFont_,rgb(158,175,186));
         const auto& frame=scene_.frames()[index()];std::wostringstream right;
         right<<L"Lap "<<std::max(1u,std::min(3u,unsigned(frame.lapCounter)))<<L" / 3     "<<time(frame);
         text(dc,{client.right-320,10,client.right-30,43},right.str(),bodyFont_,rgb(214,224,229),DT_RIGHT|DT_SINGLELINE|DT_VCENTER);
@@ -133,7 +181,7 @@ private:
         else if(framesPerSecond_==0)performance<<L"— FPS";
         else performance<<std::fixed<<std::setprecision(1)<<framesPerSecond_<<L" FPS";
         text(dc,{client.right-220,37,client.right-30,58},performance.str(),smallFont_,rgb(158,175,186),DT_RIGHT|DT_SINGLELINE|DT_VCENTER);
-        const auto& pixels=scene_.render(index(),wireframe_);
+        const auto& pixels=interpolate_?scene_.renderInterpolated(position_,wireframe_):scene_.render(index(),wireframe_);
         BITMAPINFO info{};info.bmiHeader.biSize=sizeof(BITMAPINFOHEADER);info.bmiHeader.biWidth=320;info.bmiHeader.biHeight=-200;info.bmiHeader.biPlanes=1;info.bmiHeader.biBitCount=32;info.bmiHeader.biCompression=BI_RGB;
         SetStretchBltMode(dc,COLORONCOLOR);StretchDIBits(dc,image_.left,image_.top,image_.right-image_.left,image_.bottom-image_.top,0,0,320,200,pixels.data(),&info,DIB_RGB_COLORS,SRCCOPY);
         if(frame.action==2){
@@ -146,7 +194,7 @@ private:
         for(unsigned n=0;n<buttons_.size();++n){fill(dc,buttons_[n],n==0?rgb(150,62,46):rgb(38,47,57));text(dc,buttons_[n],labels[n],buttonFont_,rgb(237,234,226),DT_CENTER|DT_SINGLELINE|DT_VCENTER);}
         std::wostringstream details;details<<L"Update "<<index()+1<<L" / "<<scene_.frames().size()<<L"   ·   "<<frame.restarts<<L" restarts";
         text(dc,{480,buttons_[0].top,client.right-32,buttons_[0].bottom},details.str(),smallFont_,rgb(157,175,188),DT_RIGHT|DT_SINGLELINE|DT_VCENTER);
-        text(dc,{32,client.bottom-24,client.right-32,client.bottom-5},L"SPACE play / pause     ← → step     HOME restart     Click the timeline to seek",smallFont_,rgb(120,140,153));
+        text(dc,{32,client.bottom-24,client.right-32,client.bottom-5},L"SPACE play / pause     ← → step     HOME restart     I interpolation     W wireframe",smallFont_,rgb(120,140,153));
         BitBlt(target,0,0,client.right,client.bottom,dc,0,0,SRCCOPY);SelectObject(dc,oldBitmap);DeleteObject(bitmap);DeleteDC(dc);EndPaint(window,&ps);
         if(!paused_){
             ++presentedFrames_;const auto now=std::chrono::steady_clock::now();
@@ -159,16 +207,14 @@ private:
     void toggle(){if(position_>=scene_.frames().size()-1)position_=0;paused_=!paused_;if(!paused_)resetFrameCounter();}
     LRESULT message(HWND window,UINT message,WPARAM w,LPARAM l){
         switch(message){
-        case WM_CREATE:SetTimer(window,1,16,nullptr);return 0;
         case WM_ERASEBKGND:return 1;
         case WM_GETMINMAXINFO:{auto* p=reinterpret_cast<MINMAXINFO*>(l);p->ptMinTrackSize={690,650};return 0;}
         case WM_SIZE:InvalidateRect(window,nullptr,FALSE);return 0;
-        case WM_TIMER:{const auto now=std::chrono::steady_clock::now();const double delta=std::min(0.25,std::chrono::duration<double>(now-last_).count());last_=now;
-            if(!paused_&&!dragging_){position_+=delta*speeds_[speedIndex_]/0.12;if(position_>=scene_.frames().size()-1){position_=double(scene_.frames().size()-1);paused_=true;}InvalidateRect(window,nullptr,FALSE);}return 0;}
         case WM_KEYDOWN:
             if(w==VK_SPACE)toggle();else if(w==VK_RIGHT){paused_=true;position_=std::min(double(scene_.frames().size()-1),std::floor(position_)+1);}
             else if(w==VK_LEFT){paused_=true;position_=std::max(0.0,std::floor(position_)-1);}else if(w==VK_HOME)position_=0;
             else if(w==VK_END){paused_=true;position_=double(scene_.frames().size()-1);}else if(w=='W')wireframe_=!wireframe_;
+            else if(w=='I')interpolate_=!interpolate_;
             InvalidateRect(window,nullptr,FALSE);return 0;
         case WM_LBUTTONDOWN:{const POINT p{int(short(LOWORD(l))),int(short(HIWORD(l)))};
             if(PtInRect(&timeline_,p)){dragging_=true;SetCapture(window);seek(p.x);}
@@ -178,7 +224,7 @@ private:
         case WM_MOUSEMOVE:if(dragging_){seek(int(short(LOWORD(l))));InvalidateRect(window,nullptr,FALSE);}return 0;
         case WM_LBUTTONUP:if(dragging_){dragging_=false;ReleaseCapture();}return 0;
         case WM_PAINT:paint(window);return 0;
-        case WM_DESTROY:KillTimer(window,1);PostQuitMessage(0);return 0;
+        case WM_DESTROY:PostQuitMessage(0);return 0;
         default:return DefWindowProcW(window,message,w,l);
         }
     }
@@ -197,8 +243,30 @@ int WINAPI wWinMain(HINSTANCE instance,HINSTANCE,PWSTR,int show){
         scene=std::make_unique<Scene>();scene->load(options.chip,options.payload,options.inputs,options.reference,options.trace);
         // Exercise every camera and suspension state before accepting a headless
         // check. Snapshot export alone would leave most seek positions untested.
-        unsigned renderedFrames=0;RenderCoverage coverage;
-        if(options.headless)for(unsigned tick=0;tick<scene->frames().size();++tick){scene->render(tick);coverage.add(scene->statistics());++renderedFrames;}
+        unsigned renderedFrames=0;RenderCoverage coverage;InterpolationCheck smooth;
+        if(options.headless){
+            std::vector<std::uint64_t> exactHashes;
+            for(unsigned tick=0;tick<scene->frames().size();++tick){exactHashes.push_back(pixelHash(scene->render(tick)));coverage.add(scene->statistics());++renderedFrames;}
+            const auto started=std::chrono::steady_clock::now();
+            const auto last=double(scene->frames().size()-1);
+            const auto intervals=unsigned(std::ceil(last*scr::viewer::replayTickSeconds*scr::viewer::replayPresentationHz-1e-9));
+            std::vector<std::pair<double,std::uint64_t>> seekChecks;
+            for(unsigned sample=0;sample<=intervals;++sample){
+                const double position=std::min(last,double(sample)/(scr::viewer::replayTickSeconds*scr::viewer::replayPresentationHz));
+                const auto hash=pixelHash(scene->renderInterpolated(position));++smooth.samples;
+                if(sample%37==0)seekChecks.push_back({position,hash});
+                if(hash!=exactHashes[unsigned(position)]&&hash!=exactHashes[std::min(unsigned(position)+1,unsigned(last))])++smooth.changedSamples;
+            }
+            for(auto sample=seekChecks.rbegin();sample!=seekChecks.rend();++sample){
+                if(pixelHash(scene->renderInterpolated(sample->first))!=sample->second)throw std::runtime_error("Interpolated replay depends on seek order");
+                ++smooth.seekSamples;
+            }
+            for(unsigned tick=0;tick<scene->frames().size();++tick){
+                if(pixelHash(scene->renderInterpolated(tick))!=exactHashes[tick])throw std::runtime_error("Interpolated rendering changed an exact verified frame");
+                ++smooth.exactEndpoints;
+            }
+            smooth.milliseconds=std::chrono::duration<double,std::milli>(std::chrono::steady_clock::now()-started).count();
+        }
         std::vector<ExportedFrame> images;
         if(!options.snapshots.empty()){
             if(options.framesDirectory.empty())throw std::runtime_error("Frame export requires --frames-dir");
@@ -206,7 +274,17 @@ int WINAPI wWinMain(HINSTANCE instance,HINSTANCE,PWSTR,int show){
             for(auto tick:options.snapshots){if(tick>=scene->frames().size())throw std::runtime_error("Requested snapshot exceeds replay");scene->render(tick);
                 std::ostringstream name;name<<"frame-"<<std::setw(4)<<std::setfill('0')<<tick<<".bmp";const auto path=options.framesDirectory/name.str();scene->saveBitmap(path);images.push_back({tick,path,scene->statistics()});}
         }
-        report(options,scene.get(),images,renderedFrames,{},coverage);if(options.headless)return 0;
+        std::vector<ExportedSmoothFrame> smoothImages;
+        if(!options.smoothSnapshots.empty()){
+            if(options.framesDirectory.empty())throw std::runtime_error("Interpolated export requires --frames-dir");
+            std::filesystem::create_directories(options.framesDirectory);
+            for(auto position:options.smoothSnapshots){
+                if(!std::isfinite(position)||position<0||position>scene->frames().size()-1)throw std::runtime_error("Interpolated snapshot exceeds replay");
+                scene->renderInterpolated(position);std::ostringstream name;name<<"interpolated-"<<std::fixed<<std::setprecision(3)<<position<<".bmp";
+                const auto path=options.framesDirectory/name.str();scene->saveBitmap(path);smoothImages.push_back({position,path});
+            }
+        }
+        report(options,scene.get(),images,renderedFrames,{},coverage,smooth,smoothImages);if(options.headless)return 0;
         SetProcessDPIAware();Window window(*scene,options);return window.run(instance,show);
     }catch(const std::exception& e){
         try{report(options,scene.get(),{},0,e.what());}catch(...){}

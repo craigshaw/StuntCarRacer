@@ -6,6 +6,13 @@ commands. Native C++ produces these commands before gameplay advances through
 collision effects, suspension sprites, timing and race transitions. Playback
 retains compact command lists and camera snapshots; it executes no 68000 code.
 
+Smooth playback rebuilds this near stage for intermediate camera poses using
+copies of the saved geometry history and a private track-position query. Those
+presentation samples are outside the original-code comparison below. Exact
+verified ticks continue to use their retained commands, and interpolation cannot
+modify gameplay or the original-rate physics trace. See
+[the viewer guide](native-replay-viewer.md) for the 60 FPS playback controls.
+
 The unchanged source is the ADF payload at disk offset `0xdc00`, length 408,540,
 loaded at runtime `0xe700`. Payload SHA-256 is
 `508646f12af15115de73b06940c79e579f920bf47ce55f7cd8920eca60b7921c`.

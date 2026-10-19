@@ -7,7 +7,8 @@ add_library(scr_physics STATIC src/wheel_coordinates.cpp src/transform_matrices.
   src/road_suspension_step.cpp src/motion_transforms.cpp src/wheel_motion.cpp
   src/motion_integration.cpp src/physics_prefix.cpp src/motion_step.cpp
   src/steering_response.cpp src/car_dynamics.cpp src/suspension_effects.cpp
-  src/audio_playback.cpp src/physics_update.cpp)
+  src/audio_playback.cpp src/physics_update.cpp src/player_controls.cpp
+  src/track_progress.cpp src/opponent_collision.cpp src/driving_effects.cpp src/race_timing.cpp)
 target_include_directories(scr_physics PUBLIC src)
 target_compile_features(scr_physics PUBLIC cxx_std_17)
 if(MSVC)
@@ -18,6 +19,9 @@ endif()
 
 # Musashi belongs exclusively to the verification executable. scr_physics has
 # no emulator dependency and remains a normal native C++ library.
+add_executable(driving_replay_native tests/driving_replay_native.cpp)
+target_link_libraries(driving_replay_native PRIVATE scr_physics)
+target_compile_features(driving_replay_native PRIVATE cxx_std_17)
 option(SCR_BUILD_ORACLE "Build differential tests against original 68000 bytes" OFF)
 set(MUSASHI_DIR "" CACHE PATH "Pinned, locally downloaded Musashi source")
 if(SCR_BUILD_ORACLE)
@@ -67,7 +71,8 @@ if(SCR_BUILD_ORACLE)
   target_link_libraries(road_suspension_step_oracle PRIVATE scr_physics musashi_oracle)
   target_compile_features(road_suspension_step_oracle PRIVATE cxx_std_17)
   foreach(stage motion_transforms wheel_motion motion_integration physics_prefix motion_step
-      steering_response car_dynamics suspension_effects audio_playback physics_update)
+      steering_response car_dynamics suspension_effects audio_playback physics_update driving_replay
+      track_progress opponent_collision player_controls race_timing driving_effects)
     add_executable(${stage}_oracle tests/${stage}_oracle.cpp)
     target_link_libraries(${stage}_oracle PRIVATE scr_physics musashi_oracle)
     target_compile_features(${stage}_oracle PRIVATE cxx_std_17)

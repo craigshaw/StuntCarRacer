@@ -765,18 +765,72 @@ and original listings are under `analysis/steering-response/`,
 `analysis/car-dynamics/`, `analysis/suspension-effects/` and
 `analysis/audio-playback/`. These generated artifacts remain ignored by Git.
 
-This establishes the **complete synchronous physics-driver contract** for the
-tested inputs. The surrounding game loop still supplies controls, track
+This milestone established the **complete synchronous physics-driver contract**
+for the tested inputs. Its standalone API accepts controls, track
 progress, collision-detection results and other external state. The native
-collision stage applies those supplied forces; it does not yet generate the
-opponent collision contacts. Audio is represented by register events, not
+collision stage applies supplied forces. The next section adds the input and
+contact producers. Audio is represented by register events, not
 rendered waveforms, and interrupts are not interleaved in these tests. The
 sequences are scripted tests, not recorded human-driven laps. Full-game timing,
 rendering, all tracks and every combined input remain outside this proof.
 
-The next useful step is to recover those outer-loop input producers and build
-a replay runner that compares a recorded driving sequence tick by tick. That
-will let us test a self-contained simulation before adding native rendering.
+## Outer-loop controls, collision detection and driving replay
+
+Recovered native C++ now produces local keyboard/joystick controls, steering
+and boost commands, track progress and road boundaries, opponent distance and
+contact forces, engine/debris/damage feedback, frame throttling and lap timing.
+`src/player_controls.*`, `track_progress.*`, `opponent_collision.*`,
+`driving_effects.*` and `race_timing.*` contain the typed implementations.
+The native library has no CPU emulator dependency.
+
+The replay compares the original local Practice gameplay interval
+**`0x5d47e..0x5d4ba`**, one original physics update per iteration. Both sides
+start from the captured race state, then evolve independently. Only controller
+inputs are supplied per tick: position, speed, track segment, geometry inputs,
+RNG and scheduling state are never copied from original results into the native
+side. RAM-address adapters live in `tests/`; production algorithms use named
+state and data structures.
+
+Four authored input sequences pass **1,920 updates with zero mismatches**,
+covering acceleration/release, braking, steering, boost and off-track driving.
+They execute **214,506,126 original instructions** and compare **14,160 ordered
+sample-audio register writes**, alongside the declared gameplay projection.
+The five new stage suites pass approximately **2.99 million cases**. The
+existing complete-physics milestone's **4,650,141 cases** remain separate
+regressions. Exact case counts, capture identities, source/executable hashes,
+per-stage comparison addresses and per-tick CSV traces are retained in the
+generated reports.
+
+Graphics contain two subtle simulation dependencies: particle effects consume
+the shared RNG, and damage progression reads the damage bar's pixels. Hole
+sprites overwrite that same strip. The native model preserves the small
+eight-row damage canvas and its masked hole draws, including both buffers,
+without needing a game renderer. Wheel drawing also shifts a bounce byte needed
+on the next update.
+
+```powershell
+. .\scripts\env.ps1
+& $AmigaPython scripts/check_driving_replay.py --run-leaf-tests --native-only-verify
+```
+
+`driving_replay_native.exe` also runs the same authored inputs as an independent
+native executable linked only to `scr_physics`. It produces matching gameplay
+traces without Musashi. The comparator stops at the first divergence and saves
+the tick, stage/address diagnostic and both local state images. See
+[the replay guide](docs/driving-replay.md) for commands and input format.
+
+This is a **headless Practice-core replay**, not a finished native game or a
+recorded human-driven lap. It stops before outer pause, restart, race-end and
+buffer-swap gates, and resets original CPU registers at each interval entry.
+The original CPU renderer runs in the comparator with blits reported complete;
+actual blitter operation, interrupt timing, pixels and audio waveforms are
+outside the comparison. The moving drawbridge track is rejected. Opponent
+contact/distance has separate differential coverage; autonomous opponent driving
+and network mode are not substituted into the Practice replay.
+
+The next step is to include restart/race-end transitions and a real captured
+input/interrupt timeline, then compare a complete lap under those conditions.
+Native rendering can consume the already separated visual/audio events.
 
 ## Sources and installation provenance
 

@@ -1,9 +1,11 @@
 #include "replay_scene.h"
 #include "track_mesh_capture.h"
+#include "live_drive.h"
 #include "../tests/driving_replay_io.h"
 #include "../tests/near_track_geometry_fixture.h"
 #include <algorithm>
 #include <cmath>
+#include <chrono>
 #include <fstream>
 #include <iterator>
 #include <memory>
@@ -25,11 +27,21 @@ std::vector<std::string> columns(std::string line) {
 void littleWord(std::ostream& out,std::uint16_t value){out.put(char(value));out.put(char(value>>8));}
 void littleLong(std::ostream& out,std::uint32_t value){littleWord(out,std::uint16_t(value));littleWord(out,std::uint16_t(value>>16));}
 } // namespace
-void ReplayScene::load(const std::filesystem::path& chip,const std::filesystem::path& payload,
-    const std::filesystem::path& inputs,const std::filesystem::path& referenceTrace,
-    const std::filesystem::path& nativeTrace) {
-    namespace replay=scr::test::replay;namespace a=scr::test::audio;
-    auto capture=replay::loadCapture(chip.string().c_str());const auto original=readFile(payload);
+struct ReplayScene::Simulation {
+    scr::test::replay::Ram initial;
+    scr::test::replay::NativeReplay native;
+    NearTrackGeometryState geometry;
+    unsigned ticks{};
+    std::ofstream controls,trace;
+    std::filesystem::path recording;
+    std::string lastRow;
+    explicit Simulation(const scr::test::replay::Ram& capture):initial(capture),native(capture),geometry(scr::test::nearGeometry::readState(capture)){}
+};
+ReplayScene::ReplayScene()=default;
+ReplayScene::~ReplayScene()=default;
+void ReplayScene::initialise(const std::filesystem::path& chip,const std::filesystem::path& payload){
+    auto capture=scr::test::replay::loadCapture(chip.string().c_str());const auto original=readFile(payload);
+    chipPath_=chip;payloadPath_=payload;
     assets_=decodeReplayRenderAssets(original.data(),original.size(),capture->data(),capture->size());
     const auto meshData=decodeTrackMesh(*capture);mesh_=buildTrackMesh(meshData);
     segmentRenderFlags_.fill(0);std::array<bool,100> knownFlags{};
@@ -38,63 +50,124 @@ void ReplayScene::load(const std::filesystem::path& chip,const std::filesystem::
     }
     sides_=buildTrackSides(mesh_,{(*capture)[0x691b3],(*capture)[0x691b2],false});
     mountains_=decodeMountainHorizonData(original.data(),original.size());
-    auto state=std::make_unique<replay::NativeReplay>(*capture);
-    auto nearGeometry=scr::test::nearGeometry::readState(*capture);
-    presentationTrack_=state->progressData;trig_=state->physicsData.trig;
-    projection_.angleTable=state->progressData.angleTable;projection_.magnitudeTable=state->progressData.magnitudeTable;
+    simulation_=std::make_unique<Simulation>(*capture);
+    presentationTrack_=simulation_->native.progressData;trig_=simulation_->native.physicsData.trig;
+    projection_.angleTable=presentationTrack_.angleTable;projection_.magnitudeTable=presentationTrack_.magnitudeTable;
+    frames_.clear();cachedFrame_=~0u;
+}
+ReplaySceneFrame ReplayScene::captureFrame(Simulation& simulation,unsigned tick,unsigned controls){
+    namespace a=scr::test::audio;auto& state=simulation.native;auto& geometry=simulation.geometry;
+    ReplaySceneFrame frame;frame.tick=tick;frame.controls=controls;
+    auto& camera=frame.pose;
+    for(unsigned n=0;n<3;++n)camera.worldPosition[n]=a::longword(state.ram.data(),0x1bcd8+4*n);
+    camera.pitch=a::word(state.ram.data(),0x1bce4);camera.yaw=a::word(state.ram.data(),0x1bce6);camera.roll=a::word(state.ram.data(),0x1bce8);
+    camera.averageWheelVelocity=a::word(state.ram.data(),0x1bd38);
+    frame.cameraYaw=camera.yaw;frame.camera=makeRenderProjectionCamera(camera,trig_);
+    frame.camera.viewportCenterY=a::word(state.ram.data(),0x1bc42);
+    frame.camera.sinRoll=a::word(state.ram.data(),0x1c250);frame.camera.cosRoll=a::word(state.ram.data(),0x1c252);
+    auto& nearInputs=frame.nearInputs;
+    nearInputs.progress=scr::test::trackProgress::readState(state.ram);nearInputs.camera=frame.camera;
+    nearInputs.displayUpdate=state.ram[0x5d724];nearInputs.opponentSegment=state.ram[0x1bba6];nearInputs.opponentSubSegment=state.ram[0x1bc24];
+    nearInputs.minimumBoundaryDistance=a::word(state.ram.data(),0x63ede);
+    nearInputs.drawing.minimumQueueOffset=a::word(state.ram.data(),0x1bc1e);
+    nearInputs.drawing.renderingOrderMode=state.ram[0x1bb9a];nearInputs.drawing.raceStartTimer=state.ram[0x1bbdf];
+    nearInputs.drawing.offRoadSideFlags=nearInputs.progress.offRoadSide;nearInputs.drawing.offsetFromRoadCenter=nearInputs.progress.lateralOffset;
+    nearInputs.drawing.sideEdgeColor=simulation.initial[0x691b3];nearInputs.drawing.alternateSideColor=simulation.initial[0x691b2];
+    frame.nearSeed=geometry;frame.progressInputs=scr::test::trackProgress::readInputs(state.ram);
+    frame.nearTrack=buildNearTrackFrame(presentationTrack_,segmentRenderFlags_,nearInputs,geometry).presentation;
+    return frame;
+}
+void ReplayScene::finishFrame(Simulation& simulation,ReplaySceneFrame& frame){
+    namespace a=scr::test::audio;const auto& state=simulation.native;
+    frame.restarts=state.restarts;frame.action=unsigned(state.outerAction);
+    frame.cockpit=captureCockpitFrame(state.ram.data(),state.ram.size());
+    frame.forwardSpeed=a::word(state.ram.data(),0x1bd30);frame.lapCounter=state.ram[0x1bb20];frame.raceComplete=state.ram[0x1bbaf];
+    frame.boostFuel=state.ram[0x1ca20];frame.damage=state.ram[0x1bb55];
+    frame.minutes=state.ram[0x1c908];frame.seconds=state.ram[0x1c920];frame.subseconds=state.ram[0x1c938];
+}
+ReplaySceneFrame ReplayScene::advanceSimulation(Simulation& simulation,unsigned controls,bool quit){
+    if(controls>31)throw std::invalid_argument("Live controls exceed original digital mask");
+    auto& state=simulation.native;
+    state.begin(controls);state.ram[0xead6+0x45]=quit?0xb3:0;
+    state.controlsStage();state.physicsStage();state.engineStage();state.progressStage();
+    // Original rendering boundary: before effects, timing and outer transitions.
+    auto frame=captureFrame(simulation,simulation.ticks,controls);
+    state.groundStage();state.wheelsStage();state.damageStage();state.timingStage();state.outerStage();finishFrame(simulation,frame);
+    std::ostringstream row;scr::test::replay::traceRow(row,state.ram,simulation.ticks,controls,0,unsigned(state.outerAction),state.restarts,quit);
+    simulation.lastRow=row.str();++simulation.ticks;return frame;
+}
+void ReplayScene::load(const std::filesystem::path& chip,const std::filesystem::path& payload,
+    const std::filesystem::path& inputs,const std::filesystem::path& referenceTrace,const std::filesystem::path& nativeTrace){
+    namespace replay=scr::test::replay;initialise(chip,payload);
     const auto input=replay::loadInputs(inputs.string().c_str());
     std::ifstream reference(referenceTrace);if(!reference)throw std::runtime_error("Verified original trace is required");
     std::string line;std::getline(reference,line);const auto expectedHeader=columns(line);
-    std::ostringstream header;replay::traceHeader(header);
-    const auto nativeHeader=columns(header.str().substr(0,header.str().size()-1));
+    std::ostringstream header;replay::traceHeader(header);const auto nativeHeader=columns(header.str().substr(0,header.str().size()-1));
     if(expectedHeader!=nativeHeader)throw std::runtime_error("Original trace schema does not match native replay");
-    std::ofstream trace(nativeTrace);if(!trace)throw std::runtime_error("Cannot write native viewer trace");replay::traceHeader(trace);
-    frames_.clear();frames_.reserve(input.size());
-    cachedFrame_=~0u;
+    std::ofstream trace(nativeTrace);if(!trace)throw std::runtime_error("Cannot write native viewer trace");trace<<header.str();
+    frames_.reserve(input.size());
     for(unsigned tick=0;tick<input.size();++tick){
-        state->begin(input[tick].controls);state->ram[0xead6+0x45]=input[tick].quit?0xb3:0;
-        state->controlsStage();state->physicsStage();state->engineStage();state->progressStage();
-        // Rendering starts here in the original frame, before collision visual
-        // effects, suspension sprites, timing and outer race transitions.
-        RenderCameraInputs camera{};
-        for(unsigned n=0;n<3;++n)camera.worldPosition[n]=a::longword(state->ram.data(),0x1bcd8+4*n);
-        camera.pitch=a::word(state->ram.data(),0x1bce4);camera.yaw=a::word(state->ram.data(),0x1bce6);camera.roll=a::word(state->ram.data(),0x1bce8);
-        camera.averageWheelVelocity=a::word(state->ram.data(),0x1bd38);
-        auto renderCamera=makeRenderProjectionCamera(camera,state->physicsData.trig);
-        renderCamera.viewportCenterY=a::word(state->ram.data(),0x1bc42);
-        renderCamera.sinRoll=a::word(state->ram.data(),0x1c250);renderCamera.cosRoll=a::word(state->ram.data(),0x1c252);
-        NearTrackFrameInputs nearInputs;
-        nearInputs.progress=scr::test::trackProgress::readState(state->ram);nearInputs.camera=renderCamera;
-        nearInputs.displayUpdate=state->ram[0x5d724];nearInputs.opponentSegment=state->ram[0x1bba6];nearInputs.opponentSubSegment=state->ram[0x1bc24];
-        nearInputs.minimumBoundaryDistance=a::word(state->ram.data(),0x63ede);
-        nearInputs.drawing.minimumQueueOffset=a::word(state->ram.data(),0x1bc1e);
-        nearInputs.drawing.renderingOrderMode=state->ram[0x1bb9a];nearInputs.drawing.raceStartTimer=state->ram[0x1bbdf];
-        nearInputs.drawing.offRoadSideFlags=nearInputs.progress.offRoadSide;nearInputs.drawing.offsetFromRoadCenter=nearInputs.progress.lateralOffset;
-        nearInputs.drawing.sideEdgeColor=(*capture)[0x691b3];nearInputs.drawing.alternateSideColor=(*capture)[0x691b2];
-        const auto nearSeed=nearGeometry;
-        const auto progressInputs=scr::test::trackProgress::readInputs(state->ram);
-        auto nearFrame=buildNearTrackFrame(state->progressData,segmentRenderFlags_,nearInputs,nearGeometry);
-        state->groundStage();state->wheelsStage();state->damageStage();state->timingStage();state->outerStage();
-        std::ostringstream row;replay::traceRow(row,state->ram,tick,input[tick].controls,0,unsigned(state->outerAction),state->restarts,input[tick].quit);
-        const auto values=columns(row.str().substr(0,row.str().size()-1));
-        if(!std::getline(reference,line))throw std::runtime_error("Original trace ends before native replay");
-        const auto expected=columns(line);
+        auto frame=advanceSimulation(*simulation_,input[tick].controls,input[tick].quit);
+        const auto values=columns(simulation_->lastRow.substr(0,simulation_->lastRow.size()-1));
+        if(!std::getline(reference,line))throw std::runtime_error("Original trace ends before native replay");const auto expected=columns(line);
         if(expected.size()!=values.size())throw std::runtime_error("Malformed original trace row");
         for(unsigned n=0;n<values.size();++n)if(nativeHeader[n]!="original_instructions"&&values[n]!=expected[n])
             throw std::runtime_error("Viewer replay differs from original at tick "+std::to_string(tick)+", field "+nativeHeader[n]);
-        trace<<row.str();
-        ReplaySceneFrame frame;frame.tick=tick;frame.controls=input[tick].controls;frame.restarts=state->restarts;frame.action=unsigned(state->outerAction);
-        frame.cameraYaw=camera.yaw;frame.camera=renderCamera;frame.nearTrack=std::move(nearFrame.presentation);
-        frame.pose=camera;frame.nearInputs=nearInputs;frame.nearSeed=nearSeed;frame.progressInputs=progressInputs;
-        frame.cockpit=captureCockpitFrame(state->ram.data(),state->ram.size());
-        frame.forwardSpeed=a::word(state->ram.data(),0x1bd30);frame.lapCounter=state->ram[0x1bb20];frame.raceComplete=state->ram[0x1bbaf];
-        frame.boostFuel=state->ram[0x1ca20];frame.damage=state->ram[0x1bb55];
-        frame.minutes=state->ram[0x1c908];frame.seconds=state->ram[0x1c920];frame.subseconds=state->ram[0x1c938];frames_.push_back(std::move(frame));
-        if((state->outerAction==RaceTransitionAction::raceEnd||state->outerAction==RaceTransitionAction::quit)&&tick+1<input.size())
-            throw std::runtime_error("Replay controls continue after the race exit");
+        trace<<simulation_->lastRow;frames_.push_back(std::move(frame));
+        if(liveTerminal()&&tick+1<input.size())throw std::runtime_error("Replay controls continue after the race exit");
     }
     if(std::getline(reference,line))throw std::runtime_error("Original trace contains extra rows");
     if(frames_.empty())throw std::runtime_error("No native replay frames");
+}
+void ReplayScene::loadLive(const std::filesystem::path& chip,const std::filesystem::path& payload,const std::filesystem::path& directory){
+    initialise(chip,payload);recordingsDirectory_=directory;std::filesystem::create_directories(directory);
+    const auto stamp=std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::system_clock::now().time_since_epoch()).count();
+    auto base=directory/("drive-"+std::to_string(stamp));unsigned suffix=0;
+    while(std::filesystem::exists(base.string()+"-controls.csv"))base=directory/("drive-"+std::to_string(stamp)+"-"+std::to_string(++suffix));
+    auto& simulation=*simulation_;simulation.recording=base.string()+"-controls.csv";
+    simulation.controls.open(simulation.recording);simulation.trace.open(base.string()+"-native.csv");
+    if(!simulation.controls||!simulation.trace)throw std::runtime_error("Cannot create live input recording");
+    simulation.controls<<"tick,controls,quit\n";scr::test::replay::traceHeader(simulation.trace);
+    const auto seed=simulation.geometry;auto frame=captureFrame(simulation,0,0);simulation.geometry=seed;finishFrame(simulation,frame);
+    frames_.push_back(frame);frames_.push_back(std::move(frame));
+}
+void ReplayScene::resetLive(){const auto chip=chipPath_,payload=payloadPath_,directory=recordingsDirectory_;loadLive(chip,payload,directory);}
+unsigned ReplayScene::liveTicks()const noexcept{return simulation_?simulation_->ticks:0;}
+bool ReplayScene::liveTerminal()const noexcept{return simulation_&&(simulation_->native.outerAction==RaceTransitionAction::raceEnd||simulation_->native.outerAction==RaceTransitionAction::quit);}
+const std::filesystem::path& ReplayScene::liveRecording()const noexcept{return simulation_->recording;}
+bool ReplayScene::stepLive(unsigned controls,bool quit){
+    if(liveTerminal())return false;
+    auto next=advanceSimulation(*simulation_,controls,quit);auto& simulation=*simulation_;
+    simulation.controls<<next.tick<<','<<controls<<','<<(quit?1:0)<<'\n';simulation.trace<<simulation.lastRow;
+    simulation.controls.flush();simulation.trace.flush();
+    if(!simulation.controls||!simulation.trace)throw std::runtime_error("Live input recording write failed");
+    frames_[0]=std::move(frames_[1]);frames_[1]=std::move(next);
+    if(!canInterpolateReplay(frames_[0].restarts,frames_[1].restarts,frames_[0].action,frames_[1].action))frames_[0]=frames_[1];
+    cachedFrame_=~0u;return true;
+}
+const std::vector<std::uint32_t>& ReplayScene::renderLive(double fraction,bool wireframe,bool interpolate){
+    return interpolate?renderInterpolated(std::clamp(fraction,0.0,1.0),wireframe):render(1,wireframe);
+}
+unsigned ReplayScene::verifyLiveReplay(const std::filesystem::path& inputs,const std::filesystem::path& referencePath,const std::filesystem::path& tracePath){
+    namespace replay=scr::test::replay;const auto input=replay::loadInputs(inputs.string().c_str());
+    std::ifstream reference(referencePath);std::ofstream trace(tracePath);
+    if(!reference||!trace)throw std::runtime_error("Cannot open live verification trace");
+    std::string line;std::getline(reference,line);const auto fields=columns(line);std::ostringstream header;replay::traceHeader(header);
+    if(fields!=columns(header.str().substr(0,header.str().size()-1)))throw std::runtime_error("Live reference schema differs");trace<<header.str();
+    FixedDriveClock clock;unsigned presentations=0;
+    while(liveTicks()<input.size()){
+        const auto steps=clock.advance(1.0/replayPresentationHz);
+        for(unsigned n=0;n<steps&&liveTicks()<input.size();++n){
+            const auto tick=liveTicks();if(!stepLive(input[tick].controls,input[tick].quit))throw std::runtime_error("Live verification stopped before its last input");
+            const auto values=columns(simulation_->lastRow.substr(0,simulation_->lastRow.size()-1));
+            if(!std::getline(reference,line))throw std::runtime_error("Live reference ended early");const auto expected=columns(line);
+            if(values.size()!=expected.size())throw std::runtime_error("Malformed live reference row");
+            for(unsigned k=0;k<fields.size();++k)if(fields[k]!="original_instructions"&&values[k]!=expected[k])throw std::runtime_error("Live simulation differs at tick "+std::to_string(tick)+", field "+fields[k]);
+            trace<<simulation_->lastRow;
+        }
+        renderLive(clock.fraction());++presentations;
+    }
+    if(std::getline(reference,line))throw std::runtime_error("Live reference contains extra rows");return presentations;
 }
 const std::vector<std::uint32_t>& ReplayScene::render(unsigned index,bool wireframe) {
     if(index==cachedFrame_&&cachedFraction_==0&&wireframe==cachedWireframe_)return pixels_;

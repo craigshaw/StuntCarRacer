@@ -908,6 +908,17 @@ edge highlights now follow the original routines. A live FPS counter measures
 window presentations. Interrupt timing and audio remain future work. See the [viewer guide](docs/native-replay-viewer.md) for
 controls, exported frames, differential evidence and rendering boundaries.
 
+### Drive the native port
+
+Double-click `Drive Native.cmd`, or run `scripts/start-native-replay.ps1 -Live`.
+Click **Drive** or press **P** to begin. Arrows/WASD steer and operate gas/brake;
+Space boosts. Xbox controllers use the left stick/D-pad, RT/LT for gas/brake and
+A for boost. Physics retains fixed 120 ms steps with smooth 60 FPS presentation.
+P pauses, R resets, and focus loss pauses automatically. Gas remains latched
+after release, as in the original; use brake to slow down. Inputs are recorded
+under `analysis/live-driving/`. See [native driving](docs/native-driving.md) for
+controls, controller detection and verification.
+
 ## Sources and installation provenance
 
 - [REA documentation](https://github.com/morluto/rea/blob/main/docs/installation.md)

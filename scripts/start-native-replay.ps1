@@ -3,6 +3,7 @@ param(
     [ValidateRange(0,1000000)][int]$StartTick = 0,
     [switch]$Paused,
     [switch]$ExactTicks,
+    [switch]$Live,
     [switch]$RefreshReference,
     [switch]$SkipBuild
 )
@@ -36,6 +37,7 @@ try {
     )
     if ($Paused) { $viewerArguments += '--paused' }
     if ($ExactTicks) { $viewerArguments += '--no-interpolation' }
+    if ($Live) { $viewerArguments += @('--live', '--recordings-dir', (Join-Path $taskRoot 'analysis/live-driving')) }
     # ArgumentList is passed directly to this locally built Windows executable.
     # File paths cannot contain quotation marks; quotes preserve their spaces.
     $quotedArguments = ($viewerArguments | ForEach-Object { '"' + $_ + '"' }) -join ' '

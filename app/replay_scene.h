@@ -3,6 +3,7 @@
 #include "replay_interpolation.h"
 #include "software_renderer.h"
 #include <filesystem>
+#include <memory>
 #include <string>
 #include <vector>
 
@@ -18,9 +19,21 @@ struct ReplaySceneFrame : ReplayVisualState {
 };
 class ReplayScene {
 public:
+    ReplayScene();
+    ~ReplayScene();
     void load(const std::filesystem::path& chip,const std::filesystem::path& payload,
         const std::filesystem::path& inputs,const std::filesystem::path& referenceTrace,
         const std::filesystem::path& nativeTrace);
+    void loadLive(const std::filesystem::path& chip,const std::filesystem::path& payload,
+        const std::filesystem::path& recordingsDirectory);
+    void resetLive();
+    bool stepLive(unsigned controls,bool quit=false);
+    unsigned verifyLiveReplay(const std::filesystem::path& inputs,const std::filesystem::path& reference,
+        const std::filesystem::path& nativeTrace);
+    const std::vector<std::uint32_t>& renderLive(double fraction,bool wireframe=false,bool interpolate=true);
+    unsigned liveTicks() const noexcept;
+    bool liveTerminal() const noexcept;
+    const std::filesystem::path& liveRecording() const noexcept;
     const std::vector<std::uint32_t>& render(unsigned frame,bool wireframe=false);
     const std::vector<std::uint32_t>& renderInterpolated(double position,bool wireframe=false);
     void saveBitmap(const std::filesystem::path&) const;
@@ -32,6 +45,13 @@ public:
     const RenderStatistics& statistics() const noexcept {return statistics_;}
     std::size_t backgroundCompressedBytes() const noexcept {return assets_.backgroundCompressedBytes;}
 private:
+    struct Simulation;
+    std::unique_ptr<Simulation> simulation_;
+    std::filesystem::path chipPath_,payloadPath_,recordingsDirectory_;
+    void initialise(const std::filesystem::path& chip,const std::filesystem::path& payload);
+    ReplaySceneFrame captureFrame(Simulation&,unsigned tick,unsigned controls);
+    void finishFrame(Simulation&,ReplaySceneFrame&);
+    ReplaySceneFrame advanceSimulation(Simulation&,unsigned controls,bool quit);
     ReplayRenderAssets assets_;
     TrackMesh mesh_;
     std::vector<TrackSideFace> sides_;

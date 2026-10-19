@@ -90,7 +90,7 @@ def verify_reference(path, inputs, capture_record):
 
 
 def viewer_sources():
-    paths = {ROOT / 'CMakeLists.txt', ROOT / 'tests/replay_interpolation_tests.cpp'}
+    paths = {ROOT / 'CMakeLists.txt', ROOT / 'tests/replay_interpolation_tests.cpp', ROOT / 'tests/live_drive_tests.cpp'}
     for directory in ('src', 'app'):
         for pattern in ('*.cpp', '*.h'):
             paths.update((ROOT / directory).glob(pattern))
@@ -260,12 +260,13 @@ def main():
     build = ROOT / 'analysis/native-render/viewer-build'
     executable = build / 'Release/native_replay_viewer.exe'
     interpolation_test = build / 'Release/replay_interpolation_tests.exe'
+    live_test = build / 'Release/live_drive_tests.exe'
     sources = viewer_sources();source_records = [identity(path) for path in sources]
     build_receipt = build / 'viewer-build-receipt.json'
     build_commands = []
     if not args.skip_build:
         build_commands = [['cmake', '-S', str(ROOT), '-B', str(build), '-G', 'Visual Studio 18 2026', '-A', 'x64', '-DSCR_BUILD_ORACLE=OFF'],
-                          ['cmake', '--build', str(build), '--config', 'Release', '--target', 'native_replay_viewer', 'replay_interpolation_tests', '--parallel', '4']]
+                          ['cmake', '--build', str(build), '--config', 'Release', '--target', 'native_replay_viewer', 'replay_interpolation_tests', 'live_drive_tests', '--parallel', '4']]
         with (out / 'build.log').open('w', encoding='utf-8') as log:
             for command in build_commands:
                 log.write(json.dumps(command) + '\n');log.flush()
@@ -279,6 +280,7 @@ def main():
                 raise ValueError('Native viewer source identities differ from the last build')
             identity(executable, receipt['executable']['sha256'])
             identity(interpolation_test, receipt['interpolation_test']['sha256'])
+            identity(live_test, receipt['live_test']['sha256'])
         except (OSError, ValueError, KeyError, RuntimeError) as error:
             raise RuntimeError('No matching native viewer build receipt; rebuild without --skip-build') from error
     else:
@@ -286,11 +288,14 @@ def main():
         # build-file edit. Record content identities rather than compare mtimes.
         for path, record in zip(sources, source_records):
             identity(path, record['sha256'])
-        build_receipt.write_text(json.dumps({'executable': identity(executable), 'interpolation_test': identity(interpolation_test), 'sources': source_records}, indent=2) + '\n', encoding='utf-8')
+        build_receipt.write_text(json.dumps({'executable': identity(executable), 'interpolation_test': identity(interpolation_test), 'live_test': identity(live_test), 'sources': source_records}, indent=2) + '\n', encoding='utf-8')
     regression_run = subprocess.run([str(interpolation_test)], capture_output=True, text=True, check=True, cwd=ROOT)
     regression = json.loads(regression_run.stdout)
     if regression.get('mismatches') != 0 or regression.get('total_cases', 0) < 14:
         raise ValueError('Presentation interpolation regressions failed')
+    live_regression = json.loads(subprocess.check_output([str(live_test)], text=True, cwd=ROOT))
+    if live_regression.get('mismatches') != 0 or live_regression.get('total_cases', 0) < 18:
+        raise ValueError('Live input/fixed-step regressions failed')
     snapshots = [tick for tick in SNAPSHOT_TICKS if tick < inputs['ticks']]
     smooth_snapshots = [position for position in SMOOTH_SNAPSHOTS if position < inputs['ticks'] - 1]
     frame_directory = out / 'frames';frame_directory.mkdir(exist_ok=True)
@@ -315,6 +320,27 @@ def main():
         raise ValueError('Native viewer background extent differs from verified original asset decoding')
     trace_checks = verify_viewer_trace(trace, reference_trace, inputs_path, inputs['ticks'], viewer_report)
     lap_checks = validate_laps(trace, initial_lap_state(chip.read_bytes()), require_complete_lap=True)
+    live_trace = out / 'live-native.csv';live_report_path = out / 'live.json'
+    live_command = [str(executable), '--live', '--headless', '--chip', str(chip), '--payload', str(payload),
+                    '--inputs', str(inputs_path), '--reference', str(reference_trace), '--trace', str(live_trace),
+                    '--report', str(live_report_path), '--recordings-dir', str(out / 'live-regression')]
+    live_run = subprocess.run(live_command, capture_output=True, text=True, cwd=ROOT)
+    (out / 'live-stdout.txt').write_text(live_run.stdout, encoding='utf-8');(out / 'live-stderr.txt').write_text(live_run.stderr, encoding='utf-8')
+    if live_run.returncode:
+        raise RuntimeError('Live simulation verification failed; see analysis/native-render/live.json')
+    live_results = json.loads(live_report_path.read_text())
+    if live_results.get('status') != 'passed' or live_results.get('mode') != 'live' or live_results.get('rendered_frames') != (inputs['ticks'] * 36 + 4) // 5:
+        raise ValueError('Live mode did not drive fixed120ms physics across the complete60Hz timeline')
+    live_checks = verify_viewer_trace(live_trace, reference_trace, inputs_path, inputs['ticks'], live_results)
+    live_recording = Path(live_results['live_recording']).resolve()
+    with live_recording.open(newline='') as stream:
+        recorded = list(csv.DictReader(stream))
+    with inputs_path.open(newline='') as stream:
+        selected = list(csv.DictReader(stream))
+    if len(recorded) != len(selected) or any(
+            any(int(observed.get(field, 0)) != int(expected.get(field, 0)) for field in ('tick', 'controls', 'quit'))
+            for observed, expected in zip(recorded, selected)):
+        raise ValueError('Live recording changed or dropped a sampled input tick')
     frames = []
     for item in viewer_report['snapshots']:
         path = Path(item['path']).resolve()
@@ -343,6 +369,9 @@ def main():
         'asset_manifest': identity(asset_output / 'assets-manifest.json'),
         'viewer_report': identity(viewer_report_path), 'viewer_results': viewer_report,
         'interpolation_regression': {'executable': identity(interpolation_test), 'results': regression},
+        'live_input_regression': {'executable': identity(live_test), 'results': live_regression},
+        'live_verification': {'command': live_command, 'report': identity(live_report_path), 'results': live_results,
+                              'native_trace': identity(live_trace), 'trace_checks': live_checks, 'recorded_inputs': identity(live_recording)},
         'native_trace': identity(trace), 'trace_checks': trace_checks, 'lap_validation': lap_checks,
         'snapshots': [identity(path) for path in frames], 'qa_images': qa,
         'interpolated_snapshots': [identity(path) for path in smooth_frames], 'interpolated_qa_images': smooth_qa,

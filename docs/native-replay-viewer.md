@@ -14,6 +14,11 @@ crossings are ticks 24, 505, 961 and 1,415; the race-end gate occurs at tick 1,4
 These are authored inputs chosen by a native feedback experiment, not a human
 recording.
 
+For live keyboard/controller driving, use `Drive Native.cmd` or
+`scripts/start-native-replay.ps1 -Live`. This shares the same native simulation
+step and renderer. See [native driving](native-driving.md) for its controls,
+fixed-step clock and input recordings.
+
 Playback controls:
 
 | Input | Action |

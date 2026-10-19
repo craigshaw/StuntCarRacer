@@ -42,10 +42,15 @@ add_executable(replay_interpolation_tests tests/replay_interpolation_tests.cpp a
 target_include_directories(replay_interpolation_tests PRIVATE app)
 target_link_libraries(replay_interpolation_tests PRIVATE scr_render)
 target_compile_features(replay_interpolation_tests PRIVATE cxx_std_17)
+add_executable(live_drive_tests tests/live_drive_tests.cpp app/live_drive.cpp)
+target_include_directories(live_drive_tests PRIVATE app)
+target_link_libraries(live_drive_tests PRIVATE scr_render)
+target_compile_features(live_drive_tests PRIVATE cxx_std_17)
 if(WIN32)
   add_executable(native_replay_viewer WIN32 app/native_replay_viewer.cpp
-    app/replay_scene.cpp app/replay_render_assets.cpp app/replay_interpolation.cpp)
-  target_link_libraries(native_replay_viewer PRIVATE scr_render user32 gdi32 shell32)
+    app/replay_scene.cpp app/replay_render_assets.cpp app/replay_interpolation.cpp
+    app/live_drive.cpp app/windows_drive_input.cpp)
+  target_link_libraries(native_replay_viewer PRIVATE scr_render user32 gdi32 shell32 xinput9_1_0)
   target_compile_features(native_replay_viewer PRIVATE cxx_std_17)
   target_compile_definitions(native_replay_viewer PRIVATE UNICODE _UNICODE)
   if(MSVC)

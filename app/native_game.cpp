@@ -18,7 +18,7 @@
 namespace {
 using namespace scr::viewer;
 struct Options {
-    std::filesystem::path pack,recordings=L"analysis/live-driving";
+    std::filesystem::path pack,recordings=L"analysis/live-driving",saveFile=L"working/saves/stunt-car-racer.scr-save";
     bool interpolate{};
 };
 Options parse(){
@@ -31,6 +31,7 @@ Options parse(){
         if(++n==count)throw std::runtime_error("Missing native game argument");
         if(key==L"--asset-pack")options.pack=args[n];
         else if(key==L"--recordings-dir")options.recordings=args[n];
+        else if(key==L"--save-file")options.saveFile=args[n];
         else throw std::runtime_error("Unknown native game argument");
     }}catch(...){LocalFree(args);throw;}
     LocalFree(args);if(options.pack.empty())throw std::runtime_error("Supply --asset-pack with your imported local data pack");
@@ -38,7 +39,7 @@ Options parse(){
 }
 class GameWindow {
 public:
-    explicit GameWindow(const Options& options):game_(options.pack,options.recordings),interpolate_(options.interpolate){}
+    explicit GameWindow(const Options& options):game_(options.pack,options.recordings,NativeGameStart::OriginalOpening,options.saveFile),interpolate_(options.interpolate){}
     ~GameWindow(){if(timer_)CloseHandle(timer_);}
     int run(HINSTANCE instance,int show){
         WNDCLASSEXW type{};type.cbSize=sizeof(type);type.hInstance=instance;type.lpfnWndProc=procedure;
@@ -89,7 +90,7 @@ private:
         NativeGameInput value;
         value.rawKeys=rawKeys_;
         const auto& p=pad_.pad;
-        if(game_.enteringName()){
+        if(game_.usingTextInput()){
             // The original raw keyboard scanner owns name entry. Letters
             // such as WASD and M/I must reach it without host shortcuts.
             if(p.connected)value.menu.controls=std::uint8_t(
@@ -97,7 +98,7 @@ private:
                 (((p.buttons&0x0002)||p.y<-16000)?2:0)|
                 (((p.buttons&0x0004)||p.x<-16000)?4:0)|
                 (((p.buttons&0x0008)||p.x>16000)?8:0)|((p.buttons&0x1000)?16:0));
-            return value;
+            value.quit=(p.connected&&(p.buttons&0x0020));return value;
         }
         value.driveControls=mapDriveControls({keys_['W']||keys_[VK_UP],keys_['S']||keys_[VK_DOWN],
             keys_['A']||keys_[VK_LEFT],keys_['D']||keys_[VK_RIGHT],keys_[VK_SPACE]},pad_.pad);
@@ -129,7 +130,7 @@ private:
                 L"Computer Link has not been ported yet. Single Player and local Multiplayer name setup are available.":
                 changes.unavailable==NativeGameUnavailable::localMultiplayerSeason?
                 L"Multiplayer racing seasons have not been ported yet. Practise is available for this setup.":
-                L"Load, save and replay have not been ported yet.";
+                L"This route is unavailable in the current game mode.";
             MessageBoxW(window,text,L"Stunt Car Racer — native port",MB_OK|MB_ICONINFORMATION);
         }
     }
@@ -190,8 +191,8 @@ private:
             if(!(data&0x40000000)){
                 if(const auto raw=nativeAmigaRawKey(unsigned(key),(unsigned(data)>>16)&255,(data&0x01000000)!=0))rawKeys_.push_back({*raw,true});
                 if(key=='P'&&game_.page()==NativeMenuPage::Race&&!game_.transitioning())togglePause();
-                else if(!game_.enteringName()&&key=='M'){muted_=!muted_;if(audio_)audio_->setMuted(muted_);}
-                else if(!game_.enteringName()&&key=='I')interpolate_=!interpolate_;
+                else if(!game_.usingTextInput()&&key=='M'){muted_=!muted_;if(audio_)audio_->setMuted(muted_);}
+                else if(!game_.usingTextInput()&&key=='I')interpolate_=!interpolate_;
             }
             update(window,0);InvalidateRect(window,nullptr,FALSE);return 0;
         case WM_KEYUP:

@@ -3,8 +3,8 @@
 #include <cstdint>
 
 namespace scr::viewer {
-enum class NativeMenuPage { Main,Division,Track,Preview,Race,Matchup,Results,RoundResults,Standings,SeasonEnd,SeasonAward,Roster,Records,Opening,HallOfFame };
-enum class NativeMenuAction { None,Changed,EnterPreview,StartPractice,RotatePreview,UnsupportedOption,StartRace,ShowCompetitionPage,ShowHallOfFame,LeaveHallOfFame };
+enum class NativeMenuPage { Main,Division,Track,Preview,Race,Matchup,Results,RoundResults,Standings,SeasonEnd,SeasonAward,Roster,Records,Opening,HallOfFame,LoadSave,SaveSlots };
+enum class NativeMenuAction { None,Changed,EnterPreview,StartPractice,RotatePreview,UnsupportedOption,StartRace,ShowCompetitionPage,ShowHallOfFame,LeaveHallOfFame,LoadGame,SaveGame,ReplayGame };
 struct NativeMenuInput {
     // Original readControllerInput bits: up/down/left/right/fire. Number keys
     // select a row; they deliberately do not activate it without fire/Return.
@@ -42,6 +42,7 @@ public:
     NativeMenuAction update(const NativeMenuInput&,double elapsedSeconds);
     void returnFromRace();
     void cancelPreview();
+    void returnFromSave();
     [[nodiscard]] NativeMenuPage page()const noexcept{return page_;}
     [[nodiscard]] NativeMenuRenderState renderState()const;
     [[nodiscard]] unsigned trackId()const noexcept{return memory_[0x1ca33];}
@@ -50,7 +51,7 @@ public:
     [[nodiscard]] unsigned competitionDivision()const noexcept{return competitionDivision_;}
     [[nodiscard]] unsigned competitionContext()const noexcept{return competitionContext_;}
 private:
-    enum class Phase { PaintDelay,Release,ReleaseDelay,Input,ConfirmDelay,TrackDelay };
+    enum class Phase { PaintDelay,Release,ReleaseDelay,Input,ConfirmDelay,TrackDelay,LoadSaveDelay,MainDelay };
     NativeMemory& memory_;
     NativeMenuPage page_{NativeMenuPage::Main};
     Phase phase_{Phase::PaintDelay};

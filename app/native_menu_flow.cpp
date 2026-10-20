@@ -125,9 +125,12 @@ NativeMenuAction NativeMenuFlow::confirm(){
             competitionContext_=memory_[0x1c9d0];
             initializeNativeSeason(memory_);return openNextSeasonRace();
         }
-        unsupported_=selected;memory_[highlight]=0;
-        phase_=Phase::PaintDelay;startDelay(15,true);
-        return NativeMenuAction::UnsupportedOption;
+        phase_=Phase::LoadSaveDelay;startDelay(20);return NativeMenuAction::None;
+    }
+    if(page_==NativeMenuPage::LoadSave){
+        if(selected==3){phase_=Phase::MainDelay;startDelay(20);return NativeMenuAction::None;}
+        page_=NativeMenuPage::SaveSlots;
+        return selected==0?NativeMenuAction::LoadGame:selected==1?NativeMenuAction::SaveGame:NativeMenuAction::ReplayGame;
     }
     if(page_==NativeMenuPage::Division){
         memory_[0x5eb7c]=std::uint8_t(selected^3);
@@ -203,9 +206,11 @@ NativeMenuAction NativeMenuFlow::update(const NativeMenuInput& input,double elap
             return competitive_?NativeMenuAction::StartRace:NativeMenuAction::StartPractice;}
         return NativeMenuAction::None;
     }
-    if(phase_==Phase::PaintDelay||phase_==Phase::ReleaseDelay||phase_==Phase::ConfirmDelay||phase_==Phase::TrackDelay){
+    if(phase_==Phase::PaintDelay||phase_==Phase::ReleaseDelay||phase_==Phase::ConfirmDelay||phase_==Phase::TrackDelay||phase_==Phase::LoadSaveDelay||phase_==Phase::MainDelay){
         remaining_-=elapsed;if(remaining_>0)return NativeMenuAction::None;
         memory_[0x1bb1a]=memory_[0x1bb1b]=0;
+        if(phase_==Phase::LoadSaveDelay){openPage(NativeMenuPage::LoadSave,4,3,3,0);return NativeMenuAction::Changed;}
+        if(phase_==Phase::MainDelay){openMain(false);return NativeMenuAction::Changed;}
         if(phase_==Phase::ConfirmDelay)return confirm();
         if(phase_==Phase::TrackDelay){
             page_=NativeMenuPage::Preview;memory_[0x57c62]=0x12;previewReleaseMask_=0x1f;memory_[0x5d9da]=0x1f;
@@ -238,6 +243,7 @@ void NativeMenuFlow::returnFromRace(){
 void NativeMenuFlow::cancelPreview(){
     memory_[0x5eb7d]=0;openMain();
 }
+void NativeMenuFlow::returnFromSave(){openMain(false);}
 void NativeMenuFlow::openCompetitionPage(NativeMenuPage page,unsigned gameState){
     page_=page;memory_[0x57c62]=std::uint8_t(gameState);competitionFire_.reset();
 }

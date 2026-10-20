@@ -21,12 +21,14 @@ def sources():
     paths.add(ROOT / 'tests/native_game_session_tests.cpp')
     paths.add(ROOT / 'tests/native_opening_session_tests.cpp')
     paths.add(ROOT / 'tests/native_opponent_session_tests.cpp')
+    paths.add(ROOT / 'tests/native_save_session_tests.cpp')
+    paths.add(ROOT / 'tests/native_save_store_tests.cpp')
     paths.add(ROOT / 'tests/draw_bridge_oracle.cpp')
     paths.add(ROOT / 'tests/draw_bridge_driving_tests.cpp')
     paths.add(ROOT / 'tests/driving_replay_oracle.cpp')
     paths.add(ROOT / 'scripts/check_driving_replay.py')
     for name in ('native_menu_render', 'native_menu_flow', 'native_track_preview', 'native_palette_fade',
-                 'native_hall_of_fame', 'native_hall_records'):
+                 'native_hall_of_fame', 'native_hall_records', 'native_save_state', 'native_save_menu'):
         paths.add(ROOT / 'tests' / (name + '_tests.cpp'))
     return [identity(path) for path in sorted(paths)]
 
@@ -86,10 +88,12 @@ def main():
     startup_test = binary_dir / 'Release/native_startup_tests.exe'
     bridge_test = binary_dir / 'Release/draw_bridge_driving_tests.exe'
     season_test = binary_dir / 'Release/native_opponent_session_tests.exe'
+    save_test = binary_dir / 'Release/native_save_session_tests.exe'
+    store_test = binary_dir / 'Release/native_save_store_tests.exe'
     receipt = binary_dir / 'build-receipt.json'
     records = sources()
     executables = {'game': executable, 'test': test, 'opening_test': opening_test, 'startup_test': startup_test,
-                   'bridge_test': bridge_test, 'season_test': season_test}
+                   'bridge_test': bridge_test, 'season_test': season_test, 'save_test': save_test, 'store_test': store_test}
     if args.skip_build:
         old = json.loads(receipt.read_text())
         if old['sources'] != records or any(old[key] != identity(path) for key, path in executables.items()):
@@ -98,7 +102,7 @@ def main():
         build([['cmake', '-S', ROOT, '-B', binary_dir, '-DSCR_BUILD_ORACLE=OFF'],
                ['cmake', '--build', binary_dir, '--config', 'Release', '--target',
                 'native_game', 'native_game_session_tests', 'native_opening_session_tests', 'native_startup_tests', 'draw_bridge_driving_tests',
-                'native_opponent_session_tests', '--parallel', '4']], output / 'build.log')
+                'native_opponent_session_tests', 'native_save_session_tests', 'native_save_store_tests', '--parallel', '4']], output / 'build.log')
         receipt.write_text(json.dumps({'sources': records, **{key: identity(path) for key, path in executables.items()}}, indent=2) + '\n')
     integration = run_json([test, pack, output / 'integration'], output / 'integration-results.json')
     if integration.get('practice_routes') != 8 or integration.get('repeated_races') != 8 or integration.get('return_to_main_menu') is not True:
@@ -120,6 +124,14 @@ def main():
     if (season.get('human_races') != 4 or season.get('opponent_completed_races') != 1
             or season.get('original_physics_rate') is not True or season.get('return_to_main_menu') is not True):
         raise RuntimeError('The native local season did not complete its original route')
+    saves = run_json([save_test, pack, output / 'saves'], output / 'save-results.json')
+    if (saves.get('native_saves') != 4 or saves.get('native_loads') != 5 or saves.get('loaded_races') != 3
+            or saves.get('replay_routes') != 3 or saves.get('fresh_launch_load') is not True
+            or saves.get('corrupt_load_preserves_live_state') is not True or saves.get('write_retry_and_abort') is not True):
+        raise RuntimeError('Native save, load or Replay route coverage differs')
+    storage = run_json([store_test, output / 'save-store'], output / 'save-store-results.json')
+    if storage.get('slots') != 30 or storage.get('atomic_failure_checked') is not True:
+        raise RuntimeError('Native save-file storage regression failed')
     original = {}
     if args.verify_original:
         oracle_build = output / 'oracle-build'
@@ -128,15 +140,21 @@ def main():
                ['cmake', '--build', oracle_build, '--config', 'Release', '--target',
                 'native_menu_render_tests', 'native_menu_flow_tests', 'native_track_preview_tests', 'native_palette_fade_tests',
                 'native_hall_of_fame_tests', 'native_hall_records_tests',
+                'native_save_state_tests', 'native_save_menu_tests',
                 'driving_replay_oracle', 'draw_bridge_oracle', '--parallel', '4']], output / 'oracle-build.log')
         payload = ROOT / 'analysis/reference/vesuri/offline-extracted-payload.bin'
         for name, argument in (('native_menu_render', payload), ('native_menu_flow', payload), ('native_track_preview', pack),
-                               ('native_palette_fade', payload), ('native_hall_of_fame', payload), ('native_hall_records', payload)):
+                               ('native_palette_fade', payload), ('native_hall_of_fame', payload), ('native_hall_records', payload),
+                               ('native_save_state', payload), ('native_save_menu', payload)):
             target = oracle_build / 'Release' / (name + '_tests.exe')
             original[name] = run_json([target, argument], output / (name + '-original-results.json'))
             original[name]['oracle'] = identity(target)
         if original['native_hall_of_fame'].get('cases') != 640 or original['native_hall_records'].get('cases') != 2944:
             raise RuntimeError('Hall of Fame original-code coverage differs')
+        if (original['native_save_state'].get('cases') != 800 or original['native_save_state'].get('rejection_cases') != 39
+                or original['native_save_menu'].get('pixel_cases') != 1364):
+            raise RuntimeError('Load/Save/Replay original-code coverage differs')
+        original['payload'] = identity(payload)
         original['draw_bridge'] = run_json([oracle_build / 'Release/draw_bridge_oracle.exe', payload], output / 'draw-bridge-original-results.json')
         original['menu_entered_races'] = []
         oracle = oracle_build / 'Release/driving_replay_oracle.exe'
@@ -150,16 +168,18 @@ def main():
                                     for race in range(4)]
         original['opening_races'] = [compare_race(oracle, output / 'opening' / name, output)
                                      for name in ('single-practice', 'single-season', 'local-practice')]
+        original['loaded_races'] = [compare_race(oracle, output / 'saves' / name, output)
+                                    for name in ('loaded-career-race', 'loaded-rich-race', 'loaded-super-race')]
     if sources() != records:
         raise RuntimeError('Sources changed during native game checks')
     report = {'status': 'passed', 'capture_input': False, 'rom_input': False, 'cpu_emulation': False,
               'pack': identity(pack), 'game': identity(executable), 'sources': records,
               'integration': integration, 'opening': opening, 'startup': startup, 'bridge_driving': bridge,
-              'season': season, 'original_comparisons': original}
+              'season': season, 'saves': saves, 'save_store': storage, 'original_comparisons': original}
     (output / 'check-results.json').write_text(json.dumps(report, indent=2) + '\n')
     if original:
         (output / 'original-check-results.json').write_text(json.dumps(report, indent=2) + '\n')
-    print(json.dumps({'status': 'passed', 'integration': integration, 'opening': opening, 'startup': startup, 'bridge_driving': bridge, 'season': season,
+    print(json.dumps({'status': 'passed', 'integration': integration, 'opening': opening, 'startup': startup, 'bridge_driving': bridge, 'season': season, 'saves': saves, 'save_store': storage,
                       'original_checks': bool(original), 'report': str(output / 'check-results.json')}))
 
 

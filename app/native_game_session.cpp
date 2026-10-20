@@ -33,6 +33,9 @@ NativePalette imagePalette(const NativeMenuImage& image){
 }
 }
 NativeMenuImage NativeGameSession::menuImage()const{
+    if(saveReturn_==SaveReturn::Roster)return makeNativeCompetitionImage(*data_.memory,NativeMenuPage::Roster,(*data_.memory)[0x1c9ce]);
+    if(saveReturn_==SaveReturn::Standings)return makeNativeOpeningStandingsImage(*data_.memory);
+    if(saveMenu_)return saveMenu_->image();
     if(page()==NativeMenuPage::HallOfFame)return makeNativeHallOfFameImage(*data_.memory);
     if(openingActive()){
         switch(opening_->page()){
@@ -42,11 +45,11 @@ NativeMenuImage NativeGameSession::menuImage()const{
         default:return makeNativeMenuImage(*data_.memory,opening_->renderState());
         }
     }
-    if(page()>=NativeMenuPage::Matchup)return makeNativeCompetitionImage(*data_.memory,page(),menu_->competitionDivision(),menu_->competitionContext());
+    if(page()!=NativeMenuPage::LoadSave&&page()>=NativeMenuPage::Matchup)return makeNativeCompetitionImage(*data_.memory,page(),menu_->competitionDivision(),menu_->competitionContext());
     return makeNativeMenuImage(*data_.memory,menu_->renderState());
 }
-NativeGameSession::NativeGameSession(const std::filesystem::path& pack,const std::filesystem::path& recordings,NativeGameStart start):
-    data_(menuStartup(pack,start)),nameEntry_(*data_.memory),recordings_(recordings){
+NativeGameSession::NativeGameSession(const std::filesystem::path& pack,const std::filesystem::path& recordings,NativeGameStart start,const std::filesystem::path& saveFile):
+    data_(menuStartup(pack,start)),nameEntry_(*data_.memory),saveStore_(saveFile),recordings_(recordings){
     if(start==NativeGameStart::EstablishedMenu)menu_=std::make_unique<NativeMenuFlow>(*data_.memory);
     else opening_=std::make_unique<NativeOpeningFlow>(*data_.memory);
     const auto image=makeNativeMenuFrame(*data_.memory,(*data_.memory)[0x1c9ce],start==NativeGameStart::EstablishedMenu);
@@ -72,6 +75,13 @@ void NativeGameSession::leaveRace(){
     driveClock_.reset();releaseInput();
 }
 void NativeGameSession::advanceTransition(double elapsed,NativeGameUpdate& result){
+    if(transition_==Transition::SaveDelay){
+        raceDelay_-=elapsed;if(raceDelay_>0)return;
+        NativeMenuImage previous;std::copy(transitionIndices_.begin(),transitionIndices_.end(),previous.indices.begin());
+        previous.palette=fade_.rgbPalette();
+        saveMenu_=std::make_unique<NativeSaveMenu>(*data_.memory,saveWriting_,&previous);
+        transition_=Transition::None;return;
+    }
     if(transition_==Transition::RaceDelay){
         raceDelay_-=elapsed;
         if(raceDelay_<=0){fade_.animateTo(readNativePalette(*data_.memory,0x20184));transition_=Transition::InRace;}
@@ -114,6 +124,23 @@ void NativeGameSession::advanceTransition(double elapsed,NativeGameUpdate& resul
         transitionIndices_.assign(image.indices.begin(),image.indices.end());
         fade_.animateTo(readNativePalette(*data_.memory,0x23c32));transition_=Transition::InHallMenu;break;
     }
+    case Transition::OutSaveRoster:{
+        const auto image=menuImage();transitionIndices_.assign(image.indices.begin(),image.indices.end());
+        fade_.animateTo(readNativePalette(*data_.memory,0x35a76));transition_=Transition::InSaveRoster;break;
+    }
+    case Transition::OutReplayFrame:
+    case Transition::OutRestartOpening:{
+        const bool restarting=transition_==Transition::OutRestartOpening;
+        (*data_.memory)[0x5d724]=0x41;
+        const auto image=makeNativeMenuFrame(*data_.memory,(*data_.memory)[0x1c9ce],!restarting);
+        transitionIndices_.assign(image.indices.begin(),image.indices.end());
+        fade_.animateTo(readNativePalette(*data_.memory,0x23c32));
+        transition_=restarting?Transition::InOpening:Transition::InReplayFrame;break;
+    }
+    case Transition::InReplayFrame:{
+        const auto image=makeNativeMenuFrame(*data_.memory,(*data_.memory)[0x1c9ce]);
+        transition_=Transition::None;showSaveReturn(image);break;
+    }
     case Transition::InRace:transition_=Transition::None;result.raceStarted=true;break;
     default:transition_=Transition::None;break;
     }
@@ -124,6 +151,21 @@ NativeGameUpdate NativeGameSession::update(double elapsed,const NativeGameInput&
     for(const auto& key:input.rawKeys)setNativeRawKey(*data_.memory,key.code,key.pressed);
     if(transitioning()){advanceTransition(elapsed,result);return result;}
     if(openingActive()){updateOpening(input,elapsed,result);return result;}
+    if(saveMenu_){
+        if(input.quit)setNativeRawKey(*data_.memory,0x45,true);
+        handleSaveAction(saveMenu_->update(input.menu.controls,elapsed));return result;
+    }
+    if(saveReturn_!=SaveReturn::None){
+        if(saveReturnFire_.update(input.menu.controls,elapsed)){
+            const auto previous=menuImage();const bool roster=saveReturn_==SaveReturn::Roster;
+            saveReturn_=SaveReturn::None;menu_->returnFromSave();
+            if(roster){
+                transitionIndices_.assign(previous.indices.begin(),previous.indices.end());
+                fade_.fadeToColor(readNativePalette(*data_.memory,0x23c32)[0]);transition_=Transition::OutHallMenu;
+            }
+        }
+        return result;
+    }
     if(page()==NativeMenuPage::Race){
         if(race_.liveTerminal()){
             // Original end-message waits for a new fire press. Escape follows
@@ -150,7 +192,16 @@ NativeGameUpdate NativeGameSession::update(double elapsed,const NativeGameInput&
     }
     const auto previous=menuImage();
     const auto action=menu_->update(input.menu,elapsed);
-    if(action==NativeMenuAction::ShowHallOfFame){
+    if(action==NativeMenuAction::LoadGame||action==NativeMenuAction::SaveGame){
+        saveLoaded_=false;pendingSave_.reset();
+        const bool write=action==NativeMenuAction::SaveGame;
+        beginNativeSaveTransaction(*data_.memory,write);
+        saveWriting_=write;raceDelay_=nativeMenuDelaySeconds(20);
+        transitionIndices_.assign(previous.indices.begin(),previous.indices.end());
+        fade_.reset(readNativePalette(*data_.memory,0x23c32));transition_=Transition::SaveDelay;
+    }else if(action==NativeMenuAction::ReplayGame){
+        replayGame(previous);
+    }else if(action==NativeMenuAction::ShowHallOfFame){
         transitionIndices_.assign(previous.indices.begin(),previous.indices.end());
         fade_.fadeToColor(readNativePalette(*data_.memory,0x30bd0)[0]);transition_=Transition::OutHall;
     }else if(action==NativeMenuAction::LeaveHallOfFame){
@@ -175,6 +226,70 @@ NativeGameUpdate NativeGameSession::update(double elapsed,const NativeGameInput&
 void NativeGameSession::releaseInput()noexcept{
     driveLatch_.clear();quitPending_=false;
     std::fill_n(data_.memory->begin()+0xead6,128,std::uint8_t{});
+}
+void NativeGameSession::handleSaveAction(const NativeSaveMenuResult& result){
+    auto& memory=*data_.memory;
+    if(result.action==NativeSaveMenuAction::Cancel){finishSave();return;}
+    if(result.action==NativeSaveMenuAction::ReadDirectory){
+        NativeSaveBlock directory{};
+        if(const auto error=saveStore_.readDirectory(directory)){saveMenu_->operationFailed(error);return;}
+        std::copy(directory.begin(),directory.end(),memory.begin()+0x7a21a);
+        (void)saveMenu_->directoryLoaded();return;
+    }
+    if(result.action!=NativeSaveMenuAction::Select)return;
+    const auto kind=static_cast<NativeSaveKind>(result.kind);
+    auto next=std::make_unique<NativeMemory>(memory);
+    commitNativeSaveDirectory(*next,result.slot,result.name,saveMenu_->writing());
+    NativeSaveBlock directory{};std::copy_n(next->begin()+0x7a21a,directory.size(),directory.begin());
+    if(saveMenu_->writing()){
+        if(!pendingSave_)pendingSave_=makeNativeSavePayload(memory,kind);
+        if(const auto error=saveStore_.writeSlot(result.slot,directory,*pendingSave_)){
+            saveMenu_->operationFailed(error);return;
+        }
+    }else{
+        NativeSavePayload payload{};
+        if(const auto error=saveStore_.readSlot(result.slot,payload)){saveMenu_->operationFailed(error);return;}
+        if(const auto error=saveStore_.writeDirectory(directory)){saveMenu_->operationFailed(error);return;}
+        std::copy(directory.begin(),directory.end(),memory.begin()+0x7a21a);
+        if(!applyNativeSavePayload(memory,kind,payload)){
+            if(kind==NativeSaveKind::Career)restoreNativeSaveTransaction(memory);
+            memory[0x1bb94]=0x81;
+            saveMenu_->invalidSaveData();return;
+        }
+        saveLoaded_=true;
+    }
+    std::copy(directory.begin(),directory.end(),memory.begin()+0x7a21a);
+    memory[0x62bb6]=(*next)[0x62bb6];memory[0x62bb7]=(*next)[0x62bb7];finishSave();
+}
+void NativeGameSession::finishSave(){
+    const auto previous=saveMenu_->image();const auto kind=(*data_.memory)[0x1bb6b];
+    if(!kind&&!saveLoaded_)restoreNativeSaveTransaction(*data_.memory);
+    saveMenu_->complete();saveMenu_.reset();pendingSave_.reset();
+    if(kind==0x40){menu_->returnFromSave();return;}
+    showSaveReturn(previous);
+}
+void NativeGameSession::showSaveReturn(const NativeMenuImage& previous){
+    saveReturnFire_.reset();
+    if((*data_.memory)[0x5eb76]){
+        prepareNativeOpeningLocalStandings(*data_.memory);saveReturn_=SaveReturn::Standings;return;
+    }
+    saveReturn_=SaveReturn::Roster;
+    transitionIndices_.assign(previous.indices.begin(),previous.indices.end());
+    fade_.fadeToColor(readNativePalette(*data_.memory,0x35a76)[0]);transition_=Transition::OutSaveRoster;
+}
+void NativeGameSession::replayGame(const NativeMenuImage& previous){
+    auto& memory=*data_.memory;
+    if(memory[0xead6+0x50]){
+        initializeNativeGameTables(memory);
+        std::copy_n(memory.begin()+0x7a91a,256,memory.begin()+0x1ecaa);initializeNativeGameData(memory);
+        memory[0x57c3c]=0;memory[0x57c62]=0x40;if(!memory[0x60fbc])memory[0x60fbc]=0x80;
+        opening_=std::make_unique<NativeOpeningFlow>(memory);menu_.reset();releaseInput();
+        transitionIndices_.assign(previous.indices.begin(),previous.indices.end());
+        fade_.fadeToColor(readNativePalette(memory,0x23c32)[0]);transition_=Transition::OutRestartOpening;return;
+    }
+    if(prepareNativeReplay(memory)){showSaveReturn(previous);return;}
+    transitionIndices_.assign(previous.indices.begin(),previous.indices.end());
+    fade_.fadeToColor(readNativePalette(memory,0x23c32)[0]);transition_=Transition::OutReplayFrame;
 }
 void NativeGameSession::handleOpeningAction(NativeOpeningAction action,const NativeMenuImage& previous,NativeGameUpdate& result){
     if(action==NativeOpeningAction::BeginName){

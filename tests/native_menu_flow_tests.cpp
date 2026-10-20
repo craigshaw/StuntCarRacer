@@ -207,7 +207,11 @@ void route(){
     flow.update({},0);require(flow.update({16,0},0)==NativeMenuAction::StartPractice&&flow.page()==NativeMenuPage::Race,"Preview did not start race");
     flow.returnFromRace();require(flow.page()==NativeMenuPage::Track&&native[0x5eb7d]==0,"Practice return should skip division screen");
     choose(flow,2);require(confirm(flow)==NativeMenuAction::Changed&&flow.page()==NativeMenuPage::Main,"Original Cancel did not return to main menu");
-    choose(flow,3);require(confirm(flow)==NativeMenuAction::UnsupportedOption&&flow.page()==NativeMenuPage::Main,"Unported menu route must be explicit");
+    choose(flow,3);require(confirm(flow)==NativeMenuAction::None&&flow.page()==NativeMenuPage::Main,"Load/Save/Replay omitted original entry delay");
+    require(flow.update({},1)==NativeMenuAction::Changed&&flow.page()==NativeMenuPage::LoadSave,"Load/Save/Replay submenu did not open");
+    require(flow.renderState().selected==3,"Load/Save/Replay default should select Cancel");
+    require(confirm(flow)==NativeMenuAction::None&&flow.page()==NativeMenuPage::LoadSave,"Cancel omitted original return delay");
+    require(flow.update({},1)==NativeMenuAction::Changed&&flow.page()==NativeMenuPage::Main,"Load/Save/Replay Cancel did not return to main menu");
     // Every original division/track pair maps through passive pack data.
     for(unsigned row=0;row<4;++row)for(unsigned track=0;track<2;++track){
         native=baseline;native[0x5eb7d]=native[0x1ca22]=native[0x1c9ce]=0;NativeMenuFlow selected(native);

@@ -68,11 +68,13 @@ if(WIN32)
     app/native_competition_render.cpp app/native_cockpit_instruments.cpp app/native_wheel_sprites.cpp
     app/native_cockpit_presentation.cpp app/native_menu_flow.cpp
     app/native_opening_flow.cpp app/native_player_name.cpp app/native_opening_render.cpp
-    app/native_keyboard_input.cpp app/native_hall_of_fame.cpp)
+    app/native_keyboard_input.cpp app/native_hall_of_fame.cpp
+    app/native_save_state.cpp app/native_save_menu.cpp)
   target_include_directories(scr_startup PUBLIC app)
   target_link_libraries(scr_startup PUBLIC scr_render scr_audio bcrypt)
   target_compile_features(scr_startup PUBLIC cxx_std_17)
   add_library(scr_game STATIC app/native_game_session.cpp
+    app/native_save_store.cpp
     app/replay_scene.cpp app/replay_render_assets.cpp app/replay_interpolation.cpp
     app/live_drive.cpp app/game_audio.cpp)
   target_include_directories(scr_game PUBLIC app)
@@ -81,6 +83,12 @@ if(WIN32)
   add_executable(native_game_session_tests tests/native_game_session_tests.cpp)
   target_link_libraries(native_game_session_tests PRIVATE scr_game)
   target_compile_features(native_game_session_tests PRIVATE cxx_std_17)
+  add_executable(native_save_store_tests tests/native_save_store_tests.cpp app/native_save_store.cpp)
+  target_include_directories(native_save_store_tests PRIVATE app)
+  target_compile_features(native_save_store_tests PRIVATE cxx_std_17)
+  add_executable(native_save_session_tests tests/native_save_session_tests.cpp)
+  target_link_libraries(native_save_session_tests PRIVATE scr_game)
+  target_compile_features(native_save_session_tests PRIVATE cxx_std_17)
   add_executable(native_opening_session_tests tests/native_opening_session_tests.cpp)
   target_link_libraries(native_opening_session_tests PRIVATE scr_game)
   target_compile_features(native_opening_session_tests PRIVATE cxx_std_17)
@@ -188,7 +196,7 @@ if(SCR_BUILD_ORACLE)
       target_link_libraries(${stage}_tests PRIVATE scr_startup musashi_oracle)
       target_compile_features(${stage}_tests PRIVATE cxx_std_17)
     endforeach()
-    foreach(stage native_hall_of_fame native_hall_records)
+    foreach(stage native_hall_of_fame native_hall_records native_save_state native_save_menu)
       add_executable(${stage}_tests tests/${stage}_tests.cpp)
       target_link_libraries(${stage}_tests PRIVATE scr_startup musashi_oracle)
       target_compile_features(${stage}_tests PRIVATE cxx_std_17)

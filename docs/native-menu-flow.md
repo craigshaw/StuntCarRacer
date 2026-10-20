@@ -87,9 +87,14 @@ division screen is skipped once and the flag is cleared. Selecting Cancel then
 returns to the main menu. The race-exit cleanup and persistent session memory
 belong to the host session, which passes the same memory back to this flow.
 
-Unported main-menu routes yield `UnsupportedOption` while retaining the original
-menu selection. The native host reports that boundary; this implementation does
-not silently substitute a different mode. All eight original track mappings are
+The Load/Save/Replay submenu uses original text offset four and defaults to
+Cancel. Original twenty-unit delays precede submenu entry, the slot dialog,
+and return from submenu Cancel. The [save menu](native-save-menu.md) handles
+the separate thirty-slot UI; the [codec](native-save-state.md) retains original
+career, record and multiplayer payloads. Replay resets the original race tables
+and decodes the retained season setup before the roster/standings route.
+
+All eight original track mappings are
 retained and all eight tracks are available in the native host.
 Local multiplayer name setup retains its original additional-player count;
 starting an unported multiplayer season yields the same explicit boundary.

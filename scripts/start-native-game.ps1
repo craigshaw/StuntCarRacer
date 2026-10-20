@@ -1,6 +1,7 @@
 param(
     [string]$Adf,
     [string]$AssetPack = 'analysis/assets/stunt-car-racer.scr-assets',
+    [string]$SaveFile = 'working/saves/stunt-car-racer.scr-save',
     [switch]$Interpolate,
     [switch]$SkipBuild
 )
@@ -8,6 +9,7 @@ $ErrorActionPreference = 'Stop'
 $taskRoot = Split-Path -Parent $PSScriptRoot
 $pythonTool = 'C:\Tools\amiga-re\venv\Scripts\python.exe'
 if (-not [System.IO.Path]::IsPathRooted($AssetPack)) { $AssetPack = Join-Path $taskRoot $AssetPack }
+if (-not [System.IO.Path]::IsPathRooted($SaveFile)) { $SaveFile = Join-Path $taskRoot $SaveFile }
 $checkArguments = @((Join-Path $PSScriptRoot 'check_native_game.py'), '--pack', $AssetPack)
 if ($Adf) { $checkArguments += @('--adf', $Adf) }
 if ($SkipBuild) { $checkArguments += '--skip-build' }
@@ -19,7 +21,7 @@ try {
     if ($LASTEXITCODE -ne 0) { throw 'Native game checks failed. See analysis/native-game/.' }
     $checked = Get-Content (Join-Path $taskRoot 'analysis/native-game/check-results.json') -Raw | ConvertFrom-Json
     $executable = Join-Path $taskRoot $checked.game.path
-    $arguments = @('--asset-pack', $AssetPack, '--recordings-dir', (Join-Path $taskRoot 'analysis/live-driving'))
+    $arguments = @('--asset-pack', $AssetPack, '--recordings-dir', (Join-Path $taskRoot 'analysis/live-driving'), '--save-file', $SaveFile)
     if ($Interpolate) { $arguments += '--interpolate' }
     $quotedArguments = ($arguments | ForEach-Object { '"' + $_ + '"' }) -join ' '
     Start-Process -FilePath $executable -ArgumentList $quotedArguments -WorkingDirectory $taskRoot -WindowStyle Normal | Out-Null

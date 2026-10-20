@@ -16,6 +16,8 @@
 /setup/rea-*.log
 *.bin
 *.scr-assets
+*.scr-save
+*.scr-save.tmp
 *.pack
 *.wav
 *.ogg

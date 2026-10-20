@@ -39,8 +39,34 @@ Choose **Hall of Fame** to view the lap and three-lap race records for all eight
 tracks. It retains the original artwork, twelve-character driver names, time
 formatting and palette fades. Release fire, then press Return/Space/controller A
 again to return to the main menu. It displays the current car context's record
-bank and retains competitive records throughout the session. Disk persistence
-belongs to the remaining load/save work.
+bank and retains competitive records throughout the session. Use a save name
+beginning with `HALL` in the Load/Save/Replay route to retain them between launches.
+
+**Load/Save/Replay** opens the original four-row submenu with Cancel selected.
+Load and Save retain the original save-disc prompt; press any key to use the
+local save file. The thirty slots occupy three columns. Up/Down moves through
+them with wrapping; Left/Right moves between columns. Save names have eight
+characters, use uppercase letters and support Backspace. Return or controller
+fire accepts a name or loads a populated slot; Escape cancels slot selection.
+The original unformatted-disc warning appears when first saving to a new file.
+
+A normal save name stores the original career state: player name, driver order,
+division, remaining damage allowance and league context. Names beginning with
+`HALL` save both record banks; loading merges better records and keeps current
+holders on ties. Names beginning with `MP` save the local multiplayer names,
+scores and damage. The original compatibility warning enforces the player mode.
+Career operations return through the original driver roster, multiplayer data
+through standings, and `HALL` directly to the main menu.
+
+**Replay** restores the retained season setup, resets the race tables and shows
+the original roster. Holding F1 when confirming Replay returns to the original
+mode/name startup. The development recording viewer remains available separately.
+
+The default save file is `working/saves/stunt-car-racer.scr-save`. The development
+script accepts `-SaveFile` for another `.scr-save` path. Saving replaces a complete,
+flushed temporary file in one operation; failed writes retain the previous file.
+The native loader rejects malformed states before applying them. Saves and
+temporary save files are ignored by Git and rejected by the asset safeguard.
 
 Choose **Practise**, then a division and one of its two tracks. The original
 track overview appears. Left/Right rotates it by quarter turns; release before
@@ -100,8 +126,7 @@ buffer, then copies the completed frame to the window in one operation. The
 last frame remains visible during rendering; clearing the visible window before
 drawing could otherwise expose intermittent black flashes to the compositor.
 
-The load/save/replay route retains its original appearance and produces an
-explicit native-host notice when activated. All eight tracks are available,
+All eight tracks are available,
 including the original [Draw Bridge animation](draw-bridge.md). Its preview
 holds the original raised pose; movement starts during driving. The
 original menu has no Escape-to-cancel shortcut on the overview.
@@ -154,6 +179,12 @@ against the original full game loop. The ordinary check also completes a local
 season: one opponent finishes three laps, followed by three early quits and
 the original results, promotion/relegation and roster flow. The optional check
 compares all four menu-entered competitive races against the original loop.
+Save regressions additionally create four saves, load five states across fresh
+launches, drive three loaded careers, visit three Replay routes and exercise
+cancel, damaged-data rejection, write retry and abort. All thirty file slots are
+checked across repeated store instances, including interrupted and failed writes.
+The optional check compares the three loaded-race traces, 800 save-codec RAM
+cases and 1,364 save-menu screens against original instructions.
 Test-only CPU and
 hardware wait models are isolated from the native game. Component evidence:
 
@@ -163,6 +194,9 @@ hardware wait models are isolated from the native game. Component evidence:
 - [Palette transitions](native-palette-fade.md).
 - [Hall of Fame display and transitions](native-hall-of-fame.md).
 - [Hall of Fame record handling](native-hall-records.md).
+- [Load/save screens and controls](native-save-menu.md).
+- [Original save formats and Replay](native-save-state.md).
+- [Native save-file backing](native-save-store.md).
 - [Local seasons and original competition screens](native-opponent-races.md).
 - [Cockpit instrument pixels](native-cockpit-instruments.md).
 - [Instrument events and lap-time holds](cockpit-timing.md).

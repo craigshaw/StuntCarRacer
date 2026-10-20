@@ -4,6 +4,7 @@
 #include "planar_image.h"
 #include "race_transitions.h"
 #include "native_competition_render.h"
+#include "native_multiplayer_render.h"
 #include "native_hall_of_fame.h"
 #include "../tests/draw_bridge_fixture.h"
 #include <algorithm>
@@ -31,6 +32,17 @@ NativePalette imagePalette(const NativeMenuImage& image){
     for(unsigned i=0;i<palette.size();++i){const auto rgb=image.palette[i];palette[i]=std::uint16_t(((rgb>>21)&7)<<8|((rgb>>13)&7)<<4|((rgb>>5)&7));}
     return palette;
 }
+std::optional<NativeMultiplayerScreen> multiplayerScreen(NativeMenuPage page){
+    switch(page){
+    case NativeMenuPage::Matchup:return NativeMultiplayerScreen::Matchup;
+    case NativeMenuPage::Records:return NativeMultiplayerScreen::Records;
+    case NativeMenuPage::RoundResults:return NativeMultiplayerScreen::RoundResults;
+    case NativeMenuPage::Standings:return NativeMultiplayerScreen::Standings;
+    case NativeMenuPage::RaceResults:return NativeMultiplayerScreen::RaceResults;
+    case NativeMenuPage::TrackResults:return NativeMultiplayerScreen::TrackResults;
+    default:return std::nullopt;
+    }
+}
 }
 NativeMenuImage NativeGameSession::menuImage()const{
     if(saveReturn_==SaveReturn::Roster)return makeNativeCompetitionImage(*data_.memory,NativeMenuPage::Roster,(*data_.memory)[0x1c9ce]);
@@ -45,6 +57,8 @@ NativeMenuImage NativeGameSession::menuImage()const{
         default:return makeNativeMenuImage(*data_.memory,opening_->renderState());
         }
     }
+    if(menu_->multiplayer())if(const auto screen=multiplayerScreen(page()))
+        return makeNativeMultiplayerImage(*data_.memory,*screen,menu_->competitionDivision(),menu_->competitionContext());
     if(page()!=NativeMenuPage::LoadSave&&page()>=NativeMenuPage::Matchup)return makeNativeCompetitionImage(*data_.memory,page(),menu_->competitionDivision(),menu_->competitionContext());
     return makeNativeMenuImage(*data_.memory,menu_->renderState());
 }
@@ -192,6 +206,8 @@ NativeGameUpdate NativeGameSession::update(double elapsed,const NativeGameInput&
     }
     const auto previous=menuImage();
     const auto action=menu_->update(input.menu,elapsed);
+    if(menu_->multiplayer()&&(action==NativeMenuAction::Changed||action==NativeMenuAction::ShowCompetitionPage))
+        if(const auto screen=multiplayerScreen(page()))applyNativeMultiplayerScreenState(*data_.memory,*screen);
     if(action==NativeMenuAction::LoadGame||action==NativeMenuAction::SaveGame){
         saveLoaded_=false;pendingSave_.reset();
         const bool write=action==NativeMenuAction::SaveGame;
@@ -218,8 +234,7 @@ NativeGameUpdate NativeGameSession::update(double elapsed,const NativeGameInput&
         transitionIndices_.assign(previous.indices.begin(),previous.indices.end());
         fade_.fadeToColor(0);transition_=Transition::OutCompetition;
     }else if(action==NativeMenuAction::UnsupportedOption){
-        result.unavailable=menu_->unsupportedOption()==2&&(*data_.memory)[0x5eb76]?
-            NativeGameUnavailable::localMultiplayerSeason:NativeGameUnavailable::menuRoute;
+        result.unavailable=NativeGameUnavailable::menuRoute;
     }
     return result;
 }

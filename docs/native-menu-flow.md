@@ -96,8 +96,10 @@ and decodes the retained season setup before the roster/standings route.
 
 All eight original track mappings are
 retained and all eight tracks are available in the native host.
-Local multiplayer name setup retains its original additional-player count;
-starting an unported multiplayer season yields the same explicit boundary.
+Local championships retain the original additional-player count, rotate every
+driver through both tracks, and show the individual results and track bonuses.
+Their [state routines](native-multiplayer-state.md) and
+[screen renderer](native-multiplayer-render.md) have separate original-code checks.
 Single-player seasons retain their existing native route.
 
 ## Timing and verification limits

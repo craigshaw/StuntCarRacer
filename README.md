@@ -925,8 +925,10 @@ original artwork, names, times and palette fades. A fresh Return/Space/controlle
 A press returns to the menu. **Load/Save/Replay** retains thirty named save slots,
 career restoration and the original Replay command. Save names beginning with
 `HALL` store records; `MP` stores local multiplayer data. Saves use a separate
-ignored file under `working/saves/`. Multiplayer seasons and Computer Link remain unported;
-unported routes produce an explicit host notice. See [native game](docs/native-game.md)
+ignored file under `working/saves/`. Local multiplayer championships support two
+through eight drivers taking turns against the original pace cars, with per-driver
+damage, standings and track bonuses. Computer Link remains unavailable.
+See [native game](docs/native-game.md)
 for fidelity checks, controls and boundaries.
 
 Startup graphics, input rules and call timing have original-code comparisons.

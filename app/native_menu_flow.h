@@ -3,7 +3,7 @@
 #include <cstdint>
 
 namespace scr::viewer {
-enum class NativeMenuPage { Main,Division,Track,Preview,Race,Matchup,Results,RoundResults,Standings,SeasonEnd,SeasonAward,Roster,Records,Opening,HallOfFame,LoadSave,SaveSlots };
+enum class NativeMenuPage { Main,Division,Track,Preview,Race,Matchup,Results,RoundResults,Standings,SeasonEnd,SeasonAward,Roster,Records,Opening,HallOfFame,LoadSave,SaveSlots,RaceResults,TrackResults };
 enum class NativeMenuAction { None,Changed,EnterPreview,StartPractice,RotatePreview,UnsupportedOption,StartRace,ShowCompetitionPage,ShowHallOfFame,LeaveHallOfFame,LoadGame,SaveGame,ReplayGame };
 struct NativeMenuInput {
     // Original readControllerInput bits: up/down/left/right/fire. Number keys
@@ -48,6 +48,7 @@ public:
     [[nodiscard]] unsigned trackId()const noexcept{return memory_[0x1ca33];}
     [[nodiscard]] unsigned unsupportedOption()const noexcept{return unsupported_;}
     [[nodiscard]] bool competitive()const noexcept{return competitive_;}
+    [[nodiscard]] bool multiplayer()const noexcept{return competitive_&&memory_[0x5eb76]!=0;}
     [[nodiscard]] unsigned competitionDivision()const noexcept{return competitionDivision_;}
     [[nodiscard]] unsigned competitionContext()const noexcept{return competitionContext_;}
 private:
@@ -59,6 +60,7 @@ private:
     std::uint8_t previewReleaseMask_{0x1f};
     unsigned unsupported_{};
     bool competitive_{};
+    bool multiplayerTrackEnd_{};
     unsigned competitionDivision_{};
     unsigned competitionContext_{};
     NativeFireWait competitionFire_;

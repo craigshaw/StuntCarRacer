@@ -135,10 +135,12 @@ int main(int argc,char** argv)try{
         image(game,folder/"standings.bmp");fire(game);
         require(game.page()==NativeMenuPage::Main&&game.memory()[0x5eb76]==count-1,"Local setup did not preserve player count");
         hall(game,folder/"hall-of-fame.bmp");
-        choose(game,2);const auto unavailable=confirm(game);
-        require(unavailable.unavailable==NativeGameUnavailable::localMultiplayerSeason,"Unported multiplayer season lacked its boundary");
-        require(game.page()==NativeMenuPage::Main&&game.memory()[0x5eb76]==count-1,"Unavailable season changed local setup");
         if(count==2)drive(game,root/"local-practice",false);
+        else{
+            choose(game,2);const auto started=confirm(game);
+            require(started.unavailable==NativeGameUnavailable::none,"Local championship remained unavailable");
+            require(game.page()==NativeMenuPage::Matchup&&game.memory()[0x5eb76]==count-1,"Local championship changed player setup");
+        }
     }
     {
         NativeGameSession game(argv[1],root/"link-recordings");settle(game);choose(game,2);
@@ -149,7 +151,7 @@ int main(int argc,char** argv)try{
         <<",\"named_race_routes\":"<<routes<<",\"ticks\":"<<ticks<<",\"snapshots\":"<<snapshots
         <<",\"hall_of_fame_routes\":"<<hallRoutes
         <<",\"blank_retry\":true,\"backspace\":true,\"case_and_host_keys\":true,\"maximum_length\":12"
-        <<",\"local_player_counts\":[2,3,4,5,6,7,8],\"explicit_transport_and_season_boundaries\":true"
+        <<",\"local_player_counts\":[2,3,4,5,6,7,8],\"explicit_transport_boundary\":true"
         <<",\"capture_input\":false,\"cpu_emulation\":false}\n";
     return 0;
 }catch(const std::exception& error){std::cerr<<error.what()<<'\n';return 1;}

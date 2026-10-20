@@ -1,4 +1,5 @@
 #include "replay_scene.h"
+#include "native_multiplayer_state.h"
 #include "track_mesh_capture.h"
 #include "live_drive.h"
 #include "native_startup.h"
@@ -232,7 +233,9 @@ void ReplayScene::loadNativeState(const std::array<std::uint8_t,0x80000>& memory
 void ReplayScene::finishLiveExit(std::array<std::uint8_t,0x80000>& sessionMemory){
     if(!liveTerminal())throw std::logic_error("Race exit requires a terminal transition");
     namespace t=scr::test::transitions;
-    auto& memory=simulation_->native.ram;auto state=t::readState(memory.data());
+    auto& memory=simulation_->native.ram;
+    if(memory[0x5eb76]&&(memory[0x1ca22]&0x80))finishNativeMultiplayerRaceExit(memory);
+    auto state=t::readState(memory.data());
     (void)finishLocalRaceExit(t::readInputs(memory.data()),state);t::writeState(memory.data(),state);
     sessionMemory=memory;
 }

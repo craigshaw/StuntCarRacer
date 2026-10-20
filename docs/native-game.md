@@ -26,8 +26,9 @@ reach the main menu. Its original palette fades and release waits are retained.
 **Multiplayer** retains the original name/add-player loop for two through eight
 local drivers, then shows their startup standings. Continue requires at least
 two names; the eighth name finishes entry automatically. This setup retains all
-names and supports Practice. Racing a multiplayer season and the **Computer
-Link** serial transport produce explicit host notices at their unported boundaries.
+names and supports Practice and complete local championships. Each driver takes
+a turn against the computer pace car on each of the division's two tracks.
+The **Computer Link** serial transport remains unavailable.
 
 Use Up/Down or the controller stick/D-pad to select, then Return/Space or the
 controller A button to confirm. Number keys 1–4 select a row; confirmation is a
@@ -86,8 +87,18 @@ opponents. Continue through the matchup and track overview to start a race.
 The opponent follows the original speed, suspension and positioning routines;
 its car is drawn in the original road painter order. Race completion or an
 early quit proceeds through the original results, records and standings pages
-before the next matchup. The season retains six rounds, including the original
-computer-only fixtures, followed by promotion/relegation and the driver roster.
+before the next matchup. Single-player seasons retain six rounds, including the
+original computer-only fixtures, followed by promotion/relegation and the roster.
+
+In multiplayer, all drivers race the first track before moving to the second.
+Each race has its original results, standings and time table. The track summary
+awards the original best race and best lap bonuses. Damage persists separately
+for each driver. Multiplayer has no promotion or relegation; load a single-player
+career to access its division and car context while retaining the local names.
+Scores accumulate across four championships before the original reset. `MP`
+saves continue the names, scores and damage between launches; load a career again
+to restore later-track access. Holding F1 when confirming a matchup forfeits the
+remaining turns on that track and proceeds to its summary.
 
 P/controller Start pauses; focus loss and controller disconnection also pause
 driving. Resume explicitly. M mutes. I toggles interpolation. The native game
@@ -113,7 +124,11 @@ events using original assets. Only after startup completes does `NativeMenuFlow`
 open the main menu. The explicit `EstablishedMenu` session option retains the
 earlier starting point for independent race regressions.
 
-`NativeMenuFlow` ports menu selection, Practice and local season callers. `NativeMenuRender`
+`NativeMenuFlow` ports menu selection, Practice and championship callers. The
+[multiplayer state routines](native-multiplayer-state.md) retain the original
+pace-car selection, scoring, sorting, damage and progression. The separate
+[multiplayer renderer](native-multiplayer-render.md) draws its original portraits,
+record pages and variable-height tables. `NativeMenuRender`
 reads the original image, palette, strip graphics, strings, fonts and track-name
 tables from the local pack. `NativeTrackPreview` owns separate rendering scratch.
 `NativeGameSession` transfers selected track configuration into native race
@@ -156,6 +171,11 @@ ignored `analysis/native-game/`.
 It also runs the original opening through 36 entered names, every local player
 count, single-player portraits and local standings, then drives three named
 race routes. The optional check compares those race traces with the original.
+The multiplayer check completes eleven championships and 88 races across all
+seven player counts, including a pace-car finish, fourteen forfeited tracks,
+career track access, fresh-launch `MP` continuation and the fourth-season reset.
+Its 7,137 physics updates also run against the original full loop. Separate
+original-code oracles check multiplayer state and 4,928 complete screen images.
 The dedicated opening check additionally compares keyboard scanning, editing,
 mode flow, menu/name/standings pixels and palette routines against original code:
 

@@ -1,4 +1,5 @@
 #include "native_race_initialization.h"
+#include "native_multiplayer_state.h"
 #include "native_cockpit_presentation.h"
 #include "../tests/driving_replay_fixture.h"
 #include "../tests/opponent_driving_fixture.h"
@@ -172,6 +173,7 @@ void initializeNativeRace(NativeMemory& memory) {
         throw std::invalid_argument("Native startup requires a loaded track and spawn segment");
     memory[0x57c5b]=memory[0x57c63]=0;
     initializeNativePlayerConfiguration(memory);
+    if(memory[0x5eb76]&&(memory[0x1ca22]&0x80))loadNativeMultiplayerDamage(memory);
     memory[0x691b3]=memory[0x1c9d0]?0:9;memory[0x691b2]=memory[0x1c9d0]?8:10;
     memory[0x1bb1d]=memory[0x1ca1b];memory[0x1bb0c]=4;memory[0x1bbed]=0x4c;
     // Original initializeTrackCoordinates0x63a58 constructs road support and

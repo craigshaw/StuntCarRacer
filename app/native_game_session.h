@@ -21,7 +21,7 @@ struct NativeGameInput {
     bool quit{};
     std::vector<NativeRawKeyEvent> rawKeys;
 };
-enum class NativeGameUnavailable { none,menuRoute,computerLink,localMultiplayerSeason };
+enum class NativeGameUnavailable { none,menuRoute,computerLink };
 enum class NativeGameStart { OriginalOpening,EstablishedMenu };
 struct NativeGameUpdate {
     bool raceStarted{},raceExited{};

@@ -1,4 +1,5 @@
 #include "native_race_initialization.h"
+#include "native_cockpit_presentation.h"
 #include "../tests/driving_replay_fixture.h"
 #include "../tests/opponent_driving_fixture.h"
 #include <algorithm>
@@ -177,8 +178,11 @@ void initializeNativeRace(NativeMemory& memory) {
     // seeds each opponent wheel before the two normal startup warm-up frames.
     scr::test::opponent::initializeCoordinates(memory,scr::test::opponent::readData(memory));
     scr::test::replay::NativeReplay state(memory);
+    NativeCockpitPresentation cockpit(memory,true);
+    state.presentation=[&](auto stage,const auto& ram,const auto& events){cockpit.update(stage,ram,events);};
     state.restartStage(memory[0x1ca1b]);
     memory=std::move(state.ram);
+    cockpit.storeInitialState(memory);
 }
 
 void configureNativeSeasonMatch(NativeMemory& m) {

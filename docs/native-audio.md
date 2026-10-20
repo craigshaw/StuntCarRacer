@@ -26,7 +26,9 @@ Effects on channels 1..3 count the initial DMA interrupt and the following block
 completion; the second event disables the channel and its interrupt. The port
 also preserves the original DMA-enable guard and signed counter comparisons.
 The audio-only VBlank contract starts after the original countdown and wheel
-graphics work; it does not replace the whole interrupt handler.
+graphics work; it does not replace the whole interrupt handler. The recovered
+[wheel-animation prefix](wheel-animation.md) now runs on its own presentation
+state alongside this audio tail, retaining the same 50 Hz rate.
 
 The original engine period word is at `0xf472`. The pinned enhanced source's
 `audioChannel0Period` equate points elsewhere, so its symbol location cannot be

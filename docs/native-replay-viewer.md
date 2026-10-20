@@ -33,15 +33,16 @@ Playback controls:
 
 Playback defaults to **60 FPS interpolation**, with verified physics states
 spaced **0.12 seconds apart** (about 8.33 updates per second) at 1× speed. The
-camera position, shortest wrapped angle paths, original camera baseline/roll,
-suspension placements and speedometer blend between adjacent states. The scene
+camera position, shortest wrapped angle paths, original camera baseline/roll
+and suspension placements blend between adjacent states. The scene
 is redrawn for each intermediate pose. Near geometry and visibility are rebuilt
 from private copies of saved renderer state; these queries never advance physics
 or write back to the verified timeline. Each exact integer tick uses its original
 camera and draw commands unchanged.
 
-Damage, wheel/flame image selection, boost and lap/race events remain attached
-to verified ticks. Restart and terminal transitions hold their previous view
+Damage, software wheel/flame image selection, instruments, boost and lap/race
+events remain attached to verified ticks. Wheel treads follow their separate
+original 50 Hz interrupt timeline. Restart and terminal transitions hold their previous view
 until the next tick, so the car does not blend across a relocation. Pausing can
 retain an intermediate view; arrow-key stepping lands on exact ticks. Scrubbing
 is deterministic in either direction. Press I to compare against exact-tick
@@ -51,8 +52,9 @@ The upper-right FPS counter measures completed window presentations over the
 last second and shows a paused indicator when playback stops. A high-resolution
 waitable timer schedules 60 Hz deadlines independently of the replay clock;
 late presentations are skipped without adding physics updates. Display load and
-hardware can lower the achieved rate. This presentation does not reproduce the
-original interrupt or display timing.
+hardware can lower the achieved rate. The window clock is independent of the
+recovered 50 Hz wheel and audio updates; host presentation is not a cycle-exact
+Amiga display model.
 
 ## Verification and exported frames
 
@@ -157,8 +159,22 @@ report using the built oracle:
 ```
 
 The original wheel rotation accumulator advances from vertical blank interrupts.
-The headless gameplay replay excludes those interrupts, so the viewer preserves
-the admitted wheel-frame state while showing the recovered suspension motion.
+The viewer now retains the recovered wheel interrupt state separately from
+gameplay: masked software wheels use the phase at their game update, while
+hardware sprite treads advance at 50 Hz between updates. Their original palette,
+sprite selection, reverse sequence, suspension placement and display gates are
+retained. Pause freezes the presented phase, and seeking uses saved timelines.
+See [wheel animation](wheel-animation.md) for original-code evidence and sprite
+compositor checks.
+
+The original cockpit font and drawing routines update the speed bar, boost
+digits, lap counter, time displays, distance and car icons at their original
+call boundaries. Completed-lap times retain their exact captured values across
+the original hold; interpolation does not blend digits. Both planar instrument
+buffers are compared with the original over complete races. See
+[cockpit instruments](native-cockpit-instruments.md) and
+[cockpit timing](cockpit-timing.md).
+
 The viewer also draws the original raised-road side panels down to world Y16,
 and the recovered mountain silhouettes. Side fills follow segment parity and
 the captured original palette choices. Road fills follow segment parity and
@@ -182,6 +198,7 @@ for all three visited segments, including ones culled by near visibility. See
 [the near-track evidence guide](native-near-track.md).
 
 Far-road subdivision, triangles and depth buffering, plus native polygon and
-line raster coverage, remain presentation choices. Playback is silent.
+line raster coverage, remain presentation choices. Original engine audio and
+effects use the separate [native audio](native-audio.md) implementation.
 Matching gameplay traces and draw commands does not establish pixel equality with the
 original blitter, DMA, interrupt schedule or audio output.

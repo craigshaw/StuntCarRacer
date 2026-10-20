@@ -6,6 +6,7 @@
 #include "../tests/driving_replay_io.h"
 #include "../tests/near_track_geometry_fixture.h"
 #include "../tests/opponent_car_fixture.h"
+#include "../tests/wheel_animation_fixture.h"
 #include <algorithm>
 #include <cmath>
 #include <chrono>
@@ -77,11 +78,15 @@ struct ReplayScene::Simulation {
     scr::test::replay::Ram initial;
     scr::test::replay::NativeReplay native;
     NearTrackGeometryState geometry;
+    NativeCockpitPresentation instruments;
+    WheelAnimationState wheels;
+    std::array<WheelAnimationState,7> wheelTimeline{};
+    unsigned wheelVblanks{};
     unsigned ticks{};
     std::ofstream controls,trace;
     std::filesystem::path recording;
     std::string lastRow;
-    explicit Simulation(const scr::test::replay::Ram& capture):initial(capture),native(capture),geometry(scr::test::nearGeometry::readState(capture)){}
+    explicit Simulation(const scr::test::replay::Ram& capture):initial(capture),native(capture),geometry(scr::test::nearGeometry::readState(capture)),instruments(capture),wheels(scr::test::wheelAnimation::readState(capture.data())){}
 };
 ReplayScene::ReplayScene()=default;
 ReplayScene::~ReplayScene()=default;
@@ -91,6 +96,7 @@ void ReplayScene::initialise(const std::filesystem::path& chip,const std::filesy
 }
 void ReplayScene::initialiseMemory(const std::array<std::uint8_t,0x80000>& memory,const std::vector<std::uint8_t>& original){
     assets_=decodeReplayRenderAssets(original.data(),original.size(),memory.data(),memory.size());
+    wheelAssets_=decodeNativeWheelSprites(memory.data(),memory.size());
     const auto meshData=decodeTrackMesh(memory);mesh_=buildTrackMesh(meshData);
     far_.mesh=meshData;std::copy_n(memory.begin()+0x65e70,100,far_.projectionLimits.begin());
     segmentRenderFlags_.fill(0);std::array<bool,100> knownFlags{};
@@ -100,6 +106,19 @@ void ReplayScene::initialiseMemory(const std::array<std::uint8_t,0x80000>& memor
     sides_=buildTrackSides(mesh_,{memory[0x691b3],memory[0x691b2],false});
     mountains_=decodeMountainHorizonData(original.data(),original.size());
     simulation_=std::make_unique<Simulation>(memory);
+    auto& simulation=*simulation_;
+    simulation.native.presentation=[this,&simulation](auto stage,const auto& ram,const auto& events){
+        simulation.instruments.update(stage,ram,events);
+        if(stage==scr::test::replay::ReplayPresentationStage::wait){
+            const auto inputs=scr::test::wheelAnimation::readInputs(ram.data());
+            simulation.wheels.framesToWait=ram[0x616d8];simulation.wheels.framesToWaitWhenFading=ram[0x616da];
+            for(unsigned n=0;n<ram[0x616d8];++n){
+                (void)updateWheelVblank(wheelAssets_.animation,inputs,simulation.wheels);
+                ++simulation.wheelVblanks;
+                if(simulation.wheelVblanks<=6)simulation.wheelTimeline[simulation.wheelVblanks]=simulation.wheels;
+            }
+        }
+    };
     presentationTrack_=simulation_->native.progressData;trig_=simulation_->native.physicsData.trig;
     projection_.angleTable=presentationTrack_.angleTable;projection_.magnitudeTable=presentationTrack_.magnitudeTable;
     frames_.clear();cachedFrame_=~0u;
@@ -148,6 +167,10 @@ void ReplayScene::finishFrame(Simulation& simulation,ReplaySceneFrame& frame){
     namespace a=scr::test::audio;const auto& state=simulation.native;
     frame.restarts=state.restarts;frame.action=unsigned(state.outerAction);
     frame.cockpit=captureCockpitFrame(state.ram.data(),state.ram.size());
+    frame.cockpit.wheelRotation=simulation.wheelTimeline[0].phase;
+    frame.instrumentPixels=simulation.instruments.capture();
+    frame.wheelSprites=captureNativeWheelSpriteFrame(wheelAssets_,state.ram.data(),state.ram.size());
+    frame.wheelTimeline=simulation.wheelTimeline;frame.wheelVblanks=simulation.wheelVblanks;
     frame.forwardSpeed=a::word(state.ram.data(),0x1bd30);frame.lapCounter=state.ram[0x1bb20];frame.raceComplete=state.ram[0x1bbaf];
     frame.boostFuel=state.ram[0x1ca20];frame.damage=state.ram[0x1bb55];
     frame.minutes=state.ram[0x1c908];frame.seconds=state.ram[0x1c920];frame.subseconds=state.ram[0x1c938];
@@ -160,11 +183,14 @@ void ReplayScene::finishFrame(Simulation& simulation,ReplaySceneFrame& frame){
 ReplaySceneFrame ReplayScene::advanceSimulation(Simulation& simulation,unsigned controls,bool quit){
     if(controls>31)throw std::invalid_argument("Live controls exceed original digital mask");
     auto& state=simulation.native;
+    simulation.wheelVblanks=0;
+    simulation.wheels.framesToWait=state.ram[0x616d8];simulation.wheels.framesToWaitWhenFading=state.ram[0x616da];
+    simulation.wheelTimeline.fill(simulation.wheels);
     state.begin(controls);state.ram[0xead6+0x45]=quit?0xb3:0;
     state.controlsStage();state.physicsStage();state.engineStage();state.progressStage();
     // Original rendering boundary: before effects, timing and outer transitions.
     auto frame=captureFrame(simulation,simulation.ticks,controls);
-    state.groundStage();state.wheelsStage();state.bridgeStage();state.damageStage();state.timingStage();state.outerStage();finishFrame(simulation,frame);
+    state.groundStage();state.wheelsStage();state.bridgeStage();state.speedometerStage();state.damageStage();state.timingStage();state.distanceStage();state.outerStage();finishFrame(simulation,frame);
     std::ostringstream row;scr::test::replay::traceRow(row,state.ram,simulation.ticks,controls,0,unsigned(state.outerAction),state.restarts,quit);
     simulation.lastRow=row.str();++simulation.ticks;return frame;
 }
@@ -219,6 +245,7 @@ void ReplayScene::beginLiveRecording(const std::filesystem::path& directory){
     simulation.controls.open(simulation.recording);simulation.trace.open(base.string()+"-native.csv");
     if(!simulation.controls||!simulation.trace)throw std::runtime_error("Cannot create live input recording");
     simulation.controls<<"tick,controls,quit\n";scr::test::replay::traceHeader(simulation.trace);
+    simulation.wheelTimeline.fill(simulation.wheels);
     const auto seed=simulation.geometry;auto frame=captureFrame(simulation,0,0);simulation.geometry=seed;finishFrame(simulation,frame);
     frames_.push_back(frame);frames_.push_back(std::move(frame));
 }
@@ -249,12 +276,15 @@ bool ReplayScene::stepLive(unsigned controls,bool quit){
     cachedFrame_=~0u;return true;
 }
 const std::vector<std::uint32_t>& ReplayScene::renderLive(double fraction,bool wireframe,bool interpolate){
-    return interpolate?renderInterpolated(std::clamp(fraction,0.0,1.0),wireframe):render(1,wireframe);
+    fraction=std::clamp(fraction,0.0,1.0);lastLiveFraction_=fraction;lastLiveInterpolate_=interpolate;
+    if(interpolate)return renderInterpolated(fraction,wireframe);
+    const auto& frame=frames_[1];draw(frame,frame.nearTrack,wireframe,frame.movingTrack.get(),&frame,fraction);
+    cachedFrame_=~0u;return pixels_;
 }
 const std::vector<std::uint32_t>& ReplayScene::renderLiveMessage(unsigned index,unsigned mode){
     // Repaint the final snapshot before overlaying the original panel, so a
     // pause message never becomes part of a later interpolated race image.
-    cachedFrame_=~0u;render(1);
+    cachedFrame_=~0u;renderLive(lastLiveFraction_,false,lastLiveInterpolate_);
     const auto& memory=simulation_->native.ram;
     const auto cockpit=captureCockpitFrame(memory.data(),memory.size());
     compositeMaskedObject(assets_,51,cockpit.objects[51],pixels_);
@@ -263,6 +293,9 @@ const std::vector<std::uint32_t>& ReplayScene::renderLiveMessage(unsigned index,
 }
 std::vector<std::uint8_t> ReplayScene::captureLiveIndices(bool endMessage){
     const auto saved=assets_.palette;
+    // Original fades use the four bitmap planes. The independent hardware
+    // sprites have their own OCS palette and Sprite DMA is off for race fades.
+    bitmapOnly_=true;
     try{
         // Preserve palette identity even when two original entries have the
         // same RGB. Palette fades can move those entries independently.
@@ -274,8 +307,8 @@ std::vector<std::uint8_t> ReplayScene::captureLiveIndices(bool endMessage){
             if(pixel>=16)throw std::logic_error("Native race renderer emitted a non-palette pixel");
             indices.push_back(std::uint8_t(pixel));
         }
-        assets_.palette=saved;cachedFrame_=~0u;return indices;
-    }catch(...){assets_.palette=saved;cachedFrame_=~0u;throw;}
+        assets_.palette=saved;bitmapOnly_=false;cachedFrame_=~0u;return indices;
+    }catch(...){assets_.palette=saved;bitmapOnly_=false;cachedFrame_=~0u;throw;}
 }
 unsigned ReplayScene::verifyLiveReplay(const std::filesystem::path& inputs,const std::filesystem::path& referencePath,const std::filesystem::path& tracePath){
     namespace replay=scr::test::replay;const auto input=replay::loadInputs(inputs.string().c_str());
@@ -300,7 +333,7 @@ unsigned ReplayScene::verifyLiveReplay(const std::filesystem::path& inputs,const
 }
 const std::vector<std::uint32_t>& ReplayScene::render(unsigned index,bool wireframe) {
     if(index==cachedFrame_&&cachedFraction_==0&&wireframe==cachedWireframe_)return pixels_;
-    const auto& frame=frames_.at(index);draw(frame,frame.nearTrack,wireframe,frame.movingTrack.get());
+    const auto& frame=frames_.at(index);draw(frame,frame.nearTrack,wireframe,frame.movingTrack.get(),&frame);
     cachedFrame_=index;cachedFraction_=0;cachedWireframe_=wireframe;
     return pixels_;
 }
@@ -326,20 +359,20 @@ const std::vector<std::uint32_t>& ReplayScene::renderInterpolated(double positio
     auto nearFrame=buildNearTrackFrame(presentation,segmentRenderFlags_,inputs,seed);
     if(from.opponentEnabled&&to.opponentEnabled)
         addOpponentCar(nearFrame,inputs.drawing,interpolateOpponent(from.opponent,to.opponent,visual.camera,fraction),projection_,from.movingTrack?from.movingTrack->farTrack:far_,seed,mountains_,visual.pose.yaw);
-    draw(visual,nearFrame.presentation,wireframe,from.movingTrack.get());
+    draw(visual,nearFrame.presentation,wireframe,from.movingTrack.get(),&from,fraction);
     cachedFrame_=index;cachedFraction_=fraction;cachedWireframe_=wireframe;
     return pixels_;
 }
-void ReplayScene::draw(const ReplayVisualState& frame,const NearTrackPresentation& nearTrack,bool wireframe,const ReplayTrackSnapshot* movingTrack){
+void ReplayScene::draw(const ReplayVisualState& frame,const NearTrackPresentation& nearTrack,bool wireframe,const ReplayTrackSnapshot* movingTrack,const ReplaySceneFrame* discrete,double wheelFraction){
     makeReplayBackground(assets_,pixels_);
     const auto mountains=projectMountainHorizon(mountains_,frame.pose.yaw,frame.camera);
     statistics_=renderer_.drawFrame(movingTrack?movingTrack->mesh:mesh_,movingTrack?movingTrack->sides:sides_,mountains,frame.camera,projection_,assets_.palette,pixels_,wireframe,&nearTrack);
     composeReplayCockpit(assets_,frame.cockpit,pixels_);
-    // The original speedometer uses this word multiply/shift before drawing
-    // its two-row span. This changes presentation pixels only.
-    int speed=int(frame.forwardSpeed)-0x1100;if(speed<0)speed=0;
-    unsigned bar=unsigned((std::uint32_t(speed)*0xb700u)>>16)>>7;if(bar>=128)bar-=128;bar=std::min(127u,bar);
-    for(unsigned y=174;y<176;++y)for(unsigned x=0;x<128;++x)pixels_[y*320+96+x]=assets_.palette[x<=bar?3:0];
+    if(discrete){
+        for(unsigned n=0;n<discrete->instrumentPixels.size();++n)pixels_[320*cockpitInstrumentTop+n]=assets_.palette[discrete->instrumentPixels[n]];
+        const unsigned vblank=std::min(6u,unsigned(std::floor(wheelFraction*6+1e-9)));
+        if(!bitmapOnly_)composeNativeWheelSprites(wheelAssets_,discrete->wheelSprites,discrete->wheelTimeline[vblank],pixels_);
+    }
 }
 void ReplayScene::saveBitmap(const std::filesystem::path& path) const {
     if(pixels_.size()!=320*200)throw std::runtime_error("Render a frame before exporting");

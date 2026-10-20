@@ -28,7 +28,16 @@ struct RaceTimingState {
     std::uint8_t resultsIcon{},leaderIcon{},renderingIndex{},subsecondVisibility{};
 };
 enum class RaceTimingEventKind : std::uint8_t { lapTimerHud,resultsHud,lapCounterHud,leaderIcon };
-struct RaceTimingEvent { RaceTimingEventKind kind{};std::uint8_t value{}; };
+struct RaceTimingEvent {
+    RaceTimingEventKind kind{};
+    std::uint8_t value{};
+    // Timer draw calls consume a snapshot: a crossing clears the running slot
+    // later in the same update. The three bytes preserve the meaningful low
+    // bytes of original D0 (hundredths visibility), D1 (display position), and
+    // D2 (time slot) at renderLapTimeDisplay, not their later scratch values.
+    PackedLapTime time{};
+    std::uint8_t visibility{},displayPosition{},timeSlot{};
+};
 struct RaceTimingEffects {
     std::array<RaceTimingEvent,12> events{};
     unsigned count{};

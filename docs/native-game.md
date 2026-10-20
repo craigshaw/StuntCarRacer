@@ -48,6 +48,12 @@ starts with smooth presentation. Both modes retain the verified 120 ms physics
 updates and 50 Hz engine audio. The window presents at 60 Hz and reports FPS in
 its title; host text and controls are kept outside the original game image.
 
+The cockpit uses the original font, speed bar, boost digits, lap counter,
+running/completed time displays, distance and car icons. Their redraw cadence
+and completed-lap hold follow the original game calls. Wheel treads animate at
+50 Hz independently of camera interpolation, with the original forward/reverse
+phases and suspension positions. Pausing retains the presented wheel phase.
+
 ## Implementation and fidelity
 
 `startNativeGame` creates fresh asset/game data. `initializeNativeMenuSession`
@@ -113,6 +119,18 @@ hardware wait models are isolated from the native game. Component evidence:
 - [Track preview](native-track-preview.md).
 - [Palette transitions](native-palette-fade.md).
 - [Local seasons and original competition screens](native-opponent-races.md).
+- [Cockpit instrument pixels](native-cockpit-instruments.md).
+- [Instrument events and lap-time holds](cockpit-timing.md).
+- [Wheel animation and hardware sprites](wheel-animation.md).
+
+The cockpit check compares the original instrument buffers, ordered drawing
+events and wheel interrupt states across fresh Practice and competitive starts
+on all eight tracks, restarts, a complete three-lap replay, an opponent finish
+and car contact. It also checks the corresponding gameplay traces:
+
+```powershell
+& C:/Tools/amiga-re/venv/Scripts/python.exe scripts/check_native_cockpit.py
+```
 
 The opponent's AI, collision, car model and far/near drawing queues have a
 dedicated check, including all eight tracks, an opponent race finish and natural

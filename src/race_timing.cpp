@@ -19,10 +19,14 @@ void event(RaceTimingEffects& e,RaceTimingEventKind kind,std::uint8_t value) {
 void timerHud(RaceTimingState& s,RaceTimingEffects& e) {
     s.renderingIndex=0;s.subsecondVisibility=s.lapDisplayDuration?0x80:0;
     event(e,RaceTimingEventKind::lapTimerHud,s.subsecondVisibility);
+    auto& draw=e.events[e.count-1];draw.time=s.times[0];draw.visibility=s.subsecondVisibility;
+    draw.displayPosition=2;draw.timeSlot=0;
 }
 void resultsHud(RaceTimingState& s,RaceTimingEffects& e) {
     s.resultsIcon=s.winnerBits?11:7;s.renderingIndex=2;s.subsecondVisibility=0x80;
     event(e,RaceTimingEventKind::resultsHud,s.resultsIcon);
+    auto& draw=e.events[e.count-1];draw.time=s.times[2];draw.visibility=0x80;
+    draw.displayPosition=3;draw.timeSlot=2;
 }
 void increment(std::uint8_t delta,unsigned player,RaceTimingState& s,RaceTimingEffects& e) {
     auto& time=s.times[player];const auto sub=addDecimal(time.subseconds,delta);time.subseconds=sub.value;

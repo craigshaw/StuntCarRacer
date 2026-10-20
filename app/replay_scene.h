@@ -5,6 +5,8 @@
 #include "game_audio.h"
 #include "opponent_car.h"
 #include "opponent_far_track.h"
+#include "native_cockpit_presentation.h"
+#include "native_wheel_sprites.h"
 #include <filesystem>
 #include <array>
 #include <memory>
@@ -27,6 +29,10 @@ struct ReplaySceneFrame : ReplayVisualState {
     TrackProgressInputs progressInputs;
     OpponentCarInputs opponent;
     bool opponentEnabled{};
+    CockpitInstrumentPixels instrumentPixels{};
+    NativeWheelSpriteFrame wheelSprites;
+    std::array<WheelAnimationState,7> wheelTimeline{};
+    unsigned wheelVblanks{};
     // Moving track data belongs to the rendered tick. Retained replays and
     // interpolation must never read the simulation's later bridge position.
     std::shared_ptr<const ReplayTrackSnapshot> movingTrack;
@@ -83,6 +89,7 @@ private:
     void finishFrame(Simulation&,ReplaySceneFrame&);
     ReplaySceneFrame advanceSimulation(Simulation&,unsigned controls,bool quit);
     ReplayRenderAssets assets_;
+    NativeWheelSprites wheelAssets_;
     TrackMesh mesh_;
     OpponentFarTrackData far_;
     std::vector<TrackSideFace> sides_;
@@ -98,7 +105,10 @@ private:
     unsigned cachedFrame_=~0u;
     double cachedFraction_{};
     bool cachedWireframe_{};
+    double lastLiveFraction_{};
+    bool lastLiveInterpolate_{true};
+    bool bitmapOnly_{};
     void draw(const ReplayVisualState&,const NearTrackPresentation&,bool wireframe,
-        const ReplayTrackSnapshot* movingTrack=nullptr);
+        const ReplayTrackSnapshot* movingTrack=nullptr,const ReplaySceneFrame* discrete=nullptr,double wheelFraction=0);
 };
 } // namespace scr::viewer

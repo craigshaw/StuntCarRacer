@@ -921,6 +921,12 @@ entry, Hall of Fame and load/save routes remain outside this milestone;
 unported routes produce an explicit host notice. See [native game](docs/native-game.md)
 for fidelity checks, controls and boundaries.
 
+Cockpit instruments use the original font, drawing rules and event timing,
+including the completed-lap hold and distance-display cadence. Wheel treads
+follow their original 50 Hz animation alongside the 120 ms physics and 60 FPS
+presentation. See [cockpit instruments](docs/native-cockpit-instruments.md),
+[cockpit timing](docs/cockpit-timing.md) and [wheel animation](docs/wheel-animation.md).
+
 Choose **Start the Racing Season** to race the original computer opponents.
 The native port retains the six-round local season, matchup/record/result
 screens and promotion/relegation flow. Opponent driving, wheel suspension,

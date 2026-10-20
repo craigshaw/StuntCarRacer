@@ -2,6 +2,7 @@
 #include "track_mesh_capture.h"
 #include "live_drive.h"
 #include "native_startup.h"
+#include "native_menu_render.h"
 #include "../tests/driving_replay_io.h"
 #include "../tests/near_track_geometry_fixture.h"
 #include <algorithm>
@@ -134,6 +135,18 @@ void ReplayScene::loadNative(const std::filesystem::path& pack,const std::filesy
     auto startup=startNativeRace(pack,trackId);initialiseMemory(*startup.memory,startup.payload);
     nativePackPath_=pack;nativeTrack_=trackId;chipPath_.clear();payloadPath_.clear();beginLiveRecording(directory);
 }
+void ReplayScene::loadNativeState(const std::array<std::uint8_t,0x80000>& memory,
+        const std::vector<std::uint8_t>& payload,const std::filesystem::path& directory){
+    initialiseMemory(memory,payload);nativePackPath_.clear();chipPath_.clear();payloadPath_.clear();
+    beginLiveRecording(directory);
+}
+void ReplayScene::finishLiveExit(std::array<std::uint8_t,0x80000>& sessionMemory){
+    if(!liveTerminal())throw std::logic_error("Race exit requires a terminal transition");
+    namespace t=scr::test::transitions;
+    auto& memory=simulation_->native.ram;auto state=t::readState(memory.data());
+    (void)finishLocalRaceExit(t::readInputs(memory.data()),state);t::writeState(memory.data(),state);
+    sessionMemory=memory;
+}
 void ReplayScene::beginLiveRecording(const std::filesystem::path& directory){
     recordingsDirectory_=directory;std::filesystem::create_directories(directory);
     const auto stamp=std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::system_clock::now().time_since_epoch()).count();
@@ -174,6 +187,32 @@ bool ReplayScene::stepLive(unsigned controls,bool quit){
 }
 const std::vector<std::uint32_t>& ReplayScene::renderLive(double fraction,bool wireframe,bool interpolate){
     return interpolate?renderInterpolated(std::clamp(fraction,0.0,1.0),wireframe):render(1,wireframe);
+}
+const std::vector<std::uint32_t>& ReplayScene::renderLiveMessage(unsigned index,unsigned mode){
+    // Repaint the final snapshot before overlaying the original panel, so a
+    // pause message never becomes part of a later interpolated race image.
+    cachedFrame_=~0u;render(1);
+    const auto& memory=simulation_->native.ram;
+    const auto cockpit=captureCockpitFrame(memory.data(),memory.size());
+    compositeMaskedObject(assets_,51,cockpit.objects[51],pixels_);
+    drawNativeGameMessage(memory,pixels_,assets_.palette,index,mode,memory[0x1bb88]!=0);
+    cachedFrame_=~0u;return pixels_;
+}
+std::vector<std::uint8_t> ReplayScene::captureLiveIndices(bool endMessage){
+    const auto saved=assets_.palette;
+    try{
+        // Preserve palette identity even when two original entries have the
+        // same RGB. Palette fades can move those entries independently.
+        for(unsigned i=0;i<assets_.palette.size();++i)assets_.palette[i]=i;
+        cachedFrame_=~0u;
+        const auto& frame=endMessage?renderLiveMessage(0x3c,4):render(1);
+        std::vector<std::uint8_t> indices;indices.reserve(frame.size());
+        for(auto pixel:frame){
+            if(pixel>=16)throw std::logic_error("Native race renderer emitted a non-palette pixel");
+            indices.push_back(std::uint8_t(pixel));
+        }
+        assets_.palette=saved;cachedFrame_=~0u;return indices;
+    }catch(...){assets_.palette=saved;cachedFrame_=~0u;throw;}
 }
 unsigned ReplayScene::verifyLiveReplay(const std::filesystem::path& inputs,const std::filesystem::path& referencePath,const std::filesystem::path& tracePath){
     namespace replay=scr::test::replay;const auto input=replay::loadInputs(inputs.string().c_str());

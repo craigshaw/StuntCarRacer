@@ -910,7 +910,17 @@ controls, exported frames, differential evidence and rendering boundaries.
 
 ### Drive the native port
 
-Double-click `Drive Native.cmd`, or run `scripts/start-native-race.ps1`.
+Double-click `Drive Native.cmd`, or run `scripts/start-native-game.ps1`, to open
+the original native main menu. Choose **Practise**, a division and a track;
+Left/Right rotates the original overview and Return/Space/controller A starts
+the race. Escape leaves the race through its original exit gates, returning to
+track selection; **Cancel** returns to the main menu. The game image uses the
+original assets, font, palettes and selection highlights. Initial mode/name
+entry, Hall of Fame, season and load/save routes remain outside this milestone;
+unported routes produce an explicit host notice. See [native game](docs/native-game.md)
+for fidelity checks, controls and boundaries.
+
+`scripts/start-native-race.ps1` retains the direct-race development viewer.
 The launcher imports a local data pack from the supplied ADF when needed and
 constructs a fresh Practice race using native initialisation. It needs no saved
 Practice state, Kickstart ROM or emulator. Seven static tracks are supported;

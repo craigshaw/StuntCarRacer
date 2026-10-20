@@ -1,7 +1,8 @@
 # Native startup and local assets
 
-`Drive Native.cmd` now opens a fresh local Practice race constructed from the
-original disk data. It no longer loads the saved Practice capture. The native
+`Drive Native.cmd` opens the [native original menu](native-game.md), which leads
+to a fresh local Practice race constructed from the original disk data. The
+direct-race development command below also bypasses the saved Practice capture. The native
 application requires one local asset pack; it does not load a ROM, savestate,
 WinUAE or a CPU emulator. The original captured replay remains a separate
 regression test and is still available through `Watch Native Replay.cmd`.

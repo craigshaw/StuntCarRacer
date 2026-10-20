@@ -30,11 +30,18 @@ public:
     void loadLive(const std::filesystem::path& chip,const std::filesystem::path& payload,
         const std::filesystem::path& recordingsDirectory);
     void loadNative(const std::filesystem::path& pack,const std::filesystem::path& recordingsDirectory,unsigned trackId=0);
+    // A native menu session supplies its own freshly initialized race memory.
+    void loadNativeState(const std::array<std::uint8_t,0x80000>& memory,
+        const std::vector<std::uint8_t>& payload,const std::filesystem::path& recordingsDirectory);
+    // Complete the recovered Practice exit after quit or the end-message wait.
+    void finishLiveExit(std::array<std::uint8_t,0x80000>& sessionMemory);
     void resetLive();
     bool stepLive(unsigned controls,bool quit=false);
     unsigned verifyLiveReplay(const std::filesystem::path& inputs,const std::filesystem::path& reference,
         const std::filesystem::path& nativeTrace);
     const std::vector<std::uint32_t>& renderLive(double fraction,bool wireframe=false,bool interpolate=true);
+    const std::vector<std::uint32_t>& renderLiveMessage(unsigned index,unsigned mode);
+    std::vector<std::uint8_t> captureLiveIndices(bool endMessage=false);
     unsigned liveTicks() const noexcept;
     bool liveTerminal() const noexcept;
     const std::filesystem::path& liveRecording() const noexcept;

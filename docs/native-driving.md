@@ -1,6 +1,8 @@
 # Native keyboard and controller driving
 
-Double-click `Drive Native.cmd`, or run:
+Double-click `Drive Native.cmd` for the [original native menu and Practice
+route](native-game.md). For the direct-race development viewer described below,
+run:
 
 ```powershell
 .\scripts\start-native-race.ps1

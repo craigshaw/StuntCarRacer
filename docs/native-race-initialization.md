@@ -81,10 +81,10 @@ The load transition evidence is retained in
 startup producer (`ev_207fae22b1202bd46e7484a29e8700b6c1529f18d1e97525f4cf1af2f8e464db`)
 and memory stores (`ev_4f8bb380537dba6e2b6ef448229571cbb3c3b2797466810fe13dd686c4eab298`).
 
-Fresh native startup states for all seven currently supported static tracks
+Fresh native startup states for all eight tracks
 also pass 512 updates each against the original full main-loop interval. That
-is 3,584 updates, 10,659,957 gameplay-byte comparisons and seven automatic
-restarts, with ordered sample register writes compared. The original and native
+is 4,096 updates, including the moving Draw Bridge, automatic
+restarts and ordered sample register writes. The original and native
 states evolve independently from each fresh seed; no original results reseed
 native state. Local results are retained under
 `analysis/native-startup/integration/`, including

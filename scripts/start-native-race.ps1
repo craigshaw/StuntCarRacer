@@ -8,7 +8,6 @@ param(
 $ErrorActionPreference = 'Stop'
 $taskRoot = Split-Path -Parent $PSScriptRoot
 $pythonTool = 'C:\Tools\amiga-re\venv\Scripts\python.exe'
-if ($Track -eq 5) { throw 'Moving drawbridge animation is not yet supported; choose another track.' }
 if (-not [System.IO.Path]::IsPathRooted($AssetPack)) { $AssetPack = Join-Path $taskRoot $AssetPack }
 $checkArguments = @((Join-Path $PSScriptRoot 'check_native_startup.py'), '--pack', $AssetPack)
 if ($Adf) { $checkArguments += @('--adf', $Adf) }

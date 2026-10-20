@@ -2,6 +2,7 @@
 #include "local_asset_pack.h"
 #include "native_race_initialization.h"
 #include "track_initialization.h"
+#include "../tests/draw_bridge_fixture.h"
 #include <algorithm>
 #include <stdexcept>
 
@@ -15,9 +16,10 @@ NativeStartupData startNativeGame(const std::filesystem::path& pack){
     return {std::move(memory),std::move(assets.payload)};
 }
 NativeStartupData startNativeRace(const std::filesystem::path& pack,unsigned trackId){
-    if(trackId>=8||trackId==5)throw std::invalid_argument("Native driving supports static tracks0..7 except moving drawbridge5");
+    if(trackId>=8)throw std::invalid_argument("Native track ID must be0..7");
     auto data=startNativeGame(pack);
     initializeNativeTrack(*data.memory,trackId);
+    if(test::drawBridge::animate(*data.memory).geometryUpdated)rebuildNativeTrackGeometryCache(*data.memory);
     initializeNativeRace(*data.memory);
     return data;
 }

@@ -15,7 +15,7 @@ int main(int argc,char** argv)try {
     for(unsigned tick=0;tick<masks.size();++tick){
         state->begin(masks[tick].controls);state->ram[0xead6+0x45]=masks[tick].quit?0xb3:0;
         state->controlsStage();state->physicsStage();state->engineStage();state->progressStage();
-        state->groundStage();state->wheelsStage();state->damageStage();state->timingStage();
+        state->groundStage();state->wheelsStage();state->bridgeStage();state->damageStage();state->timingStage();
         if(full)state->outerStage();
         scr::test::replay::traceRow(out,state->ram,tick,masks[tick].controls,0,unsigned(state->outerAction),state->restarts,masks[tick].quit);
         if(full&&(state->outerAction==scr::RaceTransitionAction::raceEnd||state->outerAction==scr::RaceTransitionAction::quit)&&tick+1<masks.size())throw std::runtime_error("Inputs continue after terminal race transition");

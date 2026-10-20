@@ -62,6 +62,14 @@ void ReplayScene::initialiseMemory(const std::array<std::uint8_t,0x80000>& memor
 ReplaySceneFrame ReplayScene::captureFrame(Simulation& simulation,unsigned tick,unsigned controls){
     namespace a=scr::test::audio;auto& state=simulation.native;auto& geometry=simulation.geometry;
     ReplaySceneFrame frame;frame.tick=tick;frame.controls=controls;
+    if(state.ram[0x1ca33]==5){
+        auto track=std::make_shared<ReplayTrackSnapshot>();track->progress=state.progressData;
+        track->mesh=buildTrackMesh(decodeTrackMesh(state.ram));
+        track->sides=buildTrackSides(track->mesh,{state.ram[0x691b3],state.ram[0x691b2],false});
+        track->bridgePhase=state.ram[0x1bbb0];track->bridgeActive=state.ram[0x1bb3f];
+        frame.movingTrack=std::move(track);
+    }
+    const auto& presentation=frame.movingTrack?frame.movingTrack->progress:presentationTrack_;
     auto& camera=frame.pose;
     for(unsigned n=0;n<3;++n)camera.worldPosition[n]=a::longword(state.ram.data(),0x1bcd8+4*n);
     camera.pitch=a::word(state.ram.data(),0x1bce4);camera.yaw=a::word(state.ram.data(),0x1bce6);camera.roll=a::word(state.ram.data(),0x1bce8);
@@ -78,7 +86,7 @@ ReplaySceneFrame ReplayScene::captureFrame(Simulation& simulation,unsigned tick,
     nearInputs.drawing.offRoadSideFlags=nearInputs.progress.offRoadSide;nearInputs.drawing.offsetFromRoadCenter=nearInputs.progress.lateralOffset;
     nearInputs.drawing.sideEdgeColor=simulation.initial[0x691b3];nearInputs.drawing.alternateSideColor=simulation.initial[0x691b2];
     frame.nearSeed=geometry;frame.progressInputs=scr::test::trackProgress::readInputs(state.ram);
-    frame.nearTrack=buildNearTrackFrame(presentationTrack_,segmentRenderFlags_,nearInputs,geometry).presentation;
+    frame.nearTrack=buildNearTrackFrame(presentation,segmentRenderFlags_,nearInputs,geometry).presentation;
     return frame;
 }
 void ReplayScene::finishFrame(Simulation& simulation,ReplaySceneFrame& frame){
@@ -101,7 +109,7 @@ ReplaySceneFrame ReplayScene::advanceSimulation(Simulation& simulation,unsigned 
     state.controlsStage();state.physicsStage();state.engineStage();state.progressStage();
     // Original rendering boundary: before effects, timing and outer transitions.
     auto frame=captureFrame(simulation,simulation.ticks,controls);
-    state.groundStage();state.wheelsStage();state.damageStage();state.timingStage();state.outerStage();finishFrame(simulation,frame);
+    state.groundStage();state.wheelsStage();state.bridgeStage();state.damageStage();state.timingStage();state.outerStage();finishFrame(simulation,frame);
     std::ostringstream row;scr::test::replay::traceRow(row,state.ram,simulation.ticks,controls,0,unsigned(state.outerAction),state.restarts,quit);
     simulation.lastRow=row.str();++simulation.ticks;return frame;
 }
@@ -237,7 +245,7 @@ unsigned ReplayScene::verifyLiveReplay(const std::filesystem::path& inputs,const
 }
 const std::vector<std::uint32_t>& ReplayScene::render(unsigned index,bool wireframe) {
     if(index==cachedFrame_&&cachedFraction_==0&&wireframe==cachedWireframe_)return pixels_;
-    const auto& frame=frames_.at(index);draw(frame,frame.nearTrack,wireframe);
+    const auto& frame=frames_.at(index);draw(frame,frame.nearTrack,wireframe,frame.movingTrack.get());
     cachedFrame_=index;cachedFraction_=0;cachedWireframe_=wireframe;
     return pixels_;
 }
@@ -254,20 +262,21 @@ const std::vector<std::uint32_t>& ReplayScene::renderInterpolated(double positio
     // Rebuild near geometry from a private copy of the saved renderer history.
     // This query never advances gameplay or writes back to verified snapshots.
     auto inputs=from.nearInputs;auto progress=from.progressInputs;auto seed=from.nearSeed;
+    const auto& presentation=from.movingTrack?from.movingTrack->progress:presentationTrack_;
     inputs.progress.worldPosition=visual.pose.worldPosition;
     progress.pitch=visual.pose.pitch;progress.yaw=visual.pose.yaw;progress.averageWheelVelocity=visual.pose.averageWheelVelocity;
-    (void)updateTrackProgress(presentationTrack_,progress,inputs.progress);
+    (void)updateTrackProgress(presentation,progress,inputs.progress);
     inputs.progress.cameraHeight=visual.camera.heightBaseline;inputs.camera=visual.camera;
     inputs.drawing.offRoadSideFlags=inputs.progress.offRoadSide;inputs.drawing.offsetFromRoadCenter=inputs.progress.lateralOffset;
-    const auto nearFrame=buildNearTrackFrame(presentationTrack_,segmentRenderFlags_,inputs,seed);
-    draw(visual,nearFrame.presentation,wireframe);
+    const auto nearFrame=buildNearTrackFrame(presentation,segmentRenderFlags_,inputs,seed);
+    draw(visual,nearFrame.presentation,wireframe,from.movingTrack.get());
     cachedFrame_=index;cachedFraction_=fraction;cachedWireframe_=wireframe;
     return pixels_;
 }
-void ReplayScene::draw(const ReplayVisualState& frame,const NearTrackPresentation& nearTrack,bool wireframe){
+void ReplayScene::draw(const ReplayVisualState& frame,const NearTrackPresentation& nearTrack,bool wireframe,const ReplayTrackSnapshot* movingTrack){
     makeReplayBackground(assets_,pixels_);
     const auto mountains=projectMountainHorizon(mountains_,frame.pose.yaw,frame.camera);
-    statistics_=renderer_.drawFrame(mesh_,sides_,mountains,frame.camera,projection_,assets_.palette,pixels_,wireframe,&nearTrack);
+    statistics_=renderer_.drawFrame(movingTrack?movingTrack->mesh:mesh_,movingTrack?movingTrack->sides:sides_,mountains,frame.camera,projection_,assets_.palette,pixels_,wireframe,&nearTrack);
     composeReplayCockpit(assets_,frame.cockpit,pixels_);
     // The original speedometer uses this word multiply/shift before drawing
     // its two-row span. This changes presentation pixels only.

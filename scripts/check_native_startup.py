@@ -58,8 +58,8 @@ def main():
     if run.returncode:
         raise RuntimeError('Fresh startup integration failed: ' + run.stderr)
     result = json.loads(run.stdout)
-    if result.get('status') != 'passed' or result.get('capture_input') is not False or result.get('ticks') != 3584 or result.get('left_right_steering_checked') is not True:
-        raise RuntimeError('Fresh startup coverage differs from the seven-track regression')
+    if result.get('status') != 'passed' or result.get('capture_input') is not False or result.get('ticks') != 4096 or result.get('left_right_steering_checked') is not True:
+        raise RuntimeError('Fresh startup coverage differs from the eight-track regression')
     if sources() != records:
         raise RuntimeError('Sources changed while native startup was being checked')
     original_results = []
@@ -72,7 +72,7 @@ def main():
             for command in commands:
                 subprocess.run(command, check=True, cwd=ROOT, stdout=log, stderr=subprocess.STDOUT)
         oracle = oracle_build / 'Release/driving_replay_oracle.exe'
-        for track in (0, 1, 2, 3, 4, 6, 7):
+        for track in range(8):
             directory = output / 'integration' / ('track-' + str(track))
             seed, controls, trace = directory / 'native-initial.bin', directory / 'controls.csv', directory / 'original.csv'
             execution = subprocess.run([str(oracle), str(seed), str(controls), str(trace), '--full-loop'], cwd=ROOT, check=True, capture_output=True, text=True)

@@ -824,7 +824,8 @@ recorded human-driven lap. It stops before outer pause, restart, race-end and
 buffer-swap gates, and resets original CPU registers at each interval entry.
 The original CPU renderer runs in the comparator with blits reported complete;
 actual blitter operation, interrupt timing, pixels and audio waveforms are
-outside the comparison. The moving drawbridge track is rejected. Opponent
+outside the comparison. Draw Bridge animation is now included at its original
+outer-loop boundary. Opponent
 contact/distance has separate differential coverage; autonomous opponent driving
 and network mode are not substituted into the Practice replay.
 
@@ -923,8 +924,11 @@ for fidelity checks, controls and boundaries.
 `scripts/start-native-race.ps1` retains the direct-race development viewer.
 The launcher imports a local data pack from the supplied ADF when needed and
 constructs a fresh Practice race using native initialisation. It needs no saved
-Practice state, Kickstart ROM or emulator. Seven static tracks are supported;
-`-Track 0` is the default and moving Draw Bridge track 5 remains unsupported.
+Practice state, Kickstart ROM or emulator. All eight tracks are supported;
+`-Track 0` is the default and `-Track 5` selects Draw Bridge. Its native animation
+updates both road geometry and physics at the original rate. The original
+preview holds a raised bridge pose; movement begins during the race. See
+[Draw Bridge](docs/draw-bridge.md) for timing and comparison evidence.
 Click **Drive** or press **P** to begin. Arrows/WASD steer and operate gas/brake;
 Space boosts. Xbox controllers use the left stick/D-pad, RT/LT for gas/brake and
 A for boost. Physics retains fixed 120 ms steps with smooth 60 FPS presentation.
@@ -944,7 +948,7 @@ for sample provenance, reproduction and fidelity limits.
 The local pack and provenance manifest live under ignored `analysis/assets/`.
 Only extraction/decoder code, checksums and tests are tracked. A pre-commit hook
 and source-only CI check reject original media, asset packs, generated binaries
-and bulk encoded data. Fresh-start checks cover 3,584 updates across seven tracks,
+and bulk encoded data. Fresh-start checks cover 4,096 updates across all eight tracks,
 including original-code comparison and deterministic reset. See
 [native startup and assets](docs/native-startup.md) for import, pack format,
 reproduction and Git safeguards. Captures remain test references for the separate

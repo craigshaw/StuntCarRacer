@@ -1,11 +1,13 @@
 #include "native_track_preview.h"
 #include "native_menu_render.h"
+#include "native_race_initialization.h"
 #include "planar_image.h"
 #include "near_track_geometry.h"
 #include "near_track_visibility.h"
 #include "track_sides.h"
 #include "../tests/track_progress_fixture.h"
 #include "../tests/near_track_geometry_fixture.h"
+#include "../tests/draw_bridge_fixture.h"
 #include <algorithm>
 #include <array>
 #include <stdexcept>
@@ -184,9 +186,18 @@ struct NativeTrackPreview::State {
 NativeTrackPreview::NativeTrackPreview()=default;
 NativeTrackPreview::~NativeTrackPreview()=default;
 void NativeTrackPreview::load(const NativeMemory& memory,std::uint8_t angle){
-    if(memory[0x1ca33]==5)throw std::invalid_argument("Moving drawbridge preview requires its original animation initializer");
     state_=std::make_unique<State>();auto& s=*state_;s.memory=memory;s.angle=angle;
-    s.data=scr::test::trackProgress::readData(memory);
+    if(memory[0x1ca33]==5){
+        // Original runTrackPreviewScreen resets the player configuration,
+        // decodes the track, calls animateDrawBridge once, then builds its
+        // render cache. Reset inside the owned copy so reloading or rotating
+        // a caller's already animated race cannot advance the overview twice.
+        initializeNativePlayerConfiguration(s.memory);
+        initializeNativeTrack(s.memory,5);
+        scr::test::drawBridge::animate(s.memory);
+        rebuildNativeTrackGeometryCache(s.memory);
+    }
+    s.data=scr::test::trackProgress::readData(s.memory);
     const auto decoded=decodePlanarRle(memory.data()+0x2b994,memory.size()-0x2b994,320,200,4);
     const auto indexed=decodePlanarImage(decoded.planes.data(),decoded.planes.size(),320,200,4);
     std::copy(indexed.pixels.begin(),indexed.pixels.end(),s.background.indices.begin());

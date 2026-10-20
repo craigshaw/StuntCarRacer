@@ -21,11 +21,14 @@ constexpr unsigned stackBase=0x8f000,stackTop=0x90000,sentinel=0xa0000;
 unsigned pc{},instructions{};bool failed{},returned{};std::uint64_t totalInstructions{},compared{};
 unsigned requestedAngle{};
 bool inputMode{},inputInjected{},inputWaiting{};unsigned inputMask{};
+bool previewWaitMode{};unsigned previewPolls{},bridgeCalls{},previewRenders{};
 unsigned word(unsigned a){return (unsigned(original[a])<<8)|original[a+1];}
 unsigned longword(unsigned a){return (word(a)<<16)|word(a+2);}
 void putLong(Memory& m,unsigned a,unsigned v){for(unsigned n=0;n<4;++n)m[a+n]=std::uint8_t(v>>(24-8*n));}
 void hook(unsigned address){
     pc=address;
+    if(address==0x5a794)++bridgeCalls;
+    if(address==0x604b4)++previewRenders;
     if(inputMode){
         if(address==0x5d988){
             if(inputInjected){inputWaiting=returned=true;m68k_set_reg(M68K_REG_PC,sentinel);m68k_end_timeslice();return;}
@@ -39,11 +42,17 @@ void hook(unsigned address){
         if(address<0x5d980||address>=0x5d9da||++instructions>1000){failed=true;m68k_end_timeslice();}
         return;
     }
+    if(previewWaitMode&&address==0x5d988){
+        if(++previewPolls>1000){returned=true;m68k_set_reg(M68K_REG_PC,sentinel);m68k_end_timeslice();return;}
+        // Supply the controller decoder's neutral result, then execute the
+        // untouched preview wait loop. It has no periodic redraw or animation.
+        original[0x1bb47]=0;m68k_set_reg(M68K_REG_D0,0);m68k_set_reg(M68K_REG_PC,0x5d98e);return;
+    }
     // Model only display interrupt countdowns; every projection, queue and
     // raster instruction remains the original unmodified payload code.
     original[0x616d8]=original[0x616da]=0;
     if(address==0x5d2ec)original[0x1bb57]=std::uint8_t(requestedAngle);
-    if(address==0x5d2fc||address==sentinel){returned=true;m68k_set_reg(M68K_REG_PC,sentinel);m68k_end_timeslice();return;}
+    if((address==0x5d2fc&&!previewWaitMode)||address==sentinel){returned=true;m68k_set_reg(M68K_REG_PC,sentinel);m68k_end_timeslice();return;}
     if(address<0xe700||address>=0x7abda||++instructions>20000000){failed=true;m68k_end_timeslice();}
 }
 std::uint8_t read(unsigned a){
@@ -86,7 +95,6 @@ int main(int argc,char** argv){try{
     m68k_init();m68k_set_cpu_type(M68K_CPU_TYPE_68000);m68k_set_instr_hook_callback(hook);
     unsigned cases=0,mismatchCases=0,rotationCases=0;std::uint64_t mismatches=0;
     for(unsigned track=0;track<8;++track)for(unsigned angle=0;angle<4;++angle){
-        if(track==5)continue;
         requestedAngle=angle;
         original=*source.memory;original[0x1ca33]=std::uint8_t(track);original[0x1bb57]=std::uint8_t(angle);
         // Original displayMenuScreen leaves these selected before Practice.
@@ -132,10 +140,23 @@ int main(int argc,char** argv){try{
             if(actual==scr::viewer::NativeTrackPreviewAction::startRace)preview.load(*inputMemory,preview.angle());
         }
     }
-    auto bridge=std::make_unique<Memory>(*source.memory);scr::viewer::initializeNativePlayerConfiguration(*bridge);scr::initializeNativeTrack(*bridge,5);
-    bool rejected=false;try{scr::viewer::NativeTrackPreview preview;preview.load(*bridge);}catch(const std::invalid_argument&){rejected=true;}
-    if(!rejected)throw std::runtime_error("Moving drawbridge preview was silently approximated");
-    std::cout<<"{\"cases\":"<<cases<<",\"rotation_images\":"<<rotationCases<<",\"compared_pixels\":"<<compared<<",\"mismatch_cases\":"<<mismatchCases<<",\"mismatches\":"<<mismatches<<",\"input_cases\":"<<inputCases<<",\"drawbridge_rejected\":true,\"original_instructions\":"<<totalInstructions<<"}\n";
+    auto bridge=std::make_unique<Memory>(*source.memory);(*bridge)[0x1ca33]=5;
+    scr::viewer::initializeNativePlayerConfiguration(*bridge);scr::initializeNativeTrack(*bridge,5);
+    // Preview initialization always starts a fresh player configuration. An
+    // already animated caller must not advance the overview's phase twice.
+    (*bridge)[0x1bbb0]=0xd7;(*bridge)[0x1bb71]=0x80;
+    scr::viewer::NativeTrackPreview preview;preview.load(*bridge);
+    const auto stationary=preview.indices();
+    original=*bridge;putLong(original,0x6a588,longword(0x6a584)+32000);original[0x1bbd0]=0x80;
+    requestedAngle=0;bridgeCalls=previewRenders=previewPolls=0;previewWaitMode=true;run();previewWaitMode=false;
+    if(bridgeCalls!=1||previewRenders!=1||original[0x1bbb0]!=1)
+        throw std::runtime_error("Original bridge overview unexpectedly animates while waiting");
+    const auto waiting=scr::decodePlanarImage(original.data()+longword(0x6a588),32000,320,200,4);
+    for(unsigned n=0;n<64000;++n){++compared;if(waiting.pixels[n]!=stationary[n])
+        throw std::runtime_error("Bridge overview double-advanced an initialized caller");}
+    for(unsigned n=0;n<1000;++n)if(preview.input(0)!=scr::viewer::NativeTrackPreviewAction::none||preview.indices()!=stationary)
+        throw std::runtime_error("Native bridge overview changed while waiting");
+    std::cout<<"{\"cases\":"<<cases<<",\"rotation_images\":"<<rotationCases<<",\"compared_pixels\":"<<compared<<",\"mismatch_cases\":"<<mismatchCases<<",\"mismatches\":"<<mismatches<<",\"input_cases\":"<<inputCases<<",\"drawbridge_views\":4,\"drawbridge_rotation_images\":8,\"drawbridge_wait_polls\":1000,\"drawbridge_wait_animation_calls\":"<<bridgeCalls<<",\"drawbridge_wait_render_calls\":"<<previewRenders<<",\"original_instructions\":"<<totalInstructions<<"}\n";
     if(mismatches)throw std::runtime_error("Native track preview differs from original");
     return 0;
 }catch(const std::exception& e){std::cerr<<e.what()<<'\n';return 1;}}

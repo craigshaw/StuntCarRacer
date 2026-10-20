@@ -63,8 +63,9 @@ drawing could otherwise expose intermittent black flashes to the compositor.
 
 The first main menu's other routes retain their original appearance but produce
 an explicit native-host notice when activated: Hall of Fame, season/league flow
-and load/save/replay are not implemented here. The moving Draw Bridge track is
-also explicitly blocked before driving; seven static tracks are admitted. The
+and load/save/replay are not implemented here. All eight tracks are available,
+including the original [Draw Bridge animation](draw-bridge.md). Its preview
+holds the original raised pose; movement starts during driving. The
 original menu has no Escape-to-cancel shortcut on the overview.
 
 This work does not establish pixel identity for the existing in-race 3D renderer.
@@ -81,15 +82,18 @@ contention and free-running idle-poll RNG advances are not reproduced.
 & C:/Tools/amiga-re/venv/Scripts/python.exe scripts/check_native_game.py --verify-original
 ```
 
-The ordinary check runs the complete route twice on all seven static tracks,
+The ordinary check runs the complete route twice on all eight tracks,
 checks overview rotation, fresh race counters, quit cleanup and return to the
-unchanged main menu. It also runs the 3,584-update fresh-start and steering
+unchanged main menu. It also runs the 4,096-update fresh-start and steering
 regression. Screenshots, controls and source-identified results remain under
 ignored `analysis/native-game/`.
 
-The optional check runs the menu, input, overview and palette oracles against
-unmodified original MC68000 bytes. It also compares every recorded first race
-entered from the menu against the original full game loop. Test-only CPU and
+The ordinary check additionally drives a synthetic approach to Draw Bridge,
+checks occupancy/release and verifies stable interpolated and retained frames.
+The optional check runs the menu, input, overview, palette and bridge oracles
+against unmodified original MC68000 bytes. It also compares every recorded first
+race entered from the menu, all fresh-start races and the bridge approach
+against the original full game loop. Test-only CPU and
 hardware wait models are isolated from the native game. Component evidence:
 
 - [Menu and message pixels](native-menu-rendering.md).

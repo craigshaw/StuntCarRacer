@@ -9,6 +9,7 @@
 #include "driving_effects_fixture.h"
 #include "race_transitions_fixture.h"
 #include "race_restart_fixture.h"
+#include "draw_bridge_fixture.h"
 #include <set>
 
 namespace scr::test::replay {
@@ -30,7 +31,6 @@ struct NativeReplay {
     unsigned restarts{},waitVblanks{};
     explicit NativeReplay(const Ram& initial):ram(initial),physicsData(physics::readData(initial)),progressData(trackProgress::readData(initial)),restartData(restart::readData(initial)) {
         if(ram[0x57c3c]||ram[0x1ca22]&0x80)throw std::invalid_argument("Replay currently admits local Practice captures");
-        if(ram[0x1ca33]==5)throw std::invalid_argument("Moving drawbridge track is not yet admitted");
         if(!physicsData.track.segmentCount)throw std::invalid_argument("Replay requires loaded track data");
     }
     void begin(unsigned mask) {controller=hardware(mask,controller.ciaDataDirection);--ram[0x1bbac];std::fill_n(ram.begin()+0xead6,128,std::uint8_t{});audioWrites.clear();}
@@ -50,6 +50,14 @@ struct NativeReplay {
     }
     void groundStage() {auto s=effects::readState(ram);auto ids=updateGroundAndEdgeEffects(effects::readInputs(ram),s);effects::writeState(ram,s);sounds(ids);}
     void wheelsStage() {auto s=effects::readState(ram);updateWheelVisuals(effects::readInputs(ram),physicsData.trig,s);effects::writeState(ram,s);}
+    void bridgeStage() {
+        if(ram[0x1ca33]!=5)return;
+        (void)drawBridge::animate(ram);
+        // Both encoded heights and the special bridge guidance values are
+        // mutable. All gameplay consumers must observe this tick's update.
+        physicsData.track=scr_test::decodeTrackGeometry(ram);
+        progressData.track=physicsData.track;restartData.track=physicsData.track;
+    }
     void damageStage() {auto s=effects::readState(ram);DrivingVisualEvents v;auto ids=updateDamageFeedback(effects::readInputs(ram),s,v);effects::writeState(ram,s);sounds(ids);}
     void timingStage() {auto s=timing::readState(ram.data());updateRaceTiming(timing::readInputs(ram.data()),s);timing::writeState(ram.data(),s);}
     void disableAudio() {audioWrites.push_back({0xdff096,0xf});audioWrites.push_back({0xdff09a,0x780});}

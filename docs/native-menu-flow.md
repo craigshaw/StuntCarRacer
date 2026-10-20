@@ -79,7 +79,7 @@ belong to the host session, which passes the same memory back to this flow.
 Unported main-menu routes yield `UnsupportedOption` while retaining the original
 menu selection. The native host reports that boundary; this implementation does
 not silently substitute a different mode. All eight original track mappings are
-retained; availability of the moving drawbridge simulation is a host boundary.
+retained and all eight tracks are available in the native host.
 
 ## Timing and verification limits
 

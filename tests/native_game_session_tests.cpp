@@ -38,9 +38,6 @@ int main(int argc,char** argv)try{
     const std::filesystem::path directory=argv[2];std::filesystem::create_directories(directory);
     unsigned routes=0,ticks=0;bool turning=false;
     for(unsigned ordinal=0;ordinal<8;++ordinal){
-        // Original lookup maps ordinal7 to the moving drawbridge, whose live
-        // physics remains explicitly unsupported by this milestone.
-        if(ordinal==7)continue;
         const auto folder=directory/("route-"+std::to_string(ordinal));std::filesystem::create_directories(folder);
         NativeGameSession game(argv[1],folder);
         settle(game);

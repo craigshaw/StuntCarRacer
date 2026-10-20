@@ -166,4 +166,5 @@ void initializeNativeTrack(NativeMemory& r,unsigned trackId){
     for(unsigned i=0;i<r[0x1ca1a];++i)r[0x1c280+r[0x1c588+i]]=b(i);
     cache(r,trackId);
 }
+void rebuildNativeTrackGeometryCache(NativeMemory& r){cache(r,r[0x1ca33]);}
 } // namespace scr

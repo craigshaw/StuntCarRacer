@@ -31,20 +31,36 @@ release. Up and down have no preview action.
 verification-only 68000 core and compares the entire 320-by-200 display against
 the native overview. The original payload is never patched. The harness models
 the display interrupt countdowns to let the original palette fades complete;
-no CPU is linked into the native game. The check covers seven admitted tracks
-from all four camera angles, plus repeated left/right rotations using the
-original's retained scratch: **84 complete images, 5,376,000 indexed pixels,
-zero mismatches**. A further **448 original-input comparisons** cover held
+no CPU is linked into the native game. The check covers all eight tracks from
+all four camera angles, plus repeated left/right rotations using the original's
+retained scratch and the stationary bridge wait described below: **97 complete
+images, 6,208,000 indexed pixels, zero mismatches**. A further **448
+original-input comparisons** cover held
 buttons, release gating, left/right priority, fire, and byte-angle wrapping.
 Input comparisons supply the digital mask at the already verified controller
 decoder's boundary; they execute the preview input instructions themselves.
 
-The track decoder contains all eight tracks. Track 5's original overview also
-calls the moving drawbridge animation initializer before generating geometry;
-using its static decoded data is visibly different. `load` explicitly rejects
-that track, matching the existing native race restriction. The menu handles the
-boundary before entering the preview. Recovery of that original animation is
-required before admitting its overview and race together.
+Track 5 calls the recovered Draw Bridge routine once before generating its
+geometry. `load` repeats the original fresh player configuration and track
+decode inside its owned copy, advances the original bridge initializer, then
+rebuilds the dense cache. Its source memory stays unchanged. This also prevents
+an already animated caller, repeated load, or quarter turn from advancing the
+overview's bridge a second time.
+
+The original overview does **not** animate continuously. At `0x5d2da` it calls
+`animateDrawBridge` (`0x5a794`), then generates its render cache at `0x5d2e6`
+and draws the overview at `0x5d2ec`. The loop at `0x5d2fc..0x5d30c` waits for
+input, redraws only when rotating, and returns directly to waiting. It never
+calls the bridge routine again. The bridge starts in the original raised
+position and holds that position throughout the preview. Continuous movement
+belongs to the driving loop.
+
+The oracle additionally executes the complete original overview entry and
+**1,000 neutral controller polls** in that wait loop. It observes exactly one
+bridge call and one render, compares the resulting complete framebuffer, and
+checks that the native overview likewise stays unchanged. The input boundary
+uses the same normalized decoder result as the input tests; the original menu
+and bridge instructions are never patched.
 
 Static evidence: REA `ev_5834bf2b6a0ae77d1953aad0fd60c9b3cfef3f649278e9075e1adef13cce0c29`
 describes the original screen entry and dependency calls. Full original-code

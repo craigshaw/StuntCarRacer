@@ -50,6 +50,14 @@ void stage(unsigned address){
         for(auto a0:range(0x1bcd8,12))v.push_back(a0);for(auto a0:range(0x1c3c0,64))v.push_back(a0);compare("track",v);}
     if(address==0x65102){native->groundStage();compare("particles",range(0x1c380,256));compare("particle-rng",{0x625a2,0x625a3,0x625a4,0x625a5,0x625a6,0x1bba7});}
     if(address==0x65122){native->wheelsStage();compare("wheel-bounce",{0x1bbda});}
+    if(address==0x5d4a2){native->bridgeStage();
+        std::vector<unsigned> v{0x1ca33};
+        if(ram[0x1ca33]==5){v=scr::test::drawBridge::outputs(ram);
+            // Shared renderer scratch is checked by the isolated animator
+            // oracle. On held phases it retains the renderer's last values.
+            for(unsigned a:{0x1bb1b,0x1bc2a,0x1bc2b,0x1bbf6,0x1bbf7,0x1bcc0,0x1bcc1})
+                v.erase(std::remove(v.begin(),v.end(),a),v.end());
+        }compare("drawbridge",v);}
     if(address==0x5d4ae){native->damageStage();compare("damage",{0x1bb4f,0x1bb50,0x1bb51,0x1bb54,0x1bbb6,0x1bb55,0x662aa,0x662ab,0x1bb73,0x1c9cf,0x1bb6c,0x1bca2,0x1bbe2,0x1bc56,0x1bbdd,0x625a2,0x625a3,0x625a4,0x625a5,0x625a6});
         const auto frame=fx::damageBuffer(ram),nativeFrame=fx::damageBuffer(native->ram);
         for(unsigned y=0;y<8;++y)for(unsigned x=0;x<256;++x){++compared;if(fx::occupied(ram,frame,x,y)!=fx::occupied(native->ram,nativeFrame,x,y))throw std::runtime_error("Damage-strip occupancy mismatch at pixel "+std::to_string(y*256+x));}}
@@ -170,7 +178,7 @@ int main(int argc,char** argv)try{
             }
             if(originalAudio.size()!=native->audioWrites.size())failure="Ordered sample audio write count mismatch";
             else for(unsigned i=0;i<originalAudio.size();++i)if(originalAudio[i].address!=native->audioWrites[i].address||originalAudio[i].value!=native->audioWrites[i].value){failure="Ordered sample audio register mismatch";break;}
-            for(const auto& name:{"controls","physics","engine","track","particles","particle-rng","wheel-bounce","damage","timing"})
+            for(const auto& name:{"controls","physics","engine","track","particles","particle-rng","wheel-bounce","drawbridge","damage","timing"})
                 if(stages[name]!=tick+1)failure=std::string("Missing or repeated comparison stage: ")+name;
         }catch(const std::exception& e){failure=e.what();}
         if(invalid||!done||!failure.empty()){

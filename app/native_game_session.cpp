@@ -3,6 +3,7 @@
 #include "track_initialization.h"
 #include "planar_image.h"
 #include "race_transitions.h"
+#include "../tests/draw_bridge_fixture.h"
 #include <algorithm>
 #include <cmath>
 #include <stdexcept>
@@ -28,6 +29,7 @@ NativeGameSession::NativeGameSession(const std::filesystem::path& pack,const std
 void NativeGameSession::preparePreview(){
     initializeNativePlayerConfiguration(*data_.memory);
     initializeNativeTrack(*data_.memory,menu_.trackId());
+    if(test::drawBridge::animate(*data_.memory).geometryUpdated)rebuildNativeTrackGeometryCache(*data_.memory);
     preview_.load(*data_.memory,(*data_.memory)[0x1bb57]);
 }
 void NativeGameSession::startRace(){
@@ -96,7 +98,6 @@ NativeGameUpdate NativeGameSession::update(double elapsed,const NativeGameInput&
     const auto previous=menu_.renderState();
     const auto action=menu_.update(input.menu,elapsed);
     if(action==NativeMenuAction::EnterPreview){
-        if(menu_.trackId()==5){menu_.cancelPreview();result.unavailable=NativeGameUnavailable::movingDrawbridge;return result;}
         const auto image=makeNativeMenuImage(*data_.memory,previous);
         transitionIndices_.assign(image.indices.begin(),image.indices.end());
         fade_.fadeToColor(readNativePalette(*data_.memory,0x2b974)[0]);transition_=Transition::OutPreview;

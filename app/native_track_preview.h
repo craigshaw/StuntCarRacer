@@ -9,6 +9,8 @@ enum class NativeTrackPreviewAction { none,redraw,startRace };
 // Original Practice overview. Owns its rendering scratch so preview work never
 // changes the live race state. Controls use the original up/down/left/right/fire
 // bits 1/2/4/8/16. Persist angle() when leaving the screen.
+// The Draw Bridge gets the original screen-entry initializer once; the
+// original overview holds that geometry while waiting and rotating.
 class NativeTrackPreview {
 public:
     NativeTrackPreview();

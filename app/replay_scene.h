@@ -10,12 +10,21 @@
 #include <vector>
 
 namespace scr::viewer {
+struct ReplayTrackSnapshot {
+    TrackProgressData progress;
+    TrackMesh mesh;
+    std::vector<TrackSideFace> sides;
+    std::uint8_t bridgePhase{},bridgeActive{};
+};
 struct ReplaySceneFrame : ReplayVisualState {
     GameAudioFrame audio;
     NearTrackPresentation nearTrack;
     NearTrackFrameInputs nearInputs;
     NearTrackGeometryState nearSeed;
     TrackProgressInputs progressInputs;
+    // Moving track data belongs to the rendered tick. Retained replays and
+    // interpolation must never read the simulation's later bridge position.
+    std::shared_ptr<const ReplayTrackSnapshot> movingTrack;
     unsigned tick{},controls{},restarts{},action{};
     std::uint16_t cameraYaw{};
     std::uint8_t lapCounter{},raceComplete{},boostFuel{},damage{},minutes{},seconds{},subseconds{};
@@ -83,6 +92,7 @@ private:
     unsigned cachedFrame_=~0u;
     double cachedFraction_{};
     bool cachedWireframe_{};
-    void draw(const ReplayVisualState&,const NearTrackPresentation&,bool wireframe);
+    void draw(const ReplayVisualState&,const NearTrackPresentation&,bool wireframe,
+        const ReplayTrackSnapshot* movingTrack=nullptr);
 };
 } // namespace scr::viewer

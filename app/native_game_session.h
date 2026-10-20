@@ -12,7 +12,7 @@ struct NativeGameInput {
     unsigned driveControls{};
     bool quit{};
 };
-enum class NativeGameUnavailable { none,menuRoute,movingDrawbridge };
+enum class NativeGameUnavailable { none,menuRoute };
 struct NativeGameUpdate {
     bool raceStarted{},raceExited{};
     NativeGameUnavailable unavailable{};

@@ -15,7 +15,7 @@ std::vector<std::uint8_t> read(const std::filesystem::path& path){std::ifstream 
 void write(const std::filesystem::path& path,const std::uint8_t* data,std::size_t size){std::ofstream f(path,std::ios::binary);f.write(reinterpret_cast<const char*>(data),std::streamsize(size));if(!f)throw std::runtime_error("Test artifact write failed");}
 void advance(scr::test::replay::NativeReplay& state,unsigned mask){
     state.begin(mask);state.controlsStage();state.physicsStage();state.engineStage();state.progressStage();
-    state.groundStage();state.wheelsStage();state.damageStage();state.timingStage();state.outerStage();
+    state.groundStage();state.wheelsStage();state.bridgeStage();state.damageStage();state.timingStage();state.outerStage();
 }
 void steeringRegression(const std::filesystem::path& pack){
     using scr_test::readWord;
@@ -52,7 +52,7 @@ int main(int argc,char** argv)try{
     require(rejected==10,"Corrupt asset pack was accepted");
     steeringRegression(pack);
     unsigned ticks=0,rendered=0,starts=0;std::uint16_t maximumSpeed=0;
-    for(unsigned track:{0u,1u,2u,3u,4u,6u,7u}){
+    for(unsigned track=0;track<8;++track){
         auto startup=startNativeRace(pack,track);const auto trackOut=out/("track-"+std::to_string(track));std::filesystem::create_directories(trackOut);
         require((*startup.memory)[0x1ca1a]>0&&(*startup.memory)[0x1ca1a]<=100,"Fresh track topology missing");
         require((*startup.memory)[0x1bb55]==0&&(*startup.memory)[0x1bb20]==0,"Fresh race inherited damage/laps");

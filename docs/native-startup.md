@@ -18,9 +18,9 @@ Place the supported original ADF in the project root, then run:
 
 The launcher creates the pack automatically when it is absent. An existing
 pack can launch without the ADF present. To import a disk at another path, use
-`-Adf <path>` on the launcher. `-Track 0` is the default; tracks 0, 1, 2, 3, 4, 6
-and 7 can be selected. The moving Draw Bridge track (5), opponent AI, menus and
-competition flow are outside this startup path. The window starts paused;
+`-Adf <path>` on the launcher. `-Track 0` is the default; all eight tracks can
+be selected, including the moving Draw Bridge (5). Opponent AI, menus and
+competition flow are outside this direct-race startup path. The window starts paused;
 P/controller Start begins driving, R reconstructs a fresh race, and M mutes.
 Physics remains 120 ms per update, presentation 60 Hz and engine audio 50 Hz.
 
@@ -69,7 +69,8 @@ changed payload content. It does not fall back to a capture. Native startup then
    routines. This precedes track construction because the reset clears those
    mutable track tables.
 5. Decodes the selected track, constructs interpolation/grid data and generates
-   the road cache with `initializeNativeTrack`.
+   the road cache with `initializeNativeTrack`. Draw Bridge receives the original
+   first geometry update and a cache rebuild before race initialization.
 6. Initialises the local player, fuel, damage, timing and vehicle placement, then
    runs the recovered startup frames with `initializeNativeRace`.
 
@@ -87,7 +88,7 @@ and audio consume the resulting state as before.
 ```
 
 The ordinary check has no capture, ROM or original-CPU dependency. It checks all
-seven static tracks for 512 updates each, rendering, horizontal vehicle movement,
+all eight tracks for 512 updates each, rendering, horizontal vehicle movement,
 audio generation, deterministic reset and rejection of ten corrupt pack cases.
 It also requires actual opposite left/right yaw responses from the same moving
 fresh state, so matching original execution with disabled steering cannot pass.
@@ -95,8 +96,8 @@ Results and a source-identified build receipt stay under `analysis/native-startu
 `--skip-build` rejects a stale source or executable identity.
 
 The optional original check executes the unmodified original game loop from
-each native-created initial state. Across 3584 updates, it compares 10,659,957
-gameplay bytes, seven automatic restarts and the ordered sound commands. It
+each native-created initial state. Across 4,096 updates, it compares the declared
+gameplay and bridge projections, automatic restarts and ordered sound commands. It
 also compares each complete scene trace with the original execution. The old
 1463-update, three-lap captured replay and 60 Hz rendering regressions still pass.
 The deeper proof is retained separately in `original-check-results.json`, so

@@ -51,7 +51,7 @@ driving_replay_native chipram.bin inputs.csv trace.csv
 ```
 
 The oracle writes a JSON result to stdout, including `ticks` and `mismatches`.
-The wrapper requires all nine stage comparisons exactly once per requested tick,
+The wrapper requires all ten stage comparisons exactly once per requested tick,
 the declared original interval, explicit byte-address projections and ordered
 sample-audio register comparisons. It checks the trace's tick sequence, controls,
 row count and instruction total. Its legacy `compared_bytes` counter includes
@@ -67,8 +67,17 @@ zero in the native trace. It checks the displayed gameplay columns, while the
 oracle separately checks its broader RAM projections and effects at each stage.
 Both executables currently use capture-RAM serialization adapters under `tests/`
 to connect the recovered stages. Production calculations under `src/` use typed
-native state. This is a testable gameplay core, not yet a standalone game with
-asset loading, a renderer or a platform input/audio loop.
+native state. The standalone [native game](native-game.md) also uses this core,
+with native asset loading, rendering, input and audio.
+
+Draw Bridge track5 is admitted. Its animator runs after game-frame/wheel work
+and before damage, at original return boundary`0x5d4a2`. The comparator checks
+the phase, active latch, raw road geometry and eight cached vertex heights every
+tick. Shared renderer scratch is covered separately by the isolated animator
+oracle. Native physics, progress and restart data are refreshed from the native
+update, while recorded render frames retain their own geometry. See
+[Draw Bridge](draw-bridge.md) for the original preview's stationary pose and
+the moving race behaviour.
 
 ## Controls
 

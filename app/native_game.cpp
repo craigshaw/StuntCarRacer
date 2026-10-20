@@ -112,9 +112,7 @@ private:
         }
         if(changes.unavailable!=NativeGameUnavailable::none){
             keys_.fill(false);game_.releaseInput();
-            const auto text=changes.unavailable==NativeGameUnavailable::movingDrawbridge?
-                L"The moving Draw Bridge track is not yet supported by the native physics. Choose another track.":
-                L"This menu route has not been ported yet. The Practise route is available.";
+            const auto text=L"This menu route has not been ported yet. The Practise route is available.";
             MessageBoxW(window,text,L"Stunt Car Racer — native port",MB_OK|MB_ICONINFORMATION);
         }
     }

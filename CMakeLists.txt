@@ -9,7 +9,7 @@ add_library(scr_physics STATIC src/wheel_coordinates.cpp src/transform_matrices.
   src/steering_response.cpp src/car_dynamics.cpp src/suspension_effects.cpp
   src/audio_playback.cpp src/physics_update.cpp src/player_controls.cpp
   src/track_progress.cpp src/opponent_collision.cpp src/driving_effects.cpp src/race_timing.cpp
-  src/race_transitions.cpp src/race_restart.cpp src/track_initialization.cpp)
+  src/race_transitions.cpp src/race_restart.cpp src/track_initialization.cpp src/draw_bridge.cpp)
 target_include_directories(scr_physics PUBLIC src)
 target_compile_features(scr_physics PUBLIC cxx_std_17)
 if(MSVC)
@@ -76,6 +76,9 @@ if(WIN32)
   add_executable(native_game_session_tests tests/native_game_session_tests.cpp)
   target_link_libraries(native_game_session_tests PRIVATE scr_game)
   target_compile_features(native_game_session_tests PRIVATE cxx_std_17)
+  add_executable(draw_bridge_driving_tests tests/draw_bridge_driving_tests.cpp)
+  target_link_libraries(draw_bridge_driving_tests PRIVATE scr_game)
+  target_compile_features(draw_bridge_driving_tests PRIVATE cxx_std_17)
   add_executable(native_game WIN32 app/native_game.cpp app/windows_drive_input.cpp app/windows_audio_output.cpp)
   target_link_libraries(native_game PRIVATE scr_game user32 gdi32 shell32 xinput9_1_0 winmm)
   target_compile_features(native_game PRIVATE cxx_std_17)
@@ -129,6 +132,9 @@ if(SCR_BUILD_ORACLE)
   add_executable(track_initialization_oracle tests/track_initialization_oracle.cpp)
   target_link_libraries(track_initialization_oracle PRIVATE scr_physics musashi_oracle)
   target_compile_features(track_initialization_oracle PRIVATE cxx_std_17)
+  add_executable(draw_bridge_oracle tests/draw_bridge_oracle.cpp)
+  target_link_libraries(draw_bridge_oracle PRIVATE scr_physics musashi_oracle)
+  target_compile_features(draw_bridge_oracle PRIVATE cxx_std_17)
   add_executable(native_asset_initialization_tests tests/native_asset_initialization_tests.cpp
     app/native_asset_initialization.cpp app/replay_render_assets.cpp)
   target_include_directories(native_asset_initialization_tests PRIVATE app)

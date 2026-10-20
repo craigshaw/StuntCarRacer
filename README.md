@@ -912,14 +912,23 @@ controls, exported frames, differential evidence and rendering boundaries.
 ### Drive the native port
 
 Double-click `Drive Native.cmd`, or run `scripts/start-native-game.ps1`, to open
-the original native main menu. Choose **Practise**, a division and a track;
+the original game-mode chooser. Choose **Single Player League**, enter your
+name and confirm the driver roster to reach the main menu. Choose **Practise**, a division and a track;
 Left/Right rotates the original overview and Return/Space/controller A starts
 the race. Escape leaves the race through its original exit gates, returning to
 track selection; **Cancel** returns to the main menu. The game image uses the
-original assets, font, palettes and selection highlights. Initial mode/name
-entry, Hall of Fame and load/save routes remain outside this milestone;
+original assets, font, palettes and selection highlights. The original 12-character
+name editor retains Shift, Backspace, punctuation and blank-name retries.
+**Multiplayer** supports the original 2–8 name setup and startup standings;
+multiplayer seasons, Computer Link, Hall of Fame and load/save remain unported;
 unported routes produce an explicit host notice. See [native game](docs/native-game.md)
 for fidelity checks, controls and boundaries.
+
+Startup graphics, input rules and call timing have original-code comparisons.
+See [opening flow](docs/native-opening-flow.md), [name entry](docs/native-player-name.md)
+and [opening graphics](docs/native-opening-render.md). Run
+`scripts/check_native_opening.py` for the dedicated checks, including named
+Practice/season races and all seven local multiplayer player counts.
 
 Cockpit instruments use the original font, drawing rules and event timing,
 including the completed-lap hold and distance-display cadence. Wheel treads

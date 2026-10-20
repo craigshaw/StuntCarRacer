@@ -79,6 +79,7 @@ private:
     PolledDrivePad pad_;
     std::unique_ptr<WindowsAudioOutput> audio_;
     std::array<bool,256> keys_{};
+    std::vector<NativeRawKeyEvent> rawKeys_;
     bool paused_{},muted_{},interpolate_{},focused_{true};
     HANDLE timer_{};
     unsigned frames_{};
@@ -86,9 +87,20 @@ private:
     std::chrono::steady_clock::time_point fpsStart_=std::chrono::steady_clock::now();
     NativeGameInput input()const{
         NativeGameInput value;
+        value.rawKeys=rawKeys_;
+        const auto& p=pad_.pad;
+        if(game_.enteringName()){
+            // The original raw keyboard scanner owns name entry. Letters
+            // such as WASD and M/I must reach it without host shortcuts.
+            if(p.connected)value.menu.controls=std::uint8_t(
+                (((p.buttons&0x0001)||p.y>16000)?1:0)|
+                (((p.buttons&0x0002)||p.y<-16000)?2:0)|
+                (((p.buttons&0x0004)||p.x<-16000)?4:0)|
+                (((p.buttons&0x0008)||p.x>16000)?8:0)|((p.buttons&0x1000)?16:0));
+            return value;
+        }
         value.driveControls=mapDriveControls({keys_['W']||keys_[VK_UP],keys_['S']||keys_[VK_DOWN],
             keys_['A']||keys_[VK_LEFT],keys_['D']||keys_[VK_RIGHT],keys_[VK_SPACE]},pad_.pad);
-        const auto& p=pad_.pad;
         const bool up=keys_[VK_UP]||keys_['W']||(p.connected&&((p.buttons&0x0001)||p.y>16000));
         const bool down=keys_[VK_DOWN]||keys_['S']||(p.connected&&((p.buttons&0x0002)||p.y<-16000));
         const bool left=keys_[VK_LEFT]||keys_['A']||(p.connected&&((p.buttons&0x0004)||p.x<-16000));
@@ -101,6 +113,7 @@ private:
     void update(HWND window,double elapsed){
         if(!focused_||paused_)return;
         const auto changes=game_.update(elapsed,input());
+        rawKeys_.clear();
         if(changes.raceStarted){
             if(audio_)audio_->reset(game_.race().audioSeed());
             else audio_=std::make_unique<WindowsAudioOutput>(game_.race().audioSeed());
@@ -111,15 +124,19 @@ private:
             audio_->setPlaying(game_.page()==NativeMenuPage::Race&&!game_.raceEnded()&&!game_.transitioning());
         }
         if(changes.unavailable!=NativeGameUnavailable::none){
-            keys_.fill(false);game_.releaseInput();
-            const auto text=L"This menu route has not been ported yet. Practise and Start the Racing Season are available.";
+            keys_.fill(false);rawKeys_.clear();game_.releaseInput();
+            const auto text=changes.unavailable==NativeGameUnavailable::computerLink?
+                L"Computer Link has not been ported yet. Single Player and local Multiplayer name setup are available.":
+                changes.unavailable==NativeGameUnavailable::localMultiplayerSeason?
+                L"Multiplayer racing seasons have not been ported yet. Practise is available for this setup.":
+                L"This menu route has not been ported yet. Practise and Start the Racing Season are available.";
             MessageBoxW(window,text,L"Stunt Car Racer — native port",MB_OK|MB_ICONINFORMATION);
         }
     }
     void tickGame(HWND window,double elapsed){
         pad_=controller_.poll();
         if(pad_.disconnected){
-            paused_=game_.page()==NativeMenuPage::Race&&!game_.transitioning();keys_.fill(false);game_.releaseInput();
+            paused_=game_.page()==NativeMenuPage::Race&&!game_.transitioning();keys_.fill(false);rawKeys_.clear();game_.releaseInput();
             if(audio_)audio_->setPlaying(false);
         }
         if(focused_&&pad_.pausePressed&&game_.page()==NativeMenuPage::Race&&!game_.transitioning())togglePause();
@@ -133,7 +150,7 @@ private:
             SetWindowTextW(window,title.str().c_str());
         }
     }
-    void togglePause(){paused_=!paused_;keys_.fill(false);game_.releaseInput();if(audio_)audio_->setPlaying(!paused_);}
+    void togglePause(){paused_=!paused_;keys_.fill(false);rawKeys_.clear();game_.releaseInput();if(audio_)audio_->setPlaying(!paused_);}
     void paint(HWND window){
         // Keep the last completed image visible while rendering. Clearing the
         // window before game_.render exposed black frames to the compositor.
@@ -166,17 +183,21 @@ private:
         case WM_GETMINMAXINFO:reinterpret_cast<MINMAXINFO*>(data)->ptMinTrackSize={340,240};return 0;
         case WM_ACTIVATEAPP:
             focused_=key!=0;
-            if(!focused_){keys_.fill(false);game_.releaseInput();if(game_.page()==NativeMenuPage::Race&&!game_.transitioning())paused_=true;if(audio_)audio_->setPlaying(false);}
+            if(!focused_){keys_.fill(false);rawKeys_.clear();game_.releaseInput();if(game_.page()==NativeMenuPage::Race&&!game_.transitioning())paused_=true;if(audio_)audio_->setPlaying(false);}
             return 0;
         case WM_KEYDOWN:
             if(key<keys_.size())keys_[key]=true;
             if(!(data&0x40000000)){
+                if(const auto raw=nativeAmigaRawKey(unsigned(key),(unsigned(data)>>16)&255,(data&0x01000000)!=0))rawKeys_.push_back({*raw,true});
                 if(key=='P'&&game_.page()==NativeMenuPage::Race&&!game_.transitioning())togglePause();
-                else if(key=='M'){muted_=!muted_;if(audio_)audio_->setMuted(muted_);}
-                else if(key=='I')interpolate_=!interpolate_;
+                else if(!game_.enteringName()&&key=='M'){muted_=!muted_;if(audio_)audio_->setMuted(muted_);}
+                else if(!game_.enteringName()&&key=='I')interpolate_=!interpolate_;
             }
             update(window,0);InvalidateRect(window,nullptr,FALSE);return 0;
-        case WM_KEYUP:if(key<keys_.size())keys_[key]=false;update(window,0);return 0;
+        case WM_KEYUP:
+            if(key<keys_.size())keys_[key]=false;
+            if(const auto raw=nativeAmigaRawKey(unsigned(key),(unsigned(data)>>16)&255,(data&0x01000000)!=0))rawKeys_.push_back({*raw,false});
+            update(window,0);return 0;
         case WM_SIZE:InvalidateRect(window,nullptr,FALSE);return 0;
         case WM_PAINT:paint(window);return 0;
         case WM_DESTROY:PostQuitMessage(0);return 0;

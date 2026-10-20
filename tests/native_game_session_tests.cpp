@@ -39,7 +39,7 @@ int main(int argc,char** argv)try{
     unsigned routes=0,ticks=0;bool turning=false;
     for(unsigned ordinal=0;ordinal<8;++ordinal){
         const auto folder=directory/("route-"+std::to_string(ordinal));std::filesystem::create_directories(folder);
-        NativeGameSession game(argv[1],folder);
+        NativeGameSession game(argv[1],folder,NativeGameStart::EstablishedMenu);
         settle(game);
         require(game.page()==NativeMenuPage::Main,"Native startup did not enter original main menu");
         const auto originalMain=hash(game.render());if(!ordinal)bitmap(directory/"main.bmp",game.render());

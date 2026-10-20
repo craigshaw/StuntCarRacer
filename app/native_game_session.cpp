@@ -11,8 +11,11 @@
 
 namespace scr::viewer {
 namespace {
-NativeStartupData menuStartup(const std::filesystem::path& pack){
-    auto data=startNativeGame(pack);initializeNativeMenuSession(*data.memory);return data;
+NativeStartupData menuStartup(const std::filesystem::path& pack,NativeGameStart start){
+    auto data=startNativeGame(pack);
+    if(start==NativeGameStart::EstablishedMenu)initializeNativeMenuSession(*data.memory);
+    else initializeNativeOpeningSession(*data.memory);
+    return data;
 }
 void restoreCockpit(NativeMemory& memory){
     // Original copyMainGameBackground0x1bace, performed for every race, even
@@ -29,18 +32,28 @@ NativePalette imagePalette(const NativeMenuImage& image){
 }
 }
 NativeMenuImage NativeGameSession::menuImage()const{
-    if(page()>=NativeMenuPage::Matchup)return makeNativeCompetitionImage(*data_.memory,page(),menu_.competitionDivision(),menu_.competitionContext());
-    return makeNativeMenuImage(*data_.memory,menu_.renderState());
+    if(openingActive()){
+        switch(opening_->page()){
+        case NativeOpeningPage::Name:return nameScreen_->image();
+        case NativeOpeningPage::Roster:return makeNativeCompetitionImage(*data_.memory,NativeMenuPage::Roster,(*data_.memory)[0x1c9ce]);
+        case NativeOpeningPage::LocalStandings:return makeNativeOpeningStandingsImage(*data_.memory);
+        default:return makeNativeMenuImage(*data_.memory,opening_->renderState());
+        }
+    }
+    if(page()>=NativeMenuPage::Matchup)return makeNativeCompetitionImage(*data_.memory,page(),menu_->competitionDivision(),menu_->competitionContext());
+    return makeNativeMenuImage(*data_.memory,menu_->renderState());
 }
-NativeGameSession::NativeGameSession(const std::filesystem::path& pack,const std::filesystem::path& recordings):
-    data_(menuStartup(pack)),menu_(*data_.memory),recordings_(recordings){
-    const auto image=makeNativeMenuFrame(*data_.memory,(*data_.memory)[0x1c9ce]);
+NativeGameSession::NativeGameSession(const std::filesystem::path& pack,const std::filesystem::path& recordings,NativeGameStart start):
+    data_(menuStartup(pack,start)),nameEntry_(*data_.memory),recordings_(recordings){
+    if(start==NativeGameStart::EstablishedMenu)menu_=std::make_unique<NativeMenuFlow>(*data_.memory);
+    else opening_=std::make_unique<NativeOpeningFlow>(*data_.memory);
+    const auto image=makeNativeMenuFrame(*data_.memory,(*data_.memory)[0x1c9ce],start==NativeGameStart::EstablishedMenu);
     transitionIndices_.assign(image.indices.begin(),image.indices.end());
     fade_.reset({});fade_.animateTo(readNativePalette(*data_.memory,0x23c32));
 }
 void NativeGameSession::preparePreview(){
     initializeNativePlayerConfiguration(*data_.memory);
-    initializeNativeTrack(*data_.memory,menu_.trackId());
+    initializeNativeTrack(*data_.memory,menu_->trackId());
     (*data_.memory)[0x691b3]=(*data_.memory)[0x1c9d0]?8:9;
     (*data_.memory)[0x691b2]=(*data_.memory)[0x1c9d0]?4:10;
     if(test::drawBridge::animate(*data_.memory).geometryUpdated)rebuildNativeTrackGeometryCache(*data_.memory);
@@ -72,7 +85,7 @@ void NativeGameSession::advanceTransition(double elapsed,NativeGameUpdate& resul
         raceDelay_=nativeMenuDelaySeconds(3);transition_=Transition::RaceDelay;break;
     case Transition::OutMenu:{
         race_.finishLiveExit(*data_.memory);
-        menu_.returnFromRace();const auto image=menuImage();
+        menu_->returnFromRace();const auto image=menuImage();
         transitionIndices_.assign(image.indices.begin(),image.indices.end());
         fade_.animateTo(imagePalette(image));
         transition_=Transition::InMenu;result.raceExited=true;break;
@@ -81,6 +94,13 @@ void NativeGameSession::advanceTransition(double elapsed,NativeGameUpdate& resul
         const auto image=menuImage();transitionIndices_.assign(image.indices.begin(),image.indices.end());
         fade_.animateTo(imagePalette(image));transition_=Transition::InCompetition;break;
     }
+    case Transition::OutOpening:{
+        // displayMenuScreen fades its empty division frame in before the
+        // main options are painted. The roster is fully drawn before its fade.
+        const auto image=openingActive()?menuImage():makeNativeMenuFrame(*data_.memory,(*data_.memory)[0x1c9ce]);
+        transitionIndices_.assign(image.indices.begin(),image.indices.end());
+        fade_.animateTo(imagePalette(image));transition_=Transition::InOpening;break;
+    }
     case Transition::InRace:transition_=Transition::None;result.raceStarted=true;break;
     default:transition_=Transition::None;break;
     }
@@ -88,7 +108,9 @@ void NativeGameSession::advanceTransition(double elapsed,NativeGameUpdate& resul
 NativeGameUpdate NativeGameSession::update(double elapsed,const NativeGameInput& input){
     if(!std::isfinite(elapsed)||elapsed<0)throw std::invalid_argument("Invalid native game elapsed time");
     NativeGameUpdate result;
+    for(const auto& key:input.rawKeys)setNativeRawKey(*data_.memory,key.code,key.pressed);
     if(transitioning()){advanceTransition(elapsed,result);return result;}
+    if(openingActive()){updateOpening(input,elapsed,result);return result;}
     if(page()==NativeMenuPage::Race){
         if(race_.liveTerminal()){
             // Original end-message waits for a new fire press. Escape follows
@@ -114,7 +136,7 @@ NativeGameUpdate NativeGameSession::update(double elapsed,const NativeGameInput&
         return result;
     }
     const auto previous=menuImage();
-    const auto action=menu_.update(input.menu,elapsed);
+    const auto action=menu_->update(input.menu,elapsed);
     if(action==NativeMenuAction::EnterPreview){
         transitionIndices_.assign(previous.indices.begin(),previous.indices.end());
         fade_.fadeToColor(readNativePalette(*data_.memory,0x2b974)[0]);transition_=Transition::OutPreview;
@@ -125,8 +147,51 @@ NativeGameUpdate NativeGameSession::update(double elapsed,const NativeGameInput&
     }else if(action==NativeMenuAction::ShowCompetitionPage){
         transitionIndices_.assign(previous.indices.begin(),previous.indices.end());
         fade_.fadeToColor(0);transition_=Transition::OutCompetition;
-    }else if(action==NativeMenuAction::UnsupportedOption)result.unavailable=NativeGameUnavailable::menuRoute;
+    }else if(action==NativeMenuAction::UnsupportedOption){
+        result.unavailable=menu_->unsupportedOption()==2&&(*data_.memory)[0x5eb76]?
+            NativeGameUnavailable::localMultiplayerSeason:NativeGameUnavailable::menuRoute;
+    }
     return result;
+}
+void NativeGameSession::releaseInput()noexcept{
+    driveLatch_.clear();quitPending_=false;
+    std::fill_n(data_.memory->begin()+0xead6,128,std::uint8_t{});
+}
+void NativeGameSession::handleOpeningAction(NativeOpeningAction action,const NativeMenuImage& previous,NativeGameUpdate& result){
+    if(action==NativeOpeningAction::BeginName){
+        nameScreen_=std::make_unique<NativeOpeningNameScreen>(*data_.memory);
+        if(nameEntry_.begin().beganAttempt)nameScreen_->beginAttempt();
+    }else if(action==NativeOpeningAction::ShowRoster){
+        // Local multiplayer's table is a direct repaint. Single-player's
+        // portrait screen fades first to its own grey palette entry zero.
+        if(opening_->page()==NativeOpeningPage::Roster){
+            transitionIndices_.assign(previous.indices.begin(),previous.indices.end());
+            fade_.fadeToColor(readNativePalette(*data_.memory,0x35a76)[0]);transition_=Transition::OutOpening;
+        }
+    }else if(action==NativeOpeningAction::Complete){
+        const bool single=(*data_.memory)[0x5eb76]==0;
+        menu_=std::make_unique<NativeMenuFlow>(*data_.memory);
+        if(single){
+            transitionIndices_.assign(previous.indices.begin(),previous.indices.end());
+            fade_.fadeToColor(readNativePalette(*data_.memory,0x23c32)[0]);transition_=Transition::OutOpening;
+        }
+    }else if(action==NativeOpeningAction::UnsupportedComputerLink){
+        result.unavailable=NativeGameUnavailable::computerLink;
+        opening_->returnToMode();
+    }
+}
+void NativeGameSession::updateOpening(const NativeGameInput& input,double elapsed,NativeGameUpdate& result){
+    const auto previous=menuImage();
+    if(enteringName()){
+        const auto update=nameEntry_.update(input.menu.controls);
+        if(update.beganAttempt)nameScreen_->beginAttempt();
+        for(const auto character:update.characters)nameScreen_->drawCharacter(character);
+        if(update.complete){
+            nameScreen_->complete();handleOpeningAction(opening_->nameCompleted(),nameScreen_->image(),result);
+        }
+        return;
+    }
+    handleOpeningAction(opening_->update(input.menu,elapsed),previous,result);
 }
 const std::vector<std::uint32_t>& NativeGameSession::render(bool interpolate,bool paused){
     if(transitioning()){

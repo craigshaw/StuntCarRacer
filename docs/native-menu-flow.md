@@ -3,9 +3,11 @@
 `app/native_menu_flow.*` expresses the original local menu flow as a small
 native state machine. It reads track, raw-key, name and record data from the
 validated asset image. There is no emulated CPU or captured state in this code.
-The original game-mode chooser and driver-name entry precede this scope: startup
-establishes the local main-menu context with the original local-player slot and
-its current name. It does not invent a name or implement league/network modes.
+The original game-mode chooser and driver-name entry are handled before this
+class by [NativeOpeningFlow](native-opening-flow.md) and the
+[native name editor](native-player-name.md). They preserve the original driver
+slots and names before the main menu starts. An explicit established-menu test
+option still enters this class directly for independent race regressions.
 
 ## Evidence and addresses
 
@@ -80,6 +82,9 @@ Unported main-menu routes yield `UnsupportedOption` while retaining the original
 menu selection. The native host reports that boundary; this implementation does
 not silently substitute a different mode. All eight original track mappings are
 retained and all eight tracks are available in the native host.
+Local multiplayer name setup retains its original additional-player count;
+starting an unported multiplayer season yields the same explicit boundary.
+Single-player seasons retain their existing native route.
 
 ## Timing and verification limits
 

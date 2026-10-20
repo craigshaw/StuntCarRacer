@@ -30,7 +30,7 @@ int main(int argc,char** argv)try{
     using namespace scr::viewer;
     if(argc!=3)throw std::invalid_argument("native_opponent_session_tests asset-pack output-directory");
     const std::filesystem::path directory=argv[2];std::filesystem::create_directories(directory);
-    NativeGameSession game(argv[1],directory/"recordings");settle(game);
+    NativeGameSession game(argv[1],directory/"recordings",NativeGameStart::EstablishedMenu);settle(game);
     require(game.page()==NativeMenuPage::Main,"Session did not start at main menu");
     game.update(1,{});game.update(1,{});game.update(0,{{0,4},0,false});
     game.update(1,{});game.update(1,{});game.update(1,{});

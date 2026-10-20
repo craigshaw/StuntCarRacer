@@ -66,11 +66,13 @@ if(WIN32)
     app/native_asset_initialization.cpp app/native_race_initialization.cpp
     app/native_menu_render.cpp app/native_track_preview.cpp app/native_palette_fade.cpp
     app/native_competition_render.cpp app/native_cockpit_instruments.cpp app/native_wheel_sprites.cpp
-    app/native_cockpit_presentation.cpp)
+    app/native_cockpit_presentation.cpp app/native_menu_flow.cpp
+    app/native_opening_flow.cpp app/native_player_name.cpp app/native_opening_render.cpp
+    app/native_keyboard_input.cpp)
   target_include_directories(scr_startup PUBLIC app)
   target_link_libraries(scr_startup PUBLIC scr_render scr_audio bcrypt)
   target_compile_features(scr_startup PUBLIC cxx_std_17)
-  add_library(scr_game STATIC app/native_game_session.cpp app/native_menu_flow.cpp
+  add_library(scr_game STATIC app/native_game_session.cpp
     app/replay_scene.cpp app/replay_render_assets.cpp app/replay_interpolation.cpp
     app/live_drive.cpp app/game_audio.cpp)
   target_include_directories(scr_game PUBLIC app)
@@ -79,6 +81,9 @@ if(WIN32)
   add_executable(native_game_session_tests tests/native_game_session_tests.cpp)
   target_link_libraries(native_game_session_tests PRIVATE scr_game)
   target_compile_features(native_game_session_tests PRIVATE cxx_std_17)
+  add_executable(native_opening_session_tests tests/native_opening_session_tests.cpp)
+  target_link_libraries(native_opening_session_tests PRIVATE scr_game)
+  target_compile_features(native_opening_session_tests PRIVATE cxx_std_17)
   add_executable(draw_bridge_driving_tests tests/draw_bridge_driving_tests.cpp)
   target_link_libraries(draw_bridge_driving_tests PRIVATE scr_game)
   target_compile_features(draw_bridge_driving_tests PRIVATE cxx_std_17)
@@ -178,6 +183,11 @@ if(SCR_BUILD_ORACLE)
     add_executable(native_cockpit_instruments_tests tests/native_cockpit_instruments_tests.cpp)
     target_link_libraries(native_cockpit_instruments_tests PRIVATE scr_startup musashi_oracle)
     target_compile_features(native_cockpit_instruments_tests PRIVATE cxx_std_17)
+    foreach(stage native_opening_flow native_player_name native_opening_render)
+      add_executable(${stage}_tests tests/${stage}_tests.cpp)
+      target_link_libraries(${stage}_tests PRIVATE scr_startup musashi_oracle)
+      target_compile_features(${stage}_tests PRIVATE cxx_std_17)
+    endforeach()
     add_executable(wheel_animation_oracle tests/wheel_animation_oracle.cpp)
     target_link_libraries(wheel_animation_oracle PRIVATE scr_startup musashi_oracle)
     target_compile_features(wheel_animation_oracle PRIVATE cxx_std_17)

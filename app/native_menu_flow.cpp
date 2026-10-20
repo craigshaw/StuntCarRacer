@@ -110,6 +110,11 @@ NativeMenuAction NativeMenuFlow::confirm(){
     if(page_==NativeMenuPage::Main){
         if(selected==1){openPractice();return NativeMenuAction::Changed;}
         if(selected==2){
+            if(memory_[0x5eb76]){
+                unsupported_=selected;memory_[highlight]=0;
+                phase_=Phase::PaintDelay;startDelay(15,true);
+                return NativeMenuAction::UnsupportedOption;
+            }
             memory_[0x1ca22]=0x80;memory_[0x5eb7d]=0;competitive_=true;
             competitionDivision_=memory_[0x1c9ce];
             competitionContext_=memory_[0x1c9d0];

@@ -1,0 +1,44 @@
+#pragma once
+#include "native_menu_flow.h"
+
+namespace scr::viewer {
+enum class NativeOpeningPage { Mode,Name,AddPlayer,Roster,LocalStandings,ComputerLinkUnavailable,Complete };
+enum class NativeOpeningAction { None,Changed,BeginName,ShowRoster,Complete,UnsupportedComputerLink };
+
+// Original startup templates and pre-mode local context. Asset decoding and
+// initializeGameData are already performed by startNativeGame; do not repeat
+// that initialization here because it advances the original random sequence.
+void initializeNativeOpeningSession(NativeMemory&);
+// Original setupGameConfiguration/sortRaceResults for the 2..8 local drivers.
+// This is startup standings preparation, independent of racing a season.
+void prepareNativeOpeningLocalStandings(NativeMemory&);
+
+// Mode/add-driver menus use the original release, busy-delay and confirm order.
+// The caller freezes this machine during palette fades, handles BeginName with
+// NativePlayerNameEntry, and calls nameCompleted only after a nonblank name.
+class NativeOpeningFlow {
+public:
+    explicit NativeOpeningFlow(NativeMemory&);
+    NativeOpeningAction update(const NativeMenuInput&,double elapsedSeconds);
+    NativeOpeningAction nameCompleted();
+    // The original failed/cancelled serial-link path returns to selectGameMode.
+    // The host exposes its unsupported boundary before calling this method.
+    void returnToMode();
+    [[nodiscard]] NativeOpeningPage page()const noexcept{return page_;}
+    [[nodiscard]] bool complete()const noexcept{return page_==NativeOpeningPage::Complete;}
+    [[nodiscard]] NativeMenuRenderState renderState()const;
+    [[nodiscard]] unsigned playerCount()const noexcept{return unsigned(memory_[0x5eb76])+1;}
+private:
+    enum class Phase { PaintDelay,Release,ReleaseDelay,Input,ConfirmDelay };
+    NativeMemory& memory_;
+    NativeOpeningPage page_{NativeOpeningPage::Mode};
+    Phase phase_{Phase::PaintDelay};
+    double remaining_{};
+    NativeFireWait fire_;
+    bool multiplayer_{};
+    void openMenu(NativeOpeningPage,unsigned offset,unsigned finalRow);
+    void delay(unsigned units);
+    NativeOpeningAction confirm();
+    NativeOpeningAction showRoster();
+};
+} // namespace scr::viewer

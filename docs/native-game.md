@@ -6,13 +6,28 @@ Double-click `Drive Native.cmd`, or run:
 .\scripts\start-native-game.ps1
 ```
 
-The native game opens the original local main menu. It uses the imported ADF
+The native game opens the original game-mode chooser. It uses the imported ADF
 pack and ported C++ routines throughout. No captured memory, Kickstart ROM,
 WinUAE or CPU emulator is an input to this executable. The import/build/check
 script remains development tooling; this is the game's menu, not an asset-path
 launcher or settings application.
 
 ## Controls and original route
+
+Select **Single Player League**, type a name and press Return or controller A.
+The original name editor accepts up to twelve characters, keeps their case,
+uses Shift for capitals and Backspace for deletion, and retries empty names.
+Letters, digits, spaces and the original `.`, `/` and `:` punctuation are
+accepted; leading spaces are ignored. Typing is independent of the racing
+physics clock, and letters such as WASD, M and I reach the name editor.
+Continue past the original driver portrait roster with a fresh fire press to
+reach the main menu. Its original palette fades and release waits are retained.
+
+**Multiplayer** retains the original name/add-player loop for two through eight
+local drivers, then shows their startup standings. Continue requires at least
+two names; the eighth name finishes entry automatically. This setup retains all
+names and supports Practice. Racing a multiplayer season and the **Computer
+Link** serial transport produce explicit host notices at their unported boundaries.
 
 Use Up/Down or the controller stick/D-pad to select, then Return/Space or the
 controller A button to confirm. Number keys 1–4 select a row; confirmation is a
@@ -56,11 +71,14 @@ phases and suspension positions. Pausing retains the presented wheel phase.
 
 ## Implementation and fidelity
 
-`startNativeGame` creates fresh asset/game data. `initializeNativeMenuSession`
-copies the original default names and record templates, then enters an
-established local-player main-menu context. The original local-player slot and
-its empty default name are retained. Initial mode selection and driver-name
-entry are not part of this milestone.
+`startNativeGame` creates fresh asset/game data. `initializeNativeOpeningSession`
+copies the original default names and record templates and prepares the opening
+context. `NativeOpeningFlow` runs mode selection, the add-driver loop and roster
+waits; `NativePlayerNameEntry` consumes original raw-key codes through the local
+keyboard tables. `NativeOpeningNameScreen` applies accepted character and erase
+events using original assets. Only after startup completes does `NativeMenuFlow`
+open the main menu. The explicit `EstablishedMenu` session option retains the
+earlier starting point for independent race regressions.
 
 `NativeMenuFlow` ports menu selection, Practice and local season callers. `NativeMenuRender`
 reads the original image, palette, strip graphics, strings, fonts and track-name
@@ -101,6 +119,23 @@ checks overview rotation, fresh race counters, quit cleanup and return to the
 unchanged main menu. It also runs the 4,096-update fresh-start and steering
 regression. Screenshots, controls and source-identified results remain under
 ignored `analysis/native-game/`.
+
+It also runs the original opening through 36 entered names, every local player
+count, single-player portraits and local standings, then drives three named
+race routes. The optional check compares those race traces with the original.
+The dedicated opening check additionally compares keyboard scanning, editing,
+mode flow, menu/name/standings pixels and palette routines against original code:
+
+```powershell
+& C:/Tools/amiga-re/venv/Scripts/python.exe scripts/check_native_opening.py
+```
+
+Its source/asset/executable-identified receipt and screenshots remain under
+`analysis/native-opening/`. Name and screen evidence:
+
+- [Original opening flow and fade order](native-opening-flow.md).
+- [Raw keyboard scanner and player-name rules](native-player-name.md).
+- [Opening and name-entry pixels](native-opening-render.md).
 
 The ordinary check additionally drives a synthetic approach to Draw Bridge,
 checks occupancy/release and verifies stable interpolated and retained frames.

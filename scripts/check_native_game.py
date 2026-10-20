@@ -19,6 +19,7 @@ def sources():
     paths = {ROOT / record['path'] for record in startup_sources()}
     paths.add(Path(__file__).resolve())
     paths.add(ROOT / 'tests/native_game_session_tests.cpp')
+    paths.add(ROOT / 'tests/native_opening_session_tests.cpp')
     paths.add(ROOT / 'tests/native_opponent_session_tests.cpp')
     paths.add(ROOT / 'tests/draw_bridge_oracle.cpp')
     paths.add(ROOT / 'tests/draw_bridge_driving_tests.cpp')
@@ -80,12 +81,13 @@ def main():
     binary_dir = output / 'build'
     executable = binary_dir / 'Release/native_game.exe'
     test = binary_dir / 'Release/native_game_session_tests.exe'
+    opening_test = binary_dir / 'Release/native_opening_session_tests.exe'
     startup_test = binary_dir / 'Release/native_startup_tests.exe'
     bridge_test = binary_dir / 'Release/draw_bridge_driving_tests.exe'
     season_test = binary_dir / 'Release/native_opponent_session_tests.exe'
     receipt = binary_dir / 'build-receipt.json'
     records = sources()
-    executables = {'game': executable, 'test': test, 'startup_test': startup_test,
+    executables = {'game': executable, 'test': test, 'opening_test': opening_test, 'startup_test': startup_test,
                    'bridge_test': bridge_test, 'season_test': season_test}
     if args.skip_build:
         old = json.loads(receipt.read_text())
@@ -94,12 +96,16 @@ def main():
     else:
         build([['cmake', '-S', ROOT, '-B', binary_dir, '-DSCR_BUILD_ORACLE=OFF'],
                ['cmake', '--build', binary_dir, '--config', 'Release', '--target',
-                'native_game', 'native_game_session_tests', 'native_startup_tests', 'draw_bridge_driving_tests',
+                'native_game', 'native_game_session_tests', 'native_opening_session_tests', 'native_startup_tests', 'draw_bridge_driving_tests',
                 'native_opponent_session_tests', '--parallel', '4']], output / 'build.log')
         receipt.write_text(json.dumps({'sources': records, **{key: identity(path) for key, path in executables.items()}}, indent=2) + '\n')
     integration = run_json([test, pack, output / 'integration'], output / 'integration-results.json')
     if integration.get('practice_routes') != 8 or integration.get('repeated_races') != 8 or integration.get('return_to_main_menu') is not True:
         raise RuntimeError('Native game Practice route coverage differs')
+    opening = run_json([opening_test, pack, output / 'opening'], output / 'opening-results.json')
+    if (opening.get('named_race_routes') != 3 or opening.get('local_startups') != 7
+            or opening.get('entered_names') != 36 or opening.get('blank_retry') is not True):
+        raise RuntimeError('Original startup or player-name entry coverage differs')
     startup = run_json([startup_test, pack, output / 'startup'], output / 'startup-results.json')
     if startup.get('ticks') != 4096 or startup.get('left_right_steering_checked') is not True:
         raise RuntimeError('Fresh race physics or steering regression failed')
@@ -133,16 +139,18 @@ def main():
         original['bridge_approach'] = compare_race(oracle, output / 'bridge-driving/synthetic-approach', output, 'seed.bin')
         original['season_races'] = [compare_race(oracle, output / 'season' / ('race-' + str(race)), output)
                                     for race in range(4)]
+        original['opening_races'] = [compare_race(oracle, output / 'opening' / name, output)
+                                     for name in ('single-practice', 'single-season', 'local-practice')]
     if sources() != records:
         raise RuntimeError('Sources changed during native game checks')
     report = {'status': 'passed', 'capture_input': False, 'rom_input': False, 'cpu_emulation': False,
               'pack': identity(pack), 'game': identity(executable), 'sources': records,
-              'integration': integration, 'startup': startup, 'bridge_driving': bridge,
+              'integration': integration, 'opening': opening, 'startup': startup, 'bridge_driving': bridge,
               'season': season, 'original_comparisons': original}
     (output / 'check-results.json').write_text(json.dumps(report, indent=2) + '\n')
     if original:
         (output / 'original-check-results.json').write_text(json.dumps(report, indent=2) + '\n')
-    print(json.dumps({'status': 'passed', 'integration': integration, 'startup': startup, 'bridge_driving': bridge, 'season': season,
+    print(json.dumps({'status': 'passed', 'integration': integration, 'opening': opening, 'startup': startup, 'bridge_driving': bridge, 'season': season,
                       'original_checks': bool(original), 'report': str(output / 'check-results.json')}))
 
 

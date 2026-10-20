@@ -3,7 +3,7 @@
 #include <cstdint>
 
 namespace scr::viewer {
-enum class NativeMenuPage { Main,Division,Track,Preview,Race,Matchup,Results,RoundResults,Standings,SeasonEnd,SeasonAward,Roster,Records };
+enum class NativeMenuPage { Main,Division,Track,Preview,Race,Matchup,Results,RoundResults,Standings,SeasonEnd,SeasonAward,Roster,Records,Opening };
 enum class NativeMenuAction { None,Changed,EnterPreview,StartPractice,RotatePreview,UnsupportedOption,StartRace,ShowCompetitionPage };
 struct NativeMenuInput {
     // Original readControllerInput bits: up/down/left/right/fire. Number keys

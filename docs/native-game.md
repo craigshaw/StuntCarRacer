@@ -56,6 +56,11 @@ initialization and transfers the recovered exit state back to the menus.
 `native_game.exe` supplies the Windows event loop, input, audio device and image
 presentation; it does not link the original-CPU verification library.
 
+Presentation prepares the game image and letterboxing in an off-screen GDI
+buffer, then copies the completed frame to the window in one operation. The
+last frame remains visible during rendering; clearing the visible window before
+drawing could otherwise expose intermittent black flashes to the compositor.
+
 The first main menu's other routes retain their original appearance but produce
 an explicit native-host notice when activated: Hall of Fame, season/league flow
 and load/save/replay are not implemented here. The moving Draw Bridge track is

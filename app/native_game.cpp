@@ -137,16 +137,30 @@ private:
     }
     void togglePause(){paused_=!paused_;keys_.fill(false);game_.releaseInput();if(audio_)audio_->setPlaying(!paused_);}
     void paint(HWND window){
-        PAINTSTRUCT painting{};auto dc=BeginPaint(window,&painting);RECT client{};GetClientRect(window,&client);
-        FillRect(dc,&client,static_cast<HBRUSH>(GetStockObject(BLACK_BRUSH)));
+        // Keep the last completed image visible while rendering. Clearing the
+        // window before game_.render exposed black frames to the compositor.
         const auto& pixels=game_.render(interpolate_,paused_);
+        PAINTSTRUCT painting{};auto target=BeginPaint(window,&painting);RECT client{};GetClientRect(window,&client);
+        if(client.right<=0||client.bottom<=0){EndPaint(window,&painting);return;}
+        auto dc=CreateCompatibleDC(target);
+        auto surface=CreateCompatibleBitmap(target,client.right,client.bottom);
+        if(!dc||!surface){
+            if(surface)DeleteObject(surface);if(dc)DeleteDC(dc);EndPaint(window,&painting);
+            throw std::runtime_error("Cannot allocate native game presentation buffer");
+        }
+        const auto previous=SelectObject(dc,surface);
+        FillRect(dc,&client,static_cast<HBRUSH>(GetStockObject(BLACK_BRUSH)));
         const int scale=std::max(1,int(std::min(client.right/320,client.bottom/200)));
         const int width=scale*320,height=scale*200,x=(client.right-width)/2,y=(client.bottom-height)/2;
         BITMAPINFO bitmap{};bitmap.bmiHeader.biSize=sizeof(BITMAPINFOHEADER);bitmap.bmiHeader.biWidth=320;
         bitmap.bmiHeader.biHeight=-200;bitmap.bmiHeader.biPlanes=1;bitmap.bmiHeader.biBitCount=32;bitmap.bmiHeader.biCompression=BI_RGB;
         SetStretchBltMode(dc,COLORONCOLOR);
-        StretchDIBits(dc,x,y,width,height,0,0,320,200,pixels.data(),&bitmap,DIB_RGB_COLORS,SRCCOPY);
+        const auto drawn=StretchDIBits(dc,x,y,width,height,0,0,320,200,pixels.data(),&bitmap,DIB_RGB_COLORS,SRCCOPY);
+        // Background, letterboxing and game pixels become visible together.
+        const bool presented=drawn!=GDI_ERROR&&drawn!=0&&BitBlt(target,0,0,client.right,client.bottom,dc,0,0,SRCCOPY);
+        SelectObject(dc,previous);DeleteObject(surface);DeleteDC(dc);
         EndPaint(window,&painting);
+        if(!presented)throw std::runtime_error("Cannot present the native game frame");
     }
     LRESULT message(HWND window,UINT kind,WPARAM key,LPARAM data){
         switch(kind){

@@ -1,4 +1,4 @@
-# Fresh native Practice initialization
+# Fresh native race initialization
 
 The runtime starts with zeroed 512 KiB memory and the original payload from the
 local asset pack. No RAM capture, ROM, emulated CPU, generated memory patch or
@@ -100,9 +100,10 @@ added to make renderer scratch match.
 
 ## Scope
 
-This starts a local Practice race. The opponent look-ahead geometry computed by
-`initializeTrackCoordinates` is unused by the current Practice simulation and
-is omitted; its random-stream advance is preserved. Opponent AI and competition
-startup still need recovery. The full race closure uses previously verified
+This starts local Practice or a local competitive race. Recovered
+`initializeTrackCoordinates` constructs the original opponent look-ahead
+geometry before the startup warm-up frames, retaining its random-stream
+advance in both modes. [Native local league races](native-opponent-races.md)
+describes the competitive menu, schedule and results flow. The full race closure uses previously verified
 restart, physics, effects and timing functions; the reset oracle above proves
 the reset routines, not equivalence of every GUI startup instruction.

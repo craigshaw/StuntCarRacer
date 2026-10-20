@@ -42,6 +42,15 @@ void stage(unsigned address){
     if(address==0x5d490){native->physicsStage();compare("physics",replay::physicsOutputs());}
     if(address==0x5d496){native->engineStage();compare("engine",{0x1bbf4,0x1bbf5,0x5b646,0x625a2,0x625a3,0x625a4,0x625a5,0x625a6});}
     if(address==0x64f80){native->progressStage();
+        auto opponentProjection=std::vector<unsigned>{0x1ca22};
+        if(ram[0x1ca22]&0x80){
+            std::set<unsigned> values;for(auto a:scr::test::opponent::outputs())values.insert(a);
+            for(auto a:scr::test::contact::stateBytes)values.insert(a);
+            for(auto a:scr::test::contact::stateWords){values.insert(a);values.insert(a+1);}
+            for(unsigned a:{0x1bc38,0x1bc3e}){values.insert(a);values.insert(a+1);}
+            values.insert(0x1bbb8);opponentProjection.assign(values.begin(),values.end());
+        }
+        compare("opponent",opponentProjection);
         // Renderer arithmetic reuses polar/view scratch after this boundary.
         // Compare the complete persistent gameplay projection, including all
         // track outputs consumed by the next physics update.
@@ -178,7 +187,7 @@ int main(int argc,char** argv)try{
             }
             if(originalAudio.size()!=native->audioWrites.size())failure="Ordered sample audio write count mismatch";
             else for(unsigned i=0;i<originalAudio.size();++i)if(originalAudio[i].address!=native->audioWrites[i].address||originalAudio[i].value!=native->audioWrites[i].value){failure="Ordered sample audio register mismatch";break;}
-            for(const auto& name:{"controls","physics","engine","track","particles","particle-rng","wheel-bounce","drawbridge","damage","timing"})
+            for(const auto& name:{"controls","physics","engine","track","opponent","particles","particle-rng","wheel-bounce","drawbridge","damage","timing"})
                 if(stages[name]!=tick+1)failure=std::string("Missing or repeated comparison stage: ")+name;
         }catch(const std::exception& e){failure=e.what();}
         if(invalid||!done||!failure.empty()){

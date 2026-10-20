@@ -47,7 +47,7 @@ RaceTransitionEffects inspectRaceEnd(const RaceTransitionInputs&,RaceTransitionS
 // without changing state. The caller supplies explicit vblank/frame progress.
 bool swapRaceBuffers(RaceTransitionState&) noexcept;
 RaceTransitionEffects finishRaceEnd(RaceTransitionState&) noexcept;
-// Common original exit [0x5d674,0x5d724), Practice (selectedTrack sign clear).
+// Common original exit [0x5d674,0x5d724), Practice or one local season player.
 // The fade is an explicit presentation event; seed-save byte overlap is kept.
 RaceTransitionEffects finishLocalRaceExit(const RaceTransitionInputs&,RaceTransitionState&);
 // Original [0x5d5ac,0x5d674), after buffer swap and pause have completed.

@@ -51,7 +51,7 @@ driving_replay_native chipram.bin inputs.csv trace.csv
 ```
 
 The oracle writes a JSON result to stdout, including `ticks` and `mismatches`.
-The wrapper requires all ten stage comparisons exactly once per requested tick,
+The wrapper requires all eleven stage comparisons exactly once per requested tick,
 the declared original interval, explicit byte-address projections and ordered
 sample-audio register comparisons. It checks the trace's tick sequence, controls,
 row count and instruction total. Its legacy `compared_bytes` counter includes
@@ -143,9 +143,11 @@ Missing result files are explicitly identified; an existing failing
 or incomplete result cannot silently become a passing replay report.
 
 The interval ends before the outer pause, restart, race-end and buffer-swap
-gates. Local practice is the admitted replay mode. Opponent collision routines
-have separate differential tests; autonomous opponent AI and network games are
-outside this replay.
+gates. Local Practice and local competitive races are admitted. The opponent
+stage runs original AI, track following, distance and contact handling in their
+original order; it preserves the off-grid branch that skips player contact.
+Network games remain outside this replay. See [opponent driving](opponent-driving.md)
+for independently evolved full race and natural collision comparisons.
 
 The original CPU renderer executes with a headless hardware boundary that reports
 completed blits. This does not reproduce blitter operations, pixels, DMA,

@@ -10,6 +10,8 @@
 #include "race_transitions_fixture.h"
 #include "race_restart_fixture.h"
 #include "draw_bridge_fixture.h"
+#include "opponent_driving_fixture.h"
+#include "opponent_collision_fixture.h"
 #include <set>
 
 namespace scr::test::replay {
@@ -24,13 +26,15 @@ struct NativeReplay {
     Ram ram;
     PhysicsData physicsData;
     TrackProgressData progressData;
+    OpponentDrivingData opponentData;
     ControllerHardware controller{};
     std::vector<AudioRegisterWrite> audioWrites;
     RaceRestartData restartData;
     RaceTransitionAction outerAction{};
     unsigned restarts{},waitVblanks{};
-    explicit NativeReplay(const Ram& initial):ram(initial),physicsData(physics::readData(initial)),progressData(trackProgress::readData(initial)),restartData(restart::readData(initial)) {
-        if(ram[0x57c3c]||ram[0x1ca22]&0x80)throw std::invalid_argument("Replay currently admits local Practice captures");
+    bool trackFound{true};
+    explicit NativeReplay(const Ram& initial):ram(initial),physicsData(physics::readData(initial)),progressData(trackProgress::readData(initial)),opponentData(opponent::readData(initial)),restartData(restart::readData(initial)) {
+        if(ram[0x57c3c])throw std::invalid_argument("Replay requires local single-player mode");
         if(!physicsData.track.segmentCount)throw std::invalid_argument("Replay requires loaded track data");
     }
     void begin(unsigned mask) {controller=hardware(mask,controller.ciaDataDirection);--ram[0x1bbac];std::fill_n(ram.begin()+0xead6,128,std::uint8_t{});audioWrites.clear();}
@@ -43,7 +47,21 @@ struct NativeReplay {
         auto e=updateGamePhysics(physics::readInputs(ram),physicsData,s);physics::writeState(ram,s);audioWrites.insert(audioWrites.end(),e.begin(),e.end());
     }
     void engineStage() {auto s=effects::readState(ram);updateEnginePitch(effects::readInputs(ram),s);effects::writeState(ram,s);}
-    void progressStage() {auto s=trackProgress::readState(ram);(void)updateTrackProgress(progressData,trackProgress::readInputs(ram),s);trackProgress::writeState(ram,s);}
+    void progressStage() {
+        // prepareFrameRendering0x64e3c clears this per-frame geometry flag.
+        ram[0x1bbba]=0;
+        auto s=trackProgress::readState(ram);const bool found=updateTrackProgress(progressData,trackProgress::readInputs(ram),s);trackFound=found;trackProgress::writeState(ram,s);
+        if(!(ram[0x1ca22]&0x80))return;
+        opponent::logic(ram,opponentData);
+        if(found){
+            const auto distance=calculatePlayerDistance(contact::readDistanceData(ram.data()),contact::readDistanceInputs(ram.data()));
+            contact::writeDistanceState(ram.data(),distance);
+            auto contactState=contact::readState(ram.data());
+            handleOpponentPositioning(contact::readData(ram.data()),contact::readInputs(ram.data()),contactState);
+            contact::writeState(ram.data(),contactState);
+        }
+        opponent::geometry(ram,opponentData);
+    }
     void sounds(const std::vector<std::uint8_t>& ids) {
         auto s=audio::readState(ram.data());const auto d=audio::readData(ram.data());
         for(auto id:ids){auto e=requestSample(id,d,s);audioWrites.insert(audioWrites.end(),e.begin(),e.end());}audio::writeState(ram.data(),s);
@@ -56,7 +74,8 @@ struct NativeReplay {
         // Both encoded heights and the special bridge guidance values are
         // mutable. All gameplay consumers must observe this tick's update.
         physicsData.track=scr_test::decodeTrackGeometry(ram);
-        progressData.track=physicsData.track;restartData.track=physicsData.track;
+        progressData.track=physicsData.track;restartData.track=physicsData.track;opponentData.track.track=physicsData.track;
+        std::copy_n(ram.begin()+0x1c952,100,opponentData.visibility.begin());
     }
     void damageStage() {auto s=effects::readState(ram);DrivingVisualEvents v;auto ids=updateDamageFeedback(effects::readInputs(ram),s,v);effects::writeState(ram,s);sounds(ids);}
     void timingStage() {auto s=timing::readState(ram.data());updateRaceTiming(timing::readInputs(ram.data()),s);timing::writeState(ram.data(),s);}

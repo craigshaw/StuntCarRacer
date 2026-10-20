@@ -1,4 +1,4 @@
-# Native original menu and Practice route
+# Native original menus and local racing
 
 Double-click `Drive Native.cmd`, or run:
 
@@ -26,12 +26,20 @@ another turn. Return/Space/A starts driving after release. Arrow keys or WASD
 drive, Space boosts, and XInput controllers retain the existing stick/D-pad,
 RT/LT and A mappings. Acceleration remains latched as in the original.
 
-Escape during a race requests the original Practice exit; its original gameplay
+Escape during a race requests the original quit path; its original gameplay
 gates still apply. Controller Back/View maps to that exit. At the end message,
 release fire and press it again. The original exit cleanup saves RNG state and
-restores the player's persistent data, then returns directly to the same
+restores the player's persistent data. Practice returns directly to the same
 division's track selection. Select **Cancel** there to return to the main menu.
 Choosing a track again creates a fresh race inside the same menu session.
+
+**Start the Racing Season** enters the original local season against computer
+opponents. Continue through the matchup and track overview to start a race.
+The opponent follows the original speed, suspension and positioning routines;
+its car is drawn in the original road painter order. Race completion or an
+early quit proceeds through the original results, records and standings pages
+before the next matchup. The season retains six rounds, including the original
+computer-only fixtures, followed by promotion/relegation and the driver roster.
 
 P/controller Start pauses; focus loss and controller disconnection also pause
 driving. Resume explicitly. M mutes. I toggles interpolation. The native game
@@ -48,7 +56,7 @@ established local-player main-menu context. The original local-player slot and
 its empty default name are retained. Initial mode selection and driver-name
 entry are not part of this milestone.
 
-`NativeMenuFlow` ports menu selection and Practice callers. `NativeMenuRender`
+`NativeMenuFlow` ports menu selection, Practice and local season callers. `NativeMenuRender`
 reads the original image, palette, strip graphics, strings, fonts and track-name
 tables from the local pack. `NativeTrackPreview` owns separate rendering scratch.
 `NativeGameSession` transfers selected track configuration into native race
@@ -62,8 +70,8 @@ last frame remains visible during rendering; clearing the visible window before
 drawing could otherwise expose intermittent black flashes to the compositor.
 
 The first main menu's other routes retain their original appearance but produce
-an explicit native-host notice when activated: Hall of Fame, season/league flow
-and load/save/replay are not implemented here. All eight tracks are available,
+an explicit native-host notice when activated: Hall of Fame and load/save/replay
+are not implemented here. All eight tracks are available,
 including the original [Draw Bridge animation](draw-bridge.md). Its preview
 holds the original raised pose; movement starts during driving. The
 original menu has no Escape-to-cancel shortcut on the overview.
@@ -93,13 +101,26 @@ checks occupancy/release and verifies stable interpolated and retained frames.
 The optional check runs the menu, input, overview, palette and bridge oracles
 against unmodified original MC68000 bytes. It also compares every recorded first
 race entered from the menu, all fresh-start races and the bridge approach
-against the original full game loop. Test-only CPU and
+against the original full game loop. The ordinary check also completes a local
+season: one opponent finishes three laps, followed by three early quits and
+the original results, promotion/relegation and roster flow. The optional check
+compares all four menu-entered competitive races against the original loop.
+Test-only CPU and
 hardware wait models are isolated from the native game. Component evidence:
 
 - [Menu and message pixels](native-menu-rendering.md).
 - [Input, selection and Practice callers](native-menu-flow.md).
 - [Track preview](native-track-preview.md).
 - [Palette transitions](native-palette-fade.md).
+- [Local seasons and original competition screens](native-opponent-races.md).
+
+The opponent's AI, collision, car model and far/near drawing queues have a
+dedicated check, including all eight tracks, an opponent race finish and natural
+car contact from digital driving inputs:
+
+```powershell
+& C:/Tools/amiga-re/venv/Scripts/python.exe scripts/check_native_opponents.py
+```
 
 The local asset pack, images, sounds, extracted strings and generated binary
 outputs remain ignored. Only the importer, native algorithms, tests, provenance

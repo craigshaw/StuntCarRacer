@@ -3,8 +3,8 @@
 #include <cstdint>
 
 namespace scr::viewer {
-enum class NativeMenuPage { Main,Division,Track,Preview,Race };
-enum class NativeMenuAction { None,Changed,EnterPreview,StartPractice,RotatePreview,UnsupportedOption };
+enum class NativeMenuPage { Main,Division,Track,Preview,Race,Matchup,Results,RoundResults,Standings,SeasonEnd,SeasonAward,Roster,Records };
+enum class NativeMenuAction { None,Changed,EnterPreview,StartPractice,RotatePreview,UnsupportedOption,StartRace,ShowCompetitionPage };
 struct NativeMenuInput {
     // Original readControllerInput bits: up/down/left/right/fire. Number keys
     // select a row; they deliberately do not activate it without fire/Return.
@@ -46,6 +46,9 @@ public:
     [[nodiscard]] NativeMenuRenderState renderState()const;
     [[nodiscard]] unsigned trackId()const noexcept{return memory_[0x1ca33];}
     [[nodiscard]] unsigned unsupportedOption()const noexcept{return unsupported_;}
+    [[nodiscard]] bool competitive()const noexcept{return competitive_;}
+    [[nodiscard]] unsigned competitionDivision()const noexcept{return competitionDivision_;}
+    [[nodiscard]] unsigned competitionContext()const noexcept{return competitionContext_;}
 private:
     enum class Phase { PaintDelay,Release,ReleaseDelay,Input,ConfirmDelay,TrackDelay };
     NativeMemory& memory_;
@@ -54,9 +57,15 @@ private:
     double remaining_{};
     std::uint8_t previewReleaseMask_{0x1f};
     unsigned unsupported_{};
+    bool competitive_{};
+    unsigned competitionDivision_{};
+    unsigned competitionContext_{};
+    NativeFireWait competitionFire_;
     void startDelay(unsigned units,bool repaint=false);
     void openMain();
     void openPractice();
+    NativeMenuAction openNextSeasonRace();
+    void openCompetitionPage(NativeMenuPage,unsigned gameState);
     void openPage(NativeMenuPage,unsigned offset,unsigned count,unsigned selected,unsigned textMode);
     NativeMenuAction confirm();
 };

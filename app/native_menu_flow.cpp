@@ -1,4 +1,5 @@
 #include "native_menu_flow.h"
+#include "native_race_initialization.h"
 #include <algorithm>
 #include <stdexcept>
 
@@ -89,6 +90,7 @@ void NativeMenuFlow::openMain(){
     // Original menuSystemLoop and handleMainMenu,0x5cfb8 /0x5baea.
     memory_[0x1bb5b]&=0x7f;memory_[0x57c62]=0x10;memory_[0x5b83d]=0;
     openPage(NativeMenuPage::Main,0,3,(memory_[0x1ca22]&0x80)?2:1,0);
+    competitive_=false;
 }
 void NativeMenuFlow::openPractice(){
     const bool skipDivision=(memory_[0x5eb7d]&1)!=0;
@@ -107,6 +109,12 @@ NativeMenuAction NativeMenuFlow::confirm(){
     const unsigned selected=memory_[selection];
     if(page_==NativeMenuPage::Main){
         if(selected==1){openPractice();return NativeMenuAction::Changed;}
+        if(selected==2){
+            memory_[0x1ca22]=0x80;memory_[0x5eb7d]=0;competitive_=true;
+            competitionDivision_=memory_[0x1c9ce];
+            competitionContext_=memory_[0x1c9d0];
+            initializeNativeSeason(memory_);return openNextSeasonRace();
+        }
         unsupported_=selected;memory_[highlight]=0;
         phase_=Phase::PaintDelay;startDelay(15,true);
         return NativeMenuAction::UnsupportedOption;
@@ -134,6 +142,41 @@ NativeMenuAction NativeMenuFlow::update(const NativeMenuInput& input,double elap
     if(elapsed<0)throw std::invalid_argument("Negative menu elapsed time");
     const auto controls=std::uint8_t(input.controls&0x1f);
     if(page_==NativeMenuPage::Race)return NativeMenuAction::None;
+    if(page_==NativeMenuPage::Matchup||page_==NativeMenuPage::Results||
+            page_==NativeMenuPage::RoundResults||page_==NativeMenuPage::Standings||page_==NativeMenuPage::SeasonEnd||
+            page_==NativeMenuPage::SeasonAward||page_==NativeMenuPage::Roster||page_==NativeMenuPage::Records){
+        memory_[0x1bb47]=controls;
+        if(!competitionFire_.update(controls,elapsed))return NativeMenuAction::None;
+        if(page_==NativeMenuPage::Matchup){
+            // Preserve the original normal single-player race-start flag
+            // after the matchup's released/new-fire wait.
+            memory_[0x57c68]=0x80;
+            page_=NativeMenuPage::Preview;memory_[0x57c62]=0x12;
+            previewReleaseMask_=0x1f;memory_[0x5d9da]=0x1f;
+            return NativeMenuAction::EnterPreview;
+        }
+        if(page_==NativeMenuPage::Results){
+            if(memory_[0x1bbb1]){openCompetitionPage(NativeMenuPage::Records,1);return NativeMenuAction::ShowCompetitionPage;}
+        }
+        if(page_==NativeMenuPage::Results||page_==NativeMenuPage::Records){
+            const bool fromBitmap=page_==NativeMenuPage::Results;
+            memory_[0x1bbb1]=0;
+            openCompetitionPage(NativeMenuPage::RoundResults,2);
+            return fromBitmap?NativeMenuAction::ShowCompetitionPage:NativeMenuAction::Changed;
+        }
+        if(page_==NativeMenuPage::RoundResults){
+            openCompetitionPage(NativeMenuPage::Standings,3);return NativeMenuAction::Changed;
+        }
+        if(page_==NativeMenuPage::Standings){
+            advanceNativeSeasonRound(memory_);return openNextSeasonRace();
+        }
+        if(page_==NativeMenuPage::SeasonEnd){
+            openCompetitionPage((memory_[0x593f6]&0x80)?NativeMenuPage::Roster:NativeMenuPage::SeasonAward,3);
+            return NativeMenuAction::ShowCompetitionPage;
+        }
+        if(page_==NativeMenuPage::SeasonAward){openCompetitionPage(NativeMenuPage::Roster,3);return NativeMenuAction::ShowCompetitionPage;}
+        initializeNativeGameTables(memory_);openMain();return NativeMenuAction::ShowCompetitionPage;
+    }
     if(page_==NativeMenuPage::Preview){
         memory_[0x1bb47]=controls;previewReleaseMask_&=controls;memory_[0x5d9da]=previewReleaseMask_;
         if(previewReleaseMask_)return NativeMenuAction::None;
@@ -141,7 +184,8 @@ NativeMenuAction NativeMenuFlow::update(const NativeMenuInput& input,double elap
             memory_[0x1bb57]=std::uint8_t(memory_[0x1bb57]+((controls&4)?1:-1));
             previewReleaseMask_=0x1f;memory_[0x5d9da]=0x1f;return NativeMenuAction::RotatePreview;
         }
-        if(controls&0x10){page_=NativeMenuPage::Race;memory_[0x57c62]=0;return NativeMenuAction::StartPractice;}
+        if(controls&0x10){page_=NativeMenuPage::Race;memory_[0x57c62]=0;
+            return competitive_?NativeMenuAction::StartRace:NativeMenuAction::StartPractice;}
         return NativeMenuAction::None;
     }
     if(phase_==Phase::PaintDelay||phase_==Phase::ReleaseDelay||phase_==Phase::ConfirmDelay||phase_==Phase::TrackDelay){
@@ -165,6 +209,12 @@ NativeMenuAction NativeMenuFlow::update(const NativeMenuInput& input,double elap
     return NativeMenuAction::Changed;
 }
 void NativeMenuFlow::returnFromRace(){
+    if(competitive_){
+        transferNativeLapRecords(memory_,false);
+        scoreNativeSeasonRound(memory_);
+        memory_[0x1bb5f]=std::uint8_t(competitionDivision_);configureNativeSeasonMatch(memory_);
+        openCompetitionPage(NativeMenuPage::Results,0x11);return;
+    }
     openMain();
     // Original0x5baf2 immediately re-enters handleTrackSelection when the
     // previous successful Practice choice set divisionSelectedFlag.
@@ -172,5 +222,15 @@ void NativeMenuFlow::returnFromRace(){
 }
 void NativeMenuFlow::cancelPreview(){
     memory_[0x5eb7d]=0;openMain();
+}
+void NativeMenuFlow::openCompetitionPage(NativeMenuPage page,unsigned gameState){
+    page_=page;memory_[0x57c62]=std::uint8_t(gameState);competitionFire_.reset();
+}
+NativeMenuAction NativeMenuFlow::openNextSeasonRace(){
+    if(seekNativeSeasonRace(memory_)){
+        openCompetitionPage(NativeMenuPage::Matchup,0x11);return NativeMenuAction::Changed;
+    }
+    finishNativeSeason(memory_);openCompetitionPage(NativeMenuPage::SeasonEnd,3);
+    return NativeMenuAction::Changed;
 }
 } // namespace scr::viewer

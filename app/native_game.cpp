@@ -112,7 +112,7 @@ private:
         }
         if(changes.unavailable!=NativeGameUnavailable::none){
             keys_.fill(false);game_.releaseInput();
-            const auto text=L"This menu route has not been ported yet. The Practise route is available.";
+            const auto text=L"This menu route has not been ported yet. Practise and Start the Racing Season are available.";
             MessageBoxW(window,text,L"Stunt Car Racer — native port",MB_OK|MB_ICONINFORMATION);
         }
     }

@@ -1,5 +1,6 @@
 #include "native_race_initialization.h"
 #include "../tests/driving_replay_fixture.h"
+#include "../tests/opponent_driving_fixture.h"
 #include <algorithm>
 #include <stdexcept>
 
@@ -19,6 +20,58 @@ std::uint8_t randomByte(NativeMemory& memory) {
 }
 void clearTimeSlot(NativeMemory& memory,unsigned slot) {
     memory[0x1c908+slot]=memory[0x1c920+slot]=memory[0x1c938+slot]=0;
+}
+void seasonConfiguration(NativeMemory& m) {
+    if(m[0x5eb76]||m[0x57c3c])throw std::invalid_argument("Native seasons require one local player");
+    if(m[0x1bb5f]>3)throw std::invalid_argument("Invalid season division");
+    m[0x1bc5b]=m[0x5ab42+m[0x1bb5f]];
+    m[0x1bc59]=std::uint8_t(m[0x1bc5b]+3);
+}
+void handicap(NativeMemory& m) {
+    // Original0x5abd4, including its one random draw for human fixtures.
+    m[0x1bbf7]=randomByte(m)>=0xa0?0x40:0;
+    const auto first=m[0x1ca27],second=m[0x1ca28];
+    ++m[0x1c9f6+first];++m[0x1c9f6+second];
+    if(second==m[0x5eb79])m[0x1bbf7]=m[0x1bbb4];
+    else if(first==m[0x5eb79])m[0x1bbf7]=m[0x1bbb4]^0xc0;
+    else {
+        const unsigned a=m[0x1c9d2+first],b=m[0x1c9d2+second];
+        if(a>b||(a==b&&!(randomByte(m)&1)))m[0x1bbf7]^=0xc0;
+    }
+    const auto flags=m[0x1bbf7];
+    m[0x1bb19]=(flags&0x80)?first:second;
+    m[0x1bb18]=(flags&0x40)?first:second;
+    ++m[0x1c9de+m[0x1bb19]];++m[0x1c9ea+m[0x1bb18]];
+    if(m[0x1bb5f]==m[0x1c9ce]) {
+        m[0x1ca26]=m[0x1bb18];m[0x1ca25]=m[0x1bb19];
+    }
+}
+void sortSeason(NativeMemory& m) {
+    // Original0x5acfe: adjacent exchanges repeat until there are no swaps.
+    // Equal scores use random tie breaks, so a stable host sort is different.
+    seasonConfiguration(m);
+    const unsigned begin=m[0x1bc5b],end=m[0x1bc59];
+    for(unsigned i=begin;i<end;++i) {
+        const auto id=m[0x1c9c2+i];m[0x1ca0e+i]=id;
+        m[0x1ca02+id]=std::uint8_t(2*m[0x1c9de+id]+m[0x1c9ea+id]);
+    }
+    do {
+        m[0x1bb19]=0;
+        for(unsigned i=begin;i+1<end;++i) {
+            m[0x1bb18]=std::uint8_t(i);
+            const auto first=m[0x1ca0e+i],second=m[0x1ca0e+i+1];
+            const auto firstScore=std::int8_t(m[0x1ca02+first]),secondScore=std::int8_t(m[0x1ca02+second]);
+            bool swap=firstScore<secondScore;
+            if(firstScore==secondScore) {
+                const auto firstWins=std::int8_t(m[0x1c9de+first]),secondWins=std::int8_t(m[0x1c9de+second]);
+                swap=firstWins<secondWins||(firstWins==secondWins&&(randomByte(m)&1));
+            }
+            if(swap) {
+                m[0x1bb1a]=second;m[0x1ca0e+i]=second;m[0x1ca0e+i+1]=first;
+                ++m[0x1bb19];
+            }
+        }
+    }while(m[0x1bb19]);
 }
 void resetMatrices(NativeMemory& memory) {
     TrigTable trig{};
@@ -113,21 +166,148 @@ void initializeNativeGameData(NativeMemory& memory) {
 }
 
 void initializeNativeRace(NativeMemory& memory) {
-    if(memory[0x57c3c]||memory[0x1ca22]&0x80)
-        throw std::invalid_argument("Native startup currently supports local Practice");
+    if(memory[0x57c3c])throw std::invalid_argument("Native startup requires a local race");
     if(!memory[0x1ca1a]||memory[0x1ca1b]>=memory[0x1ca1a])
         throw std::invalid_argument("Native startup requires a loaded track and spawn segment");
     memory[0x57c5b]=memory[0x57c63]=0;
     initializeNativePlayerConfiguration(memory);
-    memory[0x691b3]=9;memory[0x691b2]=10;
+    memory[0x691b3]=memory[0x1c9d0]?0:9;memory[0x691b2]=memory[0x1c9d0]?8:10;
     memory[0x1bb1d]=memory[0x1ca1b];memory[0x1bb0c]=4;memory[0x1bbed]=0x4c;
-    // The original also builds opponent look-ahead geometry here. Practice has
-    // no opponent simulation; preserve its one random advance for the startup
-    // stream without executing that unused renderer/AI scratch path.
-    const auto jitter=std::uint16_t((randomByte(memory)&0x7f)+0x68);
-    for(unsigned i=0;i<4;++i)writeWord(memory,0x1bd66+2*i,std::uint16_t(readWord(memory,0x1bd86+2*i)+jitter));
+    // Original initializeTrackCoordinates0x63a58 constructs road support and
+    // seeds each opponent wheel before the two normal startup warm-up frames.
+    scr::test::opponent::initializeCoordinates(memory,scr::test::opponent::readData(memory));
     scr::test::replay::NativeReplay state(memory);
     state.restartStage(memory[0x1ca1b]);
     memory=std::move(state.ram);
+}
+
+void configureNativeSeasonMatch(NativeMemory& m) {
+    seasonConfiguration(m);
+    const unsigned round=m[0x1ca35],offset=m[0x1bc5b];
+    if(round>=6)throw std::invalid_argument("Invalid original season round");
+    m[0x1ca27]=m[0x1c9c2+offset+m[0x5abc8+round]];
+    m[0x1ca28]=m[0x1c9c2+offset+m[0x5abce+round]];
+    m[0x5eb79]=11;
+}
+
+void randomizeNativeSeasonCars(NativeMemory& m) {
+    if(m[0x5eb76]||m[0x57c3c])throw std::invalid_argument("Native seasons require one local player");
+    m[0x5eb78]=6;m[0x5eb7b]=0;
+}
+
+void scoreNativeSeasonRound(NativeMemory& m) {
+    for(unsigned id=12;id>0;) {
+        --id;m[0x1c9d2+id]=std::uint8_t((randomByte(m)&63)+m[0x5aaf4+id]);
+    }
+    for(unsigned division=0;division<4;++division) {
+        m[0x1bb5f]=std::uint8_t(division);
+        configureNativeSeasonMatch(m);handicap(m);sortSeason(m);
+    }
+}
+
+void initializeNativeSeason(NativeMemory& m) {
+    if(m[0x1c9ce]>3||(m[0x1c9d0]!=0&&m[0x1c9d0]!=11))
+        throw std::invalid_argument("Invalid native season context");
+    encodeNativeSeason(m);
+    randomizeNativeSeasonCars(m);
+    for(unsigned slot=24;slot>0;) {
+        --slot;clearTimeSlot(m,slot);
+        if(slot<16)m[0x1c908+slot]=9;
+    }
+    m[0x1ca23]=m[0x1ca24]=0;
+}
+
+void encodeNativeSeason(NativeMemory& m) {
+    // Main-menu Start Season calls the original0x609ae encoder even without
+    // disk I/O. Its random searches advance the stream consumed by the AI.
+    // The packed league representation stays in local runtime RAM.
+    for(unsigned attempts=0;attempts<256;++attempts) {
+        m[0x1bb16]=0;
+        for(unsigned i=0;i<5;++i)m[0x7a035+4-i]=m[0x625a2+i];
+        for(unsigned i=0;i<12;++i)m[0x1c9b6+i]=m[0x1ed5b+i]^0x3b;
+        bool failed=false;
+        for(unsigned index=27;index>0;) {
+            --index;m[0x1bb1a]=0;unsigned block=0;
+            while(true) {
+                ++m[0x1bb1a];
+                if(!m[0x1bb1a]&&++block==128){failed=true;break;}
+                m[0x1bb17]=randomByte(m);
+                if(m[0x1bb17]!=m[0x1c9b6+index])continue;
+                m[0x7a01a+index]=std::uint8_t(block);
+                m[0x7a03f+index]=m[0x1bb1a];break;
+            }
+            if(failed)break;
+        }
+        if(!failed) {
+            for(unsigned i=0;i<5;++i)m[0x7a03a+4-i]=m[0x625a2+i];
+            m[0x1ca34]=0x80;return;
+        }
+        m[0x625a5]=0x3b;
+    }
+    throw std::runtime_error("Original league encoder could not find its random sequence");
+}
+
+void advanceNativeSeasonRound(NativeMemory& m) {
+    ++m[0x5eb7b];++m[0x1ca35];
+    writeWord(m,0x57c72,std::uint16_t(readWord(m,0x57c72)+1));
+}
+
+bool seekNativeSeasonRace(NativeMemory& m) {
+    while(m[0x1ca35]<m[0x5eb78]) {
+        m[0x1bb5f]=m[0x1c9ce];configureNativeSeasonMatch(m);
+        const auto local=m[0x5eb79],first=m[0x1ca27],second=m[0x1ca28];
+        if(first==local||second==local) {
+            m[0x1ca29]=first==local?second:first;m[0x1bbb1]=0xc0;
+            const unsigned ordinal=2*m[0x1c9ce]+(m[0x1ca35]&1);
+            m[0x1ca33]=m[0x648c2+ordinal];
+            m[0x1ca21]=m[0x648ca+(ordinal^(m[0x1c9d0]?1:0))];
+            transferNativeLapRecords(m,true);
+            return true;
+        }
+        scoreNativeSeasonRound(m);advanceNativeSeasonRound(m);
+    }
+    m[0x1ca35]=0;return false;
+}
+
+void transferNativeLapRecords(NativeMemory& m,bool load) {
+    if(m[0x1ca33]>7)throw std::invalid_argument("Invalid original record track");
+    const unsigned slot=std::uint8_t((m[0x648c2+m[0x1ca33]]+(m[0x1c9d0]?8:0))<<4);
+    m[0x1bb1b]=load?0x80:0;
+    for(unsigned i=0;i<12;++i){
+        if(load){m[0x5ec48+i]=m[0x7a61a+slot+i];m[0x5ec55+i]=m[0x7a71a+slot+i];}
+        else {m[0x7a61a+slot+i]=m[0x5ec48+i];m[0x7a71a+slot+i]=m[0x5ec55+i];}
+    }
+    for(unsigned field=0;field<3;++field){
+        const unsigned lap=0x1c916+24*field,race=lap+1;
+        if(load){m[lap]=m[0x7a61a+slot+12+field];m[race]=m[0x7a71a+slot+12+field];}
+        else {m[0x7a61a+slot+12+field]=m[lap];m[0x7a71a+slot+12+field]=m[race];}
+    }
+}
+
+void finishNativeSeason(NativeMemory& m) {
+    // Gameplay effects of0x64916; font/cursor/framebuffer effects belong to
+    // the native menu renderer. Preserve its promotion order before finding
+    // the local player's next division.
+    m[0x593f6]=0x80;
+    for(unsigned id=0;id<12;++id)m[0x1c9c2+id]=m[0x1ca0e+id];
+    const unsigned oldOffset=m[0x5ab42+m[0x1c9ce]];
+    m[0x1bb16]=1;
+    if(m[0x1ca0e+oldOffset]==m[0x5eb79])m[0x593f6]=m[0x5eb79];
+    for(int division=2;division>=0;--division) {
+        m[0x1bb5f]=std::uint8_t(division);seasonConfiguration(m);
+        const unsigned offset=m[0x1bc5b];std::swap(m[0x1c9c2+offset],m[0x1c9c2+offset-1]);
+    }
+    m[0x1bb5f]=0xff;
+    if(m[0x5eb79]==m[0x1ca0e]) {
+        if(m[0x1c9d0]){m[0x1c9cf]=10;return;}
+        m[0x1c9d0]=m[0x5eb79];
+        for(unsigned id=0;id<12;++id)m[0x1c9c2+id]=std::uint8_t(id);
+        m[0x1c9ce]=0;
+    }else {
+        unsigned index=11;
+        while(index&&m[0x1c9c2+index]!=m[0x5eb79])--index;
+        m[0x1c9ce]=m[0x64ac6+index];
+    }
+    if(!m[0x1c9ce])m[0x1c9cf]=10;
 }
 } // namespace scr::viewer

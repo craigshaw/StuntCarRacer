@@ -5,6 +5,7 @@
 #include "native_menu_render.h"
 #include "../tests/driving_replay_io.h"
 #include "../tests/near_track_geometry_fixture.h"
+#include "../tests/opponent_car_fixture.h"
 #include <algorithm>
 #include <cmath>
 #include <chrono>
@@ -28,6 +29,49 @@ std::vector<std::string> columns(std::string line) {
 }
 void littleWord(std::ostream& out,std::uint16_t value){out.put(char(value));out.put(char(value>>8));}
 void littleLong(std::ostream& out,std::uint32_t value){littleWord(out,std::uint16_t(value));littleWord(out,std::uint16_t(value>>16));}
+void addOpponentCar(NearTrackFrame& near,const NearTrackDrawInputs& drawing,
+    OpponentCarInputs inputs,const RenderProjectionTables& tables,
+    const OpponentFarTrackData& farData,NearTrackGeometryState& geometry,
+    const MountainHorizonData& mountains,std::uint16_t yaw){
+    const auto far=buildOpponentFarTrack(farData,tables,geometry,near.queue);
+    geometry=far.geometry;
+    auto lineBytes=allocateOpponentBackgroundLines(far.queue.lineBytes,mountains,yaw,inputs.camera,geometry.edgeVisibilityMode,&geometry);
+    auto marker=far.queue.opponentOffset;
+    const NearTrackPainter painter=[&](NearTrackPainterSlot slot,std::uint16_t offset,std::vector<NearTrackDrawCommand>& commands){
+            // Original updateOpponentVisibility0x58600 leaves zero in a local
+            // race. The car is inserted at the road's occluded painter slot.
+            if(consumeOpponentCarPainterSlot(static_cast<OpponentCarPainterSlot>(slot),0,offset,marker)){
+                inputs.lineBytes=lineBytes;const auto car=buildOpponentCarFrame(inputs,tables);lineBytes=car.lineBytes;
+                commands.insert(commands.end(),car.commands.begin(),car.commands.end());
+            }
+        };
+    auto commands=drawOpponentFarTrack(far,drawing,painter);
+    auto dense=drawNearTrackQueue(near.queue,drawing,painter,&lineBytes);
+    commands.insert(commands.end(),dense.begin(),dense.end());
+    near.presentation.commands=std::move(commands);
+    // Competitive scenes use the original far/near painter, including its car
+    // insertion points. The coarse viewer mesh is superseded for these frames.
+    near.presentation.coveredSegments.fill(true);
+}
+int signedCarWord(std::uint16_t value){return value<32768?int(value):int(value)-65536;}
+std::pair<int,int> rotateCarPoint(int x,int z,unsigned quarter){
+    switch(quarter&3){case 1:return {-z,x};case 2:return {-x,-z};case 3:return {z,-x};default:return {x,z};}
+}
+OpponentCarInputs interpolateOpponent(const OpponentCarInputs& from,const OpponentCarInputs& to,
+    const RenderProjectionCamera& camera,double fraction){
+    auto result=from;result.camera=camera;
+    const auto mix=[&](std::uint16_t a,std::uint16_t b){return std::uint16_t(int(a)+int(std::lround(signedCarWord(std::uint16_t(b-a))*fraction)));};
+    for(unsigned n=0;n<4;++n){
+        const auto a=rotateCarPoint(signedCarWord(from.relativeX[n]),signedCarWord(from.relativeZ[n]),4-(from.camera.quarterTurn>>14));
+        const auto b=rotateCarPoint(signedCarWord(to.relativeX[n]),signedCarWord(to.relativeZ[n]),4-(to.camera.quarterTurn>>14));
+        const auto p=rotateCarPoint(a.first+int(std::lround((b.first-a.first)*fraction)),a.second+int(std::lround((b.second-a.second)*fraction)),camera.quarterTurn>>14);
+        result.relativeX[n]=std::uint16_t(p.first);result.relativeZ[n]=std::uint16_t(p.second);
+        result.footprint[n]=mix(from.footprint[n],to.footprint[n]);
+    }
+    for(unsigned n=0;n<3;++n)result.bounds[n]=mix(from.bounds[n],to.bounds[n]);
+    result.distance=mix(from.distance,to.distance);result.roadOffset=mix(from.roadOffset,to.roadOffset);
+    return result;
+}
 } // namespace
 struct ReplayScene::Simulation {
     scr::test::replay::Ram initial;
@@ -48,6 +92,7 @@ void ReplayScene::initialise(const std::filesystem::path& chip,const std::filesy
 void ReplayScene::initialiseMemory(const std::array<std::uint8_t,0x80000>& memory,const std::vector<std::uint8_t>& original){
     assets_=decodeReplayRenderAssets(original.data(),original.size(),memory.data(),memory.size());
     const auto meshData=decodeTrackMesh(memory);mesh_=buildTrackMesh(meshData);
+    far_.mesh=meshData;std::copy_n(memory.begin()+0x65e70,100,far_.projectionLimits.begin());
     segmentRenderFlags_.fill(0);std::array<bool,100> knownFlags{};
     for(const auto& section:meshData.sections)if(!knownFlags[section.segment]){
         segmentRenderFlags_[section.segment]=section.flags;knownFlags[section.segment]=true;
@@ -64,7 +109,7 @@ ReplaySceneFrame ReplayScene::captureFrame(Simulation& simulation,unsigned tick,
     ReplaySceneFrame frame;frame.tick=tick;frame.controls=controls;
     if(state.ram[0x1ca33]==5){
         auto track=std::make_shared<ReplayTrackSnapshot>();track->progress=state.progressData;
-        track->mesh=buildTrackMesh(decodeTrackMesh(state.ram));
+        track->farTrack=far_;track->farTrack.mesh=decodeTrackMesh(state.ram);track->mesh=buildTrackMesh(track->farTrack.mesh);
         track->sides=buildTrackSides(track->mesh,{state.ram[0x691b3],state.ram[0x691b2],false});
         track->bridgePhase=state.ram[0x1bbb0];track->bridgeActive=state.ram[0x1bb3f];
         frame.movingTrack=std::move(track);
@@ -79,6 +124,10 @@ ReplaySceneFrame ReplayScene::captureFrame(Simulation& simulation,unsigned tick,
     frame.camera.sinRoll=a::word(state.ram.data(),0x1c250);frame.camera.cosRoll=a::word(state.ram.data(),0x1c252);
     auto& nearInputs=frame.nearInputs;
     nearInputs.progress=scr::test::trackProgress::readState(state.ram);nearInputs.camera=frame.camera;
+    // Original off-grid progress retains the near-render index which the
+    // previous frame already cleared at0x65002. The native gameplay adapter
+    // keeps renderer writes separate, so restore that presentation value here.
+    if(!state.trackFound)nearInputs.progress.renderIndex=0;
     nearInputs.displayUpdate=state.ram[0x5d724];nearInputs.opponentSegment=state.ram[0x1bba6];nearInputs.opponentSubSegment=state.ram[0x1bc24];
     nearInputs.minimumBoundaryDistance=a::word(state.ram.data(),0x63ede);
     nearInputs.drawing.minimumQueueOffset=a::word(state.ram.data(),0x1bc1e);
@@ -86,7 +135,13 @@ ReplaySceneFrame ReplayScene::captureFrame(Simulation& simulation,unsigned tick,
     nearInputs.drawing.offRoadSideFlags=nearInputs.progress.offRoadSide;nearInputs.drawing.offsetFromRoadCenter=nearInputs.progress.lateralOffset;
     nearInputs.drawing.sideEdgeColor=simulation.initial[0x691b3];nearInputs.drawing.alternateSideColor=simulation.initial[0x691b2];
     frame.nearSeed=geometry;frame.progressInputs=scr::test::trackProgress::readInputs(state.ram);
-    frame.nearTrack=buildNearTrackFrame(presentation,segmentRenderFlags_,nearInputs,geometry).presentation;
+    auto near=buildNearTrackFrame(presentation,segmentRenderFlags_,nearInputs,geometry);
+    frame.opponentEnabled=(state.ram[0x1ca22]&0x80)!=0;
+    if(frame.opponentEnabled){
+        frame.opponent=scr::test::opponentCar::readInputs(state.ram.data());frame.opponent.camera=frame.camera;
+        addOpponentCar(near,nearInputs.drawing,frame.opponent,projection_,frame.movingTrack?frame.movingTrack->farTrack:far_,geometry,mountains_,frame.cameraYaw);
+    }
+    frame.nearTrack=std::move(near.presentation);
     return frame;
 }
 void ReplayScene::finishFrame(Simulation& simulation,ReplaySceneFrame& frame){
@@ -265,10 +320,12 @@ const std::vector<std::uint32_t>& ReplayScene::renderInterpolated(double positio
     const auto& presentation=from.movingTrack?from.movingTrack->progress:presentationTrack_;
     inputs.progress.worldPosition=visual.pose.worldPosition;
     progress.pitch=visual.pose.pitch;progress.yaw=visual.pose.yaw;progress.averageWheelVelocity=visual.pose.averageWheelVelocity;
-    (void)updateTrackProgress(presentation,progress,inputs.progress);
+    if(!updateTrackProgress(presentation,progress,inputs.progress))inputs.progress.renderIndex=0;
     inputs.progress.cameraHeight=visual.camera.heightBaseline;inputs.camera=visual.camera;
     inputs.drawing.offRoadSideFlags=inputs.progress.offRoadSide;inputs.drawing.offsetFromRoadCenter=inputs.progress.lateralOffset;
-    const auto nearFrame=buildNearTrackFrame(presentation,segmentRenderFlags_,inputs,seed);
+    auto nearFrame=buildNearTrackFrame(presentation,segmentRenderFlags_,inputs,seed);
+    if(from.opponentEnabled&&to.opponentEnabled)
+        addOpponentCar(nearFrame,inputs.drawing,interpolateOpponent(from.opponent,to.opponent,visual.camera,fraction),projection_,from.movingTrack?from.movingTrack->farTrack:far_,seed,mountains_,visual.pose.yaw);
     draw(visual,nearFrame.presentation,wireframe,from.movingTrack.get());
     cachedFrame_=index;cachedFraction_=fraction;cachedWireframe_=wireframe;
     return pixels_;

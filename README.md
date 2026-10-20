@@ -819,15 +819,15 @@ traces without Musashi. The comparator stops at the first divergence and saves
 the tick, stage/address diagnostic and both local state images. See
 [the replay guide](docs/driving-replay.md) for commands and input format.
 
-This is a **headless Practice-core replay**, not a finished native game or a
-recorded human-driven lap. It stops before outer pause, restart, race-end and
+The default interval is a **headless gameplay replay**, separate from the native
+game and authored without a recorded human-driven lap. It stops before outer pause, restart, race-end and
 buffer-swap gates, and resets original CPU registers at each interval entry.
 The original CPU renderer runs in the comparator with blits reported complete;
 actual blitter operation, interrupt timing, pixels and audio waveforms are
 outside the comparison. Draw Bridge animation is now included at its original
-outer-loop boundary. Opponent
-contact/distance has separate differential coverage; autonomous opponent driving
-and network mode are not substituted into the Practice replay.
+outer-loop boundary. Local competitive replay also includes the original
+autonomous opponent, distance and contact schedule. Practice retains its
+original solo mode; network mode remains outside this replay.
 
 ### Restart, race end and complete-lap replay checks
 
@@ -917,9 +917,17 @@ Left/Right rotates the original overview and Return/Space/controller A starts
 the race. Escape leaves the race through its original exit gates, returning to
 track selection; **Cancel** returns to the main menu. The game image uses the
 original assets, font, palettes and selection highlights. Initial mode/name
-entry, Hall of Fame, season and load/save routes remain outside this milestone;
+entry, Hall of Fame and load/save routes remain outside this milestone;
 unported routes produce an explicit host notice. See [native game](docs/native-game.md)
 for fidelity checks, controls and boundaries.
+
+Choose **Start the Racing Season** to race the original computer opponents.
+The native port retains the six-round local season, matchup/record/result
+screens and promotion/relegation flow. Opponent driving, wheel suspension,
+contacts and car drawing use recovered original routines; the road painter
+places the other car behind hills and barriers. See [opponent driving](docs/opponent-driving.md),
+[opponent rendering](docs/opponent-car.md) and [native opponent races](docs/native-opponent-races.md)
+for the original-code comparisons and supported local race flow.
 
 `scripts/start-native-race.ps1` retains the direct-race development viewer.
 The launcher imports a local data pack from the supplied ADF when needed and

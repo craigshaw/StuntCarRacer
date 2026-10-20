@@ -1,4 +1,4 @@
-"""Check the original native menus and complete local Practice lifecycle."""
+"""Check native menus, Practice and a complete original local racing season."""
 import argparse
 import csv
 import hashlib
@@ -19,6 +19,7 @@ def sources():
     paths = {ROOT / record['path'] for record in startup_sources()}
     paths.add(Path(__file__).resolve())
     paths.add(ROOT / 'tests/native_game_session_tests.cpp')
+    paths.add(ROOT / 'tests/native_opponent_session_tests.cpp')
     paths.add(ROOT / 'tests/draw_bridge_oracle.cpp')
     paths.add(ROOT / 'tests/draw_bridge_driving_tests.cpp')
     paths.add(ROOT / 'tests/driving_replay_oracle.cpp')
@@ -81,9 +82,11 @@ def main():
     test = binary_dir / 'Release/native_game_session_tests.exe'
     startup_test = binary_dir / 'Release/native_startup_tests.exe'
     bridge_test = binary_dir / 'Release/draw_bridge_driving_tests.exe'
+    season_test = binary_dir / 'Release/native_opponent_session_tests.exe'
     receipt = binary_dir / 'build-receipt.json'
     records = sources()
-    executables = {'game': executable, 'test': test, 'startup_test': startup_test, 'bridge_test': bridge_test}
+    executables = {'game': executable, 'test': test, 'startup_test': startup_test,
+                   'bridge_test': bridge_test, 'season_test': season_test}
     if args.skip_build:
         old = json.loads(receipt.read_text())
         if old['sources'] != records or any(old[key] != identity(path) for key, path in executables.items()):
@@ -91,7 +94,8 @@ def main():
     else:
         build([['cmake', '-S', ROOT, '-B', binary_dir, '-DSCR_BUILD_ORACLE=OFF'],
                ['cmake', '--build', binary_dir, '--config', 'Release', '--target',
-                'native_game', 'native_game_session_tests', 'native_startup_tests', 'draw_bridge_driving_tests', '--parallel', '4']], output / 'build.log')
+                'native_game', 'native_game_session_tests', 'native_startup_tests', 'draw_bridge_driving_tests',
+                'native_opponent_session_tests', '--parallel', '4']], output / 'build.log')
         receipt.write_text(json.dumps({'sources': records, **{key: identity(path) for key, path in executables.items()}}, indent=2) + '\n')
     integration = run_json([test, pack, output / 'integration'], output / 'integration-results.json')
     if integration.get('practice_routes') != 8 or integration.get('repeated_races') != 8 or integration.get('return_to_main_menu') is not True:
@@ -102,6 +106,10 @@ def main():
     bridge = run_json([bridge_test, pack, output / 'bridge-driving'], output / 'bridge-driving-results.json')
     if bridge.get('ticks') != 512 or bridge.get('bridge_occupied_ticks', 0) <= 0 or bridge.get('released_ticks', 0) <= 0:
         raise RuntimeError('Draw Bridge driving did not cover occupancy and release')
+    season = run_json([season_test, pack, output / 'season'], output / 'season-results.json')
+    if (season.get('human_races') != 4 or season.get('opponent_completed_races') != 1
+            or season.get('original_physics_rate') is not True or season.get('return_to_main_menu') is not True):
+        raise RuntimeError('The native local season did not complete its original route')
     original = {}
     if args.verify_original:
         oracle_build = output / 'oracle-build'
@@ -123,15 +131,18 @@ def main():
         original['fresh_races'] = [compare_race(oracle, output / 'startup' / ('track-' + str(track)), output)
                                    for track in range(8)]
         original['bridge_approach'] = compare_race(oracle, output / 'bridge-driving/synthetic-approach', output, 'seed.bin')
+        original['season_races'] = [compare_race(oracle, output / 'season' / ('race-' + str(race)), output)
+                                    for race in range(4)]
     if sources() != records:
         raise RuntimeError('Sources changed during native game checks')
     report = {'status': 'passed', 'capture_input': False, 'rom_input': False, 'cpu_emulation': False,
               'pack': identity(pack), 'game': identity(executable), 'sources': records,
-              'integration': integration, 'startup': startup, 'bridge_driving': bridge, 'original_comparisons': original}
+              'integration': integration, 'startup': startup, 'bridge_driving': bridge,
+              'season': season, 'original_comparisons': original}
     (output / 'check-results.json').write_text(json.dumps(report, indent=2) + '\n')
     if original:
         (output / 'original-check-results.json').write_text(json.dumps(report, indent=2) + '\n')
-    print(json.dumps({'status': 'passed', 'integration': integration, 'startup': startup, 'bridge_driving': bridge,
+    print(json.dumps({'status': 'passed', 'integration': integration, 'startup': startup, 'bridge_driving': bridge, 'season': season,
                       'original_checks': bool(original), 'report': str(output / 'check-results.json')}))
 
 

@@ -32,11 +32,12 @@ inline std::vector<ReplayInput> loadInputs(const char* path) {
     if(masks.empty())throw std::runtime_error("Empty replay");return masks;
 }
 inline void traceHeader(std::ostream& out) {
-    out<<"tick,controls,world_x,world_y,world_z,pitch,yaw,roll,speed,segment,progress,lateral,off_track,boost_fuel,damage,original_instructions,lap_counter,crossing_armed,race_complete,outer_action,restarts,quit\n";
+    out<<"tick,controls,world_x,world_y,world_z,pitch,yaw,roll,speed,segment,progress,lateral,off_track,boost_fuel,damage,original_instructions,lap_counter,crossing_armed,race_complete,outer_action,restarts,quit,opponent_segment,opponent_progress,opponent_speed,opponent_height,opponent_lateral,opponent_lap,opponent_ahead\n";
 }
 inline void traceRow(std::ostream& out,const Ram& r,unsigned tick,unsigned mask,unsigned instructions,unsigned action=0,unsigned restarts=0,bool quit=false) {
     out<<tick<<','<<mask;for(auto a:{0x1bcd8,0x1bcdc,0x1bce0})out<<','<<audio::longword(r.data(),a);
     for(auto a:{0x1bce4,0x1bce6,0x1bce8,0x1bd30})out<<','<<audio::word(r.data(),a);
-    out<<','<<unsigned(r[0x1bb1c])<<','<<audio::word(r.data(),0x1bb0a)<<','<<audio::word(r.data(),0x1bc5c)<<','<<unsigned(r[0x1bb9c])<<','<<unsigned(r[0x1ca20])<<','<<unsigned(r[0x1bb55])<<','<<instructions<<','<<unsigned(r[0x1bb20])<<','<<unsigned(r[0x1bb1e])<<','<<unsigned(r[0x1bbaf])<<','<<action<<','<<restarts<<','<<unsigned(quit)<<'\n';
+    out<<','<<unsigned(r[0x1bb1c])<<','<<audio::word(r.data(),0x1bb0a)<<','<<audio::word(r.data(),0x1bc5c)<<','<<unsigned(r[0x1bb9c])<<','<<unsigned(r[0x1ca20])<<','<<unsigned(r[0x1bb55])<<','<<instructions<<','<<unsigned(r[0x1bb20])<<','<<unsigned(r[0x1bb1e])<<','<<unsigned(r[0x1bbaf])<<','<<action<<','<<restarts<<','<<unsigned(quit);
+    out<<','<<unsigned(r[0x1bb1d])<<','<<audio::word(r.data(),0x1bb0c)<<','<<audio::word(r.data(),0x1bbee)<<','<<audio::word(r.data(),0x1bd66)<<','<<unsigned(r[0x1bbed])<<','<<unsigned(r[0x1bb21])<<','<<unsigned(r[0x1bbb8])<<'\n';
 }
 } // namespace scr::test::replay

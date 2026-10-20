@@ -126,7 +126,7 @@ void nearPolygon(const NearTrackDrawCommand& command,std::uint32_t color,
             const int last=std::min(255,int(std::ceil(crossings[n+1]-0.5))-1);
             for(int x=first;x<=last;++x){
                 const auto index=std::size_t(y*256+x);pixels[std::size_t((y+16)*320+x+32)]=color;
-                coverage[index]=command.surface==NearTrackSurface::road?1:2;highlights[index]=0;
+                coverage[index]=command.surface==NearTrackSurface::opponent?4:command.surface==NearTrackSurface::road?1:2;highlights[index]=0;
             }
         }
     }
@@ -232,6 +232,7 @@ RenderStatistics SoftwareReplayRenderer::drawFrame(const TrackMesh& mesh,const s
             if(command.color>=palette.size())throw std::invalid_argument("Near command palette index outside range");
             if(command.kind==NearTrackCommandKind::fill){
                 nearPolygon(command,palette[command.color],pixels,coverage_,highlights_);++stats.nearFillCommands;
+                stats.opponentPolygons+=command.surface==NearTrackSurface::opponent;
                 if(wireframe)for(const auto& edge:command.edges)drawEdge(edge,palette[3],false);
             }else{
                 for(const auto& edge:command.edges)drawEdge(edge,palette[command.color],true);
@@ -243,6 +244,7 @@ RenderStatistics SoftwareReplayRenderer::drawFrame(const TrackMesh& mesh,const s
     stats.sidePixels=unsigned(std::count(coverage_.begin(),coverage_.end(),2));
     stats.mountainPixels=unsigned(std::count(coverage_.begin(),coverage_.end(),3));
     stats.edgeHighlightPixels=unsigned(std::count(highlights_.begin(),highlights_.end(),1));
+    stats.opponentPixels=unsigned(std::count(coverage_.begin(),coverage_.end(),4));
     return stats;
 }
 } // namespace scr

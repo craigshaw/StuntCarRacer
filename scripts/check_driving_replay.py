@@ -27,12 +27,14 @@ VERIFIERS = [
 CORE_SPANS = [('main_loop_gameplay_interval', 0x5d47e, 0x5d4ba),
               ('restart_warmup_schedule', 0x5d402, 0x5d47e),
               ('complete_physics_driver', 0x6185c, 0x618ce)]
-REPLAY_STAGES = ('controls', 'physics', 'engine', 'track', 'particles',
+REPLAY_STAGES = ('controls', 'physics', 'engine', 'track', 'opponent', 'particles',
                  'particle-rng', 'wheel-bounce', 'drawbridge', 'damage', 'timing')
 TRACE_FIELDS = ('tick', 'controls', 'world_x', 'world_y', 'world_z', 'pitch', 'yaw',
                 'roll', 'speed', 'segment', 'progress', 'lateral', 'off_track',
                 'boost_fuel', 'damage', 'original_instructions', 'lap_counter',
-                'crossing_armed', 'race_complete', 'outer_action', 'restarts', 'quit')
+                'crossing_armed', 'race_complete', 'outer_action', 'restarts', 'quit',
+                'opponent_segment', 'opponent_progress', 'opponent_speed', 'opponent_height',
+                'opponent_lateral', 'opponent_lap', 'opponent_ahead')
 # The original setPixelColor changes BSET/BCLR in plotPixel. No other captured
 # opcode differences are admitted, and only bit6 is mutable at these addresses.
 PIXEL_OPCODE_BITS = {address: 0x40 for address in

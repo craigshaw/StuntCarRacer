@@ -13,6 +13,7 @@ struct RenderStatistics {
     unsigned roadFaces{},sideFaces{},mountainInstances{},mountainPolygons{};
     unsigned clippedFaces{},triangles{},roadPixels{},sidePixels{},mountainPixels{};
     unsigned nearQueueEntries{},nearFillCommands{},edgeHighlightCommands{},edgeHighlightPixels{};
+    unsigned opponentPolygons{},opponentPixels{};
 };
 // First native presentation backend. Geometry and angular point projection
 // come from the recovered game; polygon clipping, depth buffering and triangle

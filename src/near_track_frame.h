@@ -13,13 +13,14 @@ struct NearTrackPresentation {
     std::vector<NearTrackDrawCommand> commands;
     std::array<bool,100> coveredSegments{};
     std::uint16_t queueEntries{};
+    std::uint16_t opponentOffset{0xffff};
     std::uint8_t farStartSegment{};
 };
 struct NearTrackFrame {
     NearTrackQueueState queue;
     NearTrackPresentation presentation;
 };
-// Original Practice frame's three dense segment passes, before the far strip.
+// Original frame's three dense segment passes, before the far strip.
 // Keep geometry across calls: the saved unrolled endpoint pair is history used
 // by the next frame. Refresh gameplay inputs without writing them back.
 NearTrackFrame buildNearTrackFrame(const TrackProgressData&,

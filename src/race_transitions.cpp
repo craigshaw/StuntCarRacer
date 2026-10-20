@@ -41,11 +41,10 @@ RaceTransitionEffects finishRaceEnd(RaceTransitionState& s) noexcept {
     event(e,RaceTransitionEventKind::waitForFire);return e;
 }
 RaceTransitionEffects finishLocalRaceExit(const RaceTransitionInputs& in,RaceTransitionState& s) {
-    if(in.selectedTrackInDivision&0x80)throw std::invalid_argument("Local race exit currently requires Practice mode");
     RaceTransitionEffects e{};e.action=RaceTransitionAction::raceEnd;
     s.dmaControl=0x20;e.fadeColor=in.menuFadeColor;event(e,RaceTransitionEventKind::fadeToMenu);
     s.displayUpdateFlag=0;event(e,RaceTransitionEventKind::disableAudio);
-    s.holePosition=in.savedHolePosition;
+    if(!(in.selectedTrackInDivision&0x80))s.holePosition=in.savedHolePosition;
     // Original saves four seed bytes, then copies randomSeed3 onto the second
     // saved byte at 0x636b9. The enhanced source moved it to 0x636bc.
     s.savedRandomSeed=(in.randomSeed&0xff00ffffu)|(std::uint32_t(in.randomTail)<<16);

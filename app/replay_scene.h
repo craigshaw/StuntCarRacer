@@ -3,6 +3,8 @@
 #include "replay_interpolation.h"
 #include "software_renderer.h"
 #include "game_audio.h"
+#include "opponent_car.h"
+#include "opponent_far_track.h"
 #include <filesystem>
 #include <array>
 #include <memory>
@@ -14,6 +16,7 @@ struct ReplayTrackSnapshot {
     TrackProgressData progress;
     TrackMesh mesh;
     std::vector<TrackSideFace> sides;
+    OpponentFarTrackData farTrack;
     std::uint8_t bridgePhase{},bridgeActive{};
 };
 struct ReplaySceneFrame : ReplayVisualState {
@@ -22,6 +25,8 @@ struct ReplaySceneFrame : ReplayVisualState {
     NearTrackFrameInputs nearInputs;
     NearTrackGeometryState nearSeed;
     TrackProgressInputs progressInputs;
+    OpponentCarInputs opponent;
+    bool opponentEnabled{};
     // Moving track data belongs to the rendered tick. Retained replays and
     // interpolation must never read the simulation's later bridge position.
     std::shared_ptr<const ReplayTrackSnapshot> movingTrack;
@@ -42,7 +47,7 @@ public:
     // A native menu session supplies its own freshly initialized race memory.
     void loadNativeState(const std::array<std::uint8_t,0x80000>& memory,
         const std::vector<std::uint8_t>& payload,const std::filesystem::path& recordingsDirectory);
-    // Complete the recovered Practice exit after quit or the end-message wait.
+    // Complete the recovered local race exit after quit or the end-message wait.
     void finishLiveExit(std::array<std::uint8_t,0x80000>& sessionMemory);
     void resetLive();
     bool stepLive(unsigned controls,bool quit=false);
@@ -79,6 +84,7 @@ private:
     ReplaySceneFrame advanceSimulation(Simulation&,unsigned controls,bool quit);
     ReplayRenderAssets assets_;
     TrackMesh mesh_;
+    OpponentFarTrackData far_;
     std::vector<TrackSideFace> sides_;
     MountainHorizonData mountains_;
     RenderProjectionTables projection_{};

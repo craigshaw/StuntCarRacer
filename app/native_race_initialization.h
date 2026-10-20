@@ -19,8 +19,22 @@ void initializeNativeGameData(NativeMemory& memory);
 void initializeNativePlayerConfiguration(NativeMemory& memory);
 void initializeNativeGameTables(NativeMemory& memory);
 
-// Complete a fresh local Practice startup after graphics/sample allocation and
+// Complete a fresh local Practice or season race after graphics/sample allocation and
 // track loading. Runs the recovered vehicle placement and two warm-up frames.
 // No CPU, captured state or ROM is involved in these native routines.
 void initializeNativeRace(NativeMemory& memory);
+
+// Local original league helpers. The six-round fixture schedule and driver
+// traits are read from the asset image; these routines retain the original RNG
+// ordering, including results simulated in the other divisions.
+void configureNativeSeasonMatch(NativeMemory& memory);
+void randomizeNativeSeasonCars(NativeMemory& memory);
+void scoreNativeSeasonRound(NativeMemory& memory);
+void encodeNativeSeason(NativeMemory& memory);
+void transferNativeLapRecords(NativeMemory& memory,bool load);
+void initializeNativeSeason(NativeMemory& memory);
+// Skips original computer-only fixtures. False means all six rounds ended.
+[[nodiscard]] bool seekNativeSeasonRace(NativeMemory& memory);
+void advanceNativeSeasonRound(NativeMemory& memory);
+void finishNativeSeason(NativeMemory& memory);
 } // namespace scr::viewer

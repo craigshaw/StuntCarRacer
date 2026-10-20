@@ -44,7 +44,7 @@ private:
     std::vector<std::uint32_t> pixels_;
     NativeFireWait endFireWait_;
     bool quitPending_{};
-    enum class Transition {None,InitialMenu,OutPreview,InPreview,OutRace,RaceDelay,InRace,OutMenu,InMenu};
+    enum class Transition {None,InitialMenu,OutPreview,InPreview,OutRace,RaceDelay,InRace,OutMenu,InMenu,OutCompetition,InCompetition};
     Transition transition_{Transition::InitialMenu};
     NativePaletteFade fade_;
     std::vector<std::uint8_t> transitionIndices_;
@@ -53,5 +53,6 @@ private:
     void preparePreview();
     void startRace();
     void leaveRace();
+    NativeMenuImage menuImage()const;
 };
 } // namespace scr::viewer

@@ -3,6 +3,7 @@
 #include "track_initialization.h"
 #include "planar_image.h"
 #include "race_transitions.h"
+#include "native_competition_render.h"
 #include "../tests/draw_bridge_fixture.h"
 #include <algorithm>
 #include <cmath>
@@ -19,6 +20,17 @@ void restoreCockpit(NativeMemory& memory){
     const auto image=decodePlanarRle(memory.data()+0x201a4,memory.size()-0x201a4,320,200,4);
     for(unsigned offset:{0u,32000u})std::copy(image.planes.begin(),image.planes.end(),memory.begin()+0x6a594+offset);
 }
+NativePalette imagePalette(const NativeMenuImage& image){
+    NativePalette palette{};
+    // originalPaletteRgb expands each original0..7 channel into an OCS nibble.
+    // Undo that expansion before feeding the original palette fade routine.
+    for(unsigned i=0;i<palette.size();++i){const auto rgb=image.palette[i];palette[i]=std::uint16_t(((rgb>>21)&7)<<8|((rgb>>13)&7)<<4|((rgb>>5)&7));}
+    return palette;
+}
+}
+NativeMenuImage NativeGameSession::menuImage()const{
+    if(page()>=NativeMenuPage::Matchup)return makeNativeCompetitionImage(*data_.memory,page(),menu_.competitionDivision(),menu_.competitionContext());
+    return makeNativeMenuImage(*data_.memory,menu_.renderState());
 }
 NativeGameSession::NativeGameSession(const std::filesystem::path& pack,const std::filesystem::path& recordings):
     data_(menuStartup(pack)),menu_(*data_.memory),recordings_(recordings){
@@ -29,6 +41,8 @@ NativeGameSession::NativeGameSession(const std::filesystem::path& pack,const std
 void NativeGameSession::preparePreview(){
     initializeNativePlayerConfiguration(*data_.memory);
     initializeNativeTrack(*data_.memory,menu_.trackId());
+    (*data_.memory)[0x691b3]=(*data_.memory)[0x1c9d0]?8:9;
+    (*data_.memory)[0x691b2]=(*data_.memory)[0x1c9d0]?4:10;
     if(test::drawBridge::animate(*data_.memory).geometryUpdated)rebuildNativeTrackGeometryCache(*data_.memory);
     preview_.load(*data_.memory,(*data_.memory)[0x1bb57]);
 }
@@ -58,10 +72,14 @@ void NativeGameSession::advanceTransition(double elapsed,NativeGameUpdate& resul
         raceDelay_=nativeMenuDelaySeconds(3);transition_=Transition::RaceDelay;break;
     case Transition::OutMenu:{
         race_.finishLiveExit(*data_.memory);
-        const auto image=makeNativeMenuFrame(*data_.memory,(*data_.memory)[0x1c9ce]);
+        menu_.returnFromRace();const auto image=menuImage();
         transitionIndices_.assign(image.indices.begin(),image.indices.end());
-        menu_.returnFromRace();fade_.animateTo(readNativePalette(*data_.memory,0x23c32));
+        fade_.animateTo(imagePalette(image));
         transition_=Transition::InMenu;result.raceExited=true;break;
+    }
+    case Transition::OutCompetition:{
+        const auto image=menuImage();transitionIndices_.assign(image.indices.begin(),image.indices.end());
+        fade_.animateTo(imagePalette(image));transition_=Transition::InCompetition;break;
     }
     case Transition::InRace:transition_=Transition::None;result.raceStarted=true;break;
     default:transition_=Transition::None;break;
@@ -95,16 +113,18 @@ NativeGameUpdate NativeGameSession::update(double elapsed,const NativeGameInput&
         }
         return result;
     }
-    const auto previous=menu_.renderState();
+    const auto previous=menuImage();
     const auto action=menu_.update(input.menu,elapsed);
     if(action==NativeMenuAction::EnterPreview){
-        const auto image=makeNativeMenuImage(*data_.memory,previous);
-        transitionIndices_.assign(image.indices.begin(),image.indices.end());
+        transitionIndices_.assign(previous.indices.begin(),previous.indices.end());
         fade_.fadeToColor(readNativePalette(*data_.memory,0x2b974)[0]);transition_=Transition::OutPreview;
     }else if(action==NativeMenuAction::RotatePreview){
         preview_.load(*data_.memory,(*data_.memory)[0x1bb57]);
-    }else if(action==NativeMenuAction::StartPractice){
+    }else if(action==NativeMenuAction::StartPractice||action==NativeMenuAction::StartRace){
         transitionIndices_=preview_.indices();fade_.fadeToColor(0);transition_=Transition::OutRace;
+    }else if(action==NativeMenuAction::ShowCompetitionPage){
+        transitionIndices_.assign(previous.indices.begin(),previous.indices.end());
+        fade_.fadeToColor(0);transition_=Transition::OutCompetition;
     }else if(action==NativeMenuAction::UnsupportedOption)result.unavailable=NativeGameUnavailable::menuRoute;
     return result;
 }
@@ -120,6 +140,6 @@ const std::vector<std::uint32_t>& NativeGameSession::render(bool interpolate,boo
         if(paused)return race_.renderLiveMessage(0x4c,2);
         return race_.renderLive(driveClock_.fraction(),false,interpolate);
     }
-    renderNativeMenu(*data_.memory,menu_.renderState(),pixels_);return pixels_;
+    packNativeMenuPixels(menuImage(),pixels_);return pixels_;
 }
 } // namespace scr::viewer

@@ -19,6 +19,10 @@ NearTrackFrame buildNearTrackFrame(const TrackProgressData& data,
     result.queue.opponentSegment=inputs.opponentSegment;
     result.queue.opponentSubSegment=inputs.opponentSubSegment;
     result.queue.minimumBoundaryDistance=inputs.minimumBoundaryDistance;
+    if(!(geometry.progress.progressOffset>>8)){
+        const unsigned previous=(unsigned(geometry.progress.currentSegment)+data.track.segmentCount-1)%data.track.segmentCount;
+        if(previous==inputs.opponentSegment)result.queue.opponentOffset=0;
+    }
     for(unsigned pass=0;pass<3;++pass){
         projectNearTrackSegment(data,geometry);
         processNearTrackVisibility(geometry,renderFlags.at(geometry.progress.currentSegment),result.queue,
@@ -33,6 +37,7 @@ NearTrackFrame buildNearTrackFrame(const TrackProgressData& data,
         if(pass==1)geometry.continuation=1;
     }
     result.presentation.queueEntries=std::uint16_t((result.queue.offset-32)/32);
+    result.presentation.opponentOffset=result.queue.opponentOffset;
     result.presentation.farStartSegment=geometry.progress.currentSegment;
     result.presentation.commands=drawNearTrackQueue(result.queue,inputs.drawing);
     return result;

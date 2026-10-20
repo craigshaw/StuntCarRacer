@@ -42,7 +42,7 @@ void processNearTrackVisibility(NearTrackGeometryState&,std::uint8_t segmentRend
 void appendNearTrackSegment(NearTrackGeometryState&,NearTrackQueueState&,bool first);
 
 enum class NearTrackCommandKind : std::uint8_t {fill,line};
-enum class NearTrackSurface : std::uint8_t {rightSide,leftSide,road};
+enum class NearTrackSurface : std::uint8_t {rightSide,leftSide,road,opponent};
 struct NearTrackDrawCommand {
     NearTrackCommandKind kind{};
     NearTrackSurface surface{};
@@ -57,7 +57,11 @@ struct NearTrackDrawInputs {
     std::uint8_t sideEdgeColor{},alternateSideColor{};
     bool previewColorOverride{};
 };
+enum class NearTrackPainterSlot : std::uint8_t {ahead,behind,occluded};
+using NearTrackPainter=std::function<void(NearTrackPainterSlot,std::uint16_t,
+    std::vector<NearTrackDrawCommand>&)>;
 // Ordered original near painter operations. Fill boundaries may merge many
 // strips; viewport boundary edges close the initial cut. No runtime CPU state.
-std::vector<NearTrackDrawCommand> drawNearTrackQueue(const NearTrackQueueState&,const NearTrackDrawInputs&);
+std::vector<NearTrackDrawCommand> drawNearTrackQueue(const NearTrackQueueState&,const NearTrackDrawInputs&,
+    const NearTrackPainter& painter={},std::uint16_t* lineBytes=nullptr);
 } // namespace scr

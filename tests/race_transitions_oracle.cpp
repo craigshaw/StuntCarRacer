@@ -150,15 +150,13 @@ int main(int argc,char** argv)try{
         const unsigned selectedMode=n%6;if(selectedMode==1)ram[0x616d8]=0;check(selectedMode,in);
     }
     for(unsigned n=0;n<256;++n)for(unsigned key=0;key<2;++key){reset();ram[0x1bba4]=std::uint8_t(n);auto in=randomInput();in.pausePressed=key;check(4,in);}
-    // Every Practice selector and every random tail byte. Original saveRandomState
+    // Every local selector and random tail byte. Single-player season exits
+    // skip restoring the saved Practice hole position. Original saveRandomState
     // executes both writes, exposing the overlap in the saved longword.
-    for(unsigned track=0;track<128;++track)for(unsigned tail=0;tail<256;++tail){
+    for(unsigned track=0;track<256;++track)for(unsigned tail=0;tail<256;++tail){
         reset();auto in=randomInput();in.selectedTrackInDivision=std::uint8_t(track);in.randomTail=std::uint8_t(tail);
         in.randomSeed=0x12ab3456;in.savedHolePosition=std::uint8_t(tail^track);check(5,in);
     }
-    {auto in=randomInput();in.selectedTrackInDivision=0x80;auto s=f::readState(ram.data());bool rejected=false;
-        try{scr::finishLocalRaceExit(in,s);}catch(const std::invalid_argument&){rejected=true;}
-        if(!rejected)throw std::runtime_error("Race cleanup accepted unsupported championship mode");}
     // The original busy wait is deliberately not spun. Its state is unchanged
     // until a platform frame event reaches zero; verify that native contract.
     for(unsigned n=1;n<256;++n){reset();auto s=f::readState(ram.data());s.framesToWait=std::uint8_t(n);nativeRam=ram;f::writeState(nativeRam.data(),s);const auto before=nativeRam;

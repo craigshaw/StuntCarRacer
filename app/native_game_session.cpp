@@ -4,6 +4,7 @@
 #include "planar_image.h"
 #include "race_transitions.h"
 #include "native_competition_render.h"
+#include "native_hall_of_fame.h"
 #include "../tests/draw_bridge_fixture.h"
 #include <algorithm>
 #include <cmath>
@@ -32,6 +33,7 @@ NativePalette imagePalette(const NativeMenuImage& image){
 }
 }
 NativeMenuImage NativeGameSession::menuImage()const{
+    if(page()==NativeMenuPage::HallOfFame)return makeNativeHallOfFameImage(*data_.memory);
     if(openingActive()){
         switch(opening_->page()){
         case NativeOpeningPage::Name:return nameScreen_->image();
@@ -101,6 +103,17 @@ void NativeGameSession::advanceTransition(double elapsed,NativeGameUpdate& resul
         transitionIndices_.assign(image.indices.begin(),image.indices.end());
         fade_.animateTo(imagePalette(image));transition_=Transition::InOpening;break;
     }
+    case Transition::OutHall:{
+        prepareNativeHallOfFame(*data_.memory);const auto image=menuImage();
+        transitionIndices_.assign(image.indices.begin(),image.indices.end());
+        fade_.animateTo(readNativePalette(*data_.memory,0x30bd0));transition_=Transition::InHall;break;
+    }
+    case Transition::OutHallMenu:{
+        (*data_.memory)[0x5d724]=0x41;
+        const auto image=makeNativeMenuFrame(*data_.memory,(*data_.memory)[0x1c9ce]);
+        transitionIndices_.assign(image.indices.begin(),image.indices.end());
+        fade_.animateTo(readNativePalette(*data_.memory,0x23c32));transition_=Transition::InHallMenu;break;
+    }
     case Transition::InRace:transition_=Transition::None;result.raceStarted=true;break;
     default:transition_=Transition::None;break;
     }
@@ -137,7 +150,13 @@ NativeGameUpdate NativeGameSession::update(double elapsed,const NativeGameInput&
     }
     const auto previous=menuImage();
     const auto action=menu_->update(input.menu,elapsed);
-    if(action==NativeMenuAction::EnterPreview){
+    if(action==NativeMenuAction::ShowHallOfFame){
+        transitionIndices_.assign(previous.indices.begin(),previous.indices.end());
+        fade_.fadeToColor(readNativePalette(*data_.memory,0x30bd0)[0]);transition_=Transition::OutHall;
+    }else if(action==NativeMenuAction::LeaveHallOfFame){
+        transitionIndices_.assign(previous.indices.begin(),previous.indices.end());
+        fade_.fadeToColor(readNativePalette(*data_.memory,0x23c32)[0]);transition_=Transition::OutHallMenu;
+    }else if(action==NativeMenuAction::EnterPreview){
         transitionIndices_.assign(previous.indices.begin(),previous.indices.end());
         fade_.fadeToColor(readNativePalette(*data_.memory,0x2b974)[0]);transition_=Transition::OutPreview;
     }else if(action==NativeMenuAction::RotatePreview){

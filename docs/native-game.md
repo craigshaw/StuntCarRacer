@@ -35,6 +35,13 @@ separate action. Navigation clamps at the first/last option. The original
 release waits and approximately 326 ms repaint delay are retained, so held
 input deliberately does not scroll continuously.
 
+Choose **Hall of Fame** to view the lap and three-lap race records for all eight
+tracks. It retains the original artwork, twelve-character driver names, time
+formatting and palette fades. Release fire, then press Return/Space/controller A
+again to return to the main menu. It displays the current car context's record
+bank and retains competitive records throughout the session. Disk persistence
+belongs to the remaining load/save work.
+
 Choose **Practise**, then a division and one of its two tracks. The original
 track overview appears. Left/Right rotates it by quarter turns; release before
 another turn. Return/Space/A starts driving after release. Arrow keys or WASD
@@ -93,9 +100,8 @@ buffer, then copies the completed frame to the window in one operation. The
 last frame remains visible during rendering; clearing the visible window before
 drawing could otherwise expose intermittent black flashes to the compositor.
 
-The first main menu's other routes retain their original appearance but produce
-an explicit native-host notice when activated: Hall of Fame and load/save/replay
-are not implemented here. All eight tracks are available,
+The load/save/replay route retains its original appearance and produces an
+explicit native-host notice when activated. All eight tracks are available,
 including the original [Draw Bridge animation](draw-bridge.md). Its preview
 holds the original raised pose; movement starts during driving. The
 original menu has no Escape-to-cancel shortcut on the overview.
@@ -116,7 +122,9 @@ contention and free-running idle-poll RNG advances are not reproduced.
 
 The ordinary check runs the complete route twice on all eight tracks,
 checks overview rotation, fresh race counters, quit cleanup and return to the
-unchanged main menu. It also runs the 4,096-update fresh-start and steering
+unchanged main menu. Sixteen Hall of Fame visits cover entry, held fire,
+debounce and return before and after racing; eight more visits follow the
+original single-player and local multiplayer name-entry routes. It also runs the 4,096-update fresh-start and steering
 regression. Screenshots, controls and source-identified results remain under
 ignored `analysis/native-game/`.
 
@@ -139,7 +147,7 @@ Its source/asset/executable-identified receipt and screenshots remain under
 
 The ordinary check additionally drives a synthetic approach to Draw Bridge,
 checks occupancy/release and verifies stable interpolated and retained frames.
-The optional check runs the menu, input, overview, palette and bridge oracles
+The optional check runs the menu, input, overview, palette, Hall of Fame and bridge oracles
 against unmodified original MC68000 bytes. It also compares every recorded first
 race entered from the menu, all fresh-start races and the bridge approach
 against the original full game loop. The ordinary check also completes a local
@@ -153,6 +161,8 @@ hardware wait models are isolated from the native game. Component evidence:
 - [Input, selection and Practice callers](native-menu-flow.md).
 - [Track preview](native-track-preview.md).
 - [Palette transitions](native-palette-fade.md).
+- [Hall of Fame display and transitions](native-hall-of-fame.md).
+- [Hall of Fame record handling](native-hall-records.md).
 - [Local seasons and original competition screens](native-opponent-races.md).
 - [Cockpit instrument pixels](native-cockpit-instruments.md).
 - [Instrument events and lap-time holds](cockpit-timing.md).

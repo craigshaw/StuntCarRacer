@@ -1,4 +1,6 @@
 #include "../app/native_game_session.h"
+#include <algorithm>
+#include <array>
 #include <filesystem>
 #include <fstream>
 #include <iostream>
@@ -32,6 +34,30 @@ void bitmap(const std::filesystem::path& path,const std::vector<std::uint32_t>& 
     u32(0);u32(320*200*4);u32(2835);u32(2835);u32(0);u32(0);
     for(auto pixel:pixels)u32(pixel);require(bool(out),"Cannot export native game screenshot");
 }
+void hall(NativeGameSession& game,const std::filesystem::path& screenshot={}){
+    const auto main=hash(game.render());
+    std::array<std::uint8_t,512> records{};
+    std::copy_n(game.memory().begin()+0x7a61a,records.size(),records.begin());
+    choose(game,0);confirm(game);
+    require(game.page()==NativeMenuPage::HallOfFame&&game.transitioning(),"Hall of Fame did not begin its original transition");
+    settle(game);require(game.memory()[0x5d724]==0x42,"Hall of Fame did not select its display mode");
+    const auto displayed=hash(game.render());
+    require(displayed!=main,"Hall of Fame did not replace the menu image");
+    if(!screenshot.empty())bitmap(screenshot,game.render());
+    for(unsigned n=0;n<3;++n){
+        game.update(1,{{16,0},0,false});
+        require(game.page()==NativeMenuPage::HallOfFame&&hash(game.render())==displayed,"Held confirmation dismissed Hall of Fame");
+    }
+    game.update(0,{{15,15},0,true});
+    const auto delay=nativeMenuDelaySeconds(5);
+    game.update(delay/2,{{31,15},0,true});
+    require(game.page()==NativeMenuPage::HallOfFame,"Hall of Fame ignored its fire debounce");
+    game.update(delay/2,{{31,15},0,true});
+    require(game.page()==NativeMenuPage::Main&&game.transitioning(),"New fire did not return from Hall of Fame");
+    settle(game);
+    require(game.memory()[0x5d724]==0x41&&hash(game.render())==main,"Hall of Fame did not restore the main menu");
+    require(std::equal(records.begin(),records.end(),game.memory().begin()+0x7a61a),"Hall of Fame modified stored records");
+}
 }
 int main(int argc,char** argv)try{
     if(argc!=3)throw std::runtime_error("native_game_session_tests pack output-directory");
@@ -43,6 +69,7 @@ int main(int argc,char** argv)try{
         settle(game);
         require(game.page()==NativeMenuPage::Main,"Native startup did not enter original main menu");
         const auto originalMain=hash(game.render());if(!ordinal)bitmap(directory/"main.bmp",game.render());
+        hall(game,ordinal?std::filesystem::path{}:directory/"hall-of-fame.bmp");
         confirm(game);require(game.page()==NativeMenuPage::Division,"Practice did not enter division menu");
         if(!ordinal)bitmap(directory/"divisions.bmp",game.render());
         choose(game,(ordinal/2)^3);confirm(game);
@@ -97,10 +124,12 @@ int main(int argc,char** argv)try{
         require(game.page()==NativeMenuPage::Track,"Repeated Practice did not return");
         choose(game,2);confirm(game);require(game.page()==NativeMenuPage::Main,"Track Cancel did not return to main menu");
         require(hash(game.render())==originalMain,"Practice route changed original main-menu appearance");
+        hall(game);
         turning=true;++routes;
     }
     std::cout<<"{\"status\":\"passed\",\"practice_routes\":"<<routes<<",\"repeated_races\":"<<routes
         <<",\"ticks\":"<<ticks<<",\"preview_rotation\":"<<(turning?"true":"false")
+        <<",\"hall_of_fame_routes\":"<<routes*2<<",\"hall_of_fame_fire_wait_checked\":true"
         <<",\"return_to_main_menu\":true,\"capture_input\":false,\"cpu_emulation\":false}\n";
     return 0;
 }catch(const std::exception& error){std::cerr<<error.what()<<'\n';return 1;}

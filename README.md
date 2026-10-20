@@ -920,7 +920,9 @@ track selection; **Cancel** returns to the main menu. The game image uses the
 original assets, font, palettes and selection highlights. The original 12-character
 name editor retains Shift, Backspace, punctuation and blank-name retries.
 **Multiplayer** supports the original 2–8 name setup and startup standings;
-multiplayer seasons, Computer Link, Hall of Fame and load/save remain unported;
+**Hall of Fame** displays lap and race records for all eight tracks, with the
+original artwork, names, times and palette fades. A fresh Return/Space/controller
+A press returns to the menu. Multiplayer seasons, Computer Link and load/save remain unported;
 unported routes produce an explicit host notice. See [native game](docs/native-game.md)
 for fidelity checks, controls and boundaries.
 

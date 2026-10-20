@@ -177,8 +177,9 @@ struct NativeTrackPreview::State {
             drawing.previewColorOverride=!(geometry.progress.segment.steeringFlags&0xc0)&&!(geometry.heightDifference&0x40);
             for(const auto& command:drawNearTrackQueue(queue,drawing))rasterCommand(image,command);
         }
-        NativeMenuTextCursor instruction{};instruction.yOffset=8;instruction.colour=3;
-        drawNativeMenuString(memory,image,instruction,0x64354,0x2c);
+        NativeMenuTextCursor instruction{};instruction.column=12;instruction.row=24;
+        instruction.horizontalOffset=6;instruction.yOffset=8;instruction.colour=3;
+        drawNativeMenuString(memory,image,instruction,0x64354,0x43);
         indices.assign(image.indices.begin(),image.indices.end());
         packNativeMenuPixels(image,pixels);
     }

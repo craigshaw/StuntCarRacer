@@ -288,6 +288,13 @@ void transferNativeLapRecords(NativeMemory& m,bool load) {
     }
 }
 
+void prepareNativeHallOfFame(NativeMemory& m) {
+    m[0x5d724]=0x42;
+    const unsigned bank=m[0x1c9d0]?128:0;
+    std::copy_n(m.begin()+0x7a61a+bank,128,m.begin()+0x1c5ec);
+    std::copy_n(m.begin()+0x7a71a+bank,128,m.begin()+0x1c66c);
+}
+
 void finishNativeSeason(NativeMemory& m) {
     // Gameplay effects of0x64916; font/cursor/framebuffer effects belong to
     // the native menu renderer. Preserve its promotion order before finding

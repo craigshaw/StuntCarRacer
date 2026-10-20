@@ -27,6 +27,7 @@ unmodified original instructions in the test-only Musashi harness.
 | Busy-loop delay | `0x5ba42..0x5ba68` | Original release/debounce timing order |
 | Practice caller | `0x5ba78..0x5baae` | Selected division/track, Cancel and per-track configuration |
 | Main menu | `0x5baea` | Default Practice selection and repeat-Practice shortcut |
+| Hall of Fame | `0x5fbc6..0x5fde0` | Record screen, released/new-fire wait and return to main menu |
 | Division/track selection | `0x5fb62..0x5fbc6` | Reversed division display order and track menu |
 | Set current track | `0x5bcf0..0x5bd1e` | Read original track ID and configuration tables |
 | Menu system loop | `0x5cfb8..0x5d000` | Preview, race and repeat-Practice route |
@@ -64,6 +65,14 @@ The separate `NativeFireWait` helper implements the original post-race and
 screen-continue wait. Only fire must be released; holding gas or a direction
 does not block it. After a five-unit debounce it accepts fire, including a press
 that began during the delay and is still held when it ends.
+
+The Hall of Fame uses this wait after its original palette fade. Holding the
+confirmation that opened it cannot dismiss it. Directions, numeric selection
+and the race quit binding do not navigate this screen. A new fire press returns
+through `displayMenuScreen` to the main menu, preserving the outer menu-loop
+state. The original main-menu default selects Practice or the racing season
+according to the current session. [Display](native-hall-of-fame.md) and
+[record-state](native-hall-records.md) checks cover the two record banks.
 
 The preview waits for the original button-release mask to clear. Left increments
 the camera angle byte, right decrements it, and fire starts the race. Left takes

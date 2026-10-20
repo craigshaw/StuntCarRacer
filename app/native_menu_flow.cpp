@@ -86,9 +86,10 @@ void NativeMenuFlow::openPage(NativeMenuPage page,unsigned offset,unsigned count
     memory_[selection]=std::uint8_t(selected);memory_[highlight]=0;memory_[0x5eb75]=std::uint8_t(textMode);
     phase_=Phase::PaintDelay;startDelay(15,true);
 }
-void NativeMenuFlow::openMain(){
+void NativeMenuFlow::openMain(bool beginLoop){
     // Original menuSystemLoop and handleMainMenu,0x5cfb8 /0x5baea.
-    memory_[0x1bb5b]&=0x7f;memory_[0x57c62]=0x10;memory_[0x5b83d]=0;
+    if(beginLoop){memory_[0x1bb5b]&=0x7f;memory_[0x57c62]=0x10;}
+    memory_[0x5b83d]=0;
     openPage(NativeMenuPage::Main,0,3,(memory_[0x1ca22]&0x80)?2:1,0);
     competitive_=false;
 }
@@ -108,6 +109,10 @@ NativeMenuRenderState NativeMenuFlow::renderState()const{
 NativeMenuAction NativeMenuFlow::confirm(){
     const unsigned selected=memory_[selection];
     if(page_==NativeMenuPage::Main){
+        if(selected==0){
+            memory_[0x5d724]=0x42;page_=NativeMenuPage::HallOfFame;competitionFire_.reset();
+            return NativeMenuAction::ShowHallOfFame;
+        }
         if(selected==1){openPractice();return NativeMenuAction::Changed;}
         if(selected==2){
             if(memory_[0x5eb76]){
@@ -147,6 +152,11 @@ NativeMenuAction NativeMenuFlow::update(const NativeMenuInput& input,double elap
     if(elapsed<0)throw std::invalid_argument("Negative menu elapsed time");
     const auto controls=std::uint8_t(input.controls&0x1f);
     if(page_==NativeMenuPage::Race)return NativeMenuAction::None;
+    if(page_==NativeMenuPage::HallOfFame){
+        memory_[0x1bb47]=controls;
+        if(!competitionFire_.update(controls,elapsed))return NativeMenuAction::None;
+        openMain(false);return NativeMenuAction::LeaveHallOfFame;
+    }
     if(page_==NativeMenuPage::Matchup||page_==NativeMenuPage::Results||
             page_==NativeMenuPage::RoundResults||page_==NativeMenuPage::Standings||page_==NativeMenuPage::SeasonEnd||
             page_==NativeMenuPage::SeasonAward||page_==NativeMenuPage::Roster||page_==NativeMenuPage::Records){

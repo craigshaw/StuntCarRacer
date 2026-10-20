@@ -32,6 +32,7 @@ void randomizeNativeSeasonCars(NativeMemory& memory);
 void scoreNativeSeasonRound(NativeMemory& memory);
 void encodeNativeSeason(NativeMemory& memory);
 void transferNativeLapRecords(NativeMemory& memory,bool load);
+void prepareNativeHallOfFame(NativeMemory& memory);
 void initializeNativeSeason(NativeMemory& memory);
 // Skips original computer-only fixtures. False means all six rounds ended.
 [[nodiscard]] bool seekNativeSeasonRace(NativeMemory& memory);

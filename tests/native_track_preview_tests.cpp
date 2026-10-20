@@ -48,6 +48,11 @@ void hook(unsigned address){
         // untouched preview wait loop. It has no periodic redraw or animation.
         original[0x1bb47]=0;m68k_set_reg(M68K_REG_D0,0);m68k_set_reg(M68K_REG_PC,0x5d98e);return;
     }
+    if(address==0x64340&&(m68k_get_reg(nullptr,M68K_REG_D1)&255)==0x2c){
+        m68k_set_reg(M68K_REG_D1,0x43);
+        original[0x5983e]=12;original[0x5983f]=24;original[0x1bb6d]=6;
+        original[0x59843]=original[0x59844]=0;
+    }
     // Model only display interrupt countdowns; every projection, queue and
     // raster instruction remains the original unmodified payload code.
     original[0x616d8]=original[0x616da]=0;

@@ -25,7 +25,8 @@ def sources():
     paths.add(ROOT / 'tests/draw_bridge_driving_tests.cpp')
     paths.add(ROOT / 'tests/driving_replay_oracle.cpp')
     paths.add(ROOT / 'scripts/check_driving_replay.py')
-    for name in ('native_menu_render', 'native_menu_flow', 'native_track_preview', 'native_palette_fade'):
+    for name in ('native_menu_render', 'native_menu_flow', 'native_track_preview', 'native_palette_fade',
+                 'native_hall_of_fame', 'native_hall_records'):
         paths.add(ROOT / 'tests' / (name + '_tests.cpp'))
     return [identity(path) for path in sorted(paths)]
 
@@ -102,9 +103,12 @@ def main():
     integration = run_json([test, pack, output / 'integration'], output / 'integration-results.json')
     if integration.get('practice_routes') != 8 or integration.get('repeated_races') != 8 or integration.get('return_to_main_menu') is not True:
         raise RuntimeError('Native game Practice route coverage differs')
+    if integration.get('hall_of_fame_routes') != 16 or integration.get('hall_of_fame_fire_wait_checked') is not True:
+        raise RuntimeError('Hall of Fame menu routes or fire-wait coverage differs')
     opening = run_json([opening_test, pack, output / 'opening'], output / 'opening-results.json')
     if (opening.get('named_race_routes') != 3 or opening.get('local_startups') != 7
-            or opening.get('entered_names') != 36 or opening.get('blank_retry') is not True):
+            or opening.get('entered_names') != 36 or opening.get('blank_retry') is not True
+            or opening.get('hall_of_fame_routes') != 8):
         raise RuntimeError('Original startup or player-name entry coverage differs')
     startup = run_json([startup_test, pack, output / 'startup'], output / 'startup-results.json')
     if startup.get('ticks') != 4096 or startup.get('left_right_steering_checked') is not True:
@@ -123,11 +127,16 @@ def main():
                 '-DMUSASHI_DIR=' + str(ROOT / 'analysis/reference/musashi')],
                ['cmake', '--build', oracle_build, '--config', 'Release', '--target',
                 'native_menu_render_tests', 'native_menu_flow_tests', 'native_track_preview_tests', 'native_palette_fade_tests',
+                'native_hall_of_fame_tests', 'native_hall_records_tests',
                 'driving_replay_oracle', 'draw_bridge_oracle', '--parallel', '4']], output / 'oracle-build.log')
         payload = ROOT / 'analysis/reference/vesuri/offline-extracted-payload.bin'
-        for name, argument in (('native_menu_render', payload), ('native_menu_flow', payload), ('native_track_preview', pack), ('native_palette_fade', payload)):
+        for name, argument in (('native_menu_render', payload), ('native_menu_flow', payload), ('native_track_preview', pack),
+                               ('native_palette_fade', payload), ('native_hall_of_fame', payload), ('native_hall_records', payload)):
             target = oracle_build / 'Release' / (name + '_tests.exe')
             original[name] = run_json([target, argument], output / (name + '-original-results.json'))
+            original[name]['oracle'] = identity(target)
+        if original['native_hall_of_fame'].get('cases') != 640 or original['native_hall_records'].get('cases') != 2944:
+            raise RuntimeError('Hall of Fame original-code coverage differs')
         original['draw_bridge'] = run_json([oracle_build / 'Release/draw_bridge_oracle.exe', payload], output / 'draw-bridge-original-results.json')
         original['menu_entered_races'] = []
         oracle = oracle_build / 'Release/driving_replay_oracle.exe'

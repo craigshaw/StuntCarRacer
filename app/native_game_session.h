@@ -57,7 +57,7 @@ private:
     std::vector<std::uint32_t> pixels_;
     NativeFireWait endFireWait_;
     bool quitPending_{};
-    enum class Transition {None,InitialMenu,OutPreview,InPreview,OutRace,RaceDelay,InRace,OutMenu,InMenu,OutCompetition,InCompetition,OutOpening,InOpening};
+    enum class Transition {None,InitialMenu,OutPreview,InPreview,OutRace,RaceDelay,InRace,OutMenu,InMenu,OutCompetition,InCompetition,OutOpening,InOpening,OutHall,InHall,OutHallMenu,InHallMenu};
     Transition transition_{Transition::InitialMenu};
     NativePaletteFade fade_;
     std::vector<std::uint8_t> transitionIndices_;

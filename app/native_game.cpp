@@ -129,7 +129,7 @@ private:
                 L"Computer Link has not been ported yet. Single Player and local Multiplayer name setup are available.":
                 changes.unavailable==NativeGameUnavailable::localMultiplayerSeason?
                 L"Multiplayer racing seasons have not been ported yet. Practise is available for this setup.":
-                L"This menu route has not been ported yet. Practise and Start the Racing Season are available.";
+                L"Load, save and replay have not been ported yet.";
             MessageBoxW(window,text,L"Stunt Car Racer — native port",MB_OK|MB_ICONINFORMATION);
         }
     }

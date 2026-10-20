@@ -7,7 +7,7 @@
 
 namespace {
 using namespace scr::viewer;
-unsigned names{},routes{},ticks{},snapshots{};
+unsigned names{},routes{},ticks{},snapshots{},hallRoutes{};
 void require(bool condition,const char* message){if(!condition)throw std::runtime_error(message);}
 void settle(NativeGameSession& game){
     for(unsigned n=0;game.transitioning()&&n<16;++n)game.update(1,{});
@@ -51,6 +51,16 @@ void image(NativeGameSession& game,const std::filesystem::path& path){
     out.write("BM",2);u32(54+320*200*4);u32(0);u32(54);u32(40);u32(320);u32(unsigned(-200));u16(1);u16(32);
     u32(0);u32(320*200*4);u32(2835);u32(2835);u32(0);u32(0);for(auto pixel:pixels)u32(pixel);
     require(bool(out),"Cannot export opening image");++snapshots;
+}
+void hall(NativeGameSession& game,const std::filesystem::path& path){
+    const std::string before(game.memory().begin()+0x1ecaa,game.memory().begin()+0x1edaa);
+    choose(game,0);confirm(game);settle(game);
+    require(game.page()==NativeMenuPage::HallOfFame,"Named startup did not enter Hall of Fame");
+    image(game,path);fire(game);
+    require(game.page()==NativeMenuPage::Main,"Hall of Fame did not return to the named main menu");
+    for(unsigned i=0;i<before.size();++i)
+        require(game.memory()[0x1ecaa+i]==std::uint8_t(before[i]),"Hall of Fame changed entered player names");
+    ++hallRoutes;
 }
 std::string player(const NativeGameSession& game,unsigned additional){
     const auto a=0x1ecab+16*(11-additional);return std::string(game.memory().begin()+a,game.memory().begin()+a+12);
@@ -102,6 +112,7 @@ int main(int argc,char** argv)try{
         require(!game.openingActive()&&game.page()==NativeMenuPage::Main,"Roster did not enter main menu");
         require(player(game,0)=="Craig       ","Completed name was not padded/preserved");
         require(game.memory()[0x57c64]==0xf3,"Opening protocol finalization is missing");image(game,root/"main.bmp");
+        hall(game,root/"hall-of-fame.bmp");
         drive(game,root/"single-practice",false);require(player(game,0)=="Craig       ","Practice exit lost entered name");
         choose(game,2);confirm(game);require(game.page()==NativeMenuPage::Main,"Practice Cancel did not return main menu");
         drive(game,root/"single-season",true);require(player(game,0)=="Craig       ","Season results lost entered name");
@@ -123,6 +134,7 @@ int main(int argc,char** argv)try{
         require(game.openingPage()==NativeOpeningPage::LocalStandings&&!game.transitioning(),"Local startup added a fade or omitted standings");
         image(game,folder/"standings.bmp");fire(game);
         require(game.page()==NativeMenuPage::Main&&game.memory()[0x5eb76]==count-1,"Local setup did not preserve player count");
+        hall(game,folder/"hall-of-fame.bmp");
         choose(game,2);const auto unavailable=confirm(game);
         require(unavailable.unavailable==NativeGameUnavailable::localMultiplayerSeason,"Unported multiplayer season lacked its boundary");
         require(game.page()==NativeMenuPage::Main&&game.memory()[0x5eb76]==count-1,"Unavailable season changed local setup");
@@ -135,6 +147,7 @@ int main(int argc,char** argv)try{
     }
     std::cout<<"{\"status\":\"passed\",\"single_player_startups\":1,\"local_startups\":7,\"entered_names\":"<<names
         <<",\"named_race_routes\":"<<routes<<",\"ticks\":"<<ticks<<",\"snapshots\":"<<snapshots
+        <<",\"hall_of_fame_routes\":"<<hallRoutes
         <<",\"blank_retry\":true,\"backspace\":true,\"case_and_host_keys\":true,\"maximum_length\":12"
         <<",\"local_player_counts\":[2,3,4,5,6,7,8],\"explicit_transport_and_season_boundaries\":true"
         <<",\"capture_input\":false,\"cpu_emulation\":false}\n";

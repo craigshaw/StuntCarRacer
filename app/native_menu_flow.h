@@ -3,8 +3,8 @@
 #include <cstdint>
 
 namespace scr::viewer {
-enum class NativeMenuPage { Main,Division,Track,Preview,Race,Matchup,Results,RoundResults,Standings,SeasonEnd,SeasonAward,Roster,Records,Opening };
-enum class NativeMenuAction { None,Changed,EnterPreview,StartPractice,RotatePreview,UnsupportedOption,StartRace,ShowCompetitionPage };
+enum class NativeMenuPage { Main,Division,Track,Preview,Race,Matchup,Results,RoundResults,Standings,SeasonEnd,SeasonAward,Roster,Records,Opening,HallOfFame };
+enum class NativeMenuAction { None,Changed,EnterPreview,StartPractice,RotatePreview,UnsupportedOption,StartRace,ShowCompetitionPage,ShowHallOfFame,LeaveHallOfFame };
 struct NativeMenuInput {
     // Original readControllerInput bits: up/down/left/right/fire. Number keys
     // select a row; they deliberately do not activate it without fire/Return.
@@ -62,7 +62,7 @@ private:
     unsigned competitionContext_{};
     NativeFireWait competitionFire_;
     void startDelay(unsigned units,bool repaint=false);
-    void openMain();
+    void openMain(bool beginLoop=true);
     void openPractice();
     NativeMenuAction openNextSeasonRace();
     void openCompetitionPage(NativeMenuPage,unsigned gameState);

@@ -935,6 +935,10 @@ through eight drivers taking turns against the original pace cars, with per-driv
 damage, standings and track bonuses. Computer Link remains unavailable.
 See [native game](docs/native-game.md)
 for fidelity checks, controls and boundaries.
+F10 opens native display settings; F11 toggles borderless fullscreen. Choose
+integer, sharp-fit or smooth-fit scaling and original or interpolated motion.
+Controller Start opens a pause panel while driving and display settings from
+the menus. Confirmed preferences persist locally under `working/settings/`.
 
 Startup graphics, input rules and call timing have original-code comparisons.
 See [opening flow](docs/native-opening-flow.md), [name entry](docs/native-player-name.md)

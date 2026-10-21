@@ -105,12 +105,39 @@ saves continue the names, scores and damage between launches; load a career agai
 to restore later-track access. Holding F1 when confirming a matchup forfeits the
 remaining turns on that track and proceeds to its summary.
 
-P/controller Start pauses; focus loss and controller disconnection also pause
-driving. Resume explicitly. M mutes. I toggles interpolation. The native game
-defaults to original tick presentation; `-Interpolate` on the development script
-starts with smooth presentation. Both modes retain the verified 120 ms physics
+P/controller Start opens the native pause panel while driving. Choose Resume or
+Display Settings with Up/Down and Return/A. P, Start, Escape or B resumes from
+that panel. Focus loss and controller disconnection also pause driving; resume
+explicitly. M mutes. I toggles and saves interpolation outside text entry.
+
+F10 opens Display Settings from any screen. Controller Start opens it directly
+from the original menus. Use arrows or the stick/D-pad to select rows; Left/Right
+changes values, and Return/A changes a selected value or activates Apply and Back.
+The options are Windowed/Borderless Fullscreen, Integer/Fit Sharp/Fit Smooth scaling,
+and Original Updates/Smooth Interpolation. Changes preview immediately. Apply and
+Back saves them; Cancel, Escape, B, F10 or Start restores the choices from before
+entry. Settings entered from the pause panel return there. Focus loss while
+adjusting settings during a race also requires an explicit resume.
+
+F11 toggles borderless fullscreen on the window's monitor and restores the prior
+window placement when leaving. Integer scaling uses uniform nearest-neighbour
+enlargement; Fit Sharp uses nearest-neighbour at the largest fitting size;
+Fit Smooth uses bilinear filtering. All retain the source aspect and black borders.
+The original 320-by-200 game image and field of view are unchanged. Display UI is
+composited after scaling, independently of the original game pixels.
+
+Preferences are stored atomically in `working/settings/display.ini`. Invalid or
+missing preferences use windowed, integer-scaled, original-update presentation.
+Failed saves retain the last good file and show an error with an Apply retry.
+`-SettingsFile` selects another `.ini` for development; `-Fullscreen` and
+`-Interpolate` override the corresponding saved choices for that launch.
+The standalone development replay viewer retains its existing window controls.
+Both motion modes retain the verified 120 ms physics
 updates and 50 Hz engine audio. The window presents at 60 Hz and reports FPS in
 its title; host text and controls are kept outside the original game image.
+No gameplay, fade, wheel or audio clocks advance while the settings overlay is
+open, and held navigation/fire inputs must be released before gameplay accepts
+them again. Closing settings retains the pre-pause fraction of a physics tick.
 
 The cockpit uses the original font, speed bar, boost digits, lap counter,
 running/completed time displays, distance and car icons. Their redraw cadence
@@ -211,6 +238,11 @@ Its source/asset/executable-identified receipt and screenshots remain under
 
 The ordinary check additionally drives a synthetic approach to Draw Bridge,
 checks occupancy/release and verifies stable interpolated and retained frames.
+Display checks cover all twelve preference combinations, corrupt files, failed
+atomic writes, keyboard/controller navigation, twelve scaling surfaces and four
+fullscreen/window placement roundtrips. A paused race is presented 120 times,
+then resumes on its original fractional tick boundary and exits with RAM identical
+to a headless twin.
 The optional check runs the menu, input, overview, palette, Hall of Fame and bridge oracles
 against unmodified original MC68000 bytes. It also compares every recorded first
 race entered from the menu, all fresh-start races and the bridge approach

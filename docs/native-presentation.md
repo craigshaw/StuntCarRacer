@@ -26,6 +26,14 @@ small images to fit rather than cropping. Both Windows hosts use it. Tests
 include the original source size, wide host windows and hypothetical wider
 source images.
 
+The native game's host now supplies a separate display overlay and borderless
+fullscreen, with persisted scaling and motion preferences. Integer and sharp-fit
+presentation use nearest-neighbour samples; smooth-fit uses a separable bilinear
+filter with clamped edges and cached coordinates. The source image remains
+immutable. Overlay navigation suspends game/audio updates and retains the current
+physics-clock fraction. See [display controls](native-game.md) for the keyboard,
+controller and preference-file behaviour.
+
 The current game image remains 320 by 200 and its world viewport remains 256 by
 128. Fitting that image into a wide window preserves its original aspect; it
 does not extend the field of view. Actual widescreen rendering still needs a

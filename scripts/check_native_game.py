@@ -19,6 +19,7 @@ def sources():
     paths = {ROOT / record['path'] for record in startup_sources()}
     paths.add(Path(__file__).resolve())
     paths.add(ROOT / 'tests/native_game_session_tests.cpp')
+    paths.add(ROOT / 'tests/native_display_tests.cpp')
     paths.add(ROOT / 'tests/native_opening_session_tests.cpp')
     paths.add(ROOT / 'tests/native_opponent_session_tests.cpp')
     paths.add(ROOT / 'tests/native_multiplayer_session_tests.cpp')
@@ -98,11 +99,12 @@ def main():
     career_test = binary_dir / 'Release/native_career_session_tests.exe'
     save_test = binary_dir / 'Release/native_save_session_tests.exe'
     store_test = binary_dir / 'Release/native_save_store_tests.exe'
+    display_test = binary_dir / 'Release/native_display_tests.exe'
     receipt = binary_dir / 'build-receipt.json'
     records = sources()
     executables = {'game': executable, 'test': test, 'opening_test': opening_test, 'startup_test': startup_test,
                    'bridge_test': bridge_test, 'season_test': season_test, 'multiplayer_test': multiplayer_test,
-                   'career_test': career_test, 'save_test': save_test, 'store_test': store_test}
+                   'career_test': career_test, 'save_test': save_test, 'store_test': store_test, 'display_test': display_test}
     if args.skip_build:
         old = json.loads(receipt.read_text())
         if old['sources'] != records or any(old[key] != identity(path) for key, path in executables.items()):
@@ -112,7 +114,7 @@ def main():
                ['cmake', '--build', binary_dir, '--config', 'Release', '--target',
                 'native_game', 'native_game_session_tests', 'native_opening_session_tests', 'native_startup_tests', 'draw_bridge_driving_tests',
                 'native_opponent_session_tests', 'native_multiplayer_session_tests', 'native_career_session_tests',
-                'native_save_session_tests', 'native_save_store_tests', '--parallel', '4']], output / 'build.log')
+                'native_save_session_tests', 'native_save_store_tests', 'native_display_tests', '--parallel', '4']], output / 'build.log')
         receipt.write_text(json.dumps({'sources': records, **{key: identity(path) for key, path in executables.items()}}, indent=2) + '\n')
     integration = run_json([test, pack, output / 'integration'], output / 'integration-results.json')
     if integration.get('practice_routes') != 8 or integration.get('repeated_races') != 8 or integration.get('return_to_main_menu') is not True:
@@ -154,6 +156,12 @@ def main():
     storage = run_json([store_test, output / 'save-store'], output / 'save-store-results.json')
     if storage.get('slots') != 30 or storage.get('atomic_failure_checked') is not True:
         raise RuntimeError('Native save-file storage regression failed')
+    display = run_json([display_test, pack, output / 'display'], output / 'display-results.json')
+    if (display.get('preference_roundtrips') != 12 or display.get('scaling_cases') != 12
+            or display.get('fullscreen_roundtrips') != 4 or display.get('paused_presentations') != 120
+            or display.get('original_tick_phase_preserved') is not True
+            or display.get('final_simulation_memory_identical') is not True):
+        raise RuntimeError('Native display preferences or pause isolation regression failed')
     original = {}
     if args.verify_original:
         oracle_build = output / 'oracle-build'
@@ -233,12 +241,12 @@ def main():
     report = {'status': 'passed', 'capture_input': False, 'rom_input': False, 'cpu_emulation': False,
               'pack': identity(pack), 'game': identity(executable), 'sources': records,
               'integration': integration, 'opening': opening, 'startup': startup, 'bridge_driving': bridge,
-              'season': season, 'multiplayer': multiplayer, 'career': career, 'saves': saves, 'save_store': storage, 'original_comparisons': original}
+              'season': season, 'multiplayer': multiplayer, 'career': career, 'saves': saves, 'save_store': storage, 'display': display, 'original_comparisons': original}
     (output / 'check-results.json').write_text(json.dumps(report, indent=2) + '\n')
     if original:
         (output / 'original-check-results.json').write_text(json.dumps(report, indent=2) + '\n')
     print(json.dumps({'status': 'passed', 'integration': integration, 'opening': opening, 'startup': startup, 'bridge_driving': bridge, 'season': season, 'multiplayer': multiplayer, 'career': career, 'saves': saves, 'save_store': storage,
-                      'original_checks': bool(original), 'report': str(output / 'check-results.json')}))
+                      'display': display, 'original_checks': bool(original), 'report': str(output / 'check-results.json')}))
 
 
 if __name__ == '__main__':

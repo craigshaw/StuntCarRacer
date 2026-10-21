@@ -32,6 +32,8 @@ struct NativeReplay {
     OpponentDrivingData opponentData;
     ControllerHardware controller{};
     std::vector<AudioRegisterWrite> audioWrites;
+    DrivingParticleDraws particleDraws;
+    std::uint8_t particleFrameCounter{};
     RaceRestartData restartData;
     RaceTransitionAction outerAction{};
     unsigned restarts{},waitVblanks{};
@@ -72,7 +74,7 @@ struct NativeReplay {
         auto s=audio::readState(ram.data());const auto d=audio::readData(ram.data());
         for(auto id:ids){auto e=requestSample(id,d,s);audioWrites.insert(audioWrites.end(),e.begin(),e.end());}audio::writeState(ram.data(),s);
     }
-    void groundStage() {auto s=effects::readState(ram);auto ids=updateGroundAndEdgeEffects(effects::readInputs(ram),s);effects::writeState(ram,s);sounds(ids);}
+    void groundStage() {particleDraws.clear();particleFrameCounter=ram[0x1bbac];auto s=effects::readState(ram);auto ids=updateGroundAndEdgeEffects(effects::readInputs(ram),s,&particleDraws);effects::writeState(ram,s);sounds(ids);}
     void wheelsStage() {auto s=effects::readState(ram);updateWheelVisuals(effects::readInputs(ram),physicsData.trig,s);effects::writeState(ram,s);present(ReplayPresentationStage::wheels);}
     void bridgeStage() {
         if(ram[0x1ca33]!=5)return;

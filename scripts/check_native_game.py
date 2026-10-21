@@ -136,6 +136,9 @@ def main():
     startup = run_json([startup_test, pack, output / 'startup'], output / 'startup-results.json')
     if startup.get('ticks') != 4096 or startup.get('left_right_steering_checked') is not True:
         raise RuntimeError('Fresh race physics or steering regression failed')
+    if (any(startup.get(name, 0) <= 0 for name in ('drop_start_frames', 'press_fire_frames', 'dust_frames', 'spark_frames'))
+            or startup.get('effects_view_isolation') is not True):
+        raise RuntimeError('Native start/recovery messages or crash particle rendering regression failed')
     bridge = run_json([bridge_test, pack, output / 'bridge-driving'], output / 'bridge-driving-results.json')
     if bridge.get('ticks') != 512 or bridge.get('bridge_occupied_ticks', 0) <= 0 or bridge.get('released_ticks', 0) <= 0:
         raise RuntimeError('Draw Bridge driving did not cover occupancy and release')

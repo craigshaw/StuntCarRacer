@@ -162,6 +162,11 @@ running/completed time displays, distance and car icons. Their redraw cadence
 and completed-lap hold follow the original game calls. Wheel treads animate at
 50 Hz independently of camera interpolation, with the original forward/reverse
 phases and suspension positions. Pausing retains the presented wheel phase.
+The hanging start and crash-recovery frames show the original blinking
+DROP START and PRESS FIRE prompts. Off-track ground contact draws the original
+animated dust bitmaps; edge impacts draw the recovered sparks. Their visibility,
+animation and ordered draw positions belong to completed gameplay snapshots,
+so interpolation and paused or repeated views never advance them or the RNG.
 
 ## Architecture and verification
 

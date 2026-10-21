@@ -39,6 +39,40 @@ void steeringRegression(const std::filesystem::path& pack){
     const auto relative=[&](const auto& state){const auto bits=std::uint16_t(readWord(state.ram,0x1bce6)-readWord(neutral->ram,0x1bce6));return bits<0x8000?int(bits):int(bits)-65536;};
     require(relative(*left)*relative(*right)<0,"Fresh left/right inputs must turn to opposite sides of neutral");
 }
+struct RaceEffectsCoverage {unsigned ticks{},dropStart{},pressFire{},dust{},sparks{};};
+RaceEffectsCoverage effectsRegression(const std::filesystem::path& pack,const std::filesystem::path& output){
+    using namespace scr::viewer;
+    const auto folder=output/"race-effects";std::filesystem::create_directories(folder);
+    auto startup=startNativeRace(pack,0);write(folder/"native-initial.bin",startup.memory->data(),startup.memory->size());
+    ReplayScene scene;scene.loadNativeState(*startup.memory,startup.payload,folder/"recordings");
+    RaceEffectsCoverage coverage;bool savedDrop=false,savedRecovery=false,savedDust=false,savedSparks=false;
+    std::ofstream controls(folder/"controls.csv");controls<<"tick,controls\n";
+    for(unsigned tick=0;tick<1600;++tick){
+        // A fresh deterministic drive: accelerate, then steer off the track.
+        // No car position, collision state, particle or RNG injection.
+        const unsigned mask=tick<150?1:9;controls<<tick<<','<<mask<<'\n';
+        require(scene.stepLive(mask),"Race effects drive unexpectedly ended");++coverage.ticks;
+        const auto& frame=scene.frames().back();
+        const bool drop=frame.message.visible()&&frame.message.index==0x2c;
+        const bool recovery=frame.message.visible()&&frame.message.index==0x3c;
+        bool dust=false,sparks=false;for(const auto& draw:frame.particleDraws){dust|=draw.dust;sparks|=!draw.dust;}
+        coverage.dropStart+=drop;coverage.pressFire+=recovery;coverage.dust+=dust;coverage.sparks+=sparks;
+        const auto exact=hash(scene.render(1));
+        if(drop&&!savedDrop){scene.saveBitmap(folder/"drop-start.bmp");savedDrop=true;}
+        if(recovery&&!savedRecovery){scene.saveBitmap(folder/"press-fire.bmp");savedRecovery=true;}
+        if(dust&&!savedDust&&coverage.dust>=6){scene.saveBitmap(folder/"dust.bmp");savedDust=true;}
+        if(sparks&&!savedSparks){scene.saveBitmap(folder/"sparks.bmp");savedSparks=true;}
+        scene.renderLive(0.5);scene.render(0);scene.renderLive(0.25);scene.renderView(1,{});
+        require(hash(scene.render(1))==exact,"Interpolated or reverse views contaminated race effects");
+        if(coverage.pressFire>4&&coverage.dust>8&&coverage.sparks)break;
+    }
+    controls.flush();
+    require(coverage.dropStart&&coverage.pressFire&&coverage.dust&&coverage.sparks,"Natural drive did not exercise start/recovery messages, dust and sparks");
+    const auto recording=scene.liveRecording().string();
+    const auto trace=recording.substr(0,recording.size()-std::string("-controls.csv").size())+"-native.csv";
+    std::filesystem::copy_file(trace,folder/"native.csv",std::filesystem::copy_options::overwrite_existing);
+    return coverage;
+}
 }
 int main(int argc,char** argv)try{
     if(argc!=3)throw std::runtime_error("native_startup_tests pack output-directory");
@@ -78,7 +112,10 @@ int main(int argc,char** argv)try{
     }
     require(maximumSpeed>0x100,"Fresh vehicle did not accelerate");
     require(read(pack)==original,"Native startup modified its asset pack");
+    const auto effects=effectsRegression(pack,out);
     std::cout<<"{\"status\":\"passed\",\"fresh_starts\":"<<starts<<",\"ticks\":"<<ticks<<",\"rendered_frames\":"<<rendered
              <<",\"corrupt_packs_rejected\":"<<rejected<<",\"maximum_speed_word\":"<<maximumSpeed
+             <<",\"effects_ticks\":"<<effects.ticks<<",\"drop_start_frames\":"<<effects.dropStart<<",\"press_fire_frames\":"<<effects.pressFire
+             <<",\"dust_frames\":"<<effects.dust<<",\"spark_frames\":"<<effects.sparks<<",\"effects_view_isolation\":true"
              <<",\"capture_input\":false,\"rom_input\":false,\"cpu_emulation\":false,\"deterministic_reset\":true,\"left_right_steering_checked\":true}\n";return 0;
 }catch(const std::exception& e){std::cerr<<e.what()<<'\n';return 1;}

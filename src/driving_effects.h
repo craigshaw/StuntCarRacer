@@ -19,6 +19,10 @@ struct DrivingEffectsInputs {
     std::array<DamageHoleSprite,4> holeSprites{}; // existing variants, new variants
 };
 struct DebrisParticle { std::uint16_t x{},y{},velocityX{},velocityY{}; };
+// Original draw calls occur before movement and again for newly spawned
+// particles. Keep their ordered coordinates separate from final gameplay state.
+struct DrivingParticleDraw {std::uint16_t x{},y{};std::uint8_t index{};bool dust{};};
+using DrivingParticleDraws=std::vector<DrivingParticleDraw>;
 struct DrivingEffectsState {
     std::uint32_t randomSeed{};
     std::uint8_t randomTail{}, engineNoiseFlag{};
@@ -47,7 +51,7 @@ struct DrivingVisualEvents {
 };
 void updateEnginePitch(const DrivingEffectsInputs&,DrivingEffectsState&);
 [[nodiscard]] std::vector<std::uint8_t> updateGroundAndEdgeEffects(
-    const DrivingEffectsInputs&,DrivingEffectsState&);
+    const DrivingEffectsInputs&,DrivingEffectsState&,DrivingParticleDraws* draws=nullptr);
 void updateWheelVisuals(const DrivingEffectsInputs&,const TrigTable&,DrivingEffectsState&);
 // Captured damage UI domain: holePosition0..10, vertical offset2..6, and the
 // four original32x8 hole assets. Pixels outside the feedback strip remain

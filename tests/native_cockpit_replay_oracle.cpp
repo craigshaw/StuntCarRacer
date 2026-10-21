@@ -28,18 +28,62 @@ bool invalid{},done{},firstEntry{},outerRunning{},restarting{},leaf{},atBoundary
 std::uint64_t ticks{},originalInstructions{},hudPixels{},wheelStates{},spritePlacements{},prefixCalls{},restartUpdates{},postOuterHudChanges{};
 std::uint64_t timerCalls{},resultCalls{},fuelCalls{},distanceCalls{},lapCounterCalls{},speedCalls{};
 std::uint64_t startupHudSeeds{},startupHudPixels{};
+struct EffectCoverage {
+    std::uint64_t frames{},messageSnapshots{},visibleMessages{},dropStart{},pressFire{},particleDraws{},dustDraws{},sparkDraws{},restartFrames{};
+};
+EffectCoverage effectCoverage;
+struct OriginalFrameEffects {
+    scr::DrivingParticleDraws particles;
+    scr::viewer::NativeRaceMessageFrame message;
+    std::uint8_t frameCounter{};
+    bool rendered{},messageCaptured{},messageGate{},messageVisible{};
+};
+OriginalFrameEffects originalEffects;
 std::string failure;
 const scr::viewer::ReplaySceneFrame* frame{};
 std::array<std::uint8_t,320*32> boundaryHud{};
 struct Scenario {std::string name;std::filesystem::path seed,controls;unsigned maximum{};bool preserveHud{};};
 std::string currentScenario;
 unsigned read(unsigned address);
+unsigned readWord(unsigned address){return (read(address)<<8)|read(address+1);}
+void captureOriginalMessage(){
+    auto& message=originalEffects.message;
+    // Read the independently evolving original inputs, rather than using the
+    // native capture helper whose RAM projection this comparison verifies.
+    message.active=std::uint8_t(read(0x1bb8e));message.countdown=std::uint8_t(read(0x1bb6c));
+    message.pause=std::uint8_t(read(0x1bba4));message.blink=std::uint8_t(read(0x1bb88));
+    message.index=std::uint8_t(read(0x5e65b));message.mode=std::uint8_t(read(0x5e65a));
+    constexpr unsigned parameters=0x6a16c+51*16;
+    message.panel.x=std::uint16_t((readWord(parameters+8)&255)*16);
+    message.panel.y=std::uint16_t(readWord(parameters+10)&255);
+    message.panel.widthWords=std::uint16_t(readWord(parameters+4)+1);
+    message.panel.height=std::uint16_t(readWord(parameters+6)+1);
+    originalEffects.messageCaptured=originalEffects.messageGate=true;
+    originalEffects.messageVisible=false;
+}
+void captureOriginalParticle(bool dust){
+    const auto offset=m68k_get_reg(nullptr,M68K_REG_D1)&65535;
+    if(offset>62||(offset&1))throw std::runtime_error("Original particle index outside admitted 32-particle array");
+    const auto base=m68k_get_reg(nullptr,M68K_REG_A4);
+    const auto x=readWord(base+offset),y=readWord(base+offset+0x40);
+    // 0x60ecc precedes the extra edge-pixel x<254 admission check.
+    if(!dust&&x>=254)return;
+    originalEffects.particles.push_back({std::uint16_t(x),std::uint16_t(y),std::uint8_t(offset/2),dust});
+}
 void stop(bool boundary=false){
     done=true;atBoundary=boundary;m68k_set_reg(M68K_REG_PC,stopPc);m68k_end_timeslice();
 }
 void hook(unsigned address){pc=address;if(invalid){m68k_end_timeslice();return;}try{
     if(leaf&&(address==stopPc||(leafEntry==wheel::vblankEntry&&address==wheel::vblankEnd))){stop();return;}
     if(!leaf){
+        // A restart performs two more rendered warm-ups in this same tick.
+        // Only its last displayed frame survives, matching the native snapshot.
+        if(address==0x64e4c){originalEffects={};originalEffects.rendered=true;originalEffects.frameCounter=ram[0x1bbac];}
+        if(address==0x60f5a)captureOriginalParticle(true);
+        if(address==0x60ecc)captureOriginalParticle(false);
+        if(address==0x651b0)captureOriginalMessage();
+        if(address==0x5e540&&originalEffects.messageGate)originalEffects.messageVisible=true;
+        if(address==0x651b6)originalEffects.messageGate=false;
         if(address==0x5dac0&&ram[0x616d8]){
             m68k_get_context(boundaryCpu.data());stop();atWait=true;return;
         }
@@ -148,6 +192,51 @@ void compareSprites(){
         ++spritePlacements;
     }
 }
+void compareFrameEffects(){
+    if(!originalEffects.rendered||!originalEffects.messageCaptured)throw std::runtime_error("Original loop missed race-effect presentation checkpoints");
+    if(frame->particleFrameCounter!=originalEffects.frameCounter)throw std::runtime_error("Particle frame-counter snapshot differs");
+    const auto& actual=originalEffects.particles;const auto& expected=frame->particleDraws;
+    if(actual.size()!=expected.size()){
+        std::ostringstream s;s<<"Particle draw count differs native="<<expected.size()<<" original="<<actual.size()<<" restarting="<<restarting;throw std::runtime_error(s.str());
+    }
+    for(unsigned i=0;i<actual.size();++i){
+        const auto& a=actual[i];const auto& e=expected[i];
+        if(a.x!=e.x||a.y!=e.y||a.index!=e.index||a.dust!=e.dust){
+            std::ostringstream s;s<<"Particle draw event differs event="<<i<<" native="<<e.x<<','<<e.y<<','<<unsigned(e.index)<<','<<e.dust<<" original="<<a.x<<','<<a.y<<','<<unsigned(a.index)<<','<<a.dust<<" restarting="<<restarting;throw std::runtime_error(s.str());
+        }
+    }
+    const auto& a=originalEffects.message;const auto& e=frame->message;
+    const std::array<unsigned,10> actualMessage{{a.active,a.countdown,a.pause,a.blink,a.index,a.mode,a.panel.x,a.panel.y,a.panel.widthWords,a.panel.height}};
+    const std::array<unsigned,10> expectedMessage{{e.active,e.countdown,e.pause,e.blink,e.index,e.mode,e.panel.x,e.panel.y,e.panel.widthWords,e.panel.height}};
+    constexpr std::array<const char*,10> names{{"active","countdown","pause","blink","index","mode","panel.x","panel.y","panel.widthWords","panel.height"}};
+    if(actualMessage!=expectedMessage){
+        const auto i=unsigned(std::mismatch(actualMessage.begin(),actualMessage.end(),expectedMessage.begin()).first-actualMessage.begin());
+        std::ostringstream s;s<<"Race-message snapshot differs field="<<names[i]<<" native="<<expectedMessage[i]<<" original="<<actualMessage[i]<<" restarting="<<restarting;throw std::runtime_error(s.str());
+    }
+    // Observe the actual original gate's admitted path, independently of the
+    // native visible() predicate and of subsequent timing/outer-loop writes.
+    if(e.visible()!=originalEffects.messageVisible)throw std::runtime_error("Race-message visibility differs from original executed gate");
+    ++effectCoverage.frames;++effectCoverage.messageSnapshots;
+    if(restarting)++effectCoverage.restartFrames;
+    if(originalEffects.messageVisible){
+        ++effectCoverage.visibleMessages;
+        if(a.index==0x2c)++effectCoverage.dropStart;
+        if(a.index==0x3c)++effectCoverage.pressFire;
+    }
+    effectCoverage.particleDraws+=actual.size();
+    for(const auto& particle:actual){if(particle.dust)++effectCoverage.dustDraws;else ++effectCoverage.sparkDraws;}
+}
+void effectReport(std::ostream& out,const EffectCoverage& first={}){
+    out<<",\"effect_frame_snapshots\":"<<effectCoverage.frames-first.frames
+       <<",\"race_message_snapshots\":"<<effectCoverage.messageSnapshots-first.messageSnapshots
+       <<",\"visible_race_message_frames\":"<<effectCoverage.visibleMessages-first.visibleMessages
+       <<",\"drop_start_frames\":"<<effectCoverage.dropStart-first.dropStart
+       <<",\"press_fire_frames\":"<<effectCoverage.pressFire-first.pressFire
+       <<",\"particle_draw_events\":"<<effectCoverage.particleDraws-first.particleDraws
+       <<",\"dust_draw_events\":"<<effectCoverage.dustDraws-first.dustDraws
+       <<",\"spark_draw_events\":"<<effectCoverage.sparkDraws-first.sparkDraws
+       <<",\"restart_effect_frame_snapshots\":"<<effectCoverage.restartFrames-first.restartFrames;
+}
 void prepareOriginalHud(){
     // Reconstruct original race-entry drawing for retained old-format seeds.
     // Its clock/lap state has already undergone the ordinary two warm-ups.
@@ -228,6 +317,7 @@ int main(int argc,char** argv){try{
         *seed=ram;
         auto scene=std::make_unique<scr::viewer::ReplayScene>();scene->loadNativeState(*seed,payload,scenario.seed.parent_path()/"cockpit-oracle-recordings");cia=ddra=255;
         const auto firstTick=ticks,firstTimer=timerCalls,firstResults=resultCalls,firstCounter=lapCounterCalls,firstFuel=fuelCalls,firstRestart=restartUpdates;
+        const auto firstEffects=effectCoverage;
         for(unsigned tick=0;tick<std::min(scenario.maximum,unsigned(controls.size()));++tick){
             currentTick=tick;scene->stepLive(controls[tick].controls,controls[tick].quit);frame=&scene->frames().back();
             const auto hardware=replay::hardware(controls[tick].controls,std::uint8_t(ddra));joy=hardware.joy1dat;cia=hardware.ciaPortA;
@@ -236,7 +326,7 @@ int main(int argc,char** argv){try{
                 m68k_pulse_reset();for(unsigned r=0;r<15;++r)m68k_set_reg(static_cast<m68k_register_t>(M68K_REG_D0+r),0);
                 m68k_set_reg(M68K_REG_SR,0x2700);m68k_set_reg(M68K_REG_SP,stackTop);m68k_set_reg(M68K_REG_PC,entry);
             }else m68k_set_context(savedCpu.data());
-            firstEntry=true;outerRunning=restarting=boundarySeen=false;runMainSegment();
+            firstEntry=true;outerRunning=restarting=boundarySeen=false;originalEffects={};runMainSegment();
             if(!atBoundary)throw std::runtime_error("Original loop missed cockpit boundary");
             boundaryHud=pixels(wheel::longword(ram.data(),0x6a584));
             compareWheel(0);unsigned phaseIndex=0;
@@ -250,14 +340,16 @@ int main(int argc,char** argv){try{
                 }
             }while(atWait);
             if(phaseIndex!=std::min(6u,frame->wheelVblanks))throw std::runtime_error("Native/original wheel wait count differs");
-            compareSprites();compareHud();++ticks;
+            compareSprites();compareHud();compareFrameEffects();++ticks;
             if(scene->liveTerminal())break;
         }
         if(scenarioIndex)scenarioReport<<',';
-        scenarioReport<<"{\"name\":\""<<scenario.name<<"\",\"ticks\":"<<ticks-firstTick<<",\"timer_calls\":"<<timerCalls-firstTimer<<",\"results_calls\":"<<resultCalls-firstResults<<",\"lap_counter_calls\":"<<lapCounterCalls-firstCounter<<",\"fuel_calls\":"<<fuelCalls-firstFuel<<",\"restarts\":"<<restartUpdates-firstRestart<<",\"preserve_hud\":"<<(scenario.preserveHud?"true":"false")<<'}';
+        scenarioReport<<"{\"name\":\""<<scenario.name<<"\",\"ticks\":"<<ticks-firstTick<<",\"timer_calls\":"<<timerCalls-firstTimer<<",\"results_calls\":"<<resultCalls-firstResults<<",\"lap_counter_calls\":"<<lapCounterCalls-firstCounter<<",\"fuel_calls\":"<<fuelCalls-firstFuel<<",\"restarts\":"<<restartUpdates-firstRestart<<",\"preserve_hud\":"<<(scenario.preserveHud?"true":"false");
+        effectReport(scenarioReport,firstEffects);scenarioReport<<'}';
     }
     std::cout<<"{\"scenarios\":["<<scenarioReport.str()<<"],\"ticks\":"<<ticks<<",\"hud_pixels\":"<<hudPixels<<",\"startup_hud_seeds\":"<<startupHudSeeds<<",\"startup_hud_pixels\":"<<startupHudPixels<<",\"wheel_timeline_states\":"<<wheelStates<<",\"sprite_placements\":"<<spritePlacements<<",\"original_vblank_prefix_calls\":"<<prefixCalls<<",\"restart_updates\":"<<restartUpdates<<",\"post_outer_hud_changes\":"<<postOuterHudChanges
-             <<",\"timer_calls\":"<<timerCalls<<",\"result_calls\":"<<resultCalls<<",\"fuel_calls\":"<<fuelCalls<<",\"distance_calls\":"<<distanceCalls<<",\"lap_counter_calls\":"<<lapCounterCalls<<",\"speed_calls\":"<<speedCalls<<",\"original_instructions\":"<<originalInstructions
-             <<",\"mismatches\":0,\"original_drawing_calls_replaced\":false,\"original_code_modified\":false,\"independent_evolving_native_scene\":true}\n";
+             <<",\"timer_calls\":"<<timerCalls<<",\"result_calls\":"<<resultCalls<<",\"fuel_calls\":"<<fuelCalls<<",\"distance_calls\":"<<distanceCalls<<",\"lap_counter_calls\":"<<lapCounterCalls<<",\"speed_calls\":"<<speedCalls<<",\"original_instructions\":"<<originalInstructions;
+    effectReport(std::cout);
+    std::cout<<",\"mismatches\":0,\"original_drawing_calls_replaced\":false,\"original_code_modified\":false,\"independent_evolving_native_scene\":true}\n";
     return 0;
 }catch(const std::exception& e){std::cerr<<"native_cockpit_replay_oracle: "<<e.what()<<" scenario="<<currentScenario<<" index="<<currentTrack<<" tick="<<currentTick<<'\n';return 1;}}

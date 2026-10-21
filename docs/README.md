@@ -36,6 +36,7 @@ Start with the [project README](../README.md). For a new development thread, rea
 - [Opponent driving](opponent-driving.md), [opponent rendering](opponent-car.md),
   [Draw Bridge](draw-bridge.md).
 - [Cockpit pixels](native-cockpit-instruments.md), [cockpit timing](cockpit-timing.md),
+  [race messages](native-race-messages.md), [dust and sparks](native-driving-particles.md),
   [wheel animation](wheel-animation.md), [audio](native-audio.md).
 - [Presentation API](native-presentation.md), [scene commands](native-scene-commands.md),
   [sidewalls and mountains](native-sides-and-mountains.md),

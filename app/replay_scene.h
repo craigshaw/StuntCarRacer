@@ -9,6 +9,8 @@
 #include "opponent_far_track.h"
 #include "native_cockpit_presentation.h"
 #include "native_wheel_sprites.h"
+#include "native_driving_particles.h"
+#include "native_race_messages.h"
 #include <filesystem>
 #include <array>
 #include <memory>
@@ -44,6 +46,9 @@ struct ReplaySceneFrame : ReplayVisualState {
     std::uint8_t lapCounter{},raceComplete{},boostFuel{},damage{},minutes{},seconds{},subseconds{};
     std::uint16_t gasOutput{};
     std::uint8_t accelerationState{},boostActive{};
+    DrivingParticleDraws particleDraws;
+    std::uint8_t particleFrameCounter{};
+    NativeRaceMessageFrame message;
 };
 class ReplayScene {
 public:
@@ -98,6 +103,7 @@ private:
     ReplaySceneFrame advanceSimulation(Simulation&,unsigned controls,bool quit,DriveControlPreset preset=DriveControlPreset::Original);
     ReplayRenderAssets assets_;
     NativeWheelSprites wheelAssets_;
+    NativeDrivingParticleData particleData_;
     TrackMesh mesh_;
     OpponentFarTrackData far_;
     std::vector<TrackSideFace> sides_;

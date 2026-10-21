@@ -28,6 +28,7 @@ def sources():
              ROOT / 'tests/native_cockpit_instruments_tests.cpp',
              ROOT / 'tests/cockpit_timing_oracle.cpp', ROOT / 'tests/wheel_animation_oracle.cpp',
              ROOT / 'tests/native_cockpit_replay_oracle.cpp',
+             ROOT / 'tests/native_race_messages_tests.cpp', ROOT / 'tests/native_driving_particles_tests.cpp',
              ROOT / 'tests/native_game_session_tests.cpp',
              ROOT / 'tests/native_startup_tests.cpp', ROOT / 'tests/driving_replay_oracle.cpp',
              ROOT / 'tests/native_opponent_driving_tests.cpp', ROOT / 'tests/driving_replay_native.cpp'}
@@ -94,7 +95,8 @@ def main():
              'native_game_session_tests',
              'cockpit_timing_oracle', 'native_cockpit_replay_oracle',
              'native_startup_tests', 'driving_replay_oracle',
-             'native_opponent_driving_tests', 'driving_replay_native')
+             'native_opponent_driving_tests', 'driving_replay_native',
+             'native_race_messages_tests', 'native_driving_particles_tests')
     executables = {name: build / 'Release' / (name + '.exe') for name in names}
     receipt = build / 'build-receipt.json'
     records, pack_record = sources(), identity(pack)
@@ -133,6 +135,9 @@ def main():
     for field in ('capture_input', 'rom_input', 'cpu_emulation'):
         if integration.get(field) is not False:
             raise RuntimeError('Native cockpit integration unexpectedly requires ' + field)
+    positive(integration, ('effects_ticks', 'drop_start_frames', 'press_fire_frames', 'dust_frames', 'spark_frames'), 'Natural race effects')
+    if integration.get('effects_view_isolation') is not True:
+        raise RuntimeError('Race effects must remain isolated from interpolated and reverse views')
     seeds = []
     for track in range(8):
         folder = integration_directory / ('track-' + str(track))
@@ -167,6 +172,16 @@ def main():
         raise RuntimeError('Timing oracle must cover every fresh seed and the entire completed-lap hold')
     positive(timing, ('hidden_hundredths_calls', 'visible_hundredths_calls', 'snapshots_before_slot_clear',
                       'held_result_transitions', 'leader_icon_calls', 'lap_counter_calls'), 'Timing oracle')
+    for name, argument in (('native_race_messages_tests', payload), ('native_driving_particles_tests', pack)):
+        leaves[name] = run_json([executables[name], argument], output / (name + '-results.json'))
+    messages = leaves['native_race_messages_tests']
+    if (messages.get('gate_cases') != 12800 or messages.get('pixel_cases') != 112
+            or messages.get('source_unchanged') is not True or messages.get('retained_message_state_verified') is not True):
+        raise RuntimeError('Original race-message visibility or pixel coverage differs')
+    particles = leaves['native_driving_particles_tests']
+    positive(particles, ('dust_cases', 'spark_cases', 'ground_cases', 'ordered_draw_events', 'compared_pixels'), 'Particle oracle')
+    if particles.get('simulation_and_rng_compared') is not True or particles.get('draw_collection_preserves_state') is not True:
+        raise RuntimeError('Particle rendering changed simulation or RNG state')
     # The retained capture is a regression fixture only. The sixteen fresh
     # Practice/competitive races above start from locally extracted assets.
     lap_inputs = ROOT / 'tests/replays/laps/authored-race-1463.csv'
@@ -181,6 +196,9 @@ def main():
             or identity(lap_seed)['sha256'] != capture_bank['sha256']):
         raise RuntimeError('The authored complete-race regression no longer matches its provenance')
     scenarios = []
+    effects_folder = integration_directory / 'race-effects'
+    scenarios.append({'name': 'natural-race-effects', 'seed': effects_folder / 'native-initial.bin',
+                      'controls': effects_folder / 'controls.csv', 'maximum': integration['effects_ticks'], 'preserve_hud': False})
     for track in range(8):
         folder = integration_directory / ('track-' + str(track))
         scenarios.append({'name': 'practice-track-' + str(track), 'seed': folder / 'seed.bin',
@@ -246,12 +264,23 @@ def main():
                                 'original_vblank_prefix_calls', 'speed_calls', 'distance_calls',
                                 'timer_calls', 'result_calls', 'fuel_calls', 'lap_counter_calls'),
              'Original cockpit replay')
+    positive(original_cockpit, ('drop_start_frames', 'press_fire_frames', 'dust_draw_events', 'spark_draw_events'), 'Original race effects')
+    if original_cockpit.get('effect_frame_snapshots') != expected_cockpit_updates:
+        raise RuntimeError('Race effects were not compared on every original frame')
     for field, expected in (('original_drawing_calls_replaced', False),
                             ('original_code_modified', False),
                             ('independent_evolving_native_scene', True)):
         if original_cockpit.get(field) is not expected:
             raise RuntimeError('Original cockpit replay has an invalid ' + field)
     original_races = []
+    effects_checks = run_json([executables['driving_replay_oracle'], effects_folder / 'native-initial.bin',
+                              effects_folder / 'controls.csv', effects_folder / 'original.csv', '--full-loop'],
+                             effects_folder / 'original-results.json')
+    effects_ticks = compare_trace(effects_folder / 'native.csv', effects_folder / 'original.csv')
+    verify_replay_result(effects_checks, effects_ticks, full_loop=True)
+    original_races.append({'scenario': 'natural-race-effects', 'ticks': effects_ticks, 'results': effects_checks,
+                           'seed': identity(effects_folder / 'native-initial.bin'), 'controls': identity(effects_folder / 'controls.csv'),
+                           'native': identity(effects_folder / 'native.csv'), 'original': identity(effects_folder / 'original.csv')})
     for track in range(8):
         folder = integration_directory / ('track-' + str(track))
         checks = run_json([executables['driving_replay_oracle'], folder / 'seed.bin',

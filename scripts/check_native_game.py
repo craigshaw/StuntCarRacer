@@ -121,6 +121,8 @@ def main():
         raise RuntimeError('Native game Practice route coverage differs')
     if integration.get('hall_of_fame_routes') != 16 or integration.get('hall_of_fame_fire_wait_checked') is not True:
         raise RuntimeError('Hall of Fame menu routes or fire-wait coverage differs')
+    if integration.get('cockpit_label_checks') != 16:
+        raise RuntimeError('First and repeated menu-entered cockpit label coverage differs')
     opening = run_json([opening_test, pack, output / 'opening'], output / 'opening-results.json')
     if (opening.get('named_race_routes') != 3 or opening.get('local_startups') != 7
             or opening.get('entered_names') != 36 or opening.get('blank_retry') is not True
@@ -221,6 +223,8 @@ def main():
         for ordinal in range(8):
             folder = output / 'integration' / ('route-' + str(ordinal))
             original['menu_entered_races'].append({'ordinal': ordinal, **compare_race(oracle, folder, output)})
+        original['menu_repeated_races'] = [compare_race(oracle, output / 'integration' / ('route-' + str(ordinal)) / 'repeat', output)
+                                            for ordinal in range(8)]
         original['fresh_races'] = [compare_race(oracle, output / 'startup' / ('track-' + str(track)), output)
                                    for track in range(8)]
         original['bridge_approach'] = compare_race(oracle, output / 'bridge-driving/synthetic-approach', output, 'seed.bin')

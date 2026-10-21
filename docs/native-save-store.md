@@ -3,7 +3,7 @@
 `NativeSaveStore` supplies the local storage used by the original native
 Load/Save/Replay flow. Its file contains the original 512-byte directory and
 thirty 512-byte transfer blocks, in that order: 15,872 bytes in total. These
-correspond to the original logical save-sector indices22 and23..52. The
+correspond to the original logical save-sector indices 22 and 23..52. The
 directory's slot names, flags, validation value and selected/next-save indices
 retain their original byte positions. Career, Hall and multiplayer data keep
 their [original payload encodings](native-save-state.md).

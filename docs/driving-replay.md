@@ -41,7 +41,7 @@ That separate executable does not link Musashi or execute original CPU code.
 `--verify-only` checks identities and input files without running a replay; its
 report explicitly records that no comparisons ran. These options do not download
 tools. Missing pinned Musashi sources are handled by the existing setup command
-documented in the main README.
+documented in [development prerequisites](development.md#original-code-and-replay-prerequisites).
 
 The underlying executable contract is:
 

@@ -1,7 +1,28 @@
-# Stunt Car Racer reverse engineering
+# Stunt Car Racer native port
 
-This project investigates the original Amiga game. Start with README.md for the
-verified toolchain, limitations, and launch commands.
+The initial local native port is the faithful baseline for future enhancements.
+Start with README.md, docs/development.md and docs/architecture.md. Use
+docs/README.md to find component contracts and evidence without reading every
+guide. Inspect Git status and preserve existing work before editing.
+
+- The Windows game uses ported C++17, native assets, input, audio and a software
+  renderer. No emulated CPU, ROM or captured Practice state is needed to play.
+  Computer Link is deliberately deferred; do not implement it without a request.
+- Preserve original fixed-point arithmetic, update order, RNG and race rules.
+  Gameplay stays at 120 ms per update; wheel/engine interrupt state at 50 Hz;
+  host presentation targets 60 Hz. Interpolation and alternate views must never
+  mutate simulation state. Keep future visual options separate from the faithful
+  baseline. Fullscreen currently fits the original image, not a wider projection.
+- Drive Native.cmd builds/checks and launches the game. The direct-race and
+  captured replay viewers are development tools with different controls.
+- Choose checks using docs/development.md. Original-code comparisons belong
+  only to test executables (SCR_BUILD_ORACLE); never link Musashi into the game.
+  Retained passes require matching source, fixture and executable identities.
+- Keep entry documentation current and concise. Preserve useful recovered
+  contracts and evidence boundaries in component guides, not a session diary.
+- Every commit includes: Co-authored-by: Codex <codex@openai.com>
+
+## Assets and reverse engineering
 
 - Preserve the supplied ADF and ROM. Write derived files under analysis/ and
   emulator state/working copies under working/. Record source hashes and offsets.
@@ -24,7 +45,8 @@ verified toolchain, limitations, and launch commands.
 - The ADF has a valid boot checksum but no valid ordinary AmigaDOS root block.
   The recovered plaintext payload is disk offset 0xdc00, length 408540, loaded
   at 0xe700. A WinUAE menu snapshot corroborates the mapping. Start with
-  analysis/map/report.txt and manifest.json; README.md documents reproduction.
+  analysis/map/report.txt and manifest.json; docs/reverse-engineering.md documents
+  reproduction.
   Do not assume Hunk files or repeat extraction discovery. The pinned Vesuri
   disassembly is enhanced: its timestep and scheduling differ from this disk.
   Imported labels remain provisional except where comparison evidence says otherwise.

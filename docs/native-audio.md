@@ -107,13 +107,15 @@ interrupt timing, or the Amiga's analog filter response.
 
 ## Native playback
 
-`Drive Native.cmd` opens live driving with sound enabled. Click **Drive** or
-press **P** to begin; **M** toggles mute. Pausing, losing focus, disconnecting
-the selected controller or reaching a terminal race state flushes playback.
-Explicit reset starts a fresh audio instance with the captured engine state.
+`Drive Native.cmd` opens the original native menus; audio begins when a race
+starts. **M** toggles mute. The direct-race development viewer instead starts
+paused; click **Drive** or press **P** there to begin. Pausing, losing focus,
+disconnecting the selected controller or reaching a terminal race state flushes
+playback. Starting a race initializes audio from that race's native state;
+resetting the development viewer reuses its corresponding initial state.
 An automatic track recovery preserves the advancing engine pitch accumulator,
-as the original restart does. Audio device failure leaves driving available
-with an **Audio unavailable** status.
+as the original restart does. Audio device failure leaves driving available;
+the development viewer reports an **Audio unavailable** status.
 
 The four-channel mixer reads signed 8-bit samples from a private copy of local
 Chip RAM and regenerates the original engine bank. Channels 0+3 play left and

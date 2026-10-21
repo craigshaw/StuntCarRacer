@@ -16,7 +16,7 @@ original 17-by-17 grid in camera-dependent painter order, uses the original four
 camera choices, and projects each segment through the existing word-exact
 preview branch in `projectNearTrackSegment`. It builds the original road and
 barrier command sequence, with the preview's side-colour override. It does not
-use the replay viewer's coarse mesh or its depth buffer. Its integer edge
+use the driving scene's far/near painter. Its integer edge
 accumulator, horizontal-edge rules and nested active-edge polygon filler are
 native translations of the original raster routines. A generic triangle or
 even/odd filler produces small differences at the original banked corners.

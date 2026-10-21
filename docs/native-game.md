@@ -1,4 +1,4 @@
-# Native original menus and local racing
+# Playing the native game
 
 Double-click `Drive Native.cmd`, or run:
 
@@ -9,8 +9,8 @@ Double-click `Drive Native.cmd`, or run:
 The native game opens the original game-mode chooser. It uses the imported ADF
 pack and ported C++ routines throughout. No captured memory, Kickstart ROM,
 WinUAE or CPU emulator is an input to this executable. The import/build/check
-script remains development tooling; this is the game's menu, not an asset-path
-launcher or settings application.
+script remains development tooling; asset-path selection is not part of the
+game UI. Display preferences have a separate native overlay.
 
 ## Controls and original route
 
@@ -145,153 +145,29 @@ and completed-lap hold follow the original game calls. Wheel treads animate at
 50 Hz independently of camera interpolation, with the original forward/reverse
 phases and suspension positions. Pausing retains the presented wheel phase.
 
-## Implementation and fidelity
+## Architecture and verification
 
-`startNativeGame` creates fresh asset/game data. `initializeNativeOpeningSession`
-copies the original default names and record templates and prepares the opening
-context. `NativeOpeningFlow` runs mode selection, the add-driver loop and roster
-waits; `NativePlayerNameEntry` consumes original raw-key codes through the local
-keyboard tables. `NativeOpeningNameScreen` applies accepted character and erase
-events using original assets. Only after startup completes does `NativeMenuFlow`
-open the main menu. The explicit `EstablishedMenu` session option retains the
-earlier starting point for independent race regressions.
+[Architecture](architecture.md) describes session ownership, the native game loop,
+independent clocks and fidelity boundaries. The [component index](README.md)
+links original-code evidence for menus, career, multiplayer, saves, cockpit and
+rendering. The game has no runtime verification CPU dependency.
 
-`NativeMenuFlow` ports menu selection, Practice and championship callers. The
-[multiplayer state routines](native-multiplayer-state.md) retain the original
-pace-car selection, scoring, sorting, damage and progression. The separate
-[multiplayer renderer](native-multiplayer-render.md) draws its original portraits,
-record pages and variable-height tables. `NativeMenuRender`
-reads the original image, palette, strip graphics, strings, fonts and track-name
-tables from the local pack. `NativeTrackPreview` owns separate rendering scratch.
-`NativeGameSession` transfers selected track configuration into native race
-initialization and transfers the recovered exit state back to the menus.
-`native_game.exe` supplies the Windows event loop, input, audio device and image
-presentation; it does not link the original-CPU verification library.
-
-Presentation prepares the game image and letterboxing in an off-screen GDI
-buffer, then copies the completed frame to the window in one operation. The
-last frame remains visible during rendering; clearing the visible window before
-drawing could otherwise expose intermittent black flashes to the compositor.
-
-All eight tracks are available,
-including the original [Draw Bridge animation](draw-bridge.md). Its preview
-holds the original raised pose; movement starts during driving. The
-original menu has no Escape-to-cancel shortcut on the overview.
-
-This work does not establish pixel identity for the existing in-race 3D renderer.
-The [presentation boundary](native-presentation.md) keeps simulation accuracy
-independent of future camera and aspect-ratio changes. Practice and racing use
-the same recovered road painter, and the horizon retains its original mode
-offset. The [rendering audit](native-render-audit.md) checks scene layering,
-camera-query isolation and representative frames across both leagues.
-Its established geometry/projection checks and documented raster limits still
-apply. Static menu/message pixels, preview pixels, navigation, and palette
-transitions have independent original-code checks. Menu busy-loop timing uses
-measured CPU clocks and PAL frequency; native rendering cost, Amiga bus
-contention and free-running idle-poll RNG advances are not reproduced.
-
-## Verification
+From the project root:
 
 ```powershell
 & C:/Tools/amiga-re/venv/Scripts/python.exe scripts/check_native_game.py
 & C:/Tools/amiga-re/venv/Scripts/python.exe scripts/check_native_game.py --verify-original
 ```
 
-The ordinary check runs the complete route twice on all eight tracks,
-checks overview rotation, fresh race counters, quit cleanup and return to the
-unchanged main menu. Sixteen Hall of Fame visits cover entry, held fire,
-debounce and return before and after racing; eight more visits follow the
-original single-player and local multiplayer name-entry routes. It also runs the 4,096-update fresh-start and steering
-regression. Screenshots, controls and source-identified results remain under
-ignored `analysis/native-game/`.
+The ordinary suite checks first and repeated races on every track, fresh startup,
+opening/name routes, Draw Bridge, local seasons, career continuation, multiplayer,
+saves and display/pause isolation. The optional suite adds original-code state,
+pixel and independently evolved driving comparisons. The separate cockpit suite
+checks both instrument buffers, their original events and wheel timelines,
+including first/repeated menu-entered races and the complete three-lap fixture.
 
-It also runs the original opening through 36 entered names, every local player
-count, single-player portraits and local standings, then drives three named
-race routes. The optional check compares those race traces with the original.
-The multiplayer check completes eleven championships and 88 races across all
-seven player counts, including a pace-car finish, fourteen forfeited tracks,
-career track access, fresh-launch `MP` continuation and the fourth-season reset.
-Its 7,137 physics updates also run against the original full loop. Separate
-original-code oracles check multiplayer state and 4,928 complete screen images.
-The career check loads each division in both leagues, drives eight fresh races,
-forfeits sixteen seasons and checks relegation, eight saves, sixteen loads and
-eight Replay routes. Its 520 physics updates are compared with the original
-full loop. Separate [career state](native-career-state.md) checks use controlled
-race outcomes to exercise complete winning careers through both championships,
-plus losing careers, damage and continuation between seasons. These are
-state-transition tests rather than claims of human-driven championship wins.
-The [career screen checks](native-career-render.md) compare 476 complete
-competition screens, including every finishing place and championship branch.
-The dedicated opening check additionally compares keyboard scanning, editing,
-mode flow, menu/name/standings pixels and palette routines against original code:
-
-```powershell
-& C:/Tools/amiga-re/venv/Scripts/python.exe scripts/check_native_opening.py
-```
-
-Its source/asset/executable-identified receipt and screenshots remain under
-`analysis/native-opening/`. Name and screen evidence:
-
-- [Original opening flow and fade order](native-opening-flow.md).
-- [Raw keyboard scanner and player-name rules](native-player-name.md).
-- [Opening and name-entry pixels](native-opening-render.md).
-
-The ordinary check additionally drives a synthetic approach to Draw Bridge,
-checks occupancy/release and verifies stable interpolated and retained frames.
-Display checks cover all twelve preference combinations, corrupt files, failed
-atomic writes, keyboard/controller navigation, twelve scaling surfaces and four
-fullscreen/window placement roundtrips. A paused race is presented 120 times,
-then resumes on its original fractional tick boundary and exits with RAM identical
-to a headless twin.
-The optional check runs the menu, input, overview, palette, Hall of Fame and bridge oracles
-against unmodified original MC68000 bytes. It also compares every recorded first
-race entered from the menu, all fresh-start races and the bridge approach
-against the original full game loop. The ordinary check also completes a local
-season: one opponent finishes three laps, followed by three early quits and
-the original results, promotion/relegation and roster flow. The optional check
-compares all four menu-entered competitive races against the original loop.
-Save regressions additionally create four saves, load five states across fresh
-launches, drive three loaded careers, visit three Replay routes and exercise
-cancel, damaged-data rejection, write retry and abort. All thirty file slots are
-checked across repeated store instances, including interrupted and failed writes.
-The optional check compares the three loaded-race traces, 800 save-codec RAM
-cases and 1,364 save-menu screens against original instructions.
-Test-only CPU and
-hardware wait models are isolated from the native game. Component evidence:
-
-- [Menu and message pixels](native-menu-rendering.md).
-- [Input, selection and Practice callers](native-menu-flow.md).
-- [Track preview](native-track-preview.md).
-- [Palette transitions](native-palette-fade.md).
-- [Hall of Fame display and transitions](native-hall-of-fame.md).
-- [Hall of Fame record handling](native-hall-records.md).
-- [Load/save screens and controls](native-save-menu.md).
-- [Original save formats and Replay](native-save-state.md).
-- [Native save-file backing](native-save-store.md).
-- [Local seasons and original competition screens](native-opponent-races.md).
-- [Cockpit instrument pixels](native-cockpit-instruments.md).
-- [Instrument events and lap-time holds](cockpit-timing.md).
-- [Wheel animation and hardware sprites](wheel-animation.md).
-
-The cockpit check compares the original instrument buffers, ordered drawing
-events and wheel interrupt states across fresh Practice and competitive starts
-on all eight tracks, restarts, a complete three-lap replay, an opponent finish
-and car contact. It also checks the corresponding gameplay traces:
-
-```powershell
-& C:/Tools/amiga-re/venv/Scripts/python.exe scripts/check_native_cockpit.py
-```
-
-The opponent's AI, collision, car model and far/near drawing queues have a
-dedicated check, including all eight tracks, an opponent race finish and natural
-car contact from digital driving inputs:
-
-```powershell
-& C:/Tools/amiga-re/venv/Scripts/python.exe scripts/check_native_opponents.py
-```
-
-The local asset pack, images, sounds, extracted strings and generated binary
-outputs remain ignored. Only the importer, native algorithms, tests, provenance
-and documentation belong in Git. `scripts/start-native-race.ps1` still opens the
-direct-race development viewer, and `Watch Native Replay.cmd` retains the
-independent captured replay regression.
+See [development](development.md) for prerequisites, focused checks and receipt
+interpretation. Reports and generated images remain under ignored `analysis/`.
+`scripts/start-native-race.ps1` opens the direct-race development viewer;
+`Watch Native Replay.cmd` opens the captured authored replay. Their controls are
+listed in their own guides, rather than the game controls above.

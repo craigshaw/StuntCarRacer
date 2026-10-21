@@ -12,7 +12,8 @@ The native initialization order is:
 3. Run `initializeNativeGameData`, corresponding to original
    `initializeGameData` at `0x5a9b6` and `initializeGameTables` at `0x5aa38`.
 4. Decode the selected track into its native runtime tables.
-5. Run `initializeNativeRace`: reset player configuration (`0x5d726`), establish
+5. Run `initializeNativeRace`: clear the menu text displacement as the original
+   overview return does (`0x5d31c`), reset player configuration (`0x5d726`), establish
    the local default car, race colors and spawn, then run the separately verified
    vehicle restart closure, including its two warm-up frames and engine request.
 

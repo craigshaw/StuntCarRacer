@@ -171,6 +171,9 @@ void initializeNativeRace(NativeMemory& memory) {
     if(memory[0x57c3c])throw std::invalid_argument("Native startup requires a local race");
     if(!memory[0x1ca1a]||memory[0x1ca1b]>=memory[0x1ca1a])
         throw std::invalid_argument("Native startup requires a loaded track and spawn segment");
+    // Original overview return at 0x5d31c clears menu text displacement
+    // before the race-entry labels and restart warm-up instruments are drawn.
+    memory[0x5d724]=0;
     memory[0x57c5b]=memory[0x57c63]=0;
     initializeNativePlayerConfiguration(memory);
     if(memory[0x5eb76]&&(memory[0x1ca22]&0x80))loadNativeMultiplayerDamage(memory);

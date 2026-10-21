@@ -28,6 +28,7 @@ def sources():
              ROOT / 'tests/native_cockpit_instruments_tests.cpp',
              ROOT / 'tests/cockpit_timing_oracle.cpp', ROOT / 'tests/wheel_animation_oracle.cpp',
              ROOT / 'tests/native_cockpit_replay_oracle.cpp',
+             ROOT / 'tests/native_game_session_tests.cpp',
              ROOT / 'tests/native_startup_tests.cpp', ROOT / 'tests/driving_replay_oracle.cpp',
              ROOT / 'tests/native_opponent_driving_tests.cpp', ROOT / 'tests/driving_replay_native.cpp'}
     for directory in ('src', 'app'):
@@ -90,6 +91,7 @@ def main():
     output.mkdir(parents=True, exist_ok=True)
     build = output / 'build'
     names = ('native_cockpit_instruments_tests', 'wheel_animation_oracle',
+             'native_game_session_tests',
              'cockpit_timing_oracle', 'native_cockpit_replay_oracle',
              'native_startup_tests', 'driving_replay_oracle',
              'native_opponent_driving_tests', 'driving_replay_native')
@@ -119,6 +121,11 @@ def main():
                                      indent=2) + '\n')
     executable_records = {name: identity(path) for name, path in executables.items()}
     integration_directory = output / 'integration'
+    menu_directory = output / 'menu-races'
+    menu_integration = run_json([executables['native_game_session_tests'], pack, menu_directory],
+                                output / 'menu-results.json', requires_comparison=False)
+    if menu_integration.get('cockpit_label_checks') != 16:
+        raise RuntimeError('Cockpit checks must cover first and repeated races through the menus')
     integration = run_json([executables['native_startup_tests'], pack, integration_directory],
                            output / 'integration-results.json')
     if integration.get('fresh_starts') != 8 or integration.get('ticks') != 4096:
@@ -187,6 +194,16 @@ def main():
                           'controls': folder / 'controls.csv', 'maximum': count, 'preserve_hud': False})
     scenarios.append({'name': 'captured-three-lap-race', 'seed': lap_seed, 'controls': lap_inputs,
                       'maximum': 1463, 'preserve_hud': True})
+    for ordinal in range(8):
+        for repeat in (False, True):
+            folder = menu_directory / ('route-' + str(ordinal))
+            if repeat:
+                folder /= 'repeat'
+            with (folder / 'controls.csv').open(newline='') as file:
+                count = sum(1 for _ in csv.DictReader(file))
+            scenarios.append({'name': ('menu-repeat-' if repeat else 'menu-first-') + str(ordinal),
+                              'seed': folder / 'native-initial.bin', 'controls': folder / 'controls.csv',
+                              'maximum': count, 'preserve_hud': False})
     scenario_inputs = [(path, identity(path)) for scenario in scenarios for path in (scenario['seed'], scenario['controls'])]
     scenario_inputs += [(path, identity(path)) for path in (capture_manifest_path, lap_provenance)]
     manifest = output / 'cockpit-scenarios.tsv'
@@ -288,7 +305,7 @@ def main():
         raise RuntimeError('A cockpit scenario seed or input changed during checking')
     report = {'status': 'passed', 'pack': pack_record, 'payload': payload_record,
               'sources': records, 'executables': executable_records,
-              'integration': integration, 'opponent_integration': opponents, 'component_oracles': leaves,
+              'integration': integration, 'menu_integration': menu_integration, 'opponent_integration': opponents, 'component_oracles': leaves,
               'original_cockpit': original_cockpit, 'scenario_manifest': identity(manifest),
               'scenarios': [{'name': s['name'], 'seed': identity(s['seed']), 'controls': identity(s['controls']),
                              'updates': s['maximum'], 'preserve_existing_hud': s['preserve_hud']} for s in scenarios],

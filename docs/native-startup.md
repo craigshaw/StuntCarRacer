@@ -1,9 +1,10 @@
 # Native startup and local assets
 
-`Drive Native.cmd` opens the [native original menu](native-game.md), which leads
-to a fresh local Practice race constructed from the original disk data. The
-direct-race development command below also bypasses the saved Practice capture. The native
-application requires one local asset pack; it does not load a ROM, savestate,
+`Drive Native.cmd` opens the [native original game](native-game.md), including
+startup, menus, Practice and local championships. Fresh race state is constructed
+from the original disk data. The direct-race development command below bypasses
+menus and selects Practice. The native application requires one local asset
+pack; it does not load a ROM, savestate,
 WinUAE or a CPU emulator. The original captured replay remains a separate
 regression test and is still available through `Watch Native Replay.cmd`.
 
@@ -88,7 +89,7 @@ and audio consume the resulting state as before.
 ```
 
 The ordinary check has no capture, ROM or original-CPU dependency. It checks all
-all eight tracks for 512 updates each, rendering, horizontal vehicle movement,
+eight tracks for 512 updates each, rendering, horizontal vehicle movement,
 audio generation, deterministic reset and rejection of ten corrupt pack cases.
 It also requires actual opposite left/right yaw responses from the same moving
 fresh state, so matching original execution with disabled steering cannot pass.
@@ -132,5 +133,5 @@ git config core.hooksPath .githooks
 
 Other checkouts must enable the hook themselves (on Unix, also make
 `.githooks/pre-commit` executable). GitHub's `source-only.yml` workflow runs the
-same index check and nine synthetic policy tests without requiring game data.
+same index check and synthetic policy tests without requiring game data.
 No generated pack or original asset is included in the source repository or CI.

@@ -37,6 +37,14 @@ Race entry restores those masks, the primary font and the original labels and
 initial opponent icons. Initial boost digits come from the background; a boost
 consumption event subsequently draws the current fuel level.
 
+Race entry clears the menu display mode before drawing the cockpit, matching
+the overview return at original `0x5d31c`. Primary-font drawing in menu mode
+`0x41` subtracts 320 bytes from its planar destination (`0x59624..0x59640`),
+which shifts text upward by eight rows. Carrying that mode into the first race
+misplaced the static L/B labels, while later digit updates used the correct
+race mode. Both first and repeated menu-entered races are now checked against
+the original startup drawing, on both screen buffers and all eight tracks.
+
 The speedometer preserves its initial leftmost pixel and modifies the interval
 between the previous and current lengths. Its original 128-column wrap is
 retained. It is not reconstructed as a newly filled rectangle each refresh.
@@ -101,23 +109,18 @@ C:/Tools/amiga-re/venv/Scripts/python.exe scripts/check_native_cockpit.py
 ```
 
 It builds the instrument, timing and wheel oracles; generates fresh Practice
-and competitive races on all eight tracks; checks the opponent's idle-player
-finish and natural car contact; and replays the retained three-lap regression
-with its captured HUD preserved. `analysis/native-cockpit/check-results.json`
+and competitive races on all eight tracks; checks first and repeated starts
+through the menus, the opponent's idle-player finish and natural car contact;
+and replays the retained three-lap regression with its captured HUD preserved.
+`analysis/native-cockpit/check-results.json`
 records source, executable, original-payload, asset-pack and scenario hashes.
 The capture is used only by that regression fixture, not native race startup.
 
-The combined suite passes 19 scenarios and 11,308 updates with zero mismatches:
-231,587,840 instrument pixels across both buffers, 18 fresh startup HUDs,
-78,894 wheel timeline states and 135,696 sprite placements. It includes 25
-restarts and three complete player laps. Gameplay traces also match the original.
-
-The combined suite passes **19 scenarios and 11,308 updates**, comparing
-231,587,840 instrument pixels, 78,894 wheel timeline states and 135,696 sprite
-placements. It also checks all 18 fresh startup HUDs against original startup
-drawing, including both screen buffers. The scenarios include 25 restarts,
-1,103 timer refreshes, six result displays and three complete player laps.
-All comparisons have zero mismatches; the original CPU executes only in tests.
+The combined suite compares both instrument buffers, initial HUD drawing,
+wheel timeline states, sprite placements, restarts, time holds and result
+displays. Corresponding gameplay traces are checked independently against the
+original. Scenario counts and byte/pixel totals are recorded in the generated
+receipt; the original CPU executes only in tests.
 
 The test executes the unmodified original MC68000 routines with Musashi and
 compares both complete planar buffers and declared renderer state. The current

@@ -34,6 +34,15 @@ void bitmap(const std::filesystem::path& path,const std::vector<std::uint32_t>& 
     u32(0);u32(320*200*4);u32(2835);u32(2835);u32(0);u32(0);
     for(auto pixel:pixels)u32(pixel);require(bool(out),"Cannot export native game screenshot");
 }
+void cockpitLabels(const NativeGameSession& game,const CockpitInstrumentPixels& expected){
+    const auto& actual=game.race().frames().back().instrumentPixels;
+    for(unsigned y=168;y<188;++y)for(unsigned x=35;x<68;++x){
+        if(x>=45&&x<58)continue;
+        const auto index=(y-cockpitInstrumentTop)*320+x;
+        if(actual[index]!=expected[index])throw std::runtime_error(
+            "Cockpit L/B labels differ after menu entry at x="+std::to_string(x)+" y="+std::to_string(y));
+    }
+}
 void hall(NativeGameSession& game,const std::filesystem::path& screenshot={}){
     const auto main=hash(game.render());
     std::array<std::uint8_t,512> records{};
@@ -62,7 +71,9 @@ void hall(NativeGameSession& game,const std::filesystem::path& screenshot={}){
 int main(int argc,char** argv)try{
     if(argc!=3)throw std::runtime_error("native_game_session_tests pack output-directory");
     const std::filesystem::path directory=argv[2];std::filesystem::create_directories(directory);
-    unsigned routes=0,ticks=0;bool turning=false;
+    unsigned routes=0,ticks=0,labelChecks=0;bool turning=false;
+    const auto directRace=startNativeRace(argv[1],0);
+    const auto labels=NativeCockpitPresentation(*directRace.memory).capture();
     for(unsigned ordinal=0;ordinal<8;++ordinal){
         const auto folder=directory/("route-"+std::to_string(ordinal));std::filesystem::create_directories(folder);
         NativeGameSession game(argv[1],folder,NativeGameStart::EstablishedMenu);
@@ -91,6 +102,7 @@ int main(int argc,char** argv)try{
             require(bool(seed),"Cannot export native menu race seed");
         }
         const auto controls=game.race().liveRecording();
+        cockpitLabels(game,labels);++labelChecks;
         if(!ordinal)bitmap(directory/"race.bmp",game.render());
         if(!ordinal){
             const auto unpaused=hash(game.render());
@@ -116,12 +128,23 @@ int main(int argc,char** argv)try{
         game.update(0,{});game.update(0,{{16,0},0,false});
         settle(game);
         require(game.page()==NativeMenuPage::Race&&game.race().liveTicks()==0,"Repeat Practice reused old race ticks");
+        cockpitLabels(game,labels);++labelChecks;
+        const auto repeatFolder=folder/"repeat";std::filesystem::create_directories(repeatFolder);
+        {
+            std::ofstream seed(repeatFolder/"native-initial.bin",std::ios::binary);
+            seed.write(reinterpret_cast<const char*>(game.memory().data()),game.memory().size());
+            require(bool(seed),"Cannot export repeated race seed");
+        }
+        const auto repeatControls=game.race().liveRecording();
         for(unsigned n=0;n<600&&game.page()==NativeMenuPage::Race;++n){
             const auto previous=game.race().liveTicks();game.update(0.12,{{},1,true});ticks+=game.race().liveTicks()-previous;
             if(game.raceEnded()){game.update(0,{});game.update(1,{{16,0},0,false});}
         }
         settle(game);
         require(game.page()==NativeMenuPage::Track,"Repeated Practice did not return");
+        std::filesystem::copy_file(repeatControls,repeatFolder/"controls.csv",std::filesystem::copy_options::overwrite_existing);
+        auto repeatTrace=repeatControls.string();repeatTrace.replace(repeatTrace.size()-13,13,"-native.csv");
+        std::filesystem::copy_file(repeatTrace,repeatFolder/"native.csv",std::filesystem::copy_options::overwrite_existing);
         choose(game,2);confirm(game);require(game.page()==NativeMenuPage::Main,"Track Cancel did not return to main menu");
         require(hash(game.render())==originalMain,"Practice route changed original main-menu appearance");
         hall(game);
@@ -130,6 +153,7 @@ int main(int argc,char** argv)try{
     std::cout<<"{\"status\":\"passed\",\"practice_routes\":"<<routes<<",\"repeated_races\":"<<routes
         <<",\"ticks\":"<<ticks<<",\"preview_rotation\":"<<(turning?"true":"false")
         <<",\"hall_of_fame_routes\":"<<routes*2<<",\"hall_of_fame_fire_wait_checked\":true"
+        <<",\"cockpit_label_checks\":"<<labelChecks
         <<",\"return_to_main_menu\":true,\"capture_input\":false,\"cpu_emulation\":false}\n";
     return 0;
 }catch(const std::exception& error){std::cerr<<error.what()<<'\n';return 1;}

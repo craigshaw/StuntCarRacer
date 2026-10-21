@@ -15,7 +15,7 @@ Each fade pass moves every differing source channel one step toward its target.
 If any channel changes, the original copies the palette into the copper list,
 sets `0x616d8` to two and waits for the PAL interrupt to decrement it to zero.
 The first pass runs immediately; subsequent passes are separated by two vblanks
-(40 ms at the native presentation clock's nominal 50 Hz PAL cadence). A final
+(40 ms on the recovered 50 Hz PAL fade clock). A final
 two-vblank wait still occurs after the pass that reaches the target.
 
 `fadeToColor` additionally writes its flat destination into current entry zero,

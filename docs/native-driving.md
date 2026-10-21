@@ -1,7 +1,7 @@
-# Native keyboard and controller driving
+# Direct-race development viewer
 
-Double-click `Drive Native.cmd` for the [original native menu and Practice
-route](native-game.md). For the direct-race development viewer described below,
+Double-click `Drive Native.cmd` for the [original native menus and racing
+routes](native-game.md). For the direct-race development viewer described below,
 run:
 
 ```powershell
@@ -42,7 +42,8 @@ requires an explicit resume. A reset starts another recording and returns to
 a newly initialised Practice race. Automatic off-track recovery and race-end gates
 still use the recovered native routines. Original engine samples and sound
 effects play through native stereo audio. Pause and focus loss stop playback;
-M toggles mute. `-Track` on the launcher selects a static track (0..7 except 5).
+M toggles mute. `-Track` selects any of the eight tracks (0..7), including
+Draw Bridge (5).
 Menus and autonomous opponent driving are
 outside this live mode. See [native audio](native-audio.md) for recovery evidence
 and the playback boundaries.
@@ -77,17 +78,16 @@ Every drive writes unique files under `analysis/live-driving/`:
 - `drive-<timestamp>-native.csv`: the corresponding native gameplay trace.
 
 Files flush after every tick. Closing or resetting preserves the previous
-drive; a reset creates another pair. Native recordings are not automatically
-claimed to match original execution. After a drive, compare its inputs with the
-original using:
+drive; a reset creates another pair. The native game host uses the same recording
+format, starting a new pair for each race.
 
-```powershell
-. .\scripts\env.ps1
-& $AmigaPython scripts/check_driving_replay.py `
-  --inputs analysis/live-driving/drive-<timestamp>-controls.csv `
-  --full-loop --native-only-verify `
-  --output analysis/live-driving/original-comparison/check-results.json
-```
+A control CSV alone does not establish original/native equivalence. Interactive
+recordings currently omit the exact race-entry memory seed, so they cannot be
+verified by passing their controls to the capture-based wrapper's default seed.
+That seed describes a different car/session state. To investigate a drive, retain
+its exact initial state as a local fixture, run original and native sides from
+that same state with the recorded controls, then compare the live trace as well.
+The session/startup suites already export seeds for their own scripted races.
 
 The standard `scripts/check_native_rendering.py` check includes 18 input/clock
 regressions, the existing 14 interpolation regressions, and the complete authored

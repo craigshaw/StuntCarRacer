@@ -1,6 +1,7 @@
 #pragma once
 #include "replay_render_assets.h"
 #include "replay_interpolation.h"
+#include "replay_view.h"
 #include "software_renderer.h"
 #include "game_audio.h"
 #include "opponent_car.h"
@@ -10,6 +11,7 @@
 #include <filesystem>
 #include <array>
 #include <memory>
+#include <optional>
 #include <string>
 #include <vector>
 
@@ -68,6 +70,9 @@ public:
     GameAudioSeed audioSeed()const;
     const std::vector<std::uint32_t>& render(unsigned frame,bool wireframe=false);
     const std::vector<std::uint32_t>& renderInterpolated(double position,bool wireframe=false);
+    // Independent presentation query. Default settings retain the original
+    // view; alternate angles/cockpit visibility leave saved frames unchanged.
+    const std::vector<std::uint32_t>& renderView(double position,const ReplayViewSettings&,bool wireframe=false);
     void saveBitmap(const std::filesystem::path&) const;
     const std::vector<ReplaySceneFrame>& frames() const noexcept {return frames_;}
     const TrackMesh& mesh() const noexcept {return mesh_;}
@@ -108,7 +113,10 @@ private:
     double lastLiveFraction_{};
     bool lastLiveInterpolate_{true};
     bool bitmapOnly_{};
+    NearTrackPresentation buildViewCommands(const ReplayVisualState&,const ReplaySceneFrame&,
+        const std::optional<OpponentCarInputs>&)const;
     void draw(const ReplayVisualState&,const NearTrackPresentation&,bool wireframe,
-        const ReplayTrackSnapshot* movingTrack=nullptr,const ReplaySceneFrame* discrete=nullptr,double wheelFraction=0);
+        const ReplayTrackSnapshot* movingTrack=nullptr,const ReplaySceneFrame* discrete=nullptr,double wheelFraction=0,
+        bool showCockpit=true);
 };
 } // namespace scr::viewer

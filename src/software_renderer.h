@@ -15,9 +15,9 @@ struct RenderStatistics {
     unsigned nearQueueEntries{},nearFillCommands{},edgeHighlightCommands{},edgeHighlightPixels{};
     unsigned opponentPolygons{},opponentPixels{};
 };
-// First native presentation backend. Geometry and angular point projection
-// come from the recovered game; polygon clipping, depth buffering and triangle
-// coverage are explicit viewer choices, not claims of original pixel identity.
+// Native presentation backend for recovered, ordered scene commands. The
+// generic mesh path remains available for isolated diagnostics. Line and
+// polygon coverage are native choices, not claims of original pixel identity.
 // Pixels are packed 0x00RRGGBB, suitable for a Windows BGRX DIB.
 class SoftwareReplayRenderer {
 public:

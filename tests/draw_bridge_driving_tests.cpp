@@ -1,5 +1,7 @@
 #include "native_startup.h"
 #include "replay_scene.h"
+#include "replay_scene_commands.h"
+#include "render_projection_fixture.h"
 #include "track_mesh_capture.h"
 #include "driving_replay_io.h"
 #include <algorithm>
@@ -35,7 +37,7 @@ std::uint64_t meshHash(const scr::TrackMesh& mesh){
     for(const auto& face:mesh.faces){for(auto index:face.indices)h.add(index);h.add(face.segment);h.add(face.flags);}return h.value;
 }
 std::uint64_t nearHash(const scr::NearTrackPresentation& near){
-    Hash h;h.add(near.queueEntries);h.add(near.farStartSegment);for(auto covered:near.coveredSegments)h.add(covered);
+    Hash h;h.add(near.queueEntries);h.add(near.farStartSegment);h.add(near.horizonMode);for(auto covered:near.coveredSegments)h.add(covered);
     for(const auto& command:near.commands){h.add(unsigned(command.kind));h.add(unsigned(command.surface));h.add(command.color);h.add(command.originQueueOffset);h.add(command.firstQueueOffset);
         for(const auto& edge:command.edges){for(const auto point:{edge.from,edge.to,edge.clippedFrom,edge.clippedTo}){h.add(unsigned(point.x));h.add(unsigned(point.y));}
             h.add(edge.present);h.add(edge.clipFlags);h.add(edge.originQueueOffset);h.add(edge.originEdge);h.add(edge.storageBytes);}
@@ -65,6 +67,8 @@ void runScenario(const scr::viewer::NativeStartupData& startup,const std::filesy
         <<"No RAM capture and no claim of a completed lap. Hold original digital accelerate input for512ticks.\n";description.close();
     auto state=std::make_unique<replay::NativeReplay>(*seed);
     ReplayScene scene;scene.loadNativeState(*seed,startup.payload,output/"recordings");
+    const auto projection=scr::test::renderProjection::readTables(seed->data());
+    const auto mountains=scr::decodeMountainHorizonData(startup.payload.data(),startup.payload.size());
     std::ofstream controls(output/"controls.csv"),trace(output/"native.csv");controls<<"tick,controls\n";replay::traceHeader(trace);
     auto previousRaw=geometryHash(state->progressData.track);
     auto previousMesh=meshHash(scr::buildTrackMesh(scr::viewer::decodeTrackMesh(state->ram)));
@@ -99,7 +103,9 @@ void runScenario(const scr::viewer::NativeStartupData& startup,const std::filesy
         auto nearSeed=frame.nearSeed;std::array<std::uint8_t,100> renderFlags{};std::array<bool,100> known{};
         for(const auto& section:scr::viewer::decodeTrackMesh(state->ram).sections)if(!known[section.segment]){renderFlags[section.segment]=section.flags;known[section.segment]=true;}
         const auto near=scr::buildNearTrackFrame(frame.movingTrack->progress,renderFlags,frame.nearInputs,nearSeed);
-        require(nearHash(near.presentation)==nearHash(frame.nearTrack),"Scene near geometry used a later bridge state");
+        const auto commands=scr::viewer::buildReplaySceneCommands(near,frame.nearInputs.drawing,projection,
+            frame.movingTrack->farTrack,nearSeed,mountains,frame.cameraYaw,frame.camera);
+        require(nearHash(commands.presentation)==nearHash(frame.nearTrack),"Scene geometry used a later bridge state");
         if(!frozen){frozen=frame.movingTrack;frozenRaw=frameRaw;frozenMesh=frameMesh;frozenSurface=surfaceHash(frozen->progress);}
         require(geometryHash(frozen->progress.track)==frozenRaw&&meshHash(frozen->mesh)==frozenMesh&&surfaceHash(frozen->progress)==frozenSurface,"Past moving-track snapshot mutated while driving");
         const auto frameSignature=nearHash(frame.nearTrack)^geometryHash(frame.movingTrack->progress.track)^meshHash(frame.movingTrack->mesh);

@@ -50,7 +50,7 @@ void hook(unsigned pc){
         if(pc==0x6916c||pc==0x6917c||pc==0x69188){ret();return;}
     }
     bool allowed=false;for(auto range:std::array<std::pair<unsigned,unsigned>,9>{{{0x655ea,0x65756},{0x617d0,0x6181e},{0x668a8,0x66fb8},
-        {0x66ff0,0x6770a},{0x67740,0x67888},{0x688fc,0x690bc},{0x6814a,0x6847c},{0x68544,0x68546},{0x1ca42,0x1ec46}}})allowed|=inside(pc,2,range.first,range.second);
+        {0x66ff0,0x6770a},{0x67740,0x67888},{0x688fc,0x690bc},{0x6814a,0x684a6},{0x68544,0x68546},{0x1ca42,0x1ec46}}})allowed|=inside(pc,2,range.first,range.second);
     if(frameMode)allowed|=inside(pc,2,0x58000,0x65bec);
     if(!allowed||instructions>1000000){invalid=true;stop();}
 }
@@ -88,7 +88,11 @@ scr::NearTrackGeometryState synthetic(unsigned n){
 }
 void compareQueue(const scr::NearTrackGeometryState& s,const scr::NearTrackQueueState& q){
     if(q.offset!=f::word(ram.data(),0x68148)||q.opponentOffset!=f::word(ram.data(),0x1bc12)||q.previousOffset!=ram[0x1bb7c]||
-       s.progress.depth!=ram[0x1bb58]||s.processedIndices[0]!=ram[0x1bc14])throw std::runtime_error("Near queue scalar differs");
+       s.progress.depth!=ram[0x1bb58]||s.processedIndices[0]!=ram[0x1bc14]){
+        std::ostringstream out;out<<"Near queue scalar differs offset="<<q.offset<<'/'<<f::word(ram.data(),0x68148)
+            <<" opponent="<<q.opponentOffset<<'/'<<f::word(ram.data(),0x1bc12)<<" previous="<<unsigned(q.previousOffset)<<'/'<<unsigned(ram[0x1bb7c])
+            <<" depth="<<unsigned(s.progress.depth)<<'/'<<unsigned(ram[0x1bb58])<<" processed="<<unsigned(s.processedIndices[0])<<'/'<<unsigned(ram[0x1bc14]);
+        throw std::runtime_error(out.str());}
     if(q.lineBytes!=f::longword(ram.data(),0x68144)-f::lineBase)throw std::runtime_error("Near queue allocation differs");
     for(unsigned n=0;n<30;++n)if(s.flags[n]!=ram[0x1bdd0+n*4])throw std::runtime_error("Near queue flags differ");
     for(unsigned n=0;n<60;++n)if(std::uint16_t(s.upper[n].y)!=f::word(ram.data(),0x1c0f0+2*n))throw std::runtime_error("Near queue bounds adjustment differs");
@@ -161,6 +165,9 @@ void replayFrames(const char* inputPath){
         initial.continuation=initial.viewReverse=0;initial.processedIndices={0x80,0x80};initial.progress.currentSegment=in.progress.playerSegment;
         if(initial.progress.progressOffset&0x8000){initial.progress.currentSegment=std::uint8_t((initial.progress.currentSegment+1)%playback->progressData.track.segmentCount);initial.progress.progressOffset&=255;}
         ram=playback->ram;scr::test::nearGeometry::writeState(ram,initial);scr::NearTrackQueueState empty{};empty.opponentSegment=in.opponentSegment;empty.opponentSubSegment=in.opponentSubSegment;empty.minimumBoundaryDistance=in.minimumBoundaryDistance;f::writeQueueInputs(ram,empty);
+        // The caller can seed marker zero for an opponent on the preceding
+        // segment before any dense pass. Execute that branch independently.
+        begin(0x64fba,0x64fe2);execute();
         for(unsigned pass=0;pass<3;++pass){
             originalStage(0x6521c);originalStage(0x655ea);if(!pass)originalStage(0x65a18);originalStage(pass?0x67092:0x6702e);
             if(!pass){ram[0x1bb60]=0;ram[0x1bbc5]=4;}
@@ -186,7 +193,7 @@ void m68k_write_memory_32(unsigned int a,unsigned int v){if(!executing||!valid(a
 int main(int argc,char** argv)try{
     if(argc!=3&&argc!=4)throw std::runtime_error("Usage: near_track_visibility_oracle payload.bin chipram.bin [controls.csv]");const auto payload=readFile(argv[1]),capture=readFile(argv[2]);
     if(payload.size()!=408540||capture.size()!=ram.size())throw std::runtime_error("Input size differs");std::copy(capture.begin(),capture.end(),baseline.begin());
-    for(auto range:std::array<std::pair<unsigned,unsigned>,6>{{{0x655ea,0x65756},{0x617d0,0x6181e},{0x668a8,0x66fb8},{0x66ff0,0x6770a},{0x67740,0x67888},{0x6892a,0x690bc}}})
+    for(auto range:std::array<std::pair<unsigned,unsigned>,9>{{{0x655ea,0x65756},{0x617d0,0x6181e},{0x668a8,0x66fb8},{0x66ff0,0x6770a},{0x67740,0x67888},{0x6892a,0x690bc},{0x64fba,0x64fe2},{0x5c51a,0x5c554},{0x6847c,0x684a6}}})
         if(!std::equal(payload.begin()+range.first-0xe700,payload.begin()+range.second-0xe700,baseline.begin()+range.first))throw std::runtime_error("Captured near code differs");
     m68k_init();m68k_set_cpu_type(M68K_CPU_TYPE_68000);m68k_set_instr_hook_callback(hook);
     constexpr std::array<int,9> x{-600,-1,0,1,128,255,256,257,800},y{-300,-1,0,1,64,127,128,129,400};

@@ -908,6 +908,11 @@ screen roll. Dense near-track geometry, visibility, painter order and alternatin
 edge highlights now follow the original routines. A live FPS counter measures
 window presentations. See the [viewer guide](docs/native-replay-viewer.md) for
 controls, exported frames, differential evidence and rendering boundaries.
+Practice and competitive rendering share the recovered distant/near road painter.
+Independent view queries and aspect-preserving host layout prepare the
+[presentation layer](docs/native-presentation.md) for later camera and widescreen
+work without changing the verified simulation. The current image and field of
+view retain their original dimensions.
 
 ### Drive the native port
 

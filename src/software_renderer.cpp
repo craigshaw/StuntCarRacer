@@ -12,10 +12,11 @@ using Polygon=std::vector<RenderWorldPoint>;
 constexpr double nearPlane=1.0;
 int signedWord(std::uint16_t value){return value<0x8000?int(value):int(value)-65536;}
 int floorShift(int value,unsigned bits){const int divisor=1<<bits;return value/divisor-(value%divisor<0);}
-ScreenVertex horizonPoint(int side,const RenderProjectionCamera& camera){
+ScreenVertex horizonPoint(int side,const RenderProjectionCamera& camera,std::uint8_t mode){
     // Original renderHorizon uses fixed screen-angle endpoints +/-0x500,
-    // independent of yaw. Practice mode lowers its vertical angle by eight.
-    const auto down=std::uint16_t(-floorShift(signedWord(camera.viewportCenterY),3)-8);
+    // independent of yaw. The signed visibility mode controls its eight-unit
+    // vertical correction, as in original0x678a4.
+    const auto down=std::uint16_t(-floorShift(signedWord(camera.viewportCenterY),3)-((mode&0x80)?0:8));
     const auto x=std::uint16_t(int(multiplyMatrixWord(std::uint16_t(side),camera.cosRoll))+multiplyMatrixWord(down,camera.sinRoll));
     const auto y=std::uint16_t(int(multiplyMatrixWord(down,camera.cosRoll))-multiplyMatrixWord(std::uint16_t(side),camera.sinRoll));
     return {double(floorShift(signedWord(x),2)+128),double(floorShift(signedWord(y),2)+64),0};
@@ -140,7 +141,8 @@ RenderStatistics SoftwareReplayRenderer::drawFrame(const TrackMesh& mesh,const s
     inverseDepth_.assign(viewportWidth*viewportHeight,0);
     coverage_.assign(viewportWidth*viewportHeight,0);
     highlights_.assign(viewportWidth*viewportHeight,0);
-    const auto h0=horizonPoint(-0x500,camera),h1=horizonPoint(0x500,camera);
+    const auto mode=nearTrack?nearTrack->horizonMode:std::uint8_t{};
+    const auto h0=horizonPoint(-0x500,camera,mode),h1=horizonPoint(0x500,camera,mode);
     for(int y=0;y<viewportHeight;++y)for(int x=0;x<viewportWidth;++x){
         // Original palette entries: sky7, ground13. The recovered mountain
         // polygons follow this horizon, before the depth-tested road and sides.

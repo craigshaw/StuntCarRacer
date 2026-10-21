@@ -23,6 +23,8 @@ def sources():
     paths.add(ROOT / 'tests/native_opponent_session_tests.cpp')
     paths.add(ROOT / 'tests/native_multiplayer_session_tests.cpp')
     paths.add(ROOT / 'tests/native_career_session_tests.cpp')
+    paths.add(ROOT / 'tests/native_render_audit.cpp')
+    paths.add(ROOT / 'tests/replay_scene_commands_tests.cpp')
     paths.add(ROOT / 'tests/native_save_session_tests.cpp')
     paths.add(ROOT / 'tests/native_save_store_tests.cpp')
     paths.add(ROOT / 'tests/draw_bridge_oracle.cpp')
@@ -164,6 +166,7 @@ def main():
                 'native_multiplayer_state_tests', 'native_multiplayer_render_tests',
                 'native_opponent_race_tests', 'native_competition_render_tests',
                 'native_career_state_tests',
+                'native_render_audit', 'replay_scene_commands_tests',
                 'driving_replay_oracle', 'draw_bridge_oracle', '--parallel', '4']], output / 'oracle-build.log')
         payload = ROOT / 'analysis/reference/vesuri/offline-extracted-payload.bin'
         for name, argument in (('native_menu_render', payload), ('native_menu_flow', payload), ('native_track_preview', pack),
@@ -175,6 +178,21 @@ def main():
             target = oracle_build / 'Release' / (name + '_tests.exe')
             original[name] = run_json([target, argument], output / (name + '-original-results.json'))
             original[name]['oracle'] = identity(target)
+        scene_commands = oracle_build / 'Release/replay_scene_commands_tests.exe'
+        original['scene_commands'] = run_json([scene_commands, pack], output / 'scene-commands-original-results.json')
+        original['scene_commands']['oracle'] = identity(scene_commands)
+        if (original['scene_commands'].get('cases') != 1920
+                or original['scene_commands'].get('sequential_practice_frames') != 384
+                or original['scene_commands'].get('mismatches') != 0):
+            raise RuntimeError('Shared scene command original-code coverage differs')
+        audit_target = oracle_build / 'Release/native_render_audit.exe'
+        original['render_audit'] = run_json([audit_target, pack, output / 'render-audit'], output / 'render-audit-results.json')
+        original['render_audit']['oracle'] = identity(audit_target)
+        if (original['render_audit'].get('scenes') != 32
+                or original['render_audit'].get('simulation_memory_checks') != 32
+                or original['render_audit'].get('horizon_cases') != 100
+                or original['render_audit'].get('generic_faces') != 0):
+            raise RuntimeError('Rendering isolation audit coverage differs')
         if original['native_hall_of_fame'].get('cases') != 640 or original['native_hall_records'].get('cases') != 2944:
             raise RuntimeError('Hall of Fame original-code coverage differs')
         if (original['native_save_state'].get('cases') != 800 or original['native_save_state'].get('rejection_cases') != 39

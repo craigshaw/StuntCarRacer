@@ -15,6 +15,7 @@ struct NearTrackPresentation {
     std::uint16_t queueEntries{};
     std::uint16_t opponentOffset{0xffff};
     std::uint8_t farStartSegment{};
+    std::uint8_t horizonMode{};
 };
 struct NearTrackFrame {
     NearTrackQueueState queue;

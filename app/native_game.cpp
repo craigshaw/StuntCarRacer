@@ -164,8 +164,8 @@ private:
         }
         const auto previous=SelectObject(dc,surface);
         FillRect(dc,&client,static_cast<HBRUSH>(GetStockObject(BLACK_BRUSH)));
-        const int scale=std::max(1,int(std::min(client.right/320,client.bottom/200)));
-        const int width=scale*320,height=scale*200,x=(client.right-width)/2,y=(client.bottom-height)/2;
+        const auto layout=fitPresentationImage(320,200,client.right,client.bottom);
+        const int width=layout.width,height=layout.height,x=layout.x,y=layout.y;
         BITMAPINFO bitmap{};bitmap.bmiHeader.biSize=sizeof(BITMAPINFOHEADER);bitmap.bmiHeader.biWidth=320;
         bitmap.bmiHeader.biHeight=-200;bitmap.bmiHeader.biPlanes=1;bitmap.bmiHeader.biBitCount=32;bitmap.bmiHeader.biCompression=BI_RGB;
         SetStretchBltMode(dc,COLORONCOLOR);

@@ -215,8 +215,9 @@ private:
         audio_->setPlaying(!paused_&&focused);
     }
     void layout(int width,int height){
-        const int availableHeight=std::max(200,height-190);const int scale=std::max(1,std::min((width-48)/320,availableHeight/200));
-        const int w=320*scale,h=200*scale;const int x=(width-w)/2,y=76+std::max(0,(availableHeight-h)/2);
+        const int availableHeight=std::max(200,height-190);
+        const auto layout=scr::viewer::fitPresentationImage(320,200,std::max(1,width-48),availableHeight);
+        const int w=layout.width,h=layout.height;const int x=24+layout.x,y=76+layout.y;
         image_={x,y,x+w,y+h};const int bottom=std::max(y+h+20,height-98);
         timeline_={32,bottom+8,width-32,bottom+24};
         for(unsigned n=0;n<buttons_.size();++n)buttons_[n]={32+int(n)*108,bottom+38,128+int(n)*108,bottom+72};

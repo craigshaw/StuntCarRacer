@@ -70,7 +70,8 @@ if(WIN32)
     app/native_opening_flow.cpp app/native_player_name.cpp app/native_opening_render.cpp
     app/native_keyboard_input.cpp app/native_hall_of_fame.cpp
     app/native_save_state.cpp app/native_save_menu.cpp
-    app/native_multiplayer_state.cpp app/native_multiplayer_render.cpp)
+    app/native_multiplayer_state.cpp app/native_multiplayer_render.cpp
+    app/replay_view.cpp app/replay_scene_commands.cpp)
   target_include_directories(scr_startup PUBLIC app)
   target_link_libraries(scr_startup PUBLIC scr_render scr_audio bcrypt)
   target_compile_features(scr_startup PUBLIC cxx_std_17)
@@ -189,6 +190,12 @@ if(SCR_BUILD_ORACLE)
     add_executable(opponent_scene_oracle tests/opponent_scene_oracle.cpp)
     target_link_libraries(opponent_scene_oracle PRIVATE scr_game musashi_oracle)
     target_compile_features(opponent_scene_oracle PRIVATE cxx_std_17)
+    add_executable(native_render_audit tests/native_render_audit.cpp)
+    target_link_libraries(native_render_audit PRIVATE scr_game musashi_oracle)
+    target_compile_features(native_render_audit PRIVATE cxx_std_17)
+    add_executable(replay_scene_commands_tests tests/replay_scene_commands_tests.cpp)
+    target_link_libraries(replay_scene_commands_tests PRIVATE scr_game musashi_oracle)
+    target_compile_features(replay_scene_commands_tests PRIVATE cxx_std_17)
     add_executable(native_opponent_race_tests tests/native_opponent_race_tests.cpp app/native_menu_flow.cpp)
     target_link_libraries(native_opponent_race_tests PRIVATE scr_startup musashi_oracle)
     target_compile_features(native_opponent_race_tests PRIVATE cxx_std_17)

@@ -152,6 +152,11 @@ holds the original raised pose; movement starts during driving. The
 original menu has no Escape-to-cancel shortcut on the overview.
 
 This work does not establish pixel identity for the existing in-race 3D renderer.
+The [presentation boundary](native-presentation.md) keeps simulation accuracy
+independent of future camera and aspect-ratio changes. Practice and racing use
+the same recovered road painter, and the horizon retains its original mode
+offset. The [rendering audit](native-render-audit.md) checks scene layering,
+camera-query isolation and representative frames across both leagues.
 Its established geometry/projection checks and documented raster limits still
 apply. Static menu/message pixels, preview pixels, navigation, and palette
 transitions have independent original-code checks. Menu busy-loop timing uses

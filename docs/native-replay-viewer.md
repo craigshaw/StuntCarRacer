@@ -197,8 +197,12 @@ closure follow the original command selection. Coarse far faces are suppressed
 for all three visited segments, including ones culled by near visibility. See
 [the near-track evidence guide](native-near-track.md).
 
-Far-road subdivision, triangles and depth buffering, plus native polygon and
-line raster coverage, remain presentation choices. Original engine audio and
+Practice and competitive scenes now use the same recovered far/near painter;
+the original Practice guard suppresses only the opponent. The early coarse
+far-road triangles and depth buffer are no longer used for these game views.
+Native polygon and line raster coverage remain presentation choices. The
+[presentation interfaces](native-presentation.md) separate view queries and
+host image fitting from simulation. Original engine audio and
 effects use the separate [native audio](native-audio.md) implementation.
 Matching gameplay traces and draw commands does not establish pixel equality with the
 original blitter, DMA, interrupt schedule or audio output.

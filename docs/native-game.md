@@ -10,7 +10,7 @@ The native game opens the original game-mode chooser. It uses the imported ADF
 pack and ported C++ routines throughout. No captured memory, Kickstart ROM,
 WinUAE or CPU emulator is an input to this executable. The import/build/check
 script remains development tooling; asset-path selection is not part of the
-game UI. Display preferences have a separate native overlay.
+game UI. Display and control preferences have a separate native overlay.
 
 ## Controls and original route
 
@@ -72,8 +72,24 @@ temporary save files are ignored by Git and rejected by the asset safeguard.
 Choose **Practise**, then a division and one of its two tracks. The original
 track overview appears. Left/Right rotates it by quarter turns; release before
 another turn. Return/Space/A starts driving after release. Arrow keys or WASD
-drive, Space boosts, and XInput controllers retain the existing stick/D-pad,
-RT/LT and A mappings. Acceleration remains latched as in the original.
+drive and Space boosts in either control preset. XInput steering uses the left
+stick or D-pad; A or RB boosts. Choose a preset in Settings:
+
+| Preset | Accelerate | Brake / reverse |
+| --- | --- | --- |
+| Original (default) | Stick or D-pad up | Stick or D-pad down |
+| Modern | Right trigger | Left trigger |
+
+Original ignores triggers while driving. Modern ignores stick/D-pad up/down
+for throttle, so diagonal steering cannot accelerate or brake. Triggers are
+digital: values above 30 count as pressed, with no pressure-dependent strength.
+Stick driving axes use a 7,849-unit deadzone. Opposing steering cancels and
+brake takes priority over gas, including combined keyboard/controller input.
+Original retains latched acceleration: releasing gas keeps accelerating until
+braking. Modern accelerates only while RT (or keyboard gas) is held and coasts
+on release, without applying the brake. Releasing before the next physics tick
+cancels Modern's pending gas press. Boost alone does not restart acceleration
+while coasting. Menus and text entry retain their controls.
 
 Escape during a race requests the original quit path; its original gameplay
 gates still apply. Controller Back/View maps to that exit. At the end message,
@@ -106,16 +122,16 @@ to restore later-track access. Holding F1 when confirming a matchup forfeits the
 remaining turns on that track and proceeds to its summary.
 
 P/controller Start opens the native pause panel while driving. Choose Resume or
-Display Settings with Up/Down and Return/A. P, Start, Escape or B resumes from
+Settings with Up/Down and Return/A. P, Start, Escape or B resumes from
 that panel. Focus loss and controller disconnection also pause driving; resume
 explicitly. M mutes. I toggles and saves interpolation outside text entry.
 
-F10 opens Display Settings from any screen. Controller Start opens it directly
+F10 opens Settings from any screen. Controller Start opens it directly
 from the original menus. Use arrows or the stick/D-pad to select rows; Left/Right
 changes values, and Return/A changes a selected value or activates Apply and Back.
 The options are Windowed/Borderless Fullscreen, Integer/Fit Sharp/Fit Smooth scaling,
-and Original Updates/Smooth Interpolation. Changes preview immediately. Apply and
-Back saves them; Cancel, Escape, B, F10 or Start restores the choices from before
+Original Updates/Smooth Interpolation, and Original/Modern controls. Changes
+preview immediately. Apply and Back saves them; Cancel, Escape, B, F10 or Start restores the choices from before
 entry. Settings entered from the pause panel return there. Focus loss while
 adjusting settings during a race also requires an explicit resume.
 
@@ -127,7 +143,9 @@ The original 320-by-200 game image and field of view are unchanged. Display UI i
 composited after scaling, independently of the original game pixels.
 
 Preferences are stored atomically in `working/settings/display.ini`. Invalid or
-missing preferences use windowed, integer-scaled, original-update presentation.
+missing preferences use windowed, integer-scaled, original-update presentation
+and Original controls. Older display-only preferences retain their display
+choices and use Original controls; saving upgrades them to include the preset.
 Failed saves retain the last good file and show an error with an Apply retry.
 `-SettingsFile` selects another `.ini` for development; `-Fullscreen` and
 `-Interpolate` override the corresponding saved choices for that launch.
@@ -136,8 +154,8 @@ Both motion modes retain the verified 120 ms physics
 updates and 50 Hz engine audio. The window presents at 60 Hz and reports FPS in
 its title; host text and controls are kept outside the original game image.
 No gameplay, fade, wheel or audio clocks advance while the settings overlay is
-open, and held navigation/fire inputs must be released before gameplay accepts
-them again. Closing settings retains the pre-pause fraction of a physics tick.
+open, and held navigation, fire and trigger inputs must be released before
+gameplay accepts them again. Closing settings retains the pre-pause fraction of a physics tick.
 
 The cockpit uses the original font, speed bar, boost digits, lap counter,
 running/completed time displays, distance and car icons. Their redraw cadence
@@ -161,7 +179,8 @@ From the project root:
 
 The ordinary suite checks first and repeated races on every track, fresh startup,
 opening/name routes, Draw Bridge, local seasons, career continuation, multiplayer,
-saves and display/pause isolation. The optional suite adds original-code state,
+saves, digital control presets, preference migration and settings/pause isolation.
+The optional suite adds original-code state,
 pixel and independently evolved driving comparisons. The separate cockpit suite
 checks both instrument buffers, their original events and wheel timelines,
 including first/repeated menu-entered races and the complete three-lap fixture.

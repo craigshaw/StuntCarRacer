@@ -27,17 +27,22 @@ struct Surface {
 void tap(NativeDisplaySettings& settings,unsigned controls){settings.navigate(0);settings.navigate(controls);settings.navigate(0);}
 void storage(const std::filesystem::path& output){
     const auto file=output/"preferences.ini";
-    for(bool fullscreen:{false,true})for(bool smooth:{false,true})for(unsigned scale=0;scale<3;++scale){
-        NativeDisplayPreferences preferences{fullscreen,smooth,NativeScaling(scale)};
+    for(bool fullscreen:{false,true})for(bool smooth:{false,true})for(unsigned scale=0;scale<3;++scale)
+        for(auto preset:{DriveControlPreset::Original,DriveControlPreset::Modern}){
+        NativeDisplayPreferences preferences{fullscreen,smooth,NativeScaling(scale),preset};
         require(saveDisplayPreferences(file,preferences)&&loadDisplayPreferences(file)==preferences,"Display preference roundtrip differs");
     }
+    {std::ofstream out(file);out<<"SCR display 1\nfullscreen=1\nscaling=smooth\ninterpolate=1\n";}
+    require(loadDisplayPreferences(file)==NativeDisplayPreferences{true,true,NativeScaling::FitSmooth,DriveControlPreset::Original},"Legacy preferences lost display choices or enabled Modern");
     for(const std::string content:std::vector<std::string>{"", "SCR display 2\nfullscreen=0\nscaling=integer\ninterpolate=0\n",
         "SCR display 1\nfullscreen=2\nscaling=integer\ninterpolate=0\n", "SCR display 1\nfullscreen=0\nscaling=unknown\ninterpolate=0\n",
-        "SCR display 1\nfullscreen=0\nscaling=integer\n", "SCR display 1\nfullscreen=0\nscaling=integer\ninterpolate=0\nfullscreen=1\n",std::string(2048,'x')}){
+        "SCR display 1\nfullscreen=0\nscaling=integer\n", "SCR display 1\nfullscreen=0\nscaling=integer\ninterpolate=0\nfullscreen=1\n",
+        "SCR display 2\nfullscreen=0\nscaling=integer\ninterpolate=0\ncontrols=unknown\n",
+        "SCR display 2\nfullscreen=0\nscaling=integer\ninterpolate=0\ncontrols=modern\ncontrols=original\n",std::string(2048,'x')}){
         {std::ofstream out(file);out<<content;}
         require(loadDisplayPreferences(file)==NativeDisplayPreferences{},"Invalid preferences were applied");
     }
-    const NativeDisplayPreferences previous{true,true,NativeScaling::FitSmooth};require(saveDisplayPreferences(file,previous),"Cannot seed atomic preferences");
+    const NativeDisplayPreferences previous{true,true,NativeScaling::FitSmooth,DriveControlPreset::Modern};require(saveDisplayPreferences(file,previous),"Cannot seed atomic preferences");
     const auto pending=output/"preferences.ini.tmp";std::filesystem::create_directory(pending);
     require(!saveDisplayPreferences(file,{})&&loadDisplayPreferences(file)==previous,"Failed preference write replaced the last good file");
     std::filesystem::remove(pending);
@@ -53,11 +58,18 @@ void navigation(){
     settings.navigate(8);require(settings.preferences().scaling==NativeScaling::FitSmooth,"New right press was ignored");
     settings.navigate(8);require(settings.preferences().scaling==NativeScaling::FitSmooth,"Held direction repeated settings changes");settings.navigate(0);
     tap(settings,2);tap(settings,8);require(settings.preferences().interpolate,"Motion setting did not preview");
+    tap(settings,2);tap(settings,8);require(settings.preferences().controls==DriveControlPreset::Modern,"Controls setting did not select Modern");
+    tap(settings,4);require(settings.preferences().controls==DriveControlPreset::Original,"Controls setting did not restore Original");
+    tap(settings,16);require(settings.preferences().controls==DriveControlPreset::Modern,"Confirm cannot toggle control presets");
     tap(settings,2);settings.navigate(0);require(settings.navigate(16)&&settings.blocksGame(),"Apply did not request saving while blocking gameplay");
     settings.applied();require(!settings.blocksGame(),"Applied direct settings did not return to game");
     const auto saved=settings.preferences();settings.pause();tap(settings,2);tap(settings,16);
     require(settings.page()==NativeDisplayPage::Settings,"Pause menu did not open settings");tap(settings,8);settings.back();
     require(settings.page()==NativeDisplayPage::Pause&&settings.preferences()==saved,"Cancel did not restore preferences and paused state");settings.back();
+    settings.openSettings();tap(settings,2);tap(settings,2);tap(settings,2);tap(settings,8);
+    require(settings.preferences().controls==DriveControlPreset::Original,"Controls did not preview on reopening settings");
+    tap(settings,2);tap(settings,2);tap(settings,16);
+    require(!settings.blocksGame()&&settings.preferences()==saved,"Cancel row did not restore the saved control preset");
     settings.openSettings();tap(settings,8);settings.suspendRace();settings.applied();
     require(settings.page()==NativeDisplayPage::Pause,"Focus loss allowed settings to resume a race");
     pad.buttons=0x2000;tap(settings,displayPadNavigation(pad));require(!settings.blocksGame(),"Controller B cannot resume pause");
@@ -138,6 +150,6 @@ int main(int argc,char** argv)try{
     if(argc!=3)throw std::invalid_argument("native_display_tests asset-pack output-directory");
     const std::filesystem::path output=argv[2];std::filesystem::create_directories(output);
     storage(output);navigation();WindowsGameDisplay display;const auto cases=scaling(display);fullscreen(display);timing(argv[1],output,display);
-    std::cout<<"{\"status\":\"passed\",\"preference_roundtrips\":12,\"corrupt_preferences\":7,\"atomic_failure_checked\":true,\"controller_navigation\":true,\"scaling_cases\":"<<cases
+    std::cout<<"{\"status\":\"passed\",\"preference_roundtrips\":24,\"corrupt_preferences\":9,\"legacy_preferences_migrated\":true,\"control_preset_navigation\":true,\"atomic_failure_checked\":true,\"controller_navigation\":true,\"scaling_cases\":"<<cases
         <<",\"fullscreen_roundtrips\":4,\"paused_presentations\":120,\"changing_1080p_filter_ms\":"<<filterMilliseconds<<",\"original_tick_phase_preserved\":true,\"final_simulation_memory_identical\":true}\n";return 0;
 }catch(const std::exception& error){std::cerr<<error.what()<<'\n';return 1;}

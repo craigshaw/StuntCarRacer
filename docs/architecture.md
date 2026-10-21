@@ -14,7 +14,7 @@ decoders; retaining original code bytes in the pack does not make them executabl
 | `scr_render` | `src/` geometry, projection, planar and raster modules | Original assets, geometry and native image generation |
 | `scr_startup` | `app/native_startup.*`, `native_*` components | Asset/race initialization, original menus, text, records and competition rules |
 | `scr_game` | `app/native_game_session.*`, `replay_scene.*` | Session/menu/race handoff, independently evolved gameplay, snapshots and recordings |
-| `scr_display` | `app/native_display_settings.*`, `windows_game_display.*` | Settings overlay, scaling, fullscreen and preferences |
+| `scr_display` | `app/native_display_settings.*`, `windows_game_display.*` | Display/control settings overlay, scaling, fullscreen and preferences |
 | Windows host | `app/native_game.cpp`, `windows_drive_input.*`, `windows_audio_output.*` | Event/presentation loop, keyboard, XInput, device playback and window lifecycle |
 
 `CMakeLists.txt` is the authority for library ownership and linkage. Production
@@ -55,8 +55,16 @@ RNG and persistence effects.
   independently of the driving timestep.
 
 Input is polled on the presentation loop and retained until a physics tick.
-Controller axes select original digital bits. Presentation stalls use bounded
-catch-up with fixed steps. Pause/settings suspend game and audio advancement,
+Original and Modern control presets select the same five digital bits before
+the input latch; Modern uses triggers for throttle independently of stick
+steering. Original retains recovered latched acceleration. Modern gas follows
+the current held input at the physics tick and clears the acceleration latch
+before recovered control processing when gas is released. This optional input
+policy produces coasting with zero engine force; it leaves the fixed-point
+physics, AI, RNG and tick scheduling unchanged. The host passes the preset even
+while gameplay input is suppressed after settings, so Modern cannot inherit an
+old throttle latch. Menu navigation is independent of the driving preset.
+Presentation stalls use bounded catch-up with fixed steps. Pause/settings suspend game and audio advancement,
 preserve the fractional physics tick and require held controls to be released
 before gameplay resumes.
 

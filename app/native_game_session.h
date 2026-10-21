@@ -20,6 +20,7 @@ struct NativeGameInput {
     unsigned driveControls{};
     bool quit{};
     std::vector<NativeRawKeyEvent> rawKeys;
+    DriveControlPreset drivePreset{DriveControlPreset::Original};
 };
 enum class NativeGameUnavailable { none,menuRoute,computerLink };
 enum class NativeGameStart { OriginalOpening,EstablishedMenu };

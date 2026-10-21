@@ -1,4 +1,5 @@
 #include "../app/native_game_session.h"
+#include "driving_replay_io.h"
 #include <algorithm>
 #include <array>
 #include <filesystem>
@@ -66,6 +67,67 @@ void hall(NativeGameSession& game,const std::filesystem::path& screenshot={}){
     settle(game);
     require(game.memory()[0x5d724]==0x41&&hash(game.render())==main,"Hall of Fame did not restore the main menu");
     require(std::equal(records.begin(),records.end(),game.memory().begin()+0x7a61a),"Hall of Fame modified stored records");
+}
+void throttlePresets(const std::filesystem::path& pack,const std::filesystem::path& directory){
+    for(auto preset:{DriveControlPreset::Original,DriveControlPreset::Modern}){
+        const bool modern=preset==DriveControlPreset::Modern;
+        const auto folder=directory/(modern?"control-modern":"control-original");
+        NativeGameSession game(pack,folder,NativeGameStart::EstablishedMenu);
+        confirm(game);choose(game,3);confirm(game);choose(game,0);confirm(game);game.update(1,{});settle(game);
+        require(game.page()==NativeMenuPage::Preview,"Control test did not reach Practice preview");
+        game.update(0,{});game.update(0,{{16,0},0,false});settle(game);
+        require(game.page()==NativeMenuPage::Race,"Control test did not enter Practice");
+        {std::ofstream seed(folder/"native-initial.bin",std::ios::binary);
+            seed.write(reinterpret_cast<const char*>(game.memory().data()),game.memory().size());require(bool(seed),"Cannot export control test seed");}
+        const auto step=[&](unsigned mask,double elapsed=0.12){
+            NativeGameInput input;input.driveControls=mask;input.drivePreset=preset;game.update(elapsed,input);
+            require(game.page()==NativeMenuPage::Race&&!game.raceEnded(),"Control test ended its race early");
+            return game.race().frames().back();
+        };
+        bool moving=false;
+        for(unsigned n=0;n<128;++n){const auto frame=step(1);if(frame.gasOutput&&frame.forwardSpeed>256&&frame.forwardSpeed<0x7800){moving=true;break;}}
+        require(moving,"Held gas did not start the car");
+        // Releasing between presentation polls must affect the next 120 ms
+        // update, even if a gas press is pending in the input sampler.
+        const auto before=game.race().liveTicks();step(1,0.06);step(0,0.059);
+        require(game.race().liveTicks()==before,"Controls changed the fixed tick phase");
+        auto frame=step(0,0.001);
+        require(game.race().liveTicks()==before+1,"Control release missed the next physics tick");
+        for(unsigned n=0;n<8;++n){
+            if(n)frame=step(0);
+            require(modern?(frame.gasOutput==0&&frame.accelerationState==0):(frame.gasOutput!=0&&(frame.accelerationState&0x80)),
+                "Released throttle did not follow the selected preset");
+        }
+        require(frame.forwardSpeed!=0,"Modern coast applied a stop instead of retaining momentum");
+        frame=step(17);require(frame.gasOutput&&frame.boostActive,"Held throttle and boost no longer work together");
+        const auto fuel=frame.boostFuel;frame=step(16);
+        require(modern?(frame.gasOutput==0&&!frame.boostActive&&frame.boostFuel==fuel):(frame.gasOutput!=0&&frame.boostActive),
+            "Boost after throttle release did not follow the selected preset");
+        frame=step(2);require(frame.gasOutput==0xff10&&!frame.accelerationState,"Brake no longer uses the original reverse force");
+        frame=step(0);require(!frame.gasOutput&&!frame.accelerationState,"Brake release restarted acceleration");
+        if(modern){
+            // Settings suspend the host and clear pending input. They must
+            // preserve Original's latch, then clear it on a Modern neutral tick.
+            preset=DriveControlPreset::Original;step(1);game.releaseInput();
+            frame=step(0);require(frame.gasOutput&&(frame.accelerationState&0x80),"Pause input clear removed Original's throttle latch");
+            const auto ticks=game.race().liveTicks();const auto image=game.render(true);
+            for(unsigned n=0;n<3;++n)game.render(true,true);
+            require(game.race().liveTicks()==ticks&&game.render(true)==image,"Paused presentation changed throttle or tick state");
+            preset=DriveControlPreset::Modern;game.releaseInput();frame=step(0);
+            require(!frame.gasOutput&&!frame.accelerationState,"Switching to Modern retained Original's acceleration latch");
+            preset=DriveControlPreset::Original;frame=step(0);
+            require(!frame.gasOutput&&!frame.accelerationState,"Switching to Original invented a throttle press");
+        }
+        const auto recording=game.race().liveRecording();
+        std::filesystem::copy_file(recording,folder/"controls.csv",std::filesystem::copy_options::overwrite_existing);
+        auto trace=recording.string();trace.replace(trace.size()-13,13,"-native.csv");
+        std::filesystem::copy_file(trace,folder/"native.csv",std::filesystem::copy_options::overwrite_existing);
+        if(modern){
+            bool rejected=false;try{(void)scr::test::replay::loadInputs(recording.string().c_str());}
+            catch(const std::runtime_error& error){rejected=std::string(error.what()).find("Modern held-acceleration")!=std::string::npos;}
+            require(rejected,"Modern recording was admitted to original-code verification");
+        }else require(scr::test::replay::loadInputs(recording.string().c_str()).size()==game.race().liveTicks(),"Original recording no longer loads");
+    }
 }
 }
 int main(int argc,char** argv)try{
@@ -150,10 +212,12 @@ int main(int argc,char** argv)try{
         hall(game);
         turning=true;++routes;
     }
+    throttlePresets(argv[1],directory);
     std::cout<<"{\"status\":\"passed\",\"practice_routes\":"<<routes<<",\"repeated_races\":"<<routes
         <<",\"ticks\":"<<ticks<<",\"preview_rotation\":"<<(turning?"true":"false")
         <<",\"hall_of_fame_routes\":"<<routes*2<<",\"hall_of_fame_fire_wait_checked\":true"
         <<",\"cockpit_label_checks\":"<<labelChecks
+        <<",\"throttle_presets\":2,\"modern_coasts_on_release\":true,\"preset_switch_and_pause_checked\":true,\"modern_original_replay_rejected\":true"
         <<",\"return_to_main_menu\":true,\"capture_input\":false,\"cpu_emulation\":false}\n";
     return 0;
 }catch(const std::exception& error){std::cerr<<error.what()<<'\n';return 1;}

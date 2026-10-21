@@ -8,8 +8,9 @@ enum class NativeScaling { Integer, FitSharp, FitSmooth };
 struct NativeDisplayPreferences {
     bool fullscreen{},interpolate{};
     NativeScaling scaling{NativeScaling::Integer};
+    DriveControlPreset controls{DriveControlPreset::Original};
     bool operator==(const NativeDisplayPreferences& other)const noexcept {
-        return fullscreen==other.fullscreen&&interpolate==other.interpolate&&scaling==other.scaling;
+        return fullscreen==other.fullscreen&&interpolate==other.interpolate&&scaling==other.scaling&&controls==other.controls;
     }
 };
 NativeDisplayPreferences loadDisplayPreferences(const std::filesystem::path&);

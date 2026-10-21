@@ -1,6 +1,7 @@
 #pragma once
 #include "replay_render_assets.h"
 #include "replay_interpolation.h"
+#include "live_drive.h"
 #include "replay_view.h"
 #include "software_renderer.h"
 #include "game_audio.h"
@@ -41,6 +42,8 @@ struct ReplaySceneFrame : ReplayVisualState {
     unsigned tick{},controls{},restarts{},action{};
     std::uint16_t cameraYaw{};
     std::uint8_t lapCounter{},raceComplete{},boostFuel{},damage{},minutes{},seconds{},subseconds{};
+    std::uint16_t gasOutput{};
+    std::uint8_t accelerationState{},boostActive{};
 };
 class ReplayScene {
 public:
@@ -58,7 +61,7 @@ public:
     // Complete the recovered local race exit after quit or the end-message wait.
     void finishLiveExit(std::array<std::uint8_t,0x80000>& sessionMemory);
     void resetLive();
-    bool stepLive(unsigned controls,bool quit=false);
+    bool stepLive(unsigned controls,bool quit=false,DriveControlPreset preset=DriveControlPreset::Original);
     unsigned verifyLiveReplay(const std::filesystem::path& inputs,const std::filesystem::path& reference,
         const std::filesystem::path& nativeTrace);
     const std::vector<std::uint32_t>& renderLive(double fraction,bool wireframe=false,bool interpolate=true);
@@ -92,7 +95,7 @@ private:
     void beginLiveRecording(const std::filesystem::path&);
     ReplaySceneFrame captureFrame(Simulation&,unsigned tick,unsigned controls);
     void finishFrame(Simulation&,ReplaySceneFrame&);
-    ReplaySceneFrame advanceSimulation(Simulation&,unsigned controls,bool quit);
+    ReplaySceneFrame advanceSimulation(Simulation&,unsigned controls,bool quit,DriveControlPreset preset=DriveControlPreset::Original);
     ReplayRenderAssets assets_;
     NativeWheelSprites wheelAssets_;
     TrackMesh mesh_;

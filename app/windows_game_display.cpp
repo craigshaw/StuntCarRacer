@@ -82,28 +82,30 @@ void WindowsGameDisplay::overlay(HDC dc,int width,int height,const NativeDisplay
     const double scale=std::max(0.5,std::min({1.5,double(width)/800,double(height)/500}));
     const auto px=[&](int n){return int(std::lround(n*scale));};
     const bool menu=settings.page()==NativeDisplayPage::Settings;
-    const int panelWidth=px(560),panelHeight=px(menu?350:240),left=(width-panelWidth)/2,top=(height-panelHeight)/2;
+    const int panelWidth=px(560),panelHeight=px(menu?430:240),left=(width-panelWidth)/2,top=(height-panelHeight)/2;
     const auto fill=[&](RECT r,COLORREF colour){const auto brush=CreateSolidBrush(colour);FillRect(dc,&r,brush);DeleteObject(brush);};
     RECT panel{left,top,left+panelWidth,top+panelHeight};fill(panel,RGB(19,25,35));
     const auto border=CreateSolidBrush(RGB(78,103,130));FrameRect(dc,&panel,border);DeleteObject(border);
     const auto font=CreateFontW(-px(19),0,0,0,FW_NORMAL,FALSE,FALSE,FALSE,DEFAULT_CHARSET,OUT_DEFAULT_PRECIS,CLIP_DEFAULT_PRECIS,CLEARTYPE_QUALITY,DEFAULT_PITCH,L"Segoe UI");
     const auto old=SelectObject(dc,font);SetBkMode(dc,TRANSPARENT);
     const auto text=[&](int x,int y,const wchar_t* value,COLORREF colour){SetTextColor(dc,colour);TextOutW(dc,left+px(x),top+px(y),value,int(wcslen(value)));};
-    text(24,18,menu?L"Display settings":L"Paused",RGB(245,247,250));
-    const wchar_t* labels[]{L"Display mode",L"Scaling",L"Motion",L"Apply and back",L"Cancel"};
-    const wchar_t* pause[]{L"Resume",L"Display settings"};
+    text(24,18,menu?L"Settings":L"Paused",RGB(245,247,250));
+    const wchar_t* labels[]{L"Display mode",L"Scaling",L"Motion",L"Controls",L"Apply and back",L"Cancel"};
+    const wchar_t* pause[]{L"Resume",L"Settings"};
     const auto& prefs=settings.preferences();
-    const wchar_t* values[]{prefs.fullscreen?L"Borderless fullscreen":L"Windowed",scalingName(prefs.scaling),prefs.interpolate?L"Smooth interpolation":L"Original updates"};
-    for(unsigned n=0;n<(menu?5u:2u);++n){
+    const wchar_t* values[]{prefs.fullscreen?L"Borderless fullscreen":L"Windowed",scalingName(prefs.scaling),prefs.interpolate?L"Smooth interpolation":L"Original updates",
+        prefs.controls==DriveControlPreset::Original?L"Original":L"Modern"};
+    for(unsigned n=0;n<(menu?6u:2u);++n){
         const int y=64+int(n)*36;
         if(n==settings.selected())fill({left+px(16),top+px(y-3),left+panelWidth-px(16),top+px(y+30)},RGB(35,65,91));
         text(28,y,menu?labels[n]:pause[n],RGB(237,242,247));
-        if(menu&&n<3)text(250,y,values[n],RGB(148,213,243));
+        if(menu&&n<4)text(250,y,values[n],RGB(148,213,243));
     }
-    const int help=menu?254:154;
+    const int help=menu?298:154;
     text(24,help,L"Arrows / D-pad: select and change",RGB(167,180,197));
     text(24,help+25,L"Enter / A: confirm    Esc / B: back",RGB(167,180,197));
-    text(24,help+50,error.empty()?(menu?L"Preview changes; Apply saves your choices.":L"F10: display settings    F11: fullscreen"):error.c_str(),error.empty()?RGB(167,180,197):RGB(255,170,130));
+    if(menu)text(24,help+50,prefs.controls==DriveControlPreset::Modern?L"Hold RT: accel   LT: brake   A / RB: boost":L"Stick / D-pad: accel/brake   A / RB: boost",RGB(148,213,243));
+    text(24,help+(menu?75:50),error.empty()?(menu?L"Preview changes; Apply saves your choices.":L"F10: settings    F11: fullscreen"):error.c_str(),error.empty()?RGB(167,180,197):RGB(255,170,130));
     SelectObject(dc,old);DeleteObject(font);
 }
 } // namespace scr::viewer

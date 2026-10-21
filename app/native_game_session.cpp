@@ -193,7 +193,7 @@ NativeGameUpdate NativeGameSession::update(double elapsed,const NativeGameInput&
         quitPending_=quitPending_||input.quit;
         const auto steps=driveClock_.advance(elapsed);
         for(unsigned n=0;n<steps;++n){
-            race_.stepLive(driveLatch_.consume(),quitPending_);quitPending_=input.quit;
+            race_.stepLive(driveLatch_.consume(input.drivePreset),quitPending_,input.drivePreset);quitPending_=input.quit;
             result.audio.push_back(race_.frames().back().audio);
             if(race_.liveTerminal()){
                 if(race_.frames().back().action==unsigned(RaceTransitionAction::quit)){

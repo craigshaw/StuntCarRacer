@@ -15,11 +15,20 @@ inline std::vector<ReplayInput> loadInputs(const char* path) {
     std::ifstream f(path);std::string line;
     if(!std::getline(f,line))throw std::runtime_error("Missing replay header");
     if(!line.empty()&&line.back()=='\r')line.pop_back();
-    const bool extended=line=="tick,controls,quit";
-    if(!extended&&line!="tick,controls")throw std::runtime_error("Expected tick,controls or tick,controls,quit CSV header");
+    const bool hasMode=line=="tick,controls,quit,hold_acceleration";
+    const bool extended=hasMode||line=="tick,controls,quit";
+    if(!extended&&line!="tick,controls")throw std::runtime_error("Expected tick,controls[,quit[,hold_acceleration]] CSV header");
     std::vector<ReplayInput> masks;
     while(std::getline(f,line)) {
         if(!line.empty()&&line.back()=='\r')line.pop_back();
+        if(hasMode){
+            const auto mode=line.rfind(',');
+            if(mode==std::string::npos||mode+1==line.size())throw std::runtime_error("Missing throttle mode");
+            const auto value=line.substr(mode+1);
+            if(value=="1")throw std::runtime_error("Modern held-acceleration recordings cannot use original-code replay");
+            if(value!="0")throw std::runtime_error("hold_acceleration must be 0 or 1");
+            line.resize(mode);
+        }
         const auto comma=line.find(','),last=line.find(',',comma+1);
         if(comma==std::string::npos||comma==0||comma+1==line.size()||
            (extended?(last==std::string::npos||last+1==line.size()||line.find(',',last+1)!=std::string::npos):(last!=std::string::npos)))

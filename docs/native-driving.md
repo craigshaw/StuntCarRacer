@@ -73,8 +73,10 @@ state rather than accumulating a replay in memory.
 
 Every drive writes unique files under `analysis/live-driving/`:
 
-- `drive-<timestamp>-controls.csv`: the actual mask and quit flag sampled on each
-  physics tick, in the replay runner's input format.
+- `drive-<timestamp>-controls.csv`: the actual mask, quit flag and
+  `hold_acceleration` value sampled on each physics tick. The development viewer
+  uses 0 (Original); the game host records 1 for Modern and 0 for Original,
+  including changes made during a race.
 - `drive-<timestamp>-native.csv`: the corresponding native gameplay trace.
 
 Files flush after every tick. Closing or resetting preserves the previous
@@ -84,6 +86,9 @@ format, starting a new pair for each race.
 A control CSV alone does not establish original/native equivalence. Interactive
 recordings currently omit the exact race-entry memory seed, so they cannot be
 verified by passing their controls to the capture-based wrapper's default seed.
+Original-code replay tools also reject any recording containing Modern throttle:
+held acceleration and coasting deliberately differ from the original latch.
+Original recordings with the mode column remain accepted, as do older CSVs.
 That seed describes a different car/session state. To investigate a drive, retain
 its exact initial state as a local fixture, run original and native sides from
 that same state with the recorded controls, then compare the live trace as well.

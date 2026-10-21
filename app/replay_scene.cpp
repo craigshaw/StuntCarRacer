@@ -154,6 +154,7 @@ void ReplayScene::finishFrame(Simulation& simulation,ReplaySceneFrame& frame){
     frame.wheelTimeline=simulation.wheelTimeline;frame.wheelVblanks=simulation.wheelVblanks;
     frame.forwardSpeed=a::word(state.ram.data(),0x1bd30);frame.lapCounter=state.ram[0x1bb20];frame.raceComplete=state.ram[0x1bbaf];
     frame.boostFuel=state.ram[0x1ca20];frame.damage=state.ram[0x1bb55];
+    frame.gasOutput=a::word(state.ram.data(),0x1bd2a);frame.accelerationState=state.ram[0x1bba8];frame.boostActive=state.ram[0x1bb62];
     frame.minutes=state.ram[0x1c908];frame.seconds=state.ram[0x1c920];frame.subseconds=state.ram[0x1c938];
     frame.audio.writes=state.audioWrites;frame.audio.restarts=state.restarts;frame.audio.action=frame.action;
     frame.audio.dmaControl=a::word(state.ram.data(),0x69ede);frame.audio.noiseFlag=state.ram[0x5b646];
@@ -161,13 +162,17 @@ void ReplayScene::finishFrame(Simulation& simulation,ReplaySceneFrame& frame){
     frame.audio.forwardSpeed=a::word(state.ram.data(),0x1bd30);
     frame.audio.wheelMovement=state.ram[0x1bb7e];frame.audio.inputFlags=state.ram[0x1bb47];
 }
-ReplaySceneFrame ReplayScene::advanceSimulation(Simulation& simulation,unsigned controls,bool quit){
+ReplaySceneFrame ReplayScene::advanceSimulation(Simulation& simulation,unsigned controls,bool quit,DriveControlPreset preset){
     if(controls>31)throw std::invalid_argument("Live controls exceed original digital mask");
     auto& state=simulation.native;
     simulation.wheelVblanks=0;
     simulation.wheels.framesToWait=state.ram[0x616d8];simulation.wheels.framesToWaitWhenFading=state.ram[0x616da];
     simulation.wheelTimeline.fill(simulation.wheels);
     state.begin(controls);state.ram[0xead6+0x45]=quit?0xb3:0;
+    // Modern's optional input policy releases the recovered acceleration
+    // latch before control processing. Neutral then produces zero engine
+    // force rather than braking. Original executes the untouched path.
+    if(preset==DriveControlPreset::Modern&&!(controls&1))state.ram[0x1bba8]=0;
     state.controlsStage();state.physicsStage();state.engineStage();state.progressStage();
     // Original rendering boundary: before effects, timing and outer transitions.
     auto frame=captureFrame(simulation,simulation.ticks,controls);
@@ -227,7 +232,7 @@ void ReplayScene::beginLiveRecording(const std::filesystem::path& directory){
     auto& simulation=*simulation_;simulation.recording=base.string()+"-controls.csv";
     simulation.controls.open(simulation.recording);simulation.trace.open(base.string()+"-native.csv");
     if(!simulation.controls||!simulation.trace)throw std::runtime_error("Cannot create live input recording");
-    simulation.controls<<"tick,controls,quit\n";scr::test::replay::traceHeader(simulation.trace);
+    simulation.controls<<"tick,controls,quit,hold_acceleration\n";scr::test::replay::traceHeader(simulation.trace);
     simulation.wheelTimeline.fill(simulation.wheels);
     const auto seed=simulation.geometry;auto frame=captureFrame(simulation,0,0);simulation.geometry=seed;finishFrame(simulation,frame);
     frames_.push_back(frame);frames_.push_back(std::move(frame));
@@ -248,10 +253,10 @@ GameAudioSeed ReplayScene::audioSeed()const{
     seed.frame.dmaControl=a::word(ram.data(),0x69ede);seed.frame.noiseFlag=ram[0x5b646];seed.frame.gameExit=ram[0x1bb63];
     return seed;
 }
-bool ReplayScene::stepLive(unsigned controls,bool quit){
+bool ReplayScene::stepLive(unsigned controls,bool quit,DriveControlPreset preset){
     if(liveTerminal())return false;
-    auto next=advanceSimulation(*simulation_,controls,quit);auto& simulation=*simulation_;
-    simulation.controls<<next.tick<<','<<controls<<','<<(quit?1:0)<<'\n';simulation.trace<<simulation.lastRow;
+    auto next=advanceSimulation(*simulation_,controls,quit,preset);auto& simulation=*simulation_;
+    simulation.controls<<next.tick<<','<<controls<<','<<(quit?1:0)<<','<<(preset==DriveControlPreset::Modern?1:0)<<'\n';simulation.trace<<simulation.lastRow;
     simulation.controls.flush();simulation.trace.flush();
     if(!simulation.controls||!simulation.trace)throw std::runtime_error("Live input recording write failed");
     frames_[0]=std::move(frames_[1]);frames_[1]=std::move(next);

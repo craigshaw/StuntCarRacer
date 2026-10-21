@@ -106,6 +106,7 @@ private:
     std::chrono::steady_clock::time_point fpsStart_=std::chrono::steady_clock::now();
     NativeGameInput input()const{
         NativeGameInput value;
+        value.drivePreset=settings_.preferences().controls;
         if(suppressInput_)return value;
         value.rawKeys=rawKeys_;
         const auto& p=pad_.pad;
@@ -120,7 +121,7 @@ private:
             value.quit=(p.connected&&(p.buttons&0x0020));return value;
         }
         value.driveControls=mapDriveControls({keys_['W']||keys_[VK_UP],keys_['S']||keys_[VK_DOWN],
-            keys_['A']||keys_[VK_LEFT],keys_['D']||keys_[VK_RIGHT],keys_[VK_SPACE]},pad_.pad);
+            keys_['A']||keys_[VK_LEFT],keys_['D']||keys_[VK_RIGHT],keys_[VK_SPACE]},pad_.pad,settings_.preferences().controls);
         const bool up=keys_[VK_UP]||keys_['W']||(p.connected&&((p.buttons&0x0001)||p.y>16000));
         const bool down=keys_[VK_DOWN]||keys_['S']||(p.connected&&((p.buttons&0x0002)||p.y<-16000));
         const bool left=keys_[VK_LEFT]||keys_['A']||(p.connected&&((p.buttons&0x0004)||p.x<-16000));
@@ -162,6 +163,8 @@ private:
             else if(inRace())settings_.pause(navigation());else settings_.openSettings(navigation());
             clearGameInput();syncDisplay(window);
         }else if(focused_&&settings_.blocksGame())navigateOverlay(window);
+        // Wait for controls from both presets to release after a settings
+        // change, so switching layouts cannot turn a held trigger into gas.
         if(suppressInput_&&std::none_of(blockedKeys_.begin(),blockedKeys_.end(),[](bool down){return down;})&&
             !displayPadNavigation(pad_.pad)&&!mapDriveControls({},pad_.pad))suppressInput_=false;
         if(!wasBlocked)update(window,elapsed);
@@ -171,7 +174,7 @@ private:
             std::wostringstream title;title<<L"Stunt Car Racer  |  "<<std::fixed<<std::setprecision(1)<<fps_<<L" FPS";
             if(settings_.blocksGame())title<<L"  |  Paused";
             if(settings_.preferences().interpolate)title<<L"  |  Interpolation";
-            title<<L"  |  F10 Display";
+            title<<L"  |  F10 Settings";
             if(!settingsError_.empty())title<<L"  |  Settings not saved";
             SetWindowTextW(window,title.str().c_str());
         }

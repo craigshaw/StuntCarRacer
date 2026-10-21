@@ -23,19 +23,22 @@ local players taking turns against the computer pace car.
 | Action | Keyboard | Xbox / XInput controller |
 | --- | --- | --- |
 | Navigate / confirm | Arrows, Enter or Space | Stick/D-pad, A |
-| Accelerate / brake | Up/Down or W/S | RT/LT, stick or D-pad |
+| Accelerate / brake | Up/Down or W/S | Original: stick/D-pad up/down; Modern: RT/LT |
 | Steer / boost | Left/Right or A/D, Space | Stick/D-pad, A or RB |
 | Pause | P | Start |
 | Leave a race | Escape | Back/View |
-| Display settings | F10 | Start from menus; pause panel during races |
-| Fullscreen / interpolation / mute | F11 / I / M | Display settings for fullscreen and interpolation |
+| Settings | F10 | Start from menus; pause panel during races |
+| Fullscreen / interpolation / mute | F11 / I / M | Settings for fullscreen and interpolation |
 
-Acceleration is latched: releasing gas keeps accelerating. Text entry uses the
-original name editor; typing letters does not trigger driving shortcuts.
+Settings offer saved **Original** (default) and **Modern** digital control presets.
+Modern separates throttle from the steering stick; triggers are on/off.
+Modern accelerates while gas is held and coasts on release; Original retains
+latched acceleration until braking. The same rule applies to keyboard gas.
+Text entry uses the original name editor; typing letters does not trigger driving shortcuts.
 See [playing and settings](docs/native-game.md) for menu, save and controller details.
 
 Preferences live in `working/settings/display.ini`; saves in
-`working/saves/stunt-car-racer.scr-save`. Display settings provide borderless
+`working/saves/stunt-car-racer.scr-save`. Settings provide control presets, borderless
 fullscreen, integer/sharp/smooth scaling and optional motion interpolation.
 Physics stays at **120 ms per update**, wheel/engine interrupts at **50 Hz**, and
 host presentation targets **60 FPS**.

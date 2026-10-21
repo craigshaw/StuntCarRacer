@@ -104,6 +104,23 @@ class ReplayInputAndTraceTests(unittest.TestCase):
             with self.assertRaises(ValueError):
                 read_inputs(self.write('invalid.csv', contents))
 
+    def test_recorded_original_throttle_is_accepted(self):
+        path = self.write('original.csv', 'tick,controls,quit,hold_acceleration\r\n0,1,0,0\r\n1,0,1,0\r\n')
+        checked = read_inputs(path)
+        self.assertEqual(checked['ticks'], 2)
+        self.assertEqual(checked['quit_ticks'], [1])
+        self.assertEqual(checked['columns'], ['tick', 'controls', 'quit', 'hold_acceleration'])
+
+    def test_modern_or_mixed_recordings_cannot_claim_original_equivalence(self):
+        for timeline in ('0,1,0,1\n1,0,0,1\n', '0,1,0,0\n1,0,0,1\n'):
+            with self.assertRaisesRegex(ValueError, 'Modern held-acceleration'):
+                read_inputs(self.write('modern.csv', 'tick,controls,quit,hold_acceleration\n' + timeline))
+
+    def test_invalid_throttle_modes_are_rejected(self):
+        for row in ('0,1,0,2', '0,1,0,-1', '0,1,0,', '0,1,0,0,0'):
+            with self.assertRaises(ValueError):
+                read_inputs(self.write('invalid.csv', 'tick,controls,quit,hold_acceleration\n' + row + '\n'))
+
     def test_trace_quit_must_match_timeline(self):
         inputs = self.write('inputs.csv', 'tick,controls,quit\n0,0,0\n1,0,0\n2,0,1\n')
         trace = self.trace('trace.csv')

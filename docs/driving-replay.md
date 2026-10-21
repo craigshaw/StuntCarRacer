@@ -98,6 +98,10 @@ combine held controls.
 These are external control inputs. They never specify position, velocity,
 segment index or road geometry. The game retains its original acceleration
 latch, so release does not necessarily mean coasting without engine force.
+Native recordings may also include `quit,hold_acceleration` after `controls`.
+`hold_acceleration=0` identifies Original throttle and is accepted by the replay
+tools. Any tick with 1 identifies Modern held throttle and is rejected by these
+original-code comparators, including recordings that switch presets mid-race.
 The scenarios are authored test inputs, not recordings of a human-driven lap.
 
 ## Original schedule and recovered state

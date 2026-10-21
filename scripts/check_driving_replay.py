@@ -62,15 +62,16 @@ def read_inputs(path):
     if '\r' in contents.replace('\r\n', ''):
         raise ValueError(f'{path}: only LF or CRLF line endings are supported')
     lines = contents.splitlines()
-    if not lines or lines[0] not in ('tick,controls', 'tick,controls,quit'):
-        raise ValueError(f'{path}: expected tick,controls or tick,controls,quit ASCII header (no BOM)')
-    extended = lines[0] == 'tick,controls,quit'
-    row_pattern = r'[0-9]+,[0-9]+,[0-9]+' if extended else r'[0-9]+,[0-9]+'
+    headers = ('tick,controls', 'tick,controls,quit', 'tick,controls,quit,hold_acceleration')
+    if not lines or lines[0] not in headers:
+        raise ValueError(f'{path}: expected tick,controls[,quit[,hold_acceleration]] ASCII header (no BOM)')
+    fields = lines[0].split(',')
+    row_pattern = ','.join([r'[0-9]+'] * len(fields))
     if any(not re.fullmatch(row_pattern, line) for line in lines[1:]):
         raise ValueError(f'{path}: expected one unquoted decimal input row per line')
     with path.open(encoding='ascii', newline='') as stream:
         rows = csv.DictReader(stream)
-        if rows.fieldnames != (['tick', 'controls', 'quit'] if extended else ['tick', 'controls']):
+        if rows.fieldnames != fields:
             raise ValueError(f'{path}: invalid input header')
         count, masks, quit_ticks = 0, set(), []
         for row in rows:
@@ -84,6 +85,11 @@ def read_inputs(path):
                 raise ValueError(f'{path}: ticks must start at zero and be contiguous; controls must be 0..31')
             if quit_pressed not in (0, 1):
                 raise ValueError(f'{path}: quit must be 0 or 1')
+            held = int(row.get('hold_acceleration', 0))
+            if held not in (0, 1):
+                raise ValueError(f'{path}: hold_acceleration must be 0 or 1')
+            if held:
+                raise ValueError(f'{path}: Modern held-acceleration recordings cannot use original-code replay')
             if quit_pressed:
                 quit_ticks.append(tick)
             masks.add(controls)
@@ -91,7 +97,7 @@ def read_inputs(path):
         if not count:
             raise ValueError(f'{path}: replay must contain at least one tick')
     return {'identity': identity(path), 'ticks': count, 'control_masks': sorted(masks),
-            'columns': ['tick', 'controls', 'quit'] if extended else ['tick', 'controls'],
+            'columns': fields,
             'quit_ticks': quit_ticks}
 
 

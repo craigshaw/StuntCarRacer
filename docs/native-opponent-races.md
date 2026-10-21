@@ -28,16 +28,18 @@ and top-division championship transition remain part of the native state.
 The league encoder is relevant even without saving to disk: its searches
 consume random bytes. Replacing it with a flag assignment changes later
 simulated results. Encoded data remains local runtime memory; native league
-loading/saving and network play are outside this implementation.
+loading/saving are handled by the native save components. Network play remains
+outside this implementation.
 
-The original F1 shortcut for forfeiting the remainder of a season is not yet
-wired into the native menu. Holding F1 while confirming a matchup makes
+The original F1 shortcut forfeits the remainder of a single-player season.
+Holding F1 while confirming a matchup makes
 `checkRaceStartReady` at `0x58580` clear its start flag: it tests raw key `0x50`
 through `0x612be`, whose pressed value is `0xb3`. The original then branches
 from `0x5d0d8` to `0x5d000`, sets race mode and outcome to `0xc0`, and scores
 all remaining fixtures without entering another race. Season standings and
-promotion/relegation still follow. The native route currently takes the
-normal race-start path. This shortcut is separate from Space, raw key `0x40`,
+promotion/relegation still follow. The native route retains that branch,
+including the original RNG calls and results in the other divisions.
+This shortcut is separate from Space, raw key `0x40`,
 which remains a menu confirmation input in the native host.
 
 Fresh race placement now runs recovered `initializeTrackCoordinates` at
@@ -79,13 +81,21 @@ comparing the entire resulting RAM. The remaining helpers run to their actual
 returns without substituted results. A native menu-flow check also completes
 all six fixtures, requiring four human races and the return to the main menu.
 
-`native_competition_render_tests` compares every indexed pixel of 208 complete
-screens with original 68000 rendering: 13312000 pixel comparisons with zero
+`native_competition_render_tests` compares every indexed pixel of 476 complete
+screens with original 68000 rendering: 30,464,000 pixel comparisons with zero
 mismatches. Coverage includes all divisions, both vehicle contexts, every
 driver portrait, entered local names, placeholder and BCD record times, new
 record flags, standings, promotion, championship awards, the driver roster,
-and win/loss/wreck result pictures. Palette fades and hardware calls are
+and win/loss/wreck result pictures. It explicitly checks every finishing place
+in both leagues, championship context changes and the Super victory's skipped
+award, with 7,616 palette-word comparisons. Palette fades and hardware calls are
 excluded from this leaf test; the existing palette oracle tests the fade code.
+
+The [career state checks](native-career-state.md) extend the original-code
+comparison across complete seasons, promotion, relegation, F1, damage and
+save/Replay continuation. The [career presentation checks](native-career-render.md)
+retain the old division/context for the completed season while the next roster
+uses the newly promoted or relegated order.
 
 `native_opponent_session_tests` runs the real native session from the main menu
 through one entire season. The first opponent completes its actual three laps;

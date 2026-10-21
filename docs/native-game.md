@@ -89,6 +89,11 @@ its car is drawn in the original road painter order. Race completion or an
 early quit proceeds through the original results, records and standings pages
 before the next matchup. Single-player seasons retain six rounds, including the
 original computer-only fixtures, followed by promotion/relegation and the roster.
+Holding F1 when confirming a matchup forfeits the remaining fixtures and goes
+directly to the season-end pages. It retains the original scoring and promotion
+rules. Winning Division 1 in the normal league begins the Super League in
+Division 4. A Super League championship uses its original victory message and
+skips the separate division-winner award artwork.
 
 In multiplayer, all drivers race the first track before moving to the second.
 Each race has its original results, standings and time table. The track summary
@@ -176,6 +181,15 @@ seven player counts, including a pace-car finish, fourteen forfeited tracks,
 career track access, fresh-launch `MP` continuation and the fourth-season reset.
 Its 7,137 physics updates also run against the original full loop. Separate
 original-code oracles check multiplayer state and 4,928 complete screen images.
+The career check loads each division in both leagues, drives eight fresh races,
+forfeits sixteen seasons and checks relegation, eight saves, sixteen loads and
+eight Replay routes. Its 520 physics updates are compared with the original
+full loop. Separate [career state](native-career-state.md) checks use controlled
+race outcomes to exercise complete winning careers through both championships,
+plus losing careers, damage and continuation between seasons. These are
+state-transition tests rather than claims of human-driven championship wins.
+The [career screen checks](native-career-render.md) compare 476 complete
+competition screens, including every finishing place and championship branch.
 The dedicated opening check additionally compares keyboard scanning, editing,
 mode flow, menu/name/standings pixels and palette routines against original code:
 

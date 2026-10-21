@@ -950,6 +950,11 @@ contacts and car drawing use recovered original routines; the road painter
 places the other car behind hills and barriers. See [opponent driving](docs/opponent-driving.md),
 [opponent rendering](docs/opponent-car.md) and [native opponent races](docs/native-opponent-races.md)
 for the original-code comparisons and supported local race flow.
+The original F1 matchup shortcut forfeits the rest of a single-player season.
+Complete-career checks cover promotion, relegation, the normal championship's
+transition to Super League, Super victory, damage and save/Replay continuation;
+see [career state](docs/native-career-state.md) and
+[career presentation](docs/native-career-render.md).
 
 `scripts/start-native-race.ps1` retains the direct-race development viewer.
 The launcher imports a local data pack from the supplied ADF when needed and

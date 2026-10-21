@@ -167,13 +167,19 @@ NativeMenuAction NativeMenuFlow::update(const NativeMenuInput& input,double elap
         if(!competitionFire_.update(controls,elapsed))return NativeMenuAction::None;
         memory_[0x1bb6e]=0;
         if(page_==NativeMenuPage::Matchup){
-            if(multiplayer()&&memory_[0xead6+0x50]){
-                memory_[0x57c68]=0;forfeitNativeMultiplayerTrack(memory_);
-                awardNativeMultiplayerTrackBonuses(memory_);multiplayerTrackEnd_=true;
-                openCompetitionPage(NativeMenuPage::TrackResults,memory_[0x57c62]);return NativeMenuAction::Changed;
+            if(memory_[0xead6+0x50]){
+                memory_[0x57c68]=0;
+                if(multiplayer()){
+                    forfeitNativeMultiplayerTrack(memory_);
+                    awardNativeMultiplayerTrackBonuses(memory_);multiplayerTrackEnd_=true;
+                    openCompetitionPage(NativeMenuPage::TrackResults,memory_[0x57c62]);
+                }else{
+                    forfeitNativeSeason(memory_);finishNativeSeason(memory_);
+                    openCompetitionPage(NativeMenuPage::SeasonEnd,memory_[0x57c62]);
+                }
+                return NativeMenuAction::Changed;
             }
-            // Preserve the original normal single-player race-start flag
-            // after the matchup's released/new-fire wait.
+            // The original start check follows the released/new-fire wait.
             memory_[0x57c68]=0x80;
             page_=NativeMenuPage::Preview;memory_[0x57c62]=0x12;
             previewReleaseMask_=0x1f;memory_[0x5d9da]=0x1f;
@@ -211,10 +217,10 @@ NativeMenuAction NativeMenuFlow::update(const NativeMenuInput& input,double elap
             openCompetitionPage(NativeMenuPage::Standings,memory_[0x57c62]);return NativeMenuAction::Changed;
         }
         if(page_==NativeMenuPage::SeasonEnd){
-            openCompetitionPage((memory_[0x593f6]&0x80)?NativeMenuPage::Roster:NativeMenuPage::SeasonAward,3);
+            openCompetitionPage((memory_[0x593f6]&0x80)?NativeMenuPage::Roster:NativeMenuPage::SeasonAward,memory_[0x57c62]);
             return NativeMenuAction::ShowCompetitionPage;
         }
-        if(page_==NativeMenuPage::SeasonAward){openCompetitionPage(NativeMenuPage::Roster,3);return NativeMenuAction::ShowCompetitionPage;}
+        if(page_==NativeMenuPage::SeasonAward){openCompetitionPage(NativeMenuPage::Roster,memory_[0x57c62]);return NativeMenuAction::ShowCompetitionPage;}
         initializeNativeGameTables(memory_);openMain();return NativeMenuAction::ShowCompetitionPage;
     }
     if(page_==NativeMenuPage::Preview){

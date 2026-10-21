@@ -262,7 +262,7 @@ bool seekNativeSeasonRace(NativeMemory& m) {
     while(m[0x1ca35]<m[0x5eb78]) {
         m[0x1bb5f]=m[0x1c9ce];configureNativeSeasonMatch(m);
         const auto local=m[0x5eb79],first=m[0x1ca27],second=m[0x1ca28];
-        if(first==local||second==local) {
+        if(!(m[0x1bb5b]&0x80)&&(first==local||second==local)) {
             m[0x1ca29]=first==local?second:first;m[0x1bbb1]=0xc0;
             const unsigned ordinal=2*m[0x1c9ce]+(m[0x1ca35]&1);
             m[0x1ca33]=m[0x648c2+ordinal];
@@ -273,6 +273,12 @@ bool seekNativeSeasonRace(NativeMemory& m) {
         scoreNativeSeasonRound(m);advanceNativeSeasonRound(m);
     }
     m[0x1ca35]=0;return false;
+}
+
+void forfeitNativeSeason(NativeMemory& m) {
+    if(m[0x5eb76]||m[0x57c3c])throw std::invalid_argument("Season forfeit requires one local player");
+    m[0x1bb5b]=m[0x1bbb4]=0xc0;
+    (void)seekNativeSeasonRace(m);
 }
 
 void transferNativeLapRecords(NativeMemory& m,bool load) {
@@ -305,7 +311,7 @@ void finishNativeSeason(NativeMemory& m) {
     for(unsigned id=0;id<12;++id)m[0x1c9c2+id]=m[0x1ca0e+id];
     const unsigned oldOffset=m[0x5ab42+m[0x1c9ce]];
     m[0x1bb16]=1;
-    if(m[0x1ca0e+oldOffset]==m[0x5eb79])m[0x593f6]=m[0x5eb79];
+    if((oldOffset||!m[0x1c9d0])&&m[0x1ca0e+oldOffset]==m[0x5eb79])m[0x593f6]=m[0x5eb79];
     for(int division=2;division>=0;--division) {
         m[0x1bb5f]=std::uint8_t(division);seasonConfiguration(m);
         const unsigned offset=m[0x1bc5b];std::swap(m[0x1c9c2+offset],m[0x1c9c2+offset-1]);

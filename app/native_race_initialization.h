@@ -36,6 +36,9 @@ void prepareNativeHallOfFame(NativeMemory& memory);
 void initializeNativeSeason(NativeMemory& memory);
 // Skips original computer-only fixtures. False means all six rounds ended.
 [[nodiscard]] bool seekNativeSeasonRace(NativeMemory& memory);
+// Original F1 branch: score all remaining fixtures, then leave promotion to
+// the normal season-end caller. No race or per-race result screens are entered.
+void forfeitNativeSeason(NativeMemory& memory);
 void advanceNativeSeasonRound(NativeMemory& memory);
 void finishNativeSeason(NativeMemory& memory);
 } // namespace scr::viewer

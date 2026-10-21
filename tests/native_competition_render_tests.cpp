@@ -4,6 +4,7 @@
 #include <algorithm>
 #include <array>
 #include <fstream>
+#include <filesystem>
 #include <iostream>
 #include <iterator>
 #include <memory>
@@ -17,6 +18,10 @@ std::array<std::uint8_t,4096> stack{};
 constexpr unsigned stackBase=0x8f000,stackTop=0x90000,sentinel=0xa0000,frame=0x6a594;
 unsigned stop{},pc{},instructions{};
 std::uint64_t totalInstructions{},comparedPixels{};
+std::uint64_t comparedPaletteWords{};
+unsigned careerCases{},awardCases{},skippedAwards{},snapshotCases{};
+unsigned forfeitScreenCases{};
+std::filesystem::path outputDirectory;
 bool invalid{},stopped{};
 std::uint8_t readByte(unsigned a){
     if(a<ram.size())return ram[a];
@@ -37,7 +42,7 @@ void skipCall(){const unsigned sp=m68k_get_reg(nullptr,M68K_REG_SP);
 void hook(unsigned address){
     pc=address;
     if(address==stop||address==sentinel){stopped=true;m68k_end_timeslice();return;}
-    if(address==0x6444e||address==0x64470||address==0x1ba70){skipCall();return;}
+    if(address==0x6444e||address==0x64470){skipCall();return;}
     if((address&1)||address<0xe700||address>=0x724dc||++instructions>20000000){invalid=true;m68k_end_timeslice();}
 }
 void run(unsigned entry,unsigned boundary){
@@ -49,7 +54,13 @@ void run(unsigned entry,unsigned boundary){
     if(invalid||!stopped)throw std::runtime_error("Original competition render failed PC="+std::to_string(pc));
     totalInstructions+=instructions;
 }
-void compare(const scr::viewer::NativeMenuImage& image,unsigned page,unsigned variation,unsigned buffer=frame){
+void compare(const scr::viewer::NativeMenuImage& image,unsigned page,unsigned variation,unsigned buffer=frame,unsigned paletteAddress=0x23c32){
+    for(unsigned i=0;i<16;++i){
+        const unsigned colour=(unsigned(ram[paletteAddress+2*i])<<8)|ram[paletteAddress+2*i+1];
+        auto channel=[](unsigned v){v&=7;return (v*2+(v?1:0))*17;};
+        const unsigned expected=(channel(colour>>8)<<16)|(channel(colour>>4)<<8)|channel(colour);
+        ++comparedPaletteWords;if(image.palette[i]!=expected)throw std::runtime_error("Competition palette mismatch page="+std::to_string(page));
+    }
     for(unsigned y=0;y<200;++y)for(unsigned x=0;x<320;++x){
         unsigned expected=0;for(unsigned p=0;p<4;++p)
             if(ram[buffer+p*8000+y*40+x/8]&(0x80u>>(x%8)))expected|=1u<<p;
@@ -65,6 +76,71 @@ void compare(const scr::viewer::NativeMenuImage& image,unsigned page,unsigned va
             " expected="+std::to_string(expected)+" actual="+std::to_string(image.indices[y*320+x]));}
     }
 }
+void exportImage(const scr::viewer::NativeMenuImage& image,const std::string& name){
+    if(outputDirectory.empty())return;
+    std::ofstream out(outputDirectory/(name+".ppm"),std::ios::binary);out<<"P6\n320 200\n255\n";
+    for(auto index:image.indices)for(unsigned shift:{16u,8u,0u})out.put(char(image.palette[index]>>shift));
+    if(!out)throw std::runtime_error("Cannot export career screen");
+}
+void careerEndings(const Memory& baseline){
+    using namespace scr::viewer;
+    unsigned variation=1000;
+    for(unsigned context:{0u,11u})for(unsigned division=0;division<4;++division)
+    for(unsigned place=0;place<3;++place)for(unsigned names=0;names<4;++names,++variation){
+        auto native=std::make_unique<Memory>(baseline);
+        (*native)[0x1c9ce]=(*native)[0x1bb5f]=std::uint8_t(division);(*native)[0x1c9d0]=std::uint8_t(context);
+        (*native)[0x5eb79]=11;(*native)[0x593f6]=0x19;(*native)[0x1bbb1]=0;
+        for(unsigned i=0;i<12;++i)(*native)[0x1ca0e+i]=(*native)[0x1c9c2+i]=std::uint8_t(i);
+        const unsigned offset=(*native)[0x5ab42+division];std::swap((*native)[0x1ca0e+offset+place],(*native)[0x1ca0e+11]);
+        static constexpr char values[][13]={"Craig       ","ABCDEFGHIJKL","abcdefghijkl","AZaz/9 .0:Cx"};
+        for(unsigned i=0;i<12;++i)(*native)[0x1ecab+16*11+i]=std::uint8_t(values[names][i]);
+        ram=*native;run(0x64570,0x645ac);run(0x646d6,0x64828);
+        finishNativeSeason(*native);
+        if((*native)[0x593f6]!=ram[0x593f6])throw std::runtime_error("Career award flag mismatch context="+std::to_string(context)+
+            " division="+std::to_string(division)+" place="+std::to_string(place)+" expected="+std::to_string(ram[0x593f6])+" actual="+std::to_string((*native)[0x593f6]));
+        if((*native)[0x1c9ce]!=ram[0x1c9ce]||(*native)[0x1c9d0]!=ram[0x1c9d0])throw std::runtime_error("Career presentation state transition mismatch");
+        const auto image=makeNativeCompetitionImage(*native,NativeMenuPage::SeasonEnd,division,context);
+        compare(image,unsigned(NativeMenuPage::SeasonEnd),variation);++careerCases;
+        if((*native)[0x1c9ce]!=division||(*native)[0x1c9d0]!=context)++snapshotCases;
+        const std::string label="context-"+std::to_string(context)+"-division-"+std::to_string(division)+"-place-"+std::to_string(place);
+        if(!names)exportImage(image,label+"-end");
+        const auto pixelsBefore=std::make_unique<Memory>(ram);
+        run(0x5933a,0x6488a);
+        if(ram[0x593f6]&128){
+            if(pc!=sentinel)throw std::runtime_error("Original skipped award unexpectedly waited for fire");
+            for(unsigned a=frame;a<frame+64000;++a)if(ram[a]!=(*pixelsBefore)[a])throw std::runtime_error("Original skipped award changed bitmap");
+            ++skippedAwards;
+        }else{
+            if(pc!=0x6488a)throw std::runtime_error("Original award did not wait for fire");
+            const auto award=makeNativeCompetitionImage(*native,NativeMenuPage::SeasonAward,division,context);
+            compare(award,unsigned(NativeMenuPage::SeasonAward),variation,frame+32000,0xe85a);++awardCases;
+            if(!names)exportImage(award,label+"-award");
+        }
+        ram=*native;run(0x58888,0x6488a);
+        const auto roster=makeNativeCompetitionImage(*native,NativeMenuPage::Roster,(*native)[0x1c9ce],(*native)[0x1c9d0]);
+        compare(roster,unsigned(NativeMenuPage::Roster),variation,frame+32000,0xe85a);++careerCases;
+        if(!names)exportImage(roster,label+"-roster");
+    }
+}
+void forfeitEndings(const Memory& baseline){
+    using namespace scr::viewer;
+    unsigned variation=2000;
+    for(unsigned context:{0u,11u})for(unsigned division=0;division<4;++division)
+    for(unsigned round:{0u,3u,5u})for(unsigned leading=0;leading<2;++leading,++variation){
+        auto native=std::make_unique<Memory>(baseline);
+        (*native)[0x1c9ce]=(*native)[0x1bb5f]=std::uint8_t(division);(*native)[0x1c9d0]=std::uint8_t(context);
+        (*native)[0x5eb79]=11;(*native)[0x1ca22]=0x80;(*native)[0x5eb78]=6;
+        (*native)[0x1ca35]=(*native)[0x5eb7b]=std::uint8_t(round);(*native)[0x1bb5b]=0;
+        for(unsigned i=0;i<12;++i){(*native)[0x1ca0e+i]=(*native)[0x1c9c2+i]=std::uint8_t(i);
+            (*native)[0x1c9de+i]=(*native)[0x1c9ea+i]=(*native)[0x1c9f6+i]=(*native)[0x1ca02+i]=0;}
+        const unsigned offset=(*native)[0x5ab42+division];std::swap((*native)[0x1c9c2+offset+1],(*native)[0x1c9c2+11]);
+        if(leading){(*native)[0x1c9de+11]=40;(*native)[0x1c9ea+11]=20;(*native)[0x1ca02+11]=100;}
+        ram=*native;forfeitNativeSeason(*native);run(0x5d000,0x5d1be);
+        run(0x64570,0x645ac);run(0x646d6,0x64828);finishNativeSeason(*native);
+        compare(makeNativeCompetitionImage(*native,NativeMenuPage::SeasonEnd,division,context),unsigned(NativeMenuPage::SeasonEnd),variation);
+        if((*native)[0x593f6]!=ram[0x593f6])throw std::runtime_error("F1 season-end award gate mismatch");++forfeitScreenCases;
+    }
+}
 } // namespace
 extern "C" {
 unsigned int m68k_read_memory_8(unsigned a){return readByte(a);}
@@ -75,7 +151,8 @@ void m68k_write_memory_16(unsigned a,unsigned v){if(a&1)invalid=true;writeByte(a
 void m68k_write_memory_32(unsigned a,unsigned v){m68k_write_memory_16(a,v>>16);m68k_write_memory_16(a+2,v);}
 }
 int main(int argc,char** argv)try{
-    if(argc!=2)throw std::invalid_argument("Usage: native_competition_render_tests original-payload.bin");
+    if(argc<2||argc>3)throw std::invalid_argument("Usage: native_competition_render_tests original-payload.bin [image-directory]");
+    if(argc==3){outputDirectory=argv[2];std::filesystem::create_directories(outputDirectory);}
     std::ifstream file(argv[1],std::ios::binary);
     const std::vector<std::uint8_t> payload{std::istreambuf_iterator<char>(file),std::istreambuf_iterator<char>()};
     if(payload.size()!=408540)throw std::invalid_argument("Wrong original payload size");
@@ -103,7 +180,7 @@ int main(int argc,char** argv)try{
         for(unsigned flags:{0u,0x80u,0xc0u}){
             (*state)[0x1bbb4]=std::uint8_t(flags);(*state)[0x1bca2]=flags==0xc0?0x80:0;
             ram=*state;run(0x5930c,0x6488a);
-            compare(scr::viewer::makeNativeCompetitionImage(*state,scr::viewer::NativeMenuPage::Results,division),unsigned(scr::viewer::NativeMenuPage::Results),variation,frame+32000);++cases;
+            compare(scr::viewer::makeNativeCompetitionImage(*state,scr::viewer::NativeMenuPage::Results,division),unsigned(scr::viewer::NativeMenuPage::Results),variation,frame+32000,0xe85a);++cases;
         }
         for(unsigned flags:{0xc0u,0xc1u,0x81u,0x41u}){
             if(variation&8){
@@ -117,13 +194,18 @@ int main(int argc,char** argv)try{
             compare(scr::viewer::makeNativeCompetitionImage(*state,scr::viewer::NativeMenuPage::Records,division),unsigned(scr::viewer::NativeMenuPage::Records),variation);++cases;
         }
         ram=*state;run(0x58888,0x6488a);
-        compare(scr::viewer::makeNativeCompetitionImage(*state,scr::viewer::NativeMenuPage::Roster,division),unsigned(scr::viewer::NativeMenuPage::Roster),variation,frame+32000);++cases;
+        compare(scr::viewer::makeNativeCompetitionImage(*state,scr::viewer::NativeMenuPage::Roster,division),unsigned(scr::viewer::NativeMenuPage::Roster),variation,frame+32000,0xe85a);++cases;
         (*state)[0x593f6]=11;ram=*state;run(0x5933a,0x6488a);
-        compare(scr::viewer::makeNativeCompetitionImage(*state,scr::viewer::NativeMenuPage::SeasonAward,division),unsigned(scr::viewer::NativeMenuPage::SeasonAward),variation,frame+32000);++cases;
+        compare(scr::viewer::makeNativeCompetitionImage(*state,scr::viewer::NativeMenuPage::SeasonAward,division),unsigned(scr::viewer::NativeMenuPage::SeasonAward),variation,frame+32000,0xe85a);++cases;
         ram=*state;run(0x64570,0x645ac);run(0x646d6,0x64828);
         scr::viewer::finishNativeSeason(*state);
         compare(scr::viewer::makeNativeCompetitionImage(*state,scr::viewer::NativeMenuPage::SeasonEnd,division,(variation&4)?11:0),unsigned(scr::viewer::NativeMenuPage::SeasonEnd),variation);++cases;
     }
-    std::cout<<"{\"cases\":"<<cases<<",\"compared_pixels\":"<<comparedPixels<<",\"mismatches\":0,\"original_instructions\":"<<totalInstructions
+    careerEndings(*base);
+    forfeitEndings(*base);
+    std::cout<<"{\"cases\":"<<cases+careerCases+awardCases+forfeitScreenCases<<",\"compared_pixels\":"<<comparedPixels<<",\"compared_palette_words\":"<<comparedPaletteWords<<
+        ",\"career_cases\":"<<careerCases<<",\"career_award_cases\":"<<awardCases<<",\"career_skipped_awards\":"<<skippedAwards<<",\"career_snapshot_cases\":"<<snapshotCases<<
+        ",\"forfeit_screen_cases\":"<<forfeitScreenCases<<
+        ",\"mismatches\":0,\"original_instructions\":"<<totalInstructions
         <<",\"original_code_unmodified\":true,\"palette_fades_and_hardware_skipped\":true}\n";return 0;
 }catch(const std::exception& error){std::cerr<<error.what()<<'\n';return 1;}

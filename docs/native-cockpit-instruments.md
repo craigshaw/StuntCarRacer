@@ -94,11 +94,10 @@ invent intermediate digits, fuel or lap-counter values.
 Configure the normal oracle build and run:
 
 ```powershell
-cmake -S . -B analysis/cockpit-instruments/build -DSCR_BUILD_ORACLE=ON `
-  "-DMUSASHI_DIR=C:/Projects/Stunt Car Racer/analysis/reference/musashi"
-cmake --build analysis/cockpit-instruments/build --config Release `
+cmake --preset windows-oracle
+cmake --build build/windows-oracle --config Release `
   --target native_cockpit_instruments_tests --parallel 4
-analysis/cockpit-instruments/build/Release/native_cockpit_instruments_tests.exe `
+build/windows-oracle/Release/native_cockpit_instruments_tests.exe `
   analysis/reference/vesuri/offline-extracted-payload.bin
 ```
 

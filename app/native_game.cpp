@@ -2,6 +2,9 @@
 #define WIN32_LEAN_AND_MEAN
 #include <windows.h>
 #include <shellapi.h>
+#include <commdlg.h>
+#include <dwmapi.h>
+#include "windows_launcher.h"
 #include "native_game_session.h"
 #include "windows_drive_input.h"
 #include "windows_audio_output.h"
@@ -20,51 +23,46 @@
 namespace {
 using namespace scr::viewer;
 struct Options {
-    std::filesystem::path pack,recordings=L"analysis/live-driving",saveFile=L"working/saves/stunt-car-racer.scr-save";
-    std::filesystem::path settingsFile=L"working/settings/display.ini";
+    NativeLaunchPaths paths;
     std::optional<bool> interpolate,fullscreen;
 };
 Options parse(){
     int count=0;auto args=CommandLineToArgvW(GetCommandLineW(),&count);
     if(!args)throw std::runtime_error("Cannot read native game arguments");
-    Options options;
+    Options options;options.paths=defaultNativeLaunchPaths();
     try{for(int n=1;n<count;++n){
         const std::wstring key=args[n];
         if(key==L"--interpolate"){options.interpolate=true;continue;}
         if(key==L"--fullscreen"){options.fullscreen=true;continue;}
         if(key==L"--windowed"){options.fullscreen=false;continue;}
         if(++n==count)throw std::runtime_error("Missing native game argument");
-        if(key==L"--asset-pack")options.pack=args[n];
-        else if(key==L"--recordings-dir")options.recordings=args[n];
-        else if(key==L"--save-file")options.saveFile=args[n];
-        else if(key==L"--settings-file")options.settingsFile=args[n];
+        if(key==L"--asset-pack")options.paths.pack=args[n];
+        else if(key==L"--recordings-dir")options.paths.recordings=args[n];
+        else if(key==L"--save-file")options.paths.save=args[n];
+        else if(key==L"--settings-file")options.paths.settings=args[n];
         else throw std::runtime_error("Unknown native game argument");
     }}catch(...){LocalFree(args);throw;}
-    LocalFree(args);if(options.pack.empty())throw std::runtime_error("Supply --asset-pack with your imported local data pack");
+    LocalFree(args);
     return options;
-}
-NativeDisplayPreferences displayPreferences(const Options& options){
-    auto preferences=loadDisplayPreferences(options.settingsFile);
-    if(options.interpolate)preferences.interpolate=*options.interpolate;
-    if(options.fullscreen)preferences.fullscreen=*options.fullscreen;
-    return preferences;
 }
 class GameWindow {
 public:
-    explicit GameWindow(const Options& options):game_(options.pack,options.recordings,NativeGameStart::OriginalOpening,options.saveFile),
-        settingsFile_(options.settingsFile),settings_(displayPreferences(options)){}
+    explicit GameWindow(const Options& options):launcher_(options.paths,options.fullscreen,options.interpolate),
+        settingsFile_(options.paths.settings),settings_(launcher_.preferences()){}
     ~GameWindow(){if(timer_)CloseHandle(timer_);}
     int run(HINSTANCE instance,int show){
         WNDCLASSEXW type{};type.cbSize=sizeof(type);type.hInstance=instance;type.lpfnWndProc=procedure;
         type.lpszClassName=L"StuntCarRacerNativeGame";type.hCursor=LoadCursorW(nullptr,IDC_ARROW);
-        RegisterClassExW(&type);RECT extent{0,0,960,600};AdjustWindowRect(&extent,WS_OVERLAPPEDWINDOW,FALSE);
-        auto window=CreateWindowExW(0,type.lpszClassName,L"Stunt Car Racer",WS_OVERLAPPEDWINDOW,
+        RegisterClassExW(&type);RECT extent{0,0,960,720};AdjustWindowRect(&extent,WS_OVERLAPPEDWINDOW,FALSE);
+        auto window=CreateWindowExW(WS_EX_CONTROLPARENT,type.lpszClassName,L"Stunt Car Racer",WS_OVERLAPPEDWINDOW|WS_CLIPCHILDREN,
             CW_USEDEFAULT,CW_USEDEFAULT,extent.right-extent.left,extent.bottom-extent.top,nullptr,nullptr,instance,this);
         if(!window)throw std::runtime_error("Cannot open native game window");
+        const BOOL dark=TRUE;DwmSetWindowAttribute(window,DWMWA_USE_IMMERSIVE_DARK_MODE,&dark,sizeof(dark));
+        launcherView_.create(window);launcherView_.sync(launcher_);
         timer_=CreateWaitableTimerExW(nullptr,nullptr,CREATE_WAITABLE_TIMER_HIGH_RESOLUTION,TIMER_MODIFY_STATE|SYNCHRONIZE);
         if(!timer_)timer_=CreateWaitableTimerW(nullptr,FALSE,nullptr);
         if(!timer_)throw std::runtime_error("Cannot create native game timer");
-        ShowWindow(window,show);display_.fullscreen(window,settings_.preferences().fullscreen);UpdateWindow(window);
+        ShowWindow(window,show);UpdateWindow(window);launcherView_.focusInitial(launcher_);
         auto previous=std::chrono::steady_clock::now(),deadline=previous;
         const auto period=std::chrono::duration_cast<std::chrono::steady_clock::duration>(std::chrono::duration<double>(1.0/60));
         for(;;){
@@ -78,6 +76,7 @@ public:
                 tick=wake==WAIT_OBJECT_0;
                 MSG message{};while(PeekMessageW(&message,nullptr,0,0,PM_REMOVE)){
                     if(message.message==WM_QUIT)return int(message.wParam);
+                    if(!game_&&message.message==WM_KEYDOWN&&message.wParam==VK_TAB&&IsDialogMessageW(window,&message))continue;
                     TranslateMessage(&message);DispatchMessageW(&message);
                 }
             }
@@ -88,7 +87,8 @@ public:
         }
     }
 private:
-    NativeGameSession game_;
+    NativeLauncher launcher_;
+    std::unique_ptr<NativeGameSession> game_;
     WindowsDriveInput controller_;
     PolledDrivePad pad_;
     std::unique_ptr<WindowsAudioOutput> audio_;
@@ -98,19 +98,43 @@ private:
     std::filesystem::path settingsFile_;
     NativeDisplaySettings settings_;
     WindowsGameDisplay display_;
+    WindowsLauncher launcherView_;
     std::wstring settingsError_;
-    bool muted_{},focused_{true},suppressInput_{};
+    bool muted_{},focused_{true},suppressInput_{},freshGame_{};
     HANDLE timer_{};
     unsigned frames_{};
     double fps_{};
     std::chrono::steady_clock::time_point fpsStart_=std::chrono::steady_clock::now();
+    void launcherAction(HWND window,LauncherAction action){
+        if(action==LauncherAction::Quit){DestroyWindow(window);return;}
+        if(action==LauncherAction::ChooseAdf){
+            std::vector<wchar_t> filename(32768);OPENFILENAMEW chooser{};chooser.lStructSize=sizeof(chooser);chooser.hwndOwner=window;
+            chooser.lpstrFilter=L"Amiga disk images (*.adf)\0*.adf\0All files\0*.*\0\0";chooser.lpstrFile=filename.data();chooser.nMaxFile=DWORD(filename.size());
+            chooser.lpstrTitle=L"Choose your original Stunt Car Racer ADF";chooser.Flags=OFN_FILEMUSTEXIST|OFN_PATHMUSTEXIST|OFN_EXPLORER|OFN_NOCHANGEDIR;
+            if(GetOpenFileNameW(&chooser)){launcher_.importDisk(filename.data());launcherView_.sync(launcher_);launcherView_.focusInitial(launcher_);}
+            launcherView_.releaseNavigation();return;
+        }
+        if(action!=LauncherAction::Play)return;
+        if(!launcher_.saveForPlay()){launcherView_.sync(launcher_);return;}
+        try{
+            const auto& paths=launcher_.paths();
+            auto started=std::make_unique<NativeGameSession>(paths.pack,paths.recordings,NativeGameStart::OriginalOpening,paths.save);
+            settings_=NativeDisplaySettings(launcher_.preferences());display_.fullscreen(window,settings_.preferences().fullscreen);
+            game_=std::move(started);launcherView_.visible(false);SetFocus(window);clearGameInput();
+            for(const unsigned key:{unsigned(VK_RETURN),unsigned(VK_SPACE),unsigned(VK_ESCAPE),unsigned(VK_UP),unsigned(VK_DOWN),unsigned(VK_LEFT),unsigned(VK_RIGHT),unsigned('W'),unsigned('A'),unsigned('S'),unsigned('D')})
+                blockedKeys_[key]=(GetAsyncKeyState(int(key))&0x8000)!=0;
+            freshGame_=true;InvalidateRect(window,nullptr,FALSE);
+        }catch(const std::exception& failure){
+            display_.fullscreen(window,false);launcher_.refreshAssets();launcher_.failedStart(failure);launcherView_.visible(true);launcherView_.sync(launcher_);launcherView_.focusInitial(launcher_);
+        }
+    }
     NativeGameInput input()const{
         NativeGameInput value;
         value.drivePreset=settings_.preferences().controls;
         if(suppressInput_)return value;
         value.rawKeys=rawKeys_;
         const auto& p=pad_.pad;
-        if(game_.usingTextInput()){
+        if(game_->usingTextInput()){
             // The original raw keyboard scanner owns name entry. Letters
             // such as WASD and M/I must reach it without host shortcuts.
             if(p.connected)value.menu.controls=std::uint8_t(
@@ -133,19 +157,19 @@ private:
     }
     void update(HWND window,double elapsed){
         if(!focused_||settings_.blocksGame())return;
-        const auto changes=game_.update(elapsed,input());
+        const auto changes=game_->update(elapsed,input());
         rawKeys_.clear();
         if(changes.raceStarted){
-            if(audio_)audio_->reset(game_.race().audioSeed());
-            else audio_=std::make_unique<WindowsAudioOutput>(game_.race().audioSeed());
+            if(audio_)audio_->reset(game_->race().audioSeed());
+            else audio_=std::make_unique<WindowsAudioOutput>(game_->race().audioSeed());
             audio_->setMuted(muted_);audio_->setPlaying(true);
         }
         if(audio_){
             for(const auto& frame:changes.audio)audio_->submit(frame);
-            audio_->setPlaying(game_.page()==NativeMenuPage::Race&&!game_.raceEnded()&&!game_.transitioning());
+            audio_->setPlaying(game_->page()==NativeMenuPage::Race&&!game_->raceEnded()&&!game_->transitioning());
         }
         if(changes.unavailable!=NativeGameUnavailable::none){
-            keys_.fill(false);rawKeys_.clear();game_.releaseInput();
+            keys_.fill(false);rawKeys_.clear();game_->releaseInput();
             const auto text=changes.unavailable==NativeGameUnavailable::computerLink?
                 L"Computer Link has not been ported yet. Single Player and local Multiplayer are available.":
                 L"This route is unavailable in the current game mode.";
@@ -153,6 +177,8 @@ private:
         }
     }
     void tickGame(HWND window,double elapsed){
+        if(!game_){pad_=controller_.poll();if(focused_)launcherAction(window,launcherView_.navigate(displayPadNavigation(pad_.pad),launcher_));return;}
+        if(freshGame_){elapsed=0;freshGame_=false;}
         const bool wasBlocked=settings_.blocksGame();
         pad_=controller_.poll();
         if(pad_.disconnected){
@@ -179,17 +205,17 @@ private:
             SetWindowTextW(window,title.str().c_str());
         }
     }
-    bool inRace()const{return game_.page()==NativeMenuPage::Race&&!game_.transitioning();}
+    bool inRace()const{return game_&&game_->page()==NativeMenuPage::Race&&!game_->transitioning();}
     unsigned navigation()const{
         return displayPadNavigation(pad_.pad)|(keys_[VK_UP]?1u:0u)|(keys_[VK_DOWN]?2u:0u)|
             (keys_[VK_LEFT]?4u:0u)|(keys_[VK_RIGHT]?8u:0u)|((keys_[VK_RETURN]||keys_[VK_SPACE])?16u:0u)|(keys_[VK_ESCAPE]?32u:0u);
     }
     void clearGameInput(){
         for(unsigned n=0;n<keys_.size();++n)blockedKeys_[n]=blockedKeys_[n]||keys_[n];
-        keys_.fill(false);rawKeys_.clear();game_.releaseInput();suppressInput_=true;
+        keys_.fill(false);rawKeys_.clear();if(game_)game_->releaseInput();suppressInput_=true;
         if(audio_)audio_->setPlaying(false);
     }
-    void syncDisplay(HWND window){display_.fullscreen(window,settings_.preferences().fullscreen);InvalidateRect(window,nullptr,FALSE);}
+    void syncDisplay(HWND window){if(game_)display_.fullscreen(window,settings_.preferences().fullscreen);InvalidateRect(window,nullptr,FALSE);}
     bool saveSettings(){
         const bool saved=saveDisplayPreferences(settingsFile_,settings_.preferences());
         settingsError_=saved?L"":L"Settings could not be saved. Apply to retry.";return saved;
@@ -202,8 +228,8 @@ private:
     }
     void paint(HWND window){
         // Keep the last completed image visible while rendering. Clearing the
-        // window before game_.render exposed black frames to the compositor.
-        const auto& pixels=game_.render(settings_.preferences().interpolate,settings_.blocksGame());
+        // window before game_->render exposed black frames to the compositor.
+        const std::vector<std::uint32_t>* pixels=game_?&game_->render(settings_.preferences().interpolate,settings_.blocksGame()):nullptr;
         PAINTSTRUCT painting{};auto target=BeginPaint(window,&painting);RECT client{};GetClientRect(window,&client);
         if(client.right<=0||client.bottom<=0){EndPaint(window,&painting);return;}
         auto dc=CreateCompatibleDC(target);
@@ -213,8 +239,8 @@ private:
             throw std::runtime_error("Cannot allocate native game presentation buffer");
         }
         const auto previous=SelectObject(dc,surface);
-        display_.paint(dc,client.right,client.bottom,pixels,settings_.preferences().scaling);
-        display_.overlay(dc,client.right,client.bottom,settings_,settingsError_);
+        if(pixels){display_.paint(dc,client.right,client.bottom,*pixels,settings_.preferences().scaling);display_.overlay(dc,client.right,client.bottom,settings_,settingsError_);}
+        else launcherView_.paint(dc,client.right,client.bottom,launcher_);
         // Background, letterboxing and game pixels become visible together.
         const bool presented=BitBlt(target,0,0,client.right,client.bottom,dc,0,0,SRCCOPY)!=0;
         SelectObject(dc,previous);DeleteObject(surface);DeleteDC(dc);
@@ -224,10 +250,18 @@ private:
     LRESULT message(HWND window,UINT kind,WPARAM key,LPARAM data){
         switch(kind){
         case WM_ERASEBKGND:return 1;
-        case WM_GETMINMAXINFO:reinterpret_cast<MINMAXINFO*>(data)->ptMinTrackSize={340,240};return 0;
+        case WM_GETMINMAXINFO:reinterpret_cast<MINMAXINFO*>(data)->ptMinTrackSize=game_?POINT{340,240}:POINT{740,640};return 0;
+        case WM_DPICHANGED:{const auto suggested=reinterpret_cast<const RECT*>(data);SetWindowPos(window,nullptr,suggested->left,suggested->top,suggested->right-suggested->left,suggested->bottom-suggested->top,SWP_NOZORDER|SWP_NOACTIVATE);return 0;}
+        case WM_COMMAND:
+            if(!game_&&(HIWORD(key)==BN_CLICKED||HIWORD(key)==CBN_SELCHANGE))launcherAction(window,launcherView_.command(LOWORD(key),launcher_));return 0;
+        case WM_DRAWITEM:if(!game_){launcherView_.drawButton(*reinterpret_cast<DRAWITEMSTRUCT*>(data));return TRUE;}break;
+        case WM_CTLCOLORLISTBOX:case WM_CTLCOLORSTATIC:case WM_CTLCOLORBTN:
+            if(!game_)return reinterpret_cast<LRESULT>(launcherView_.controlColour(reinterpret_cast<HDC>(key)));break;
+        case WindowsLauncher::navigationMessage:
+            if(!game_)launcherAction(window,launcherView_.navigate(unsigned(key),launcher_));return 0;
         case WM_ACTIVATEAPP:
             focused_=key!=0;
-            if(!focused_){if(inRace())settings_.suspendRace();clearGameInput();blockedKeys_.fill(false);settings_.releaseNavigation();}
+            if(!focused_){if(inRace())settings_.suspendRace();clearGameInput();blockedKeys_.fill(false);settings_.releaseNavigation();launcherView_.releaseNavigation();}
             return 0;
         case WM_SYSKEYDOWN:
             if(key==VK_F10||key==VK_F11)return message(window,WM_KEYDOWN,key,data);
@@ -236,6 +270,8 @@ private:
             if(key==VK_F10||key==VK_F11)return message(window,WM_KEYUP,key,data);
             return DefWindowProcW(window,kind,key,data);
         case WM_KEYDOWN:
+            if(!game_){if(!(data&0x40000000)){const unsigned nav=key==VK_UP?1:key==VK_DOWN?2:key==VK_LEFT?4:key==VK_RIGHT?8:(key==VK_RETURN||key==VK_SPACE)?16:key==VK_ESCAPE?32:0;
+                launcherAction(window,launcherView_.navigate(nav,launcher_));}return 0;}
             if(key==VK_F10||key==VK_F11){
                 if(!(data&0x40000000)){
                     if(key==VK_F10){
@@ -259,23 +295,25 @@ private:
             if(suppressInput_){if(key<blockedKeys_.size())blockedKeys_[key]=true;return 0;}
             if(!(data&0x40000000)){
                 if(const auto raw=nativeAmigaRawKey(unsigned(key),(unsigned(data)>>16)&255,(data&0x01000000)!=0))rawKeys_.push_back({*raw,true});
-                if(!game_.usingTextInput()&&key=='M'){muted_=!muted_;if(audio_)audio_->setMuted(muted_);}
-                else if(!game_.usingTextInput()&&key=='I'){settings_.toggleInterpolation();saveSettings();}
+                if(!game_->usingTextInput()&&key=='M'){muted_=!muted_;if(audio_)audio_->setMuted(muted_);}
+                else if(!game_->usingTextInput()&&key=='I'){settings_.toggleInterpolation();saveSettings();}
             }
             update(window,0);InvalidateRect(window,nullptr,FALSE);return 0;
         case WM_KEYUP:
+            if(!game_){launcherView_.navigate(0,launcher_);return 0;}
             if(key<keys_.size())keys_[key]=false;
             if(key<blockedKeys_.size())blockedKeys_[key]=false;
             if(settings_.blocksGame()){navigateOverlay(window);return 0;}
             if(suppressInput_||key==VK_F10||key==VK_F11)return 0;
             if(const auto raw=nativeAmigaRawKey(unsigned(key),(unsigned(data)>>16)&255,(data&0x01000000)!=0))rawKeys_.push_back({*raw,false});
             update(window,0);return 0;
-        case WM_SIZE:InvalidateRect(window,nullptr,FALSE);return 0;
+        case WM_SIZE:if(!game_)launcherView_.layout(window);InvalidateRect(window,nullptr,FALSE);return 0;
         case WM_DISPLAYCHANGE:display_.monitorChanged(window);InvalidateRect(window,nullptr,FALSE);return 0;
         case WM_PAINT:paint(window);return 0;
         case WM_DESTROY:PostQuitMessage(0);return 0;
         default:return DefWindowProcW(window,kind,key,data);
         }
+        return DefWindowProcW(window,kind,key,data);
     }
     static LRESULT CALLBACK procedure(HWND window,UINT kind,WPARAM key,LPARAM data){
         auto self=reinterpret_cast<GameWindow*>(GetWindowLongPtrW(window,GWLP_USERDATA));
@@ -287,6 +325,6 @@ private:
 };
 }
 int WINAPI wWinMain(HINSTANCE instance,HINSTANCE,PWSTR,int show){
-    try{const auto options=parse();SetProcessDPIAware();GameWindow game(options);return game.run(instance,show);}
+    try{const auto options=parse();if(!SetProcessDpiAwarenessContext(DPI_AWARENESS_CONTEXT_PER_MONITOR_AWARE_V2))SetProcessDPIAware();GameWindow game(options);return game.run(instance,show);}
     catch(const std::exception& error){MessageBoxA(nullptr,error.what(),"Stunt Car Racer",MB_OK|MB_ICONERROR);return 1;}
 }

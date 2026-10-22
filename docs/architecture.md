@@ -14,15 +14,27 @@ decoders; retaining original code bytes in the pack does not make them executabl
 | `scr_render` | `src/` geometry, projection, planar and raster modules | Original assets, geometry and native image generation |
 | `scr_startup` | `app/native_startup.*`, `native_*` components | Asset/race initialization, original menus, text, records and competition rules |
 | `scr_game` | `app/native_game_session.*`, `replay_scene.*` | Session/menu/race handoff, independently evolved gameplay, snapshots and recordings |
-| `scr_display` | `app/native_display_settings.*`, `windows_game_display.*` | Display/control settings overlay, scaling, fullscreen and preferences |
+| `scr_display` | `app/native_launcher.*`, `windows_launcher.*`, `native_display_settings.*`, `windows_game_display.*` | Pre-game setup, display/control UI, scaling, fullscreen and preferences |
 | Windows host | `app/native_game.cpp`, `windows_drive_input.*`, `windows_audio_output.*` | Event/presentation loop, keyboard, XInput, device playback and window lifecycle |
 
-`CMakeLists.txt` is the authority for library ownership and linkage. Production
+`CMakeLists.txt` owns production library linkage; `cmake/NativeTests.cmake` and
+`cmake/OracleTests.cmake` define separate test targets. Presets share the native
+build across suites, keep oracle output separate and stage only the player in
+`dist/`. Production
 state adapters currently reuse headers under `tests/`; the directory name does
 not imply a runtime CPU dependency. Core calculations use typed native values,
 while the compatibility memory layout preserves recovered byte/word semantics.
 
 ## Startup and race lifetime
+
+The Windows host first creates the windowed launcher without a game session.
+Native ADF import validates the supported disk and atomically replaces its local
+pack, with source hashes and extraction offsets in the adjacent provenance file.
+Play saves staged preferences and only then constructs NativeGameSession; import,
+preference-write and initialization failures remain recoverable in the launcher.
+Normal paths live in per-user Windows application data; development arguments
+override them explicitly. Recording requires an explicit directory and does not
+change simulation advancement or the initial presentation snapshots.
 
 1. `local_asset_pack` validates the pack's identity and extents.
 2. `startNativeGame` and `initializeNativeAssets` rebuild graphics, fonts, sample

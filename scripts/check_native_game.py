@@ -6,6 +6,7 @@ import json
 from pathlib import Path
 import subprocess
 
+from native_build import NATIVE_BUILD, ORACLE_BUILD, build_sources, configure_command
 from check_native_startup import sources as startup_sources
 from check_driving_replay import verify_replay_result
 from import_native_assets import DEFAULT_PACK, ROOT, import_assets
@@ -20,6 +21,7 @@ def sources():
     paths.add(Path(__file__).resolve())
     paths.add(ROOT / 'tests/native_game_session_tests.cpp')
     paths.add(ROOT / 'tests/native_display_tests.cpp')
+    paths.add(ROOT / 'tests/native_launcher_tests.cpp')
     paths.add(ROOT / 'tests/live_drive_tests.cpp')
     paths.add(ROOT / 'tests/native_opening_session_tests.cpp')
     paths.add(ROOT / 'tests/native_opponent_session_tests.cpp')
@@ -38,6 +40,7 @@ def sources():
                  'native_multiplayer_state', 'native_multiplayer_render', 'native_opponent_race', 'native_competition_render',
                  'native_career_state'):
         paths.add(ROOT / 'tests' / (name + '_tests.cpp'))
+    paths.update(build_sources())
     return [identity(path) for path in sorted(paths)]
 
 
@@ -89,8 +92,8 @@ def main():
     elif not pack.exists():
         import_assets(ROOT / 'Stunt Car Racer (MicroStyle).adf', pack)
     output = ROOT / 'analysis/native-game';output.mkdir(parents=True, exist_ok=True)
-    binary_dir = output / 'build'
-    executable = binary_dir / 'Release/native_game.exe'
+    binary_dir = NATIVE_BUILD
+    executable = binary_dir / 'Release/Stunt Car Racer.exe'
     test = binary_dir / 'Release/native_game_session_tests.exe'
     opening_test = binary_dir / 'Release/native_opening_session_tests.exe'
     startup_test = binary_dir / 'Release/native_startup_tests.exe'
@@ -102,22 +105,35 @@ def main():
     store_test = binary_dir / 'Release/native_save_store_tests.exe'
     display_test = binary_dir / 'Release/native_display_tests.exe'
     controls_test = binary_dir / 'Release/live_drive_tests.exe'
-    receipt = binary_dir / 'build-receipt.json'
+    launcher_test = binary_dir / 'Release/native_launcher_tests.exe'
+    artwork = identity(ROOT / 'logo.png') if (ROOT / 'logo.png').exists() else None
+    receipt = output / 'build-receipt.json'
     records = sources()
     executables = {'game': executable, 'test': test, 'opening_test': opening_test, 'startup_test': startup_test,
                    'bridge_test': bridge_test, 'season_test': season_test, 'multiplayer_test': multiplayer_test,
-                   'career_test': career_test, 'save_test': save_test, 'store_test': store_test, 'display_test': display_test, 'controls_test': controls_test}
+                   'career_test': career_test, 'save_test': save_test, 'store_test': store_test, 'display_test': display_test, 'controls_test': controls_test, 'launcher_test': launcher_test}
     if args.skip_build:
         old = json.loads(receipt.read_text())
-        if old['sources'] != records or any(old[key] != identity(path) for key, path in executables.items()):
+        if old['sources'] != records or old.get('artwork') != artwork or any(old.get(key) != identity(path) for key, path in executables.items()):
             raise RuntimeError('Native game build is stale; rerun without --skip-build')
     else:
-        build([['cmake', '-S', ROOT, '-B', binary_dir, '-DSCR_BUILD_ORACLE=OFF'],
+        build([configure_command(oracle=False),
                ['cmake', '--build', binary_dir, '--config', 'Release', '--target',
                 'native_game', 'native_game_session_tests', 'native_opening_session_tests', 'native_startup_tests', 'draw_bridge_driving_tests',
                 'native_opponent_session_tests', 'native_multiplayer_session_tests', 'native_career_session_tests',
-                'native_save_session_tests', 'native_save_store_tests', 'native_display_tests', 'live_drive_tests', '--parallel', '4']], output / 'build.log')
-        receipt.write_text(json.dumps({'sources': records, **{key: identity(path) for key, path in executables.items()}}, indent=2) + '\n')
+                'native_save_session_tests', 'native_save_store_tests', 'native_display_tests', 'native_launcher_tests', 'live_drive_tests', '--parallel', '4']], output / 'build.log')
+        receipt.write_text(json.dumps({'sources': records, 'artwork': artwork, **{key: identity(path) for key, path in executables.items()}}, indent=2) + '\n')
+    launcher_args = [launcher_test, pack, output / 'launcher']
+    disk = args.adf or ROOT / 'Stunt Car Racer (MicroStyle).adf'
+    if disk.exists():
+        launcher_args.append(disk)
+    disk_fixture = {'filename': disk.name, 'sha256': hashlib.sha256(disk.read_bytes()).hexdigest()} if disk.exists() else None
+    launcher = run_json(launcher_args, output / 'launcher-results.json')
+    if (launcher.get('shared_preferences') is not True or launcher.get('launch_overrides_transient') is not True
+            or launcher.get('recording_isolation_ticks') != 96 or launcher.get('rendered_states') != 3
+            or launcher.get('recording_final_memory_identical') is not True
+            or (disk.exists() and launcher.get('supported_import') is not True)):
+        raise RuntimeError('Native launcher setup or isolation regression failed')
     integration = run_json([test, pack, output / 'integration'], output / 'integration-results.json')
     if integration.get('practice_routes') != 8 or integration.get('repeated_races') != 8 or integration.get('return_to_main_menu') is not True:
         raise RuntimeError('Native game Practice route coverage differs')
@@ -181,9 +197,8 @@ def main():
         raise RuntimeError('Native digital control presets regression failed')
     original = {}
     if args.verify_original:
-        oracle_build = output / 'oracle-build'
-        build([['cmake', '-S', ROOT, '-B', oracle_build, '-DSCR_BUILD_ORACLE=ON',
-                '-DMUSASHI_DIR=' + str(ROOT / 'analysis/reference/musashi')],
+        oracle_build = ORACLE_BUILD
+        build([configure_command(oracle=True),
                ['cmake', '--build', oracle_build, '--config', 'Release', '--target',
                 'native_menu_render_tests', 'native_menu_flow_tests', 'native_track_preview_tests', 'native_palette_fade_tests',
                 'native_hall_of_fame_tests', 'native_hall_records_tests',
@@ -258,8 +273,14 @@ def main():
                                     for context in (0, 11) for division in range(4)]
     if sources() != records:
         raise RuntimeError('Sources changed during native game checks')
+    if (identity(ROOT / 'logo.png') if (ROOT / 'logo.png').exists() else None) != artwork:
+        raise RuntimeError('Launcher artwork changed during native game checks')
+    build([['cmake', '--install', binary_dir, '--config', 'Release', '--prefix', ROOT / 'dist']], output / 'install.log')
+    staged = ROOT / 'dist/Stunt Car Racer.exe'
+    if identity(staged)['sha256'] != identity(executable)['sha256']:
+        raise RuntimeError('Staged player executable differs from the checked build')
     report = {'status': 'passed', 'capture_input': False, 'rom_input': False, 'cpu_emulation': False,
-              'pack': identity(pack), 'game': identity(executable), 'sources': records,
+              'pack': identity(pack), 'game': identity(staged), 'build_game': identity(executable), 'sources': records, 'artwork': artwork, 'launcher_disk': disk_fixture, 'launcher': launcher,
               'integration': integration, 'opening': opening, 'startup': startup, 'bridge_driving': bridge,
               'season': season, 'multiplayer': multiplayer, 'career': career, 'saves': saves, 'save_store': storage, 'display': display, 'controls': controls, 'original_comparisons': original}
     (output / 'check-results.json').write_text(json.dumps(report, indent=2) + '\n')

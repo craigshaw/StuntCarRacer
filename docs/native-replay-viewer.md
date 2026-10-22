@@ -137,10 +137,8 @@ The masked checks include all six wheel images across their supported suspension
 heights. To build the original-code rendering comparisons:
 
 ```powershell
-cmake -S . -B analysis/native-render/oracle-build `
-  -G "Visual Studio 18 2026" -A x64 -DSCR_BUILD_ORACLE=ON `
-  "-DMUSASHI_DIR=$PWD/analysis/reference/musashi"
-cmake --build analysis/native-render/oracle-build --config Release `
+cmake --preset windows-oracle
+cmake --build build/windows-oracle --config Release `
   --target track_mesh_oracle render_projection_oracle planar_image_oracle `
     track_sides_oracle mountain_horizon_oracle near_track_geometry_oracle `
     near_track_visibility_oracle software_renderer_tests
@@ -154,7 +152,7 @@ report using the built oracle:
 
 ```powershell
 & $AmigaPython .\scripts\prepare_replay_render_assets.py `
-  --oracle .\analysis\native-render\oracle-build\Release\planar_image_oracle.exe `
+  --oracle .\build\windows-oracle\Release\planar_image_oracle.exe `
   --output .\analysis\native-render\recovery-assets
 ```
 

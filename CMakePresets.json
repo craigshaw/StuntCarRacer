@@ -1,0 +1,67 @@
+{
+  "version": 3,
+  "cmakeMinimumRequired": { "major": 3, "minor": 21, "patch": 0 },
+  "configurePresets": [
+    {
+      "name": "windows-base",
+      "hidden": true,
+      "generator": "Visual Studio 18 2026",
+      "architecture": "x64",
+      "binaryDir": "${sourceDir}/build/windows",
+      "installDir": "${sourceDir}/dist",
+      "cacheVariables": {
+        "BUILD_TESTING": "ON",
+        "SCR_BUILD_DEV_TOOLS": "ON",
+        "SCR_BUILD_ORACLE": "OFF"
+      }
+    },
+    {
+      "name": "windows-release",
+      "displayName": "Windows x64 Release",
+      "inherits": "windows-base"
+    },
+    {
+      "name": "windows-debug",
+      "displayName": "Windows x64 Debug",
+      "inherits": "windows-base"
+    },
+    {
+      "name": "windows-oracle",
+      "displayName": "Windows x64 original-code verification",
+      "inherits": "windows-base",
+      "binaryDir": "${sourceDir}/build/windows-oracle",
+      "cacheVariables": {
+        "SCR_BUILD_ORACLE": "ON",
+        "MUSASHI_DIR": "${sourceDir}/analysis/reference/musashi"
+      }
+    }
+  ],
+  "buildPresets": [
+    { "name": "windows-release", "configurePreset": "windows-release", "configuration": "Release", "jobs": 4 },
+    { "name": "windows-debug", "configurePreset": "windows-debug", "configuration": "Debug", "jobs": 4 },
+    { "name": "windows-oracle", "configurePreset": "windows-oracle", "configuration": "Release", "jobs": 4 }
+  ],
+  "testPresets": [
+    {
+      "name": "windows-release",
+      "configurePreset": "windows-release",
+      "configuration": "Release",
+      "output": { "outputOnFailure": true },
+      "execution": { "jobs": 4, "noTestsAction": "error" }
+    },
+    {
+      "name": "windows-debug",
+      "configurePreset": "windows-debug",
+      "configuration": "Debug",
+      "output": { "outputOnFailure": true },
+      "execution": { "jobs": 4, "noTestsAction": "error" }
+    },
+    {
+      "name": "windows-oracle",
+      "configurePreset": "windows-oracle",
+      "configuration": "Release",
+      "output": { "outputOnFailure": true },
+      "execution": { "jobs": 4, "noTestsAction": "error" }
+    }
+  ]
+}

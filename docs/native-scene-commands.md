@@ -77,6 +77,6 @@ guard fixtures are synthetic; driving traces are checked separately.
 From the project root after configuring the oracle toolchain:
 
 ```powershell
-cmake --build analysis/scene-commands/build --config Release --target replay_scene_commands_tests
-& analysis/scene-commands/build/Release/replay_scene_commands_tests.exe analysis/assets/stunt-car-racer.scr-assets
+cmake --build build/windows-oracle --config Release --target replay_scene_commands_tests
+& build/windows-oracle/Release/replay_scene_commands_tests.exe analysis/assets/stunt-car-racer.scr-assets
 ```

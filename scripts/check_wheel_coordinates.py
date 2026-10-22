@@ -6,6 +6,7 @@ import json
 from pathlib import Path
 import subprocess
 
+from native_build import ORACLE_BUILD, build_sources, configure_command
 from prepare_wheel_oracle import prepare, ROOT, LOCK, DEST
 
 PAYLOAD_SHA = '508646f12af15115de73b06940c79e579f920bf47ce55f7cd8920eca60b7921c'
@@ -57,10 +58,9 @@ def main():
                             'source': source_id, 'chip_ram': ram_id})
         capture_args += [directory.name, str(chip_path)]
 
-    build = out / 'build'
+    build = ORACLE_BUILD
     commands = [
-        ['cmake', '-S', str(ROOT), '-B', str(build), '-G', 'Visual Studio 18 2026',
-         '-A', 'x64', '-DSCR_BUILD_ORACLE=ON', f'-DMUSASHI_DIR={DEST.as_posix()}'],
+        configure_command(oracle=True),
         ['cmake', '--build', str(build), '--config', 'Release', '--parallel', '4'],
     ]
     with (out / 'build.log').open('w', encoding='utf-8') as log:
@@ -81,7 +81,7 @@ def main():
         'build_commands': commands,
         'sources': [identity(ROOT / p) for p in ['CMakeLists.txt', 'src/wheel_coordinates.cpp',
                     'src/wheel_coordinates.h', 'tests/wheel_oracle.cpp',
-                    'scripts/check_wheel_coordinates.py', 'scripts/prepare_wheel_oracle.py']],
+                    'scripts/check_wheel_coordinates.py', 'scripts/prepare_wheel_oracle.py']] + [identity(path) for path in sorted(build_sources() - {ROOT / 'CMakeLists.txt'})],
         'executable': identity(exe), 'captures': capture_ids, 'results': checks,
         'limitations': [
             'Checks six output words for isolated invocation, not flags/registers or timing.',

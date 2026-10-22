@@ -5,6 +5,7 @@ import json
 from pathlib import Path
 import subprocess
 
+from native_build import ORACLE_BUILD, build_sources, configure_command
 from import_native_assets import DEFAULT_PACK, ROOT, import_assets
 
 
@@ -18,6 +19,7 @@ def sources():
     for folder in ('app', 'src', 'tests'):
         paths.update((ROOT / folder).glob('*.h'))
         paths.update((ROOT / folder).glob('*.cpp'))
+    paths.update(build_sources())
     return [identity(path) for path in sorted(paths)]
 
 
@@ -48,13 +50,13 @@ def main():
         import_assets(ROOT / 'Stunt Car Racer (MicroStyle).adf', pack)
     output = ROOT / 'analysis/render-audit'
     output.mkdir(parents=True, exist_ok=True)
-    build_dir = output / 'build'
+    build_dir = ORACLE_BUILD
     targets = ('native_render_audit', 'opponent_far_track_oracle',
                'mountain_horizon_oracle', 'near_track_visibility_oracle',
                'replay_scene_commands_tests')
     executables = {name: build_dir / 'Release' / (name + '.exe') for name in targets}
     records = sources()
-    receipt = build_dir / 'build-receipt.json'
+    receipt = output / 'build-receipt.json'
     if args.skip_build:
         old = json.loads(receipt.read_text())
         if old['sources'] != records or any(old['executables'][name] != identity(path)
@@ -62,8 +64,7 @@ def main():
             raise RuntimeError('Rendering audit build is stale; rerun without --skip-build')
     else:
         commands = [
-            ['cmake', '-S', ROOT, '-B', build_dir, '-DSCR_BUILD_ORACLE=ON',
-             '-DMUSASHI_DIR=' + str(ROOT / 'analysis/reference/musashi')],
+            configure_command(oracle=True),
             ['cmake', '--build', build_dir, '--config', 'Release', '--target',
              *targets, '--parallel', '4']]
         with (output / 'build.log').open('w') as log:

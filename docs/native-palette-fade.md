@@ -48,8 +48,8 @@ with a native implementation. Every source/target/copper palette and countdown
 is compared at entry and after each vblank.
 
 ```powershell
-cmake --build analysis/native-menu/build --config Release --target native_palette_fade_tests
-analysis/native-menu/build/Release/native_palette_fade_tests.exe analysis/reference/vesuri/offline-extracted-payload.bin
+cmake --build build/windows-oracle --config Release --target native_palette_fade_tests
+build/windows-oracle/Release/native_palette_fade_tests.exe analysis/reference/vesuri/offline-extracted-payload.bin
 ```
 
 The recorded run passed **397 cases**, comparing **628,848 values** across

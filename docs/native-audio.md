@@ -79,9 +79,8 @@ is in `analysis/audio-engine/oracle.json`. Reproduce from PowerShell:
 ```powershell
 . .\scripts\env.ps1
 & $AmigaPython scripts/reference/verify_engine_audio.py
-cmake -S . -B analysis/audio-engine/build -DSCR_BUILD_ORACLE=ON `
-  '-DMUSASHI_DIR=C:/Projects/Stunt Car Racer/analysis/reference/musashi'
-cmake --build analysis/audio-engine/build --config Release --target engine_audio_oracle
+cmake --preset windows-oracle
+cmake --build build/windows-oracle --config Release --target engine_audio_oracle
 $audioArgs = @('analysis/reference/vesuri/offline-extracted-payload.bin')
 foreach ($capture in @('race', 'menu', 'menu-user')) {
     $directory = "analysis/captures/$capture"
@@ -90,7 +89,7 @@ foreach ($capture in @('race', 'menu', 'menu-user')) {
     $audioArgs += $capture
     $audioArgs += Join-Path $directory $bank.file
 }
-& analysis/audio-engine/build/Release/engine_audio_oracle.exe @audioArgs
+& build/windows-oracle/Release/engine_audio_oracle.exe @audioArgs
 ```
 
 REA/Ghidra evidence is retained in `analysis/rea/audio-playback-evidence.json`:
@@ -157,7 +156,7 @@ cover buffer completion, pause, mute and reset:
 
 ```powershell
 & C:/Tools/amiga-re/venv/Scripts/python.exe scripts/check_native_rendering.py
-& analysis/native-render/viewer-build/Release/native_audio_tests.exe `
+& build/windows/Release/native_audio_tests.exe `
   analysis/captures/race/chip-000000.bin --device
 ```
 

@@ -49,8 +49,8 @@ the harness permits this original write. The original menu pixels are decoded
 from the planar frame buffer and compared with the native indexed pixels.
 
 ```powershell
-cmake --build analysis/native-menu/build --config Release --target native_menu_render_tests
-analysis/native-menu/build/Release/native_menu_render_tests.exe analysis/reference/vesuri/offline-extracted-payload.bin
+cmake --build build/windows-oracle --config Release --target native_menu_render_tests
+build/windows-oracle/Release/native_menu_render_tests.exe analysis/reference/vesuri/offline-extracted-payload.bin
 ```
 
 The menu checks compared **11,840,000 pixels across 185 cases**, with zero

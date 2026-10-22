@@ -4,6 +4,7 @@ import hashlib
 import json
 from pathlib import Path
 
+from native_build import ORACLE_BUILD, build_sources, configure_command
 from check_native_game import build, compare_race, run_json, sources as game_sources
 from import_native_assets import DEFAULT_PACK, PAYLOAD_SHA, ROOT, import_assets
 
@@ -22,6 +23,7 @@ def sources():
     paths.add(Path(__file__).resolve())
     for name in ('native_opening_flow', 'native_player_name', 'native_opening_render', 'native_opening_session'):
         paths.add(ROOT / 'tests' / (name + '_tests.cpp'))
+    paths.update(build_sources())
     return [identity(path) for path in sorted(paths)]
 
 
@@ -42,20 +44,19 @@ def main():
         raise RuntimeError('Opening oracle payload does not match the supplied disk')
     output = ROOT / 'analysis/native-opening'
     output.mkdir(parents=True, exist_ok=True)
-    binary_dir = output / 'build'
+    binary_dir = ORACLE_BUILD
     names = ('native_opening_session_tests', 'native_opening_flow_tests',
              'native_player_name_tests', 'native_opening_render_tests',
              'driving_replay_oracle', 'native_palette_fade_tests')
     executables = {name: binary_dir / 'Release' / (name + '.exe') for name in names}
     records = sources()
-    receipt = binary_dir / 'build-receipt.json'
+    receipt = output / 'build-receipt.json'
     if args.skip_build:
         old = json.loads(receipt.read_text())
         if old['sources'] != records or old['executables'] != {key: identity(path) for key, path in executables.items()}:
             raise RuntimeError('Opening build is stale; rerun without --skip-build')
     else:
-        build([['cmake', '-S', ROOT, '-B', binary_dir, '-DSCR_BUILD_ORACLE=ON',
-                '-DMUSASHI_DIR=' + str(ROOT / 'analysis/reference/musashi')],
+        build([configure_command(oracle=True),
                ['cmake', '--build', binary_dir, '--config', 'Release', '--target', *names, '--parallel', '4']],
               output / 'build.log')
         receipt.write_text(json.dumps({'sources': records, 'executables': {key: identity(path) for key, path in executables.items()}}, indent=2) + '\n')

@@ -55,11 +55,10 @@ gameplay changes its active flag, index and panel position, and verify that
 the native renderer leaves source RAM unchanged.
 
 ```powershell
-cmake -S . -B analysis/race-messages/build -DSCR_BUILD_ORACLE=ON `
-  "-DMUSASHI_DIR=C:/Projects/Stunt Car Racer/analysis/reference/musashi"
-cmake --build analysis/race-messages/build --config Release `
+cmake --preset windows-oracle
+cmake --build build/windows-oracle --config Release `
   --target native_race_messages_tests --parallel 4
-analysis/race-messages/build/Release/native_race_messages_tests.exe `
+build/windows-oracle/Release/native_race_messages_tests.exe `
   analysis/reference/vesuri/offline-extracted-payload.bin
 ```
 

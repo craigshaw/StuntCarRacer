@@ -61,8 +61,8 @@ case, punctuation and one/two-digit statistics. The local receipt, source hashes
 and image exports are under `analysis/opening-render/`.
 
 ```powershell
-cmake --build analysis/opening-render/build --config Release --target native_opening_render_tests
-& analysis/opening-render/build/Release/native_opening_render_tests.exe analysis/reference/vesuri/offline-extracted-payload.bin
+cmake --build build/windows-oracle --config Release --target native_opening_render_tests
+& build/windows-oracle/Release/native_opening_render_tests.exe analysis/reference/vesuri/offline-extracted-payload.bin
 ```
 
 This comparison establishes drawing and palette equivalence at the original

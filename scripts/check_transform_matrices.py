@@ -6,6 +6,7 @@ import json
 from pathlib import Path
 import subprocess
 
+from native_build import ORACLE_BUILD, build_sources, configure_command
 from prepare_wheel_oracle import prepare, ROOT, LOCK, DEST
 from check_wheel_coordinates import identity, PAYLOAD_SHA, ROUTINE_SHA
 
@@ -63,10 +64,9 @@ def main():
                             'all_code_and_table_spans_match_original': True})
         capture_args += [directory.name, str(chip_path)]
 
-    build = ROOT / 'analysis/wheel/build'
+    build = ORACLE_BUILD
     commands = [
-        ['cmake', '-S', str(ROOT), '-B', str(build), '-G', 'Visual Studio 18 2026',
-         '-A', 'x64', '-DSCR_BUILD_ORACLE=ON', f'-DMUSASHI_DIR={DEST.as_posix()}'],
+        configure_command(oracle=True),
         ['cmake', '--build', str(build), '--config', 'Release', '--parallel', '4'],
     ]
     with (out / 'build.log').open('w', encoding='utf-8') as log:
@@ -86,7 +86,7 @@ def main():
             'CMakeLists.txt', 'src/transform_matrices.cpp', 'src/transform_matrices.h',
             'src/wheel_coordinates.cpp', 'src/wheel_coordinates.h', 'tests/transform_oracle.cpp',
             'scripts/check_transform_matrices.py', 'scripts/check_wheel_coordinates.py',
-            'scripts/prepare_wheel_oracle.py']],
+            'scripts/prepare_wheel_oracle.py']] + [identity(path) for path in sorted(build_sources() - {ROOT / 'CMakeLists.txt'})],
         'executable': identity(exe), 'captures': capture_ids, 'results': checks,
         'limitations': [
             'All 65536 angle words are tested for each trig entry, with the verified original table.',

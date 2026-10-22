@@ -78,7 +78,7 @@ Build `native_player_name_tests` with `SCR_BUILD_ORACLE=ON` and the repository's
 pinned local Musashi directory, then run:
 
 ```powershell
-& analysis/player-name/build/Release/native_player_name_tests.exe `
+& build/windows-oracle/Release/native_player_name_tests.exe `
     analysis/reference/vesuri/offline-extracted-payload.bin
 ```
 

@@ -248,7 +248,9 @@ void ReplayScene::finishLiveExit(std::array<std::uint8_t,0x80000>& sessionMemory
     sessionMemory=memory;
 }
 void ReplayScene::beginLiveRecording(const std::filesystem::path& directory){
-    recordingsDirectory_=directory;std::filesystem::create_directories(directory);
+    recordingsDirectory_=directory;
+    if(!directory.empty()){
+    std::filesystem::create_directories(directory);
     const auto stamp=std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::system_clock::now().time_since_epoch()).count();
     auto base=directory/("drive-"+std::to_string(stamp));unsigned suffix=0;
     while(std::filesystem::exists(base.string()+"-controls.csv"))base=directory/("drive-"+std::to_string(stamp)+"-"+std::to_string(++suffix));
@@ -256,6 +258,8 @@ void ReplayScene::beginLiveRecording(const std::filesystem::path& directory){
     simulation.controls.open(simulation.recording);simulation.trace.open(base.string()+"-native.csv");
     if(!simulation.controls||!simulation.trace)throw std::runtime_error("Cannot create live input recording");
     simulation.controls<<"tick,controls,quit,hold_acceleration\n";scr::test::replay::traceHeader(simulation.trace);
+    }
+    auto& simulation=*simulation_;
     simulation.wheelTimeline.fill(simulation.wheels);
     const auto seed=simulation.geometry;auto frame=captureFrame(simulation,0,0);simulation.geometry=seed;finishFrame(simulation,frame);
     frames_.push_back(frame);frames_.push_back(std::move(frame));
@@ -279,9 +283,11 @@ GameAudioSeed ReplayScene::audioSeed()const{
 bool ReplayScene::stepLive(unsigned controls,bool quit,DriveControlPreset preset){
     if(liveTerminal())return false;
     auto next=advanceSimulation(*simulation_,controls,quit,preset);auto& simulation=*simulation_;
+    if(!recordingsDirectory_.empty()){
     simulation.controls<<next.tick<<','<<controls<<','<<(quit?1:0)<<','<<(preset==DriveControlPreset::Modern?1:0)<<'\n';simulation.trace<<simulation.lastRow;
     simulation.controls.flush();simulation.trace.flush();
     if(!simulation.controls||!simulation.trace)throw std::runtime_error("Live input recording write failed");
+    }
     frames_[0]=std::move(frames_[1]);frames_[1]=std::move(next);
     if(!canInterpolateReplay(frames_[0].restarts,frames_[1].restarts,frames_[0].action,frames_[1].action))frames_[0]=frames_[1];
     cachedFrame_=~0u;return true;

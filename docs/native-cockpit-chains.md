@@ -55,8 +55,8 @@ source RAM during native presentation.
 Build the optional oracle target and pass the local payload:
 
 ```powershell
-cmake --build analysis/native-cockpit/build --config Release --target native_cockpit_chains_tests
-analysis/native-cockpit/build/Release/native_cockpit_chains_tests.exe analysis/reference/vesuri/offline-extracted-payload.bin
+cmake --build build/windows-oracle --config Release --target native_cockpit_chains_tests
+build/windows-oracle/Release/native_cockpit_chains_tests.exe analysis/reference/vesuri/offline-extracted-payload.bin
 ```
 
 These checks establish chain state, draw ordering and masked pixels. They do

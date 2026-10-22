@@ -6,6 +6,7 @@ import json
 from pathlib import Path
 import subprocess
 
+from native_build import ORACLE_BUILD, build_sources, configure_command
 from check_driving_replay import verify_replay_result
 from import_native_assets import DEFAULT_PACK, ROOT, import_assets
 
@@ -33,6 +34,7 @@ def sources():
     paths.update((ROOT / 'tests').glob('*fixture.h'))
     paths.update((ROOT / 'tests').glob('driving_replay*.h'))
     paths.update((ROOT / 'tests').glob('opponent_*_oracle.cpp'))
+    paths.update(build_sources())
     return [identity(path) for path in sorted(paths)]
 
 
@@ -80,14 +82,14 @@ def main():
         import_assets(ROOT / 'Stunt Car Racer (MicroStyle).adf', pack)
     output = ROOT / 'analysis/native-opponents'
     output.mkdir(parents=True, exist_ok=True)
-    build = output / 'build'
+    build = ORACLE_BUILD
     component_names = ('opponent_driving_oracle', 'opponent_car_oracle',
                        'opponent_painter_oracle', 'opponent_far_track_oracle',
                        'native_opponent_race_tests', 'native_competition_render_tests')
     names = ('native_opponent_driving_tests', *component_names,
              'driving_replay_oracle', 'opponent_scene_oracle', 'race_transitions_oracle')
     executables = {name: build / 'Release' / (name + '.exe') for name in names}
-    receipt = build / 'build-receipt.json'
+    receipt = output / 'build-receipt.json'
     records, pack_record = sources(), identity(pack)
     if args.skip_build:
         previous = json.loads(receipt.read_text())
@@ -95,8 +97,7 @@ def main():
                                                for name, path in executables.items()):
             raise RuntimeError('Opponent build is stale; rerun without --skip-build')
     else:
-        commands = [['cmake', '-S', ROOT, '-B', build, '-DSCR_BUILD_ORACLE=ON',
-                     '-DMUSASHI_DIR=' + str(ROOT / 'analysis/reference/musashi')],
+        commands = [configure_command(oracle=True),
                     ['cmake', '--build', build, '--config', 'Release', '--target',
                      *names, '--parallel', '4']]
         with (output / 'build.log').open('w') as log:

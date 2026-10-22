@@ -6,6 +6,7 @@
 *.hdf
 *.rom
 *.uss
+/logo.png
 
 # Captures, extracted game data, analysis databases and downloaded references.
 /analysis/
@@ -29,6 +30,8 @@
 
 # Native build outputs (including builds outside analysis/).
 /build/
+/dist/
+/CMakeUserPresets.json
 /build-*/
 /out/
 cmake-build-*/

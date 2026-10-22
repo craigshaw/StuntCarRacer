@@ -7,6 +7,7 @@ from pathlib import Path
 import subprocess
 import sys
 
+from native_build import ORACLE_BUILD, build_sources, configure_command
 from prepare_wheel_oracle import prepare, ROOT, LOCK, DEST
 from check_wheel_coordinates import identity, PAYLOAD_SHA
 
@@ -70,10 +71,9 @@ def main():
             {k: span[k] for k in ('name', 'runtime_address', 'end_exclusive', 'sha256')}
             for span in spans]}
 
-    build = ROOT / 'analysis/wheel/build'
+    build = ORACLE_BUILD
     commands = [
-        ['cmake', '-S', str(ROOT), '-B', str(build), '-G', 'Visual Studio 18 2026',
-         '-A', 'x64', '-DSCR_BUILD_ORACLE=ON', f'-DMUSASHI_DIR={DEST.as_posix()}'],
+        configure_command(oracle=True),
         ['cmake', '--build', str(build), '--config', 'Release', '--parallel', '4'],
     ]
     with (out / 'build.log').open('w', encoding='utf-8') as log:
@@ -107,6 +107,7 @@ def main():
     source_paths.append(ROOT / 'tests/physics_prefix_oracle.cpp')
     source_paths.append(ROOT / 'tests/motion_step_oracle.cpp')
     source_paths += sorted((ROOT / 'tests').glob('*fixture.h'))
+    source_paths = sorted(set(source_paths) | build_sources())
     report = {
         'verified_at_utc': datetime.now(timezone.utc).isoformat(), 'payload': payload_id,
         'musashi_commit': lock['commit'], 'musashi_lock': identity(LOCK),

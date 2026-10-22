@@ -10,6 +10,13 @@ regression test and is still available through `Watch Native Replay.cmd`.
 
 ## Import and launch
 
+For ordinary play, open `dist/Stunt Car Racer.exe` after [building and staging](development.md#build-test-and-stage), and choose the supported ADF
+in its launcher. Native import performs the same identity checks and extraction
+recipe as the development tool below. The application retains the pack and
+provenance under `%LOCALAPPDATA%/Stunt Car Racer/assets/`; the ADF remains read-only.
+The launcher is available before any game data is loaded, so missing or damaged
+assets can be repaired in the UI. See [launcher behaviour](native-game.md).
+
 Place the supported original ADF in the project root, then run:
 
 ```powershell
@@ -17,7 +24,7 @@ Place the supported original ADF in the project root, then run:
 .\scripts\start-native-race.ps1
 ```
 
-The launcher creates the pack automatically when it is absent. An existing
+The development launcher creates the pack automatically when it is absent. An existing
 pack can launch without the ADF present. To import a disk at another path, use
 `-Adf <path>` on the launcher. `-Track 0` is the default; all eight tracks can
 be selected, including the moving Draw Bridge (5). Opponent AI, menus and

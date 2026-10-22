@@ -4,12 +4,17 @@ Start with the [project README](../README.md). For a new development thread, rea
 [AGENTS.md](../AGENTS.md), [development](development.md) and
 [architecture](architecture.md), then open only the relevant component guides.
 
+## Design and language
+
+- [Launcher design](launcher-design.md): setup flow, agreed scope and UX decisions.
+- [Glossary](../GLOSSARY.md): language for the native port and its setup experience.
+
 ## Run, build and boundaries
 
 | Guide | Purpose |
 | --- | --- |
 | [Playing and display settings](native-game.md) | Original routes, controls, saves and preferences |
-| [Development and verification](development.md) | Builds, focused checks, receipts and handoff |
+| [Development and verification](development.md) | CMake presets, CTest, staging, focused checks and receipts |
 | [Architecture](architecture.md) | Runtime ownership, clocks and fidelity contract |
 | [Assets and startup](native-startup.md) | Local pack, import, format and Git safeguards |
 | [Reverse engineering](reverse-engineering.md) | Toolchain, disk mapping, WinUAE and evidence |

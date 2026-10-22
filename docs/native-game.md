@@ -1,16 +1,36 @@
 # Playing the native game
 
-Double-click `Drive Native.cmd`, or run:
+Open `dist/Stunt Car Racer.exe` directly after [building and staging](development.md#build-test-and-stage). For the
+prepared development workflow, `Drive Native.cmd` builds/checks the game and
+opens the same launcher with checkout-local data, or run:
 
 ```powershell
 .\scripts\start-native-game.ps1
 ```
 
-The native game opens the original game-mode chooser. It uses the imported ADF
-pack and ported C++ routines throughout. No captured memory, Kickstart ROM,
-WinUAE or CPU emulator is an input to this executable. The import/build/check
-script remains development tooling; asset-path selection is not part of the
-game UI. Display and control preferences have a separate native overlay.
+The executable opens a native launcher before constructing the game session.
+Choose ADF imports the supported original disk, preserving it and retaining an
+asset pack for later launches. Missing or damaged data keeps Play unavailable;
+failed replacements retain existing valid data. Details shows the supported
+source hash and local pack path. The original logo is a subdued header background.
+Mouse, Tab, arrows and controller navigation operate the launcher; Windows' file
+picker uses its normal keyboard/mouse controls.
+
+The launcher offers display mode, scaling, motion and driving controls. Changes
+are saved when Play is pressed; closing discards pending setting edits while
+retaining completed asset imports. Restore original defaults resets only those
+four choices. Failed saves and game initialization remain in the launcher with
+an explanation and retry. The launcher stays windowed; Play applies the selected
+display mode and enters the original mode chooser in the same window. In-game
+Settings remains available, and closing the game exits the application.
+
+Normal executable launches use `%LOCALAPPDATA%/Stunt Car Racer/`: `assets/` for
+the pack and provenance, `settings/display.ini` for preferences and
+`saves/stunt-car-racer.scr-save` for saves. Drive Native.cmd is a provisional
+development helper using the existing checkout-local paths. No captured memory,
+Kickstart ROM, WinUAE, Python or CPU emulator is needed by the executable.
+Automatic driving recordings are off; `--recordings-dir` explicitly enables them
+for development. The direct-race and captured replay viewers retain their controls.
 
 ## Controls and original route
 
@@ -63,7 +83,7 @@ through standings, and `HALL` directly to the main menu.
 the original roster. Holding F1 when confirming Replay returns to the original
 mode/name startup. The development recording viewer remains available separately.
 
-The default save file is `working/saves/stunt-car-racer.scr-save`. The development
+The development helper's save file is `working/saves/stunt-car-racer.scr-save`. Its
 script accepts `-SaveFile` for another `.scr-save` path. Saving replaces a complete,
 flushed temporary file in one operation; failed writes retain the previous file.
 The native loader rejects malformed states before applying them. Saves and
@@ -142,7 +162,8 @@ Fit Smooth uses bilinear filtering. All retain the source aspect and black borde
 The original 320-by-200 game image and field of view are unchanged. Display UI is
 composited after scaling, independently of the original game pixels.
 
-Preferences are stored atomically in `working/settings/display.ini`. Invalid or
+Preferences are stored atomically; the development helper uses
+`working/settings/display.ini`. Invalid or
 missing preferences use windowed, integer-scaled, original-update presentation
 and Original controls. Older display-only preferences retain their display
 choices and use Original controls; saving upgrades them to include the preset.
@@ -183,6 +204,8 @@ From the project root:
 ```
 
 The ordinary suite checks first and repeated races on every track, fresh startup,
+native ADF import/recovery, launcher navigation, staged/shared preferences,
+transient launch overrides, optional-recording state isolation and launcher rendering,
 opening/name routes, Draw Bridge, local seasons, career continuation, multiplayer,
 saves, digital control presets, preference migration and settings/pause isolation.
 The optional suite adds original-code state,

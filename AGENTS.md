@@ -13,8 +13,11 @@ guide. Inspect Git status and preserve existing work before editing.
   host presentation targets 60 Hz. Interpolation and alternate views must never
   mutate simulation state. Keep future visual options separate from the faithful
   baseline. Fullscreen currently fits the original image, not a wider projection.
-- Drive Native.cmd builds/checks and launches the game. The direct-race and
-  captured replay viewers are development tools with different controls.
+- Use CMake presets and CTest; native Release/Debug share build/windows/ and
+  original-code tests use build/windows-oracle/. Stage the player with CMake
+  Install to dist/Stunt Car Racer.exe. Keep research evidence under analysis/.
+  Drive Native.cmd remains a provisional build/check/launch helper. Direct-race
+  and captured replay viewers are development tools with different controls.
 - Choose checks using docs/development.md. Original-code comparisons belong
   only to test executables (SCR_BUILD_ORACLE); never link Musashi into the game.
   Retained passes require matching source, fixture and executable identities.

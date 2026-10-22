@@ -12,9 +12,15 @@ not a release condition.
 
 ## Play
 
-On the prepared development machine, double-click **[Drive Native.cmd](Drive%20Native.cmd)**.
-It imports the supported local ADF when the pack is absent, builds and checks the
-game, then opens the original mode chooser and name entry.
+Open `dist/Stunt Car Racer.exe` to use the launcher after building and staging below.
+Choose your supported original ADF on first use; the application validates and
+imports its assets without Python or an emulator. Choose display, scaling,
+motion and controls, then press **Play** to enter the original mode chooser.
+The ADF remains unchanged and is not needed again after import.
+
+On the prepared development machine, **[Drive Native.cmd](Drive%20Native.cmd)**
+remains a provisional build/check helper. It opens the same launcher using the
+checkout's existing assets, settings and saves.
 
 Select Single Player League, enter your name, continue past the roster, then
 choose Practise or Start the Racing Season. The game also supports two to eight
@@ -37,17 +43,19 @@ latched acceleration until braking. The same rule applies to keyboard gas.
 Text entry uses the original name editor; typing letters does not trigger driving shortcuts.
 See [playing and settings](docs/native-game.md) for menu, save and controller details.
 
-Preferences live in `working/settings/display.ini`; saves in
-`working/saves/stunt-car-racer.scr-save`. Settings provide control presets, borderless
+Normal launches store assets, preferences and saves under
+`%LOCALAPPDATA%/Stunt Car Racer/`. The development helper retains
+`working/settings/display.ini` and `working/saves/stunt-car-racer.scr-save`.
+Settings provide control presets, borderless
 fullscreen, integer/sharp/smooth scaling and optional motion interpolation.
 Physics stays at **120 ms per update**, wheel/engine interrupts at **50 Hz**, and
 host presentation targets **60 FPS**.
 
-The built executable is `analysis/native-game/build/Release/native_game.exe`.
+The staged executable is `dist/Stunt Car Racer.exe`.
 To run an existing build directly, from the project root:
 
 ```powershell
-& .\analysis\native-game\build\Release\native_game.exe `
+& '.\dist\Stunt Car Racer.exe' `
   --asset-pack .\analysis\assets\stunt-car-racer.scr-assets
 ```
 
@@ -58,10 +66,10 @@ To run an existing build directly, from the project root:
 - Two-to-eight-player local championships, results, damage and track bonuses.
 - Hall of Fame, thirty save slots, career/record/multiplayer saves and original Replay flow.
 - Cockpit instruments, wheel animation, engine sound and effects, keyboard and XInput input.
-- Fullscreen, saved display preferences and optional smooth presentation.
+- ADF setup launcher, fullscreen, saved preferences and optional smooth presentation.
 
 **Computer Link is deliberately deferred.** Widescreen field of view, alternate
-cameras, graphical enhancements, an asset-picker launcher and distribution
+cameras, graphical enhancements and distribution
 packaging are future work. Fullscreen currently fits the original 320×200 image;
 it does not widen the view. The native rasterizer, audio output and host timing
 have [documented fidelity boundaries](docs/architecture.md#fidelity-contract).
@@ -77,7 +85,21 @@ actually checked and against which sources.
 The prepared Windows toolchain uses CMake, Visual Studio C++ Build Tools and
 `C:/Tools/amiga-re/venv/Scripts/python.exe`. A source checkout does not include
 game assets, test captures, third-party verification tools or built executables.
-See the development guide before setting up another machine.
+See the development guide before setting up another machine. Build, test, stage
+and run are separate steps:
+
+```powershell
+cmake --preset windows-release
+cmake --build --preset windows-release
+ctest --preset windows-release
+cmake --install build/windows --config Release
+& '.\dist\Stunt Car Racer.exe'
+```
+
+Release and Debug share `build/windows/`; original-code tests use
+`build/windows-oracle/`. `dist/` contains only the player executable. The
+existing private references and check reports remain under `analysis/`.
+See [build options and layout](docs/development.md#build-test-and-stage).
 
 ```powershell
 . .\scripts\env.ps1
@@ -88,8 +110,9 @@ See the development guide before setting up another machine.
 
 ## Local assets and reference tools
 
-The importer validates one supported ADF by hash and writes a pack plus provenance
-manifest under `analysis/assets/`. Native code decodes graphics, audio and track
+The application validates one supported ADF by hash and retains an asset pack plus
+provenance manifest. Development import tooling writes these under `analysis/assets/`.
+Native code decodes graphics, audio and track
 data and constructs fresh game state from that pack. The supplied disk remains
 untouched. [Asset format and safeguards](docs/native-startup.md) describe the pipeline.
 

@@ -10,7 +10,7 @@ import re
 import subprocess
 import sys
 
-FORBIDDEN_DIRECTORIES = {'analysis', 'working', 'captures', 'build', 'out'}
+FORBIDDEN_DIRECTORIES = {'analysis', 'working', 'captures', 'build', 'out', 'dist'}
 FORBIDDEN_SUFFIXES = {'.adf', '.adz', '.ipf', '.dms', '.hdf', '.rom', '.uss', '.bin', '.dump',
                       '.png', '.jpg', '.jpeg', '.gif', '.webp', '.bmp', '.wav', '.mp3', '.ogg', '.flac',
                       '.scr-assets', '.scr-save', '.pack', '.exe', '.dll', '.lib', '.obj', '.o', '.pdb', '.gpr', '.zip', '.7z'}

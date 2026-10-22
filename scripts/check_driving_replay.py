@@ -9,6 +9,7 @@ import re
 import subprocess
 import sys
 
+from native_build import ORACLE_BUILD, build_sources, configure_command
 from prepare_wheel_oracle import prepare, ROOT, LOCK, DEST
 from replay_lap import initial_lap_state, validate_laps
 
@@ -321,7 +322,7 @@ def main():
                          for name, start, end in CORE_SPANS]}
     core_spans = verify_spans(core, payload, ram)
 
-    build = ROOT / 'analysis/wheel/build'
+    build = ORACLE_BUILD
     exe = build / 'Release/driving_replay_oracle.exe'
     native_exe = build / 'Release/driving_replay_native.exe'
     native_sources = [ROOT / 'CMakeLists.txt', ROOT / 'tests/driving_replay_oracle.cpp',
@@ -329,7 +330,7 @@ def main():
     native_sources += sorted((ROOT / 'src').glob('*.cpp')) + sorted((ROOT / 'src').glob('*.h'))
     native_sources += sorted((ROOT / 'tests').glob('*fixture.h'))
     native_sources += sorted((ROOT / 'tests').glob('driving_replay*.h'))
-    native_sources = sorted(set(native_sources))
+    native_sources = sorted(set(native_sources) | build_sources())
     native_source_identities = [identity(path) for path in native_sources]
     commands = []
     results = []
@@ -341,8 +342,7 @@ def main():
             targets.append('driving_replay_native')
         if not args.skip_build:
             commands = [
-                ['cmake', '-S', str(ROOT), '-B', str(build), '-G', 'Visual Studio 18 2026', '-A', 'x64',
-                 '-DSCR_BUILD_ORACLE=ON', f'-DMUSASHI_DIR={DEST.as_posix()}'],
+                configure_command(oracle=True),
                 ['cmake', '--build', str(build), '--config', 'Release', '--target', *targets, '--parallel', '4'],
             ]
             with (out / 'build.log').open('w', encoding='utf-8') as log:

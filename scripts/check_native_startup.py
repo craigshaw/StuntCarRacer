@@ -6,6 +6,7 @@ import json
 from pathlib import Path
 import subprocess
 
+from native_build import NATIVE_BUILD, ORACLE_BUILD, build_sources, configure_command
 from import_native_assets import DEFAULT_PACK, ROOT, import_assets
 
 
@@ -21,6 +22,7 @@ def sources():
         paths.update((ROOT / directory).glob('*.h'))
     paths.update((ROOT / 'tests').glob('*fixture.h'))
     paths.update((ROOT / 'tests').glob('driving_replay*.h'))
+    paths.update(build_sources())
     return [identity(path) for path in sorted(paths)]
 
 
@@ -37,7 +39,7 @@ def main():
     elif not pack.exists():
         import_assets(ROOT / 'Stunt Car Racer (MicroStyle).adf', pack)
     output = ROOT / 'analysis/native-startup';output.mkdir(parents=True, exist_ok=True)
-    build = output / 'build';receipt_path = build / 'build-receipt.json'
+    build = NATIVE_BUILD;receipt_path = output / 'build-receipt.json'
     viewer = build / 'Release/native_replay_viewer.exe';test = build / 'Release/native_startup_tests.exe'
     records = sources()
     if args.skip_build:
@@ -45,7 +47,7 @@ def main():
         if receipt['sources'] != records or receipt['viewer'] != identity(viewer) or receipt['test'] != identity(test):
             raise RuntimeError('Native startup build is stale; rerun without --skip-build')
     else:
-        commands = [['cmake', '-S', str(ROOT), '-B', str(build), '-DSCR_BUILD_ORACLE=OFF'],
+        commands = [configure_command(oracle=False),
                     ['cmake', '--build', str(build), '--config', 'Release', '--target',
                      'native_replay_viewer', 'native_startup_tests', '--parallel', '4']]
         with (output / 'build.log').open('w') as log:
@@ -64,9 +66,8 @@ def main():
         raise RuntimeError('Sources changed while native startup was being checked')
     original_results = []
     if args.verify_original:
-        oracle_build = output / 'oracle-build'
-        commands = [['cmake', '-S', str(ROOT), '-B', str(oracle_build), '-DSCR_BUILD_ORACLE=ON',
-                     '-DMUSASHI_DIR=' + str(ROOT / 'analysis/reference/musashi')],
+        oracle_build = ORACLE_BUILD
+        commands = [configure_command(oracle=True),
                     ['cmake', '--build', str(oracle_build), '--config', 'Release', '--target', 'driving_replay_oracle', '--parallel', '4']]
         with (output / 'oracle-build.log').open('w') as log:
             for command in commands:

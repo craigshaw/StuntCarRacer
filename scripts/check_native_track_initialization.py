@@ -1,13 +1,15 @@
 """Verify capture-free track loading against the original disk instructions.
 
-All fixture bytes come from the locally supplied ADF. Output disassembly,
-provenance and build products stay under ignored analysis/native-track-init.
+All fixture bytes come from the locally supplied ADF. Output disassembly and
+provenance stay under analysis/native-track-init; compiler output uses build/.
 """
 import argparse
 import hashlib
 import json
 from pathlib import Path
 import subprocess
+
+from native_build import ORACLE_BUILD, build_sources, configure_command
 
 ROOT = Path(__file__).resolve().parents[1]
 ADF_SHA = '548fd106cd62f2d80159d48ddd5293d8b22b6b17f80c17a84a61d75f5c8a9e06'
@@ -50,18 +52,26 @@ def main():
     # This retained binary is derived only from the verified ADF, never RAM.
     payload_path = output/'source-payload.bin'
     payload_path.write_bytes(payload)
-    build = output/'build'
+    build = ORACLE_BUILD
     executable = build/'Release/track_initialization_oracle.exe'
+    compiled = build_sources() | set((ROOT/'src').glob('*.h')) | set((ROOT/'src').glob('*.cpp'))
+    compiled.update((ROOT/'tests').glob('*fixture.h'))
+    compiled.update({Path(__file__).resolve(), ROOT/'tests/track_initialization_oracle.cpp'})
+    source_hashes = {str(path.relative_to(ROOT)): sha(path.read_bytes()) for path in sorted(compiled)}
+    receipt_path = output/'build-receipt.json'
     if args.skip_build:
-        compiled = ['src/track_initialization.h', 'src/track_initialization.cpp',
-            'src/track_sampling.h', 'src/track_sampling.cpp', 'tests/track_initialization_oracle.cpp']
-        if not executable.is_file() or any((ROOT/path).stat().st_mtime_ns > executable.stat().st_mtime_ns for path in compiled):
-            raise RuntimeError('Track oracle missing or older than its sources; rerun without--skip-build')
+        receipt = json.loads(receipt_path.read_text())
+        if (receipt['sources'] != source_hashes or not executable.is_file()
+                or receipt['executable_sha256'] != sha(executable.read_bytes())):
+            raise RuntimeError('Track oracle build is stale; rerun without --skip-build')
     if not args.skip_build:
-        subprocess.run(['cmake', '-S', str(ROOT), '-B', str(build),
-            '-DSCR_BUILD_ORACLE=ON', '-DMUSASHI_DIR='+str(ROOT/'analysis/reference/musashi')], check=True)
+        subprocess.run(configure_command(oracle=True), cwd=ROOT, check=True)
         subprocess.run(['cmake', '--build', str(build), '--config', 'Release',
-            '--target', 'track_initialization_oracle'], check=True)
+            '--target', 'track_initialization_oracle'], cwd=ROOT, check=True)
+        if any(sha(path.read_bytes()) != source_hashes[str(path.relative_to(ROOT))] for path in compiled):
+            raise RuntimeError('Track oracle sources changed during compilation')
+        receipt_path.write_text(json.dumps({'sources': source_hashes,
+            'executable_sha256': sha(executable.read_bytes())}, indent=2)+'\n')
     result = subprocess.run([str(executable), str(payload_path)], check=True,
         text=True, capture_output=True)
     (output/'oracle-output.txt').write_text(result.stdout, encoding='utf-8')
@@ -88,6 +98,7 @@ def main():
         'payload_adf_offset': '0xdc00', 'payload_length': len(payload), 'payload_ram_base': '0xe700',
         'oracle': metrics, 'original_code': spans,
         'source_sha256': {path: sha((ROOT/path).read_bytes()) for path in files},
+        'build_sources': {str(path.relative_to(ROOT)): sha(path.read_bytes()) for path in sorted(build_sources())},
         'oracle_executable_sha256': sha(executable.read_bytes()),
         'inputs': 'Fresh zeroed512KiB memory plus original disk payload; no RAM captures.',
         'comparison_ranges': ['0x1bdd0..0x1bf6c dense heights/processed flags/lower vertex initialisation',

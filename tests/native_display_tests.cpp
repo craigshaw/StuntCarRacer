@@ -30,7 +30,8 @@ void storage(const std::filesystem::path& output){
     for(bool fullscreen:{false,true})for(bool smooth:{false,true})for(unsigned scale=0;scale<3;++scale)
         for(auto preset:{DriveControlPreset::Original,DriveControlPreset::Modern}){
         NativeDisplayPreferences preferences{fullscreen,smooth,NativeScaling(scale),preset};
-        require(saveDisplayPreferences(file,preferences)&&loadDisplayPreferences(file)==preferences,"Display preference roundtrip differs");
+        if(!saveDisplayPreferences(file,preferences))throw std::runtime_error("Display preference test write failed: Windows error "+std::to_string(GetLastError()));
+        require(loadDisplayPreferences(file)==preferences,"Display preference roundtrip differs");
     }
     {std::ofstream out(file);out<<"SCR display 1\nfullscreen=1\nscaling=smooth\ninterpolate=1\n";}
     require(loadDisplayPreferences(file)==NativeDisplayPreferences{true,true,NativeScaling::FitSmooth,DriveControlPreset::Original},"Legacy preferences lost display choices or enabled Modern");
@@ -42,7 +43,8 @@ void storage(const std::filesystem::path& output){
         {std::ofstream out(file);out<<content;}
         require(loadDisplayPreferences(file)==NativeDisplayPreferences{},"Invalid preferences were applied");
     }
-    const NativeDisplayPreferences previous{true,true,NativeScaling::FitSmooth,DriveControlPreset::Modern};require(saveDisplayPreferences(file,previous),"Cannot seed atomic preferences");
+    const NativeDisplayPreferences previous{true,true,NativeScaling::FitSmooth,DriveControlPreset::Modern};
+    if(!saveDisplayPreferences(file,previous))throw std::runtime_error("Cannot seed atomic preferences: Windows error "+std::to_string(GetLastError()));
     const auto pending=output/"preferences.ini.tmp";std::filesystem::create_directory(pending);
     require(!saveDisplayPreferences(file,{})&&loadDisplayPreferences(file)==previous,"Failed preference write replaced the last good file");
     std::filesystem::remove(pending);

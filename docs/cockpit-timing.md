@@ -183,7 +183,7 @@ gameplay traces against the original. Its manifest has tab-separated columns
 only when the seed's existing HUD must be retained. For example:
 
 ```powershell
-analysis/cockpit-replay/build/Release/native_cockpit_replay_oracle.exe `
+build/windows-oracle/Release/native_cockpit_replay_oracle.exe `
   --manifest analysis/native-cockpit/cockpit-scenarios.tsv `
   analysis/reference/vesuri/offline-extracted-payload.bin
 ```
@@ -191,7 +191,7 @@ analysis/cockpit-replay/build/Release/native_cockpit_replay_oracle.exe `
 Example command after building the `cockpit_timing_oracle` verification target:
 
 ```powershell
-analysis/cockpit-timing/build/Release/cockpit_timing_oracle.exe `
+build/windows-oracle/Release/cockpit_timing_oracle.exe `
   analysis/reference/vesuri/offline-extracted-payload.bin `
   track-0 analysis/native-game/startup/track-0/native-initial.bin
 ```

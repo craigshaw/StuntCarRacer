@@ -7,6 +7,7 @@ from pathlib import Path
 import shutil
 import subprocess
 
+from native_build import ORACLE_BUILD, build_sources, configure_command
 from check_driving_replay import verify_replay_result
 from import_native_assets import DEFAULT_PACK, ROOT, import_assets
 from replay_lap import initial_lap_state, validate_laps
@@ -39,6 +40,7 @@ def sources():
         paths.update((ROOT / directory).glob('*.h'))
     paths.update((ROOT / 'tests').glob('*fixture.h'))
     paths.update((ROOT / 'tests').glob('driving_replay*.h'))
+    paths.update(build_sources())
     return [identity(path) for path in sorted(paths)]
 
 
@@ -92,7 +94,7 @@ def main():
         import_assets(ROOT / 'Stunt Car Racer (MicroStyle).adf', pack)
     output = ROOT / 'analysis/native-cockpit'
     output.mkdir(parents=True, exist_ok=True)
-    build = output / 'build'
+    build = ORACLE_BUILD
     names = ('native_cockpit_instruments_tests', 'wheel_animation_oracle',
              'native_game_session_tests',
              'cockpit_timing_oracle', 'native_cockpit_replay_oracle',
@@ -101,7 +103,7 @@ def main():
              'native_race_messages_tests', 'native_driving_particles_tests',
              'native_boost_flames_tests', 'native_cockpit_chains_tests', 'native_damage_holes_tests')
     executables = {name: build / 'Release' / (name + '.exe') for name in names}
-    receipt = build / 'build-receipt.json'
+    receipt = output / 'build-receipt.json'
     records, pack_record = sources(), identity(pack)
     payload = ROOT / 'analysis/reference/vesuri/offline-extracted-payload.bin'
     payload_record = identity(payload)
@@ -111,8 +113,7 @@ def main():
                                                for name, path in executables.items()):
             raise RuntimeError('Cockpit build is stale; rerun without --skip-build')
     else:
-        commands = [['cmake', '-S', ROOT, '-B', build, '-DSCR_BUILD_ORACLE=ON',
-                     '-DMUSASHI_DIR=' + str(ROOT / 'analysis/reference/musashi')],
+        commands = [configure_command(oracle=True),
                     ['cmake', '--build', build, '--config', 'Release', '--target',
                      *names, '--parallel', '4']]
         with (output / 'build.log').open('w') as log:

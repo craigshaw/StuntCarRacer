@@ -50,8 +50,8 @@ world-renderer pixel identity or Amiga hardware timing.
 Build with `SCR_BUILD_ORACLE=ON` and the pinned `MUSASHI_DIR`, then run:
 
 ```powershell
-cmake --build analysis/driving-particles/build --config Release --target native_driving_particles_tests --parallel 4
-& .\analysis\driving-particles\build\Release\native_driving_particles_tests.exe .\analysis\assets\stunt-car-racer.scr-assets
+cmake --build build/windows-oracle --config Release --target native_driving_particles_tests --parallel 4
+& .\build\windows-oracle\Release\native_driving_particles_tests.exe .\analysis\assets\stunt-car-racer.scr-assets
 ```
 
 Current results require matching source, asset and executable identities; use

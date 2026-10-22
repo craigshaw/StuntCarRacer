@@ -11,6 +11,7 @@ import subprocess
 import sys
 import wave
 
+from native_build import NATIVE_BUILD, build_sources, configure_command
 from check_driving_replay import (ADF_SHA, PAYLOAD_SHA, DISK_OFFSET, PAYLOAD_SIZE, TRACE_FIELDS,
                                   ROOT, identity, read_inputs, verify_native_trace,
                                   verify_replay_result, verify_trace)
@@ -100,6 +101,7 @@ def viewer_sources():
             paths.update((ROOT / directory).glob(pattern))
     paths.update((ROOT / 'tests').glob('*fixture.h'))
     paths.update((ROOT / 'tests').glob('driving_replay*.h'))
+    paths.update(build_sources())
     return sorted(paths)
 
 
@@ -261,17 +263,17 @@ def main():
     print(f'Original reference verified: {inputs["ticks"]} ticks; replaying in the native viewer.', flush=True)
     asset_output = out / 'assets'
     subprocess.run([sys.executable, str(ROOT / 'scripts/prepare_replay_render_assets.py'), '--capture', str(capture), '--output', str(asset_output)], check=True, cwd=ROOT)
-    build = ROOT / 'analysis/native-render/viewer-build'
+    build = NATIVE_BUILD
     executable = build / 'Release/native_replay_viewer.exe'
     interpolation_test = build / 'Release/replay_interpolation_tests.exe'
     live_test = build / 'Release/live_drive_tests.exe'
     mixer_test = build / 'Release/paula_mixer_tests.exe'
     audio_test = build / 'Release/native_audio_tests.exe'
     sources = viewer_sources();source_records = [identity(path) for path in sources]
-    build_receipt = build / 'viewer-build-receipt.json'
+    build_receipt = out / 'viewer-build-receipt.json'
     build_commands = []
     if not args.skip_build:
-        build_commands = [['cmake', '-S', str(ROOT), '-B', str(build), '-G', 'Visual Studio 18 2026', '-A', 'x64', '-DSCR_BUILD_ORACLE=OFF'],
+        build_commands = [configure_command(oracle=False),
                           ['cmake', '--build', str(build), '--config', 'Release', '--target', 'native_replay_viewer', 'replay_interpolation_tests', 'live_drive_tests', 'paula_mixer_tests', 'native_audio_tests', '--parallel', '4']]
         with (out / 'build.log').open('w', encoding='utf-8') as log:
             for command in build_commands:

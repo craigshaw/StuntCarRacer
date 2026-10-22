@@ -47,8 +47,8 @@ preserved drawing-pointer/RNG state, and invalid domains. Fresh native race and
 career/multiplayer integration belong to the enclosing startup/session suites.
 
 ```powershell
-cmake --build analysis/native-cockpit/build --config Release --target native_damage_holes_tests --parallel 4
-& .\analysis\native-cockpit\build\Release\native_damage_holes_tests.exe .\analysis\assets\stunt-car-racer.scr-assets
+cmake --build build/windows-oracle --config Release --target native_damage_holes_tests --parallel 4
+& .\build\windows-oracle\Release\native_damage_holes_tests.exe .\analysis\assets\stunt-car-racer.scr-assets
 ```
 
 Use source, fixture and executable identities in the generated receipts to

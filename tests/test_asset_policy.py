@@ -55,6 +55,7 @@ class AssetPolicyTests(unittest.TestCase):
 
     def test_generated_directory_is_detected(self):
         self.assertTrue(policy.violations('analysis/assets/disguised.cpp', b'asset'))
+        self.assertTrue(policy.violations('dist/disguised.cpp', b'asset'))
 
     def test_encoded_media_is_detected(self):
         self.assertTrue(policy.violations('src/asset.h', b'"data:' + b'image/png;base64,AA"'))

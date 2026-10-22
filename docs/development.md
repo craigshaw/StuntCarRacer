@@ -20,7 +20,7 @@ Commands below run from the project root in PowerShell. This checkout is at
 | Requirement | Prepared location / version |
 | --- | --- |
 | C++17 compiler | Visual Studio 2026 C++ Build Tools; CMake generator `Visual Studio 18 2026`, x64 |
-| CMake | 4.4.3 on PATH; project minimum 3.20 |
+| CMake | 4.4.3 on PATH; project/preset minimum 3.21 |
 | Python | `C:/Tools/amiga-re/venv/Scripts/python.exe` |
 | Python RE packages | Versions in `setup/requirements.txt` |
 | Local disk | Supported ADF, identity in [asset guide](native-startup.md) |
@@ -28,13 +28,86 @@ Commands below run from the project root in PowerShell. This checkout is at
 The PowerShell launchers currently use the prepared Python path. On another
 machine, configure equivalent tools and review `scripts/env.ps1` and the launcher
 paths. Native Windows UI/audio/input use system libraries, including XInput;
-the game executable has no Python or emulator runtime dependency. The supplied
+the game executable imports ADFs itself and has no Python or emulator runtime
+dependency. Release builds statically link the Visual C++ runtime. The supplied
 launchers do use Python for import, build and checks.
 
 A clone supplies source only. Copy your own supported ADF locally, or an already
 imported matching pack. ROMs and captures are unnecessary for ordinary native
 startup. Original-code oracles and capture-based replay need additional local
 fixtures, described below.
+
+## Build, test and stage
+
+From the project root:
+
+```powershell
+cmake --preset windows-release
+cmake --build --preset windows-release
+ctest --preset windows-release
+cmake --install build/windows --config Release
+& '.\dist\Stunt Car Racer.exe'
+```
+
+The presets select the prepared x64 Visual Studio toolchain. Configure generates
+the project, Build compiles it, CTest runs existing test executables, and Install
+stages the player executable. Running the staged game performs no build or tests.
+The default install prefix is `dist/`; it contains only `Stunt Car Racer.exe`.
+The disk's asset pack is imported by the player on first launch and is not
+bundled there. Supplied local header artwork remains embedded in the executable.
+
+| Path | Purpose |
+| --- | --- |
+| `src/`, `app/`, `tests/` | Existing gameplay, application and verification sources |
+| `CMakePresets.json`, `cmake/` | Shared toolchain settings, native/oracle target definitions and CTest registration |
+| `build/windows/` | Shared native compiler output for Release and Debug, CTest logs and per-configuration test outputs |
+| `build/windows-oracle/` | Separate original-code test build, including test-only Musashi |
+| `dist/` | Staged player executable |
+| `analysis/` | Private inputs, recovered references, research evidence and detailed verification reports |
+| `working/` | Development settings, saves and emulator working copies |
+
+All generated/local directories are ignored. Existing historical build trees in
+`analysis/` are retained with their evidence; current commands no longer build
+there. No gameplay sources or recovered reference files were moved.
+
+Use `windows-debug` for Configure, Build and CTest to select Debug in the same
+native tree. MSVC Debug executables reserve an 8 MiB stack for unoptimized
+native memory/snapshot copies; Release retains its existing stack setting.
+For an app-only build, `cmake --build --preset windows-release
+--target native_game` skips test/viewer targets. A custom configure can disable
+their definitions with `-DBUILD_TESTING=OFF -DSCR_BUILD_DEV_TOOLS=OFF`.
+`SCR_BUILD_ORACLE` defaults to OFF and requires `BUILD_TESTING=ON` when enabled.
+
+CTest includes synthetic input/audio/storage tests and native integration tests
+for startup, menus, races, saves, display and launcher behaviour. Tests needing
+private files are explicitly **Skipped** when those files are absent. Import a
+pack with the development tool below, then rerun CTest to include them. Override
+`SCR_TEST_ASSET_PACK`, `SCR_TEST_ADF` (optional) and `SCR_TEST_PAYLOAD` at configure
+time when local inputs live elsewhere. `ctest --preset windows-release -L unit`
+runs the asset-free native subset. Python source-policy tests are registered
+when an interpreter is available; compiling the application does not require it.
+Native window and host-storage checks run serially; other tests can run in parallel.
+Rapid repeated persistence checks can expose intermittent Windows access-denied
+errors during atomic file replacement. These remain test failures with a Windows
+error diagnostic; this build cleanup does not change runtime write/retry behaviour.
+
+CTest writes logs under `build/<tree>/Testing/` and test artifacts under
+`build/<tree>/test-output/<configuration>/`, resetting each suite's own output
+before it runs. It does not import assets or refresh
+the detailed wrappers' source/fixture/executable receipts. Those wrappers remain
+the authority for retained differential evidence and run against the shared
+Release builds. Run one build/check wrapper at a time against a shared tree.
+
+After preparing the original-code prerequisites, the equivalent oracle commands
+are `cmake --preset windows-oracle`, `cmake --build --preset windows-oracle`, and
+`ctest --preset windows-oracle`. This also registers capture-free original-code
+comparisons; deeper capture/replay checks still use the focused wrappers below.
+
+On a machine with another supported generator, use a local ignored
+`CMakeUserPresets.json` inheriting these presets, or configure CMake explicitly.
+The supplied Python wrappers target the checked-in Windows Release presets.
+
+## Development helpers and detailed receipts
 
 ```powershell
 . .\scripts\env.ps1
@@ -49,18 +122,24 @@ Omit it after source changes. Passing `-Adf <path>` to the launcher imports that
 disk; otherwise a missing pack is imported from the default root ADF filename.
 Packs must remain under ignored `analysis/`.
 
-For a build without the integration wrapper:
+These checkout-local paths belong to development commands. A normal executable
+launch uses `%LOCALAPPDATA%/Stunt Car Racer/` and opens the setup/settings launcher
+even without an asset pack. `--asset-pack`, `--settings-file` and `--save-file`
+override individual paths; `--recordings-dir` opts into development recordings.
+Drive Native.cmd remains a provisional helper, independent of the player app.
 
-```powershell
-cmake -S . -B analysis/native-game/build -G "Visual Studio 18 2026" -A x64 -DSCR_BUILD_ORACLE=OFF
-cmake --build analysis/native-game/build --config Release --target native_game --parallel 4
-& .\analysis\native-game\build\Release\native_game.exe `
-  --asset-pack .\analysis\assets\stunt-car-racer.scr-assets
-```
+The supplied local `logo.png` is ignored and embedded as a native resource when
+present at configure/build time. It is never copied into Git; a source-only clone
+builds a text header until the local artwork is supplied. The native game receipt
+records its hash and rejects stale artwork with `--skip-build`.
 
-This only compiles and launches; it does not establish a passing test result or
-refresh a wrapper's build receipt. `SCR_BUILD_ORACLE` defaults to OFF. Musashi
-links only into separate verification targets when that option is enabled.
+`check_native_game.py` stages the checked executable in `dist/` after successful
+verification, verifies the copy's hash, and records both build and staged paths.
+Drive Native.cmd launches that staged executable with development data. Each
+suite using a build receipt keeps it beside its reports in `analysis/`, so
+shared compiler output cannot overwrite another suite's receipt. Source hashes
+include the presets and CMake modules. `--skip-build` continues to reject stale
+sources or changed executables; a bare CMake build does not create a wrapper receipt.
 
 ## Choose verification by change
 
@@ -129,10 +208,12 @@ git diff --check
 ```
 
 The asset check inspects indexed blobs and, with `--worktree`, non-ignored source.
-CI runs only the source asset policy and its synthetic tests; it cannot run the
-game without private inputs. Never force-add original media, packs, saves,
+CI currently runs the source asset policy and its synthetic tests. Native CTest
+unit tests can run without private inputs; the full game tests need the local
+pack. Never force-add original media, packs, saves,
 screenshots, extracted data, binary builds or RE databases. Keep derived files in
-`analysis/` and working emulator/save/settings files in `working/`.
+`analysis/`, compiler/test output in `build/`, staged executables in `dist/`,
+and working emulator/save/settings files in `working/`.
 
 For a handoff, state what changed, which checks actually ran, any remaining
 limitations and whether work is committed/pushed. Update the relevant guide when

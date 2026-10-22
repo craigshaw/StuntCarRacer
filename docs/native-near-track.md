@@ -82,10 +82,10 @@ Build the targets using [the viewer guide](native-replay-viewer.md), then run:
 ```powershell
 . .\scripts\env.ps1
 & $AmigaPython scripts/reference/verify_near_track_geometry.py `
-  --oracle analysis/native-render/oracle-build/Release/near_track_geometry_oracle.exe
+  --oracle build/windows-oracle/Release/near_track_geometry_oracle.exe
 & $AmigaPython scripts/reference/verify_near_track_visibility.py `
-  --oracle analysis/native-render/oracle-build/Release/near_track_visibility_oracle.exe
-& .\analysis\native-render\oracle-build\Release\software_renderer_tests.exe `
+  --oracle build/windows-oracle/Release/near_track_visibility_oracle.exe
+& .\build\windows-oracle\Release\software_renderer_tests.exe `
   .\analysis\reference\vesuri\offline-extracted-payload.bin
 & $AmigaPython scripts/check_native_rendering.py
 ```

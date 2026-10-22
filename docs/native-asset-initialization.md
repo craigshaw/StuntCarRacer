@@ -34,7 +34,7 @@ Configure the oracle build with the existing local Musashi checkout and build
 
 ```powershell
 & C:/Tools/amiga-re/venv/Scripts/python.exe scripts/reference/verify_native_asset_initialization.py `
-  --oracle analysis/native-assets-init/build/Release/native_asset_initialization_tests.exe `
+  --oracle build/windows-oracle/Release/native_asset_initialization_tests.exe `
   --capture analysis/captures/race
 ```
 

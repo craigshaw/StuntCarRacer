@@ -25,7 +25,7 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--adf', type=Path, default=ROOT/'Stunt Car Racer (MicroStyle).adf')
     parser.add_argument('--payload', type=Path, default=ROOT/'analysis/reference/vesuri/offline-extracted-payload.bin')
-    parser.add_argument('--test-executable', type=Path, default=ROOT/'analysis/native-race-init/build/Release/native_race_initialization_tests.exe')
+    parser.add_argument('--test-executable', type=Path, default=ROOT/'build/windows-oracle/Release/native_race_initialization_tests.exe')
     parser.add_argument('--output', type=Path, default=ROOT/'analysis/native-race-init')
     args = parser.parse_args()
     adf, payload = args.adf.read_bytes(), args.payload.read_bytes()

@@ -139,6 +139,9 @@ def main():
     if (any(startup.get(name, 0) <= 0 for name in ('drop_start_frames', 'press_fire_frames', 'dust_frames', 'spark_frames'))
             or startup.get('effects_view_isolation') is not True):
         raise RuntimeError('Native start/recovery messages or crash particle rendering regression failed')
+    if (startup.get('boost_flame_phase_mask') != 7 or startup.get('multiplayer_damage_entries') != 9
+            or any(startup.get(name, 0) <= 0 for name in ('boost_flame_frames', 'boost_release_frames', 'chain_frames', 'chain_lifting_frames'))):
+        raise RuntimeError('Native boost flames, lifting chains or carried damage regression failed')
     bridge = run_json([bridge_test, pack, output / 'bridge-driving'], output / 'bridge-driving-results.json')
     if bridge.get('ticks') != 512 or bridge.get('bridge_occupied_ticks', 0) <= 0 or bridge.get('released_ticks', 0) <= 0:
         raise RuntimeError('Draw Bridge driving did not cover occupancy and release')

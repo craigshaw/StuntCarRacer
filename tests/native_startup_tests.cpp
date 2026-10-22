@@ -1,6 +1,7 @@
 #include "native_startup.h"
 #include "replay_scene.h"
 #include "game_audio.h"
+#include "native_damage_holes.h"
 #include "driving_replay_fixture.h"
 #include <algorithm>
 #include <fstream>
@@ -39,7 +40,62 @@ void steeringRegression(const std::filesystem::path& pack){
     const auto relative=[&](const auto& state){const auto bits=std::uint16_t(readWord(state.ram,0x1bce6)-readWord(neutral->ram,0x1bce6));return bits<0x8000?int(bits):int(bits)-65536;};
     require(relative(*left)*relative(*right)<0,"Fresh left/right inputs must turn to opposite sides of neutral");
 }
+unsigned damageEntryRegression(const std::filesystem::path& pack){
+    // Persistent configuration is prepared before race entry, never midrace.
+    unsigned entries=0;
+    for(unsigned mode:{0u,1u,0x80u})for(unsigned holes:{0u,4u,10u}){
+        auto startup=scr::viewer::startNativeRace(pack,0);auto& memory=*startup.memory;
+        memory[0x5eb76]=1;memory[0x5eb79]=11;memory[0x1ca22]=std::uint8_t(mode);
+        memory[0x1c9cf]=10;memory[0x1ca36+11]=std::uint8_t(holes);
+        scr::viewer::initializeNativeRace(memory);
+        require(memory[0x1bbb5]==10&&memory[0x1c9cf]==holes,"Race entry did not restore this driver's damage allowance");
+        const auto actual=scr::viewer::captureCockpitFrame(memory.data(),memory.size());
+        scr::viewer::initializeNativeDamageHoles(memory);
+        const auto expected=scr::viewer::captureCockpitFrame(memory.data(),memory.size());
+        require(actual.damageStrip==expected.damageStrip,"Race entry omitted carried damage pixels");++entries;
+    }
+    return entries;
+}
 struct RaceEffectsCoverage {unsigned ticks{},dropStart{},pressFire{},dust{},sparks{};};
+struct BoostCoverage {unsigned ticks{},frames{},phases{},releaseFrames{},chainFrames{},liftingFrames{};};
+BoostCoverage boostRegression(const std::filesystem::path& pack,const std::filesystem::path& output){
+    using namespace scr::viewer;
+    const auto folder=output/"boost-effects";std::filesystem::create_directories(folder);
+    auto startup=startNativeRace(pack,0);write(folder/"native-initial.bin",startup.memory->data(),startup.memory->size());
+    ReplayScene scene;scene.loadNativeState(*startup.memory,startup.payload,folder/"recordings");
+    BoostCoverage coverage;std::ofstream controls(folder/"controls.csv");controls<<"tick,controls\n";
+    for(unsigned tick=0;tick<180;++tick){
+        const unsigned mask=(tick>=55&&tick<70)?1:17;controls<<tick<<','<<mask<<'\n';
+        const auto previous=scene.frames().back().cockpit.flameFrame;
+        require(scene.stepLive(mask),"Boost effects drive unexpectedly ended");++coverage.ticks;
+        const auto& frame=scene.frames().back();
+        const auto phase=frame.cockpit.flameFrame;
+        const auto exact=hash(scene.render(1));
+        if(frame.cockpit.boostActive){
+            if(!(coverage.phases&(1u<<phase)))scene.saveBitmap(folder/("flame-"+std::to_string(phase)+".bmp"));
+            coverage.phases|=1u<<phase;++coverage.frames;
+        }else if(tick>=55&&tick<70){
+            require(phase==previous,"Releasing boost did not hold the animation phase");++coverage.releaseFrames;
+        }
+        if(!frame.chainDraws.empty()){
+            if(!coverage.chainFrames)scene.saveBitmap(folder/"chains-hanging.bmp");
+            ++coverage.chainFrames;
+            if(frame.chains.position<0xb0){
+                if(!coverage.liftingFrames)scene.saveBitmap(folder/"chains-lifting.bmp");
+                ++coverage.liftingFrames;
+            }
+        }
+        scene.renderLive(0.5);scene.render(0);scene.renderLive(0.25);scene.renderView(1,{});
+        require(hash(scene.render(1))==exact,"View queries changed boost/chain animation");
+    }
+    controls.flush();
+    require(coverage.phases==7&&coverage.releaseFrames==15&&coverage.chainFrames&&coverage.liftingFrames,
+        "Natural boost drive missed flame phases, release or chain lift");
+    const auto recording=scene.liveRecording().string();
+    const auto trace=recording.substr(0,recording.size()-std::string("-controls.csv").size())+"-native.csv";
+    std::filesystem::copy_file(trace,folder/"native.csv",std::filesystem::copy_options::overwrite_existing);
+    return coverage;
+}
 RaceEffectsCoverage effectsRegression(const std::filesystem::path& pack,const std::filesystem::path& output){
     using namespace scr::viewer;
     const auto folder=output/"race-effects";std::filesystem::create_directories(folder);
@@ -85,6 +141,7 @@ int main(int argc,char** argv)try{
     write(bad,original.data(),original.size()-1);try{(void)startNativeRace(bad);}catch(const std::runtime_error&){++rejected;}
     require(rejected==10,"Corrupt asset pack was accepted");
     steeringRegression(pack);
+    const auto damageEntries=damageEntryRegression(pack);
     unsigned ticks=0,rendered=0,starts=0;std::uint16_t maximumSpeed=0;
     for(unsigned track=0;track<8;++track){
         auto startup=startNativeRace(pack,track);const auto trackOut=out/("track-"+std::to_string(track));std::filesystem::create_directories(trackOut);
@@ -113,9 +170,13 @@ int main(int argc,char** argv)try{
     require(maximumSpeed>0x100,"Fresh vehicle did not accelerate");
     require(read(pack)==original,"Native startup modified its asset pack");
     const auto effects=effectsRegression(pack,out);
+    const auto boost=boostRegression(pack,out);
     std::cout<<"{\"status\":\"passed\",\"fresh_starts\":"<<starts<<",\"ticks\":"<<ticks<<",\"rendered_frames\":"<<rendered
              <<",\"corrupt_packs_rejected\":"<<rejected<<",\"maximum_speed_word\":"<<maximumSpeed
              <<",\"effects_ticks\":"<<effects.ticks<<",\"drop_start_frames\":"<<effects.dropStart<<",\"press_fire_frames\":"<<effects.pressFire
              <<",\"dust_frames\":"<<effects.dust<<",\"spark_frames\":"<<effects.sparks<<",\"effects_view_isolation\":true"
+             <<",\"boost_effects_ticks\":"<<boost.ticks<<",\"boost_flame_frames\":"<<boost.frames<<",\"boost_flame_phase_mask\":"<<boost.phases
+             <<",\"boost_release_frames\":"<<boost.releaseFrames<<",\"chain_frames\":"<<boost.chainFrames<<",\"chain_lifting_frames\":"<<boost.liftingFrames
+             <<",\"multiplayer_damage_entries\":"<<damageEntries
              <<",\"capture_input\":false,\"rom_input\":false,\"cpu_emulation\":false,\"deterministic_reset\":true,\"left_right_steering_checked\":true}\n";return 0;
 }catch(const std::exception& e){std::cerr<<e.what()<<'\n';return 1;}

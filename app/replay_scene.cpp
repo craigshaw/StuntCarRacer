@@ -58,6 +58,10 @@ struct ReplayScene::Simulation {
     NearTrackGeometryState geometry;
     NativeCockpitPresentation instruments;
     NativeRaceMessageFrame message;
+    std::uint8_t flameFrame{};
+    NativeChainState chains;
+    NativeChainDraws chainDraws;
+    unsigned chainRestarts{};
     WheelAnimationState wheels;
     std::array<WheelAnimationState,7> wheelTimeline{};
     unsigned wheelVblanks{};
@@ -65,7 +69,7 @@ struct ReplayScene::Simulation {
     std::ofstream controls,trace;
     std::filesystem::path recording;
     std::string lastRow;
-    explicit Simulation(const scr::test::replay::Ram& capture):initial(capture),native(capture),geometry(scr::test::nearGeometry::readState(capture)),instruments(capture),message(captureNativeRaceMessage(capture)),wheels(scr::test::wheelAnimation::readState(capture.data())){}
+    explicit Simulation(const scr::test::replay::Ram& capture):initial(capture),native(capture),geometry(scr::test::nearGeometry::readState(capture)),instruments(capture),message(captureNativeRaceMessage(capture)),flameFrame(capture[0x1bb69]),wheels(scr::test::wheelAnimation::readState(capture.data())){}
 };
 ReplayScene::ReplayScene()=default;
 ReplayScene::~ReplayScene()=default;
@@ -87,9 +91,22 @@ void ReplayScene::initialiseMemory(const std::array<std::uint8_t,0x80000>& memor
     mountains_=decodeMountainHorizonData(original.data(),original.size());
     simulation_=std::make_unique<Simulation>(memory);
     auto& simulation=*simulation_;
+    simulation.chains=captureNativeChainState(memory);
+    if(memory[0x1bbdf]||simulation.chains.position!=0x60){
+        auto initialChains=simulation.chains;
+        simulation.chainDraws=advanceNativeChains(1,initialChains,captureCockpitFrame(memory.data(),memory.size()));
+    }
     simulation.native.presentation=[this,&simulation](auto stage,const auto& ram,const auto& events){
         simulation.instruments.update(stage,ram,events);
-        if(stage==scr::test::replay::ReplayPresentationStage::wheels)simulation.message=captureNativeRaceMessage(ram);
+        if(stage==scr::test::replay::ReplayPresentationStage::wheels){
+            if(simulation.chainRestarts!=simulation.native.restarts){
+                simulation.chains=captureNativeChainState(ram);
+                simulation.chainRestarts=simulation.native.restarts;
+            }
+            simulation.chainDraws=advanceNativeChains(ram[0x1bbdf],simulation.chains,captureCockpitFrame(ram.data(),ram.size()));
+            advanceReplayFlames(ram[0x1bb62],simulation.flameFrame);
+            simulation.message=captureNativeRaceMessage(ram);
+        }
         if(stage==scr::test::replay::ReplayPresentationStage::wait){
             const auto inputs=scr::test::wheelAnimation::readInputs(ram.data());
             simulation.wheels.framesToWait=ram[0x616d8];simulation.wheels.framesToWaitWhenFading=ram[0x616da];
@@ -151,6 +168,8 @@ void ReplayScene::finishFrame(Simulation& simulation,ReplaySceneFrame& frame){
     namespace a=scr::test::audio;const auto& state=simulation.native;
     frame.restarts=state.restarts;frame.action=unsigned(state.outerAction);
     frame.cockpit=captureCockpitFrame(state.ram.data(),state.ram.size());
+    frame.cockpit.flameFrame=simulation.flameFrame;
+    frame.chains=simulation.chains;frame.chainDraws=simulation.chainDraws;
     frame.cockpit.wheelRotation=simulation.wheelTimeline[0].phase;
     frame.instrumentPixels=simulation.instruments.capture();
     frame.wheelSprites=captureNativeWheelSpriteFrame(wheelAssets_,state.ram.data(),state.ram.size());
@@ -386,6 +405,7 @@ void ReplayScene::draw(const ReplayVisualState& frame,const NearTrackPresentatio
     const auto mountains=projectMountainHorizon(mountains_,frame.pose.yaw,frame.camera);
     statistics_=renderer_.drawFrame(movingTrack?movingTrack->mesh:mesh_,movingTrack?movingTrack->sides:sides_,mountains,frame.camera,projection_,assets_.palette,pixels_,wireframe,&nearTrack);
     if(discrete)composeNativeDrivingParticles(assets_,particleData_,discrete->particleDraws,discrete->particleFrameCounter,pixels_);
+    if(discrete&&showCockpit)composeNativeChains(assets_,discrete->chainDraws,pixels_);
     if(showCockpit)composeReplayCockpit(assets_,frame.cockpit,pixels_);
     if(discrete&&showCockpit){
         for(unsigned n=0;n<discrete->instrumentPixels.size();++n)pixels_[320*cockpitInstrumentTop+n]=assets_.palette[discrete->instrumentPixels[n]];

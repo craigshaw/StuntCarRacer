@@ -30,11 +30,15 @@ std::uint64_t timerCalls{},resultCalls{},fuelCalls{},distanceCalls{},lapCounterC
 std::uint64_t startupHudSeeds{},startupHudPixels{};
 struct EffectCoverage {
     std::uint64_t frames{},messageSnapshots{},visibleMessages{},dropStart{},pressFire{},particleDraws{},dustDraws{},sparkDraws{},restartFrames{};
+    std::uint64_t flameFrames{},chainDraws{},damagePixels{};
 };
 EffectCoverage effectCoverage;
 struct OriginalFrameEffects {
     scr::DrivingParticleDraws particles;
     scr::viewer::NativeRaceMessageFrame message;
+    scr::viewer::NativeChainState chains;
+    scr::viewer::NativeChainDraws chainDraws;
+    std::uint8_t flameFrame{},boostActive{};
     std::uint8_t frameCounter{};
     bool rendered{},messageCaptured{},messageGate{},messageVisible{};
 };
@@ -60,6 +64,8 @@ void captureOriginalMessage(){
     message.panel.height=std::uint16_t(readWord(parameters+6)+1);
     originalEffects.messageCaptured=originalEffects.messageGate=true;
     originalEffects.messageVisible=false;
+    originalEffects.chains={ram[0x1bbea],ram[0x1bbe9]};
+    originalEffects.flameFrame=ram[0x1bb69];originalEffects.boostActive=ram[0x1bb62];
 }
 void captureOriginalParticle(bool dust){
     const auto offset=m68k_get_reg(nullptr,M68K_REG_D1)&65535;
@@ -81,6 +87,14 @@ void hook(unsigned address){pc=address;if(invalid){m68k_end_timeslice();return;}
         if(address==0x64e4c){originalEffects={};originalEffects.rendered=true;originalEffects.frameCounter=ram[0x1bbac];}
         if(address==0x60f5a)captureOriginalParticle(true);
         if(address==0x60ecc)captureOriginalParticle(false);
+        if(address==0x69f42){
+            const auto id=m68k_get_reg(nullptr,M68K_REG_D0)&255;
+            if(id>=19&&id<=22){
+                const auto p=0x6a16c+id*16;
+                originalEffects.chainDraws.push_back({std::uint8_t(id),{std::uint16_t((readWord(p+8)&255)*16),
+                    std::uint16_t(readWord(p+10)&255),std::uint16_t(readWord(p+4)+1),std::uint16_t(readWord(p+6)+1)}});
+            }
+        }
         if(address==0x651b0)captureOriginalMessage();
         if(address==0x5e540&&originalEffects.messageGate)originalEffects.messageVisible=true;
         if(address==0x651b6)originalEffects.messageGate=false;
@@ -194,6 +208,27 @@ void compareSprites(){
 }
 void compareFrameEffects(){
     if(!originalEffects.rendered||!originalEffects.messageCaptured)throw std::runtime_error("Original loop missed race-effect presentation checkpoints");
+    if(frame->cockpit.flameFrame!=originalEffects.flameFrame||frame->cockpit.boostActive!=originalEffects.boostActive)
+        throw std::runtime_error("Boost flame snapshot differs from original");
+    if(originalEffects.boostActive)++effectCoverage.flameFrames;
+    if(frame->chains.position!=originalEffects.chains.position||frame->chains.velocity!=originalEffects.chains.velocity)
+        throw std::runtime_error("Chain animation state differs from original");
+    const auto& chainDraws=originalEffects.chainDraws;
+    if(chainDraws.size()!=frame->chainDraws.size())throw std::runtime_error("Chain draw count differs from original");
+    for(unsigned i=0;i<chainDraws.size();++i){
+        const auto& a=chainDraws[i];const auto& e=frame->chainDraws[i];
+        if(a.objectId!=e.objectId||a.placement.x!=e.placement.x||a.placement.y!=e.placement.y||
+            a.placement.widthWords!=e.placement.widthWords||a.placement.height!=e.placement.height)
+            throw std::runtime_error("Chain draw placement/order differs from original");
+    }
+    effectCoverage.chainDraws+=chainDraws.size();
+    const auto damageBase=wheel::longword(ram.data(),0x6a584);
+    for(unsigned buffer=0;buffer<2;++buffer)for(unsigned y=0;y<8;++y)for(unsigned x=0;x<256;++x){
+        unsigned colour=0;for(unsigned p=0;p<4;++p)
+            colour|=((ram[damageBase+buffer*32000+p*8000+y*40+4+x/8]>>(7-x%8))&1)<<p;
+        if(colour!=frame->cockpit.damageStrip[y*256+x])throw std::runtime_error("Damage strip pixel differs from original");
+        ++effectCoverage.damagePixels;
+    }
     if(frame->particleFrameCounter!=originalEffects.frameCounter)throw std::runtime_error("Particle frame-counter snapshot differs");
     const auto& actual=originalEffects.particles;const auto& expected=frame->particleDraws;
     if(actual.size()!=expected.size()){
@@ -236,6 +271,9 @@ void effectReport(std::ostream& out,const EffectCoverage& first={}){
        <<",\"dust_draw_events\":"<<effectCoverage.dustDraws-first.dustDraws
        <<",\"spark_draw_events\":"<<effectCoverage.sparkDraws-first.sparkDraws
        <<",\"restart_effect_frame_snapshots\":"<<effectCoverage.restartFrames-first.restartFrames;
+    out<<",\"boost_flame_frames\":"<<effectCoverage.flameFrames-first.flameFrames
+       <<",\"chain_draw_events\":"<<effectCoverage.chainDraws-first.chainDraws
+       <<",\"damage_strip_pixels\":"<<effectCoverage.damagePixels-first.damagePixels;
 }
 void prepareOriginalHud(){
     // Reconstruct original race-entry drawing for retained old-format seeds.

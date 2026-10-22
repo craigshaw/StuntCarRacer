@@ -33,6 +33,11 @@ struct CockpitFrame {
 ReplayRenderAssets decodeReplayRenderAssets(const std::uint8_t* payload,std::size_t payloadSize,
     const std::uint8_t* chipRam,std::size_t chipSize);
 CockpitFrame captureCockpitFrame(const std::uint8_t* chipRam,std::size_t chipSize);
+// Advance once at the original gameplay frame's flame-drawing stage. Releasing
+// boost holds the phase; render/view queries only consume the completed phase.
+void advanceReplayFlames(std::uint8_t boostActive,std::uint8_t& flameFrame);
+void composeReplayFlames(const ReplayRenderAssets&,const CockpitFrame&,
+    std::vector<std::uint32_t>& pixels);
 void makeReplayBackground(const ReplayRenderAssets&,std::vector<std::uint32_t>& pixels);
 void compositeMaskedObject(const ReplayRenderAssets&,unsigned objectId,
     const ReplayObjectPlacement&,std::vector<std::uint32_t>& pixels);

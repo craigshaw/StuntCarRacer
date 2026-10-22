@@ -83,6 +83,10 @@ CockpitFrame captureCockpitFrame(const std::uint8_t* chipRam,std::size_t chipSiz
     }
     return frame;
 }
+void advanceReplayFlames(std::uint8_t boostActive,std::uint8_t& flameFrame) {
+    if(flameFrame>2)throw std::invalid_argument("Flame frame outside original0..2 range");
+    if(boostActive)flameFrame=std::uint8_t(flameFrame==2?0:flameFrame+1);
+}
 void makeReplayBackground(const ReplayRenderAssets& assets,std::vector<std::uint32_t>& pixels) {
     if(assets.background.width!=320||assets.background.height!=200||assets.background.pixels.size()!=320*200)
         throw std::invalid_argument("Original background dimensions are invalid");
@@ -116,6 +120,12 @@ void composeReplayCockpit(const ReplayRenderAssets& assets,const CockpitFrame& f
     if(frame.wheelRotation>2)throw std::invalid_argument("Wheel rotation frame outside original0..2 range");
     for(unsigned id:{13u,14u,unsigned(frame.wheelRotation),5u-frame.wheelRotation,10u,11u,12u})
         compositeMaskedObject(assets,id,frame.objects[id],pixels);
+    composeReplayFlames(assets,frame,pixels);
+    for(unsigned y=0;y<8;++y)for(unsigned x=0;x<256;++x)pixels[y*320+32+x]=assets.palette[frame.damageStrip[y*256+x]];
+}
+void composeReplayFlames(const ReplayRenderAssets& assets,const CockpitFrame& frame,
+        std::vector<std::uint32_t>& pixels) {
+    frameSize(pixels);
     if(frame.boostActive) {
         if(frame.flameFrame>2)throw std::invalid_argument("Flame frame outside original0..2 range");
         const unsigned left=frame.flameFrame==2 ? 49 : frame.flameFrame+6;
@@ -123,7 +133,6 @@ void composeReplayCockpit(const ReplayRenderAssets& assets,const CockpitFrame& f
         compositeMaskedObject(assets,left,frame.objects[left],pixels);
         compositeMaskedObject(assets,right,frame.objects[right],pixels);
     }
-    for(unsigned y=0;y<8;++y)for(unsigned x=0;x<256;++x)pixels[y*320+32+x]=assets.palette[frame.damageStrip[y*256+x]];
 }
 void drawReplayText(const ReplayRenderAssets& assets,std::vector<std::uint32_t>& pixels,
         int x,int y,std::string_view text,std::uint8_t colour) {

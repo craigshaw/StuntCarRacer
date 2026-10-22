@@ -69,7 +69,8 @@ if(WIN32)
     app/native_cockpit_presentation.cpp app/native_menu_flow.cpp
     app/native_opening_flow.cpp app/native_player_name.cpp app/native_opening_render.cpp
     app/native_keyboard_input.cpp app/native_hall_of_fame.cpp
-    app/native_race_messages.cpp app/native_driving_particles.cpp
+    app/native_race_messages.cpp app/native_driving_particles.cpp app/native_cockpit_chains.cpp
+    app/native_damage_holes.cpp
     app/native_save_state.cpp app/native_save_menu.cpp
     app/native_multiplayer_state.cpp app/native_multiplayer_render.cpp
     app/replay_view.cpp app/replay_scene_commands.cpp)
@@ -238,6 +239,11 @@ if(SCR_BUILD_ORACLE)
     add_executable(native_driving_particles_tests tests/native_driving_particles_tests.cpp)
     target_link_libraries(native_driving_particles_tests PRIVATE scr_game musashi_oracle)
     target_compile_features(native_driving_particles_tests PRIVATE cxx_std_17)
+    foreach(effect native_boost_flames native_damage_holes native_cockpit_chains)
+      add_executable(${effect}_tests tests/${effect}_tests.cpp)
+      target_link_libraries(${effect}_tests PRIVATE scr_game musashi_oracle)
+      target_compile_features(${effect}_tests PRIVATE cxx_std_17)
+    endforeach()
     add_executable(native_track_preview_tests tests/native_track_preview_tests.cpp)
     target_include_directories(native_track_preview_tests PRIVATE app)
     target_link_libraries(native_track_preview_tests PRIVATE scr_startup musashi_oracle)

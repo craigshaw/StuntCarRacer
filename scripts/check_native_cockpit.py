@@ -29,6 +29,8 @@ def sources():
              ROOT / 'tests/cockpit_timing_oracle.cpp', ROOT / 'tests/wheel_animation_oracle.cpp',
              ROOT / 'tests/native_cockpit_replay_oracle.cpp',
              ROOT / 'tests/native_race_messages_tests.cpp', ROOT / 'tests/native_driving_particles_tests.cpp',
+             ROOT / 'tests/native_boost_flames_tests.cpp', ROOT / 'tests/native_cockpit_chains_tests.cpp',
+             ROOT / 'tests/native_damage_holes_tests.cpp',
              ROOT / 'tests/native_game_session_tests.cpp',
              ROOT / 'tests/native_startup_tests.cpp', ROOT / 'tests/driving_replay_oracle.cpp',
              ROOT / 'tests/native_opponent_driving_tests.cpp', ROOT / 'tests/driving_replay_native.cpp'}
@@ -96,7 +98,8 @@ def main():
              'cockpit_timing_oracle', 'native_cockpit_replay_oracle',
              'native_startup_tests', 'driving_replay_oracle',
              'native_opponent_driving_tests', 'driving_replay_native',
-             'native_race_messages_tests', 'native_driving_particles_tests')
+             'native_race_messages_tests', 'native_driving_particles_tests',
+             'native_boost_flames_tests', 'native_cockpit_chains_tests', 'native_damage_holes_tests')
     executables = {name: build / 'Release' / (name + '.exe') for name in names}
     receipt = build / 'build-receipt.json'
     records, pack_record = sources(), identity(pack)
@@ -138,6 +141,10 @@ def main():
     positive(integration, ('effects_ticks', 'drop_start_frames', 'press_fire_frames', 'dust_frames', 'spark_frames'), 'Natural race effects')
     if integration.get('effects_view_isolation') is not True:
         raise RuntimeError('Race effects must remain isolated from interpolated and reverse views')
+    positive(integration, ('boost_effects_ticks', 'boost_flame_frames', 'boost_release_frames',
+                           'chain_frames', 'chain_lifting_frames'), 'Natural boost and chains')
+    if integration.get('boost_flame_phase_mask') != 7 or integration.get('multiplayer_damage_entries') != 9:
+        raise RuntimeError('Native boost must animate all three original flame images')
     seeds = []
     for track in range(8):
         folder = integration_directory / ('track-' + str(track))
@@ -172,7 +179,9 @@ def main():
         raise RuntimeError('Timing oracle must cover every fresh seed and the entire completed-lap hold')
     positive(timing, ('hidden_hundredths_calls', 'visible_hundredths_calls', 'snapshots_before_slot_clear',
                       'held_result_transitions', 'leader_icon_calls', 'lap_counter_calls'), 'Timing oracle')
-    for name, argument in (('native_race_messages_tests', payload), ('native_driving_particles_tests', pack)):
+    for name, argument in (('native_race_messages_tests', payload), ('native_driving_particles_tests', pack),
+                           ('native_boost_flames_tests', payload), ('native_cockpit_chains_tests', payload),
+                           ('native_damage_holes_tests', pack)):
         leaves[name] = run_json([executables[name], argument], output / (name + '-results.json'))
     messages = leaves['native_race_messages_tests']
     if (messages.get('gate_cases') != 12800 or messages.get('pixel_cases') != 112
@@ -182,6 +191,20 @@ def main():
     positive(particles, ('dust_cases', 'spark_cases', 'ground_cases', 'ordered_draw_events', 'compared_pixels'), 'Particle oracle')
     if particles.get('simulation_and_rng_compared') is not True or particles.get('draw_collection_preserves_state') is not True:
         raise RuntimeError('Particle rendering changed simulation or RNG state')
+    flames = leaves['native_boost_flames_tests']
+    if (flames.get('cases') != 1632 or flames.get('phase_mask') != 7
+            or flames.get('both_buffers_verified') is not True or flames.get('release_holds_phase') is not True
+            or flames.get('render_queries_preserve_state') is not True):
+        raise RuntimeError('Boost flame animation or immutable drawing differs')
+    chains = leaves['native_cockpit_chains_tests']
+    positive(chains, ('state_draw_cases', 'pixel_cases', 'sequential_lifts', 'ordered_draw_events', 'compared_pixels'), 'Chain oracle')
+    if chains.get('source_ram_preserved') is not True or chains.get('retained_draw_snapshots') is not True:
+        raise RuntimeError('Chain presentation modified source state or historical frames')
+    holes = leaves['native_damage_holes_tests']
+    if (holes.get('cases') != 176 or holes.get('hole_positions') != 11
+            or holes.get('whole_ram_compared') is not True or holes.get('both_buffers_compared') is not True
+            or holes.get('rng_preserved') is not True):
+        raise RuntimeError('Initial damage strip differs from original buffers or RNG')
     # The retained capture is a regression fixture only. The sixteen fresh
     # Practice/competitive races above start from locally extracted assets.
     lap_inputs = ROOT / 'tests/replays/laps/authored-race-1463.csv'
@@ -199,6 +222,9 @@ def main():
     effects_folder = integration_directory / 'race-effects'
     scenarios.append({'name': 'natural-race-effects', 'seed': effects_folder / 'native-initial.bin',
                       'controls': effects_folder / 'controls.csv', 'maximum': integration['effects_ticks'], 'preserve_hud': False})
+    boost_folder = integration_directory / 'boost-effects'
+    scenarios.append({'name': 'natural-boost-effects', 'seed': boost_folder / 'native-initial.bin',
+                      'controls': boost_folder / 'controls.csv', 'maximum': integration['boost_effects_ticks'], 'preserve_hud': False})
     for track in range(8):
         folder = integration_directory / ('track-' + str(track))
         scenarios.append({'name': 'practice-track-' + str(track), 'seed': folder / 'seed.bin',
@@ -265,6 +291,9 @@ def main():
                                 'timer_calls', 'result_calls', 'fuel_calls', 'lap_counter_calls'),
              'Original cockpit replay')
     positive(original_cockpit, ('drop_start_frames', 'press_fire_frames', 'dust_draw_events', 'spark_draw_events'), 'Original race effects')
+    positive(original_cockpit, ('boost_flame_frames', 'chain_draw_events', 'damage_strip_pixels'), 'Original cockpit effects')
+    if original_cockpit.get('damage_strip_pixels') != expected_cockpit_updates * 256 * 8 * 2:
+        raise RuntimeError('Original damage strips must be compared in both buffers on every update')
     if original_cockpit.get('effect_frame_snapshots') != expected_cockpit_updates:
         raise RuntimeError('Race effects were not compared on every original frame')
     for field, expected in (('original_drawing_calls_replaced', False),
@@ -281,6 +310,14 @@ def main():
     original_races.append({'scenario': 'natural-race-effects', 'ticks': effects_ticks, 'results': effects_checks,
                            'seed': identity(effects_folder / 'native-initial.bin'), 'controls': identity(effects_folder / 'controls.csv'),
                            'native': identity(effects_folder / 'native.csv'), 'original': identity(effects_folder / 'original.csv')})
+    boost_checks = run_json([executables['driving_replay_oracle'], boost_folder / 'native-initial.bin',
+                            boost_folder / 'controls.csv', boost_folder / 'original.csv', '--full-loop'],
+                           boost_folder / 'original-results.json')
+    boost_ticks = compare_trace(boost_folder / 'native.csv', boost_folder / 'original.csv')
+    verify_replay_result(boost_checks, boost_ticks, full_loop=True)
+    original_races.append({'scenario': 'natural-boost-effects', 'ticks': boost_ticks, 'results': boost_checks,
+                           'seed': identity(boost_folder / 'native-initial.bin'), 'controls': identity(boost_folder / 'controls.csv'),
+                           'native': identity(boost_folder / 'native.csv'), 'original': identity(boost_folder / 'original.csv')})
     for track in range(8):
         folder = integration_directory / ('track-' + str(track))
         checks = run_json([executables['driving_replay_oracle'], folder / 'seed.bin',

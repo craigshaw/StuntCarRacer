@@ -10,6 +10,7 @@
 #include "native_cockpit_presentation.h"
 #include "native_wheel_sprites.h"
 #include "native_driving_particles.h"
+#include "native_cockpit_chains.h"
 #include "native_race_messages.h"
 #include <filesystem>
 #include <array>
@@ -49,6 +50,8 @@ struct ReplaySceneFrame : ReplayVisualState {
     DrivingParticleDraws particleDraws;
     std::uint8_t particleFrameCounter{};
     NativeRaceMessageFrame message;
+    NativeChainState chains;
+    NativeChainDraws chainDraws;
 };
 class ReplayScene {
 public:

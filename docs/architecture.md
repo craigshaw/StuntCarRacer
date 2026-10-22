@@ -114,5 +114,5 @@ and incidental idle-poll RNG advances are not reproduced.
 The faithful game is the default baseline. Future aspect, camera, filter and
 graphics options belong in presentation and should preserve that baseline as a
 selectable behaviour. Computer Link remains explicitly deferred. See
-[presentation boundaries](native-presentation.md) and
+[presentation boundaries](components/native-presentation.md) and
 [verification](development.md#choose-verification-by-change) before extending it.

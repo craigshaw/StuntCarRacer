@@ -7,7 +7,8 @@ param(
 )
 $ErrorActionPreference = 'Stop'
 $taskRoot = Split-Path -Parent $PSScriptRoot
-$pythonTool = 'C:\Tools\amiga-re\venv\Scripts\python.exe'
+. (Join-Path $PSScriptRoot 'env.ps1')
+$pythonTool = Get-ScrPython
 if (-not [System.IO.Path]::IsPathRooted($AssetPack)) { $AssetPack = Join-Path $taskRoot $AssetPack }
 $checkArguments = @((Join-Path $PSScriptRoot 'check_native_startup.py'), '--pack', $AssetPack)
 if ($Adf) { $checkArguments += @('--adf', $Adf) }

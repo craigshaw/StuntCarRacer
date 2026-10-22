@@ -9,7 +9,8 @@ param(
 )
 $ErrorActionPreference = 'Stop'
 $taskRoot = Split-Path -Parent $PSScriptRoot
-$pythonTool = 'C:\Tools\amiga-re\venv\Scripts\python.exe'
+. (Join-Path $PSScriptRoot 'env.ps1')
+$pythonTool = Get-ScrPython
 if (-not [System.IO.Path]::IsPathRooted($AssetPack)) { $AssetPack = Join-Path $taskRoot $AssetPack }
 if (-not [System.IO.Path]::IsPathRooted($SaveFile)) { $SaveFile = Join-Path $taskRoot $SaveFile }
 if (-not [System.IO.Path]::IsPathRooted($SettingsFile)) { $SettingsFile = Join-Path $taskRoot $SettingsFile }

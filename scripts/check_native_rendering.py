@@ -35,7 +35,7 @@ def presentation_source(path):
     return relative in {'CMakeLists.txt', 'tools/replay/native_replay_viewer.cpp'} or relative.startswith('app/') or (
         relative.startswith('src/') and path.stem.removesuffix('_adapter') in RENDER_STEMS) or (
         relative.startswith('tests/') and any(path.stem.startswith(stem) for stem in RENDER_STEMS)) or (
-        relative.startswith('scripts/reference/') and path.stem.removeprefix('verify_') in RENDER_STEMS)
+        relative.startswith('tools/research/reference/') and path.stem.removeprefix('verify_') in RENDER_STEMS)
 
 
 def verify_reference(path, inputs, capture_record):

@@ -52,7 +52,7 @@ def main():
     for directory, verifier, _ in STAGES:
         # Each verifier pins the original ADF/payload and upstream source, then
         # resolves actual operands without executing the downloaded disassembly.
-        subprocess.run([sys.executable, str(ROOT / 'scripts/reference' / verifier),
+        subprocess.run([sys.executable, str(ROOT / 'tools/research/reference' / verifier),
                         '--capture', str(dirs[-1].resolve())], cwd=ROOT, check=True)
         report_path = ROOT / 'analysis' / directory / 'reference-comparison.json'
         report = json.loads(report_path.read_text(encoding='utf-8'))
@@ -100,9 +100,9 @@ def main():
 
     source_paths = [ROOT / 'CMakeLists.txt', Path(__file__), ROOT / 'scripts/prepare_wheel_oracle.py',
                     ROOT / 'scripts/check_wheel_coordinates.py',
-                    ROOT / 'scripts/reference/verify_transform_reference.py']
+                    ROOT / 'tools/research/reference/verify_transform_reference.py']
     source_paths += sorted((ROOT / 'src').rglob('*.cpp')) + sorted((ROOT / 'src').rglob('*.h'))
-    source_paths += [ROOT / 'scripts/reference' / verifier for _, verifier, _ in STAGES]
+    source_paths += [ROOT / 'tools/research/reference' / verifier for _, verifier, _ in STAGES]
     source_paths += [ROOT / 'tests/oracle' / (target + '.cpp') for _, _, target in STAGES]
     source_paths.append(ROOT / 'tests/oracle/physics_prefix_oracle.cpp')
     source_paths.append(ROOT / 'tests/oracle/motion_step_oracle.cpp')

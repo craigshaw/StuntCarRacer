@@ -44,14 +44,16 @@ guide. Inspect Git status and preserve existing work before editing.
 - The separate native Windows `rea` server still does **not** admit m68k.
   Do not disguise m68k as another CPU or file format. Native Ghidra and Capstone
   remain useful independent cross-checks.
-- Dot-source scripts/env.ps1 for the local tool paths. The isolated Python is
-  `C:/Tools/amiga-re/venv/Scripts/python.exe`.
+- Dot-source scripts/env.ps1 for local tool paths. Machine-specific overrides
+  belong in ignored setup/local-tools.json; setup/README.md describes discovery.
+  Everyday helpers live in scripts/, optional research utilities in tools/research/.
+  Keep component contracts in docs/components/ and research guides in docs/research/.
 - Ghidra `68000:BE:32:default` decodes a 68040 superset. Cross-check questionable
   instructions against Capstone's MC68000 mode or WinUAE's 68000 execution.
 - The ADF has a valid boot checksum but no valid ordinary AmigaDOS root block.
   The recovered plaintext payload is disk offset 0xdc00, length 408540, loaded
   at 0xe700. A WinUAE menu snapshot corroborates the mapping. Start with
-  analysis/map/report.txt and manifest.json; docs/reverse-engineering.md documents
+  analysis/map/report.txt and manifest.json; docs/research/reverse-engineering.md documents
   reproduction.
   Do not assume Hunk files or repeat extraction discovery. The pinned Vesuri
   disassembly is enhanced: its timestep and scheduling differ from this disk.

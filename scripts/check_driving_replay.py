@@ -308,7 +308,7 @@ def main():
 
     comparisons = {}
     for directory, script in VERIFIERS:
-        subprocess.run([sys.executable, str(ROOT / 'scripts/reference' / script), '--capture', str(capture)],
+        subprocess.run([sys.executable, str(ROOT / 'tools/research/reference' / script), '--capture', str(capture)],
                        cwd=ROOT, check=True)
         path = ROOT / 'analysis' / directory / 'reference-comparison.json'
         report = json.loads(path.read_text(encoding='utf-8'))
@@ -457,7 +457,7 @@ def main():
         identity(path, before['sha256'])
 
     source_paths = native_sources + [Path(__file__), ROOT / 'scripts/prepare_wheel_oracle.py', ROOT / 'scripts/replay_lap.py']
-    source_paths += sorted((ROOT / 'scripts/reference').glob('verify_*.py'))
+    source_paths += sorted((ROOT / 'tools/research/reference').glob('verify_*.py'))
     leaf_results = {}
     for name, _ in VERIFIERS:
         if name in fresh_leaf_results:

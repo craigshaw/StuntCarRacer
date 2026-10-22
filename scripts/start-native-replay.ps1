@@ -16,7 +16,8 @@ if ($Live) {
     & (Join-Path $PSScriptRoot 'start-native-race.ps1') @nativeArguments
     exit $LASTEXITCODE
 }
-$pythonTool = 'C:\Tools\amiga-re\venv\Scripts\python.exe'
+. (Join-Path $PSScriptRoot 'env.ps1')
+$pythonTool = Get-ScrPython
 $reportPath = Join-Path $taskRoot 'analysis/native-render/check-results.json'
 function Resolve-ReplayPath([string]$Value) {
     if ([System.IO.Path]::IsPathRooted($Value)) { return $Value }

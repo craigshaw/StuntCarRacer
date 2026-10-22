@@ -32,6 +32,7 @@
 /build/
 /dist/
 /CMakeUserPresets.json
+/setup/local-tools.json
 /build-*/
 /out/
 cmake-build-*/

@@ -1,5 +1,6 @@
 """Add the verified WSL MCP transport to the Windows user's shared Codex config."""
 from pathlib import Path
+import json
 import os
 import tempfile
 import tomllib
@@ -9,15 +10,22 @@ before = config.read_bytes()
 parsed = tomllib.loads(before.decode('utf-8-sig'))
 if 'rea_wsl' in parsed.get('mcp_servers', {}):
     raise SystemExit('rea_wsl is already registered; inspect before changing it.')
-addition = r'''
-
-# Linux Ghidra bridge, verified for raw Motorola 68000 analysis.
-[mcp_servers.rea_wsl]
-command = "C:\\Windows\\System32\\wsl.exe"
-args = ["--distribution", "Ubuntu-24.04", "--user", "craig", "--exec", "/home/craig/.local/bin/rea-wsl", "mcp"]
-startup_timeout_sec = 60
-tool_timeout_sec = 450
-'''
+tools_file = Path(__file__).resolve().parent / 'local-tools.json'
+tools = json.loads(tools_file.read_text(encoding='utf-8-sig')) if tools_file.exists() else {}
+wsl_args = []
+if tools.get('wslDistribution'):
+    wsl_args += ['--distribution', tools['wslDistribution']]
+if tools.get('wslUser'):
+    wsl_args += ['--user', tools['wslUser']]
+wsl_args += ['--exec']
+wsl_args += ([tools['wslRea']] if tools.get('wslRea') else
+             ['sh', '-lc', 'exec "$HOME/.local/bin/rea-wsl" "$@"', 'rea-wsl'])
+wsl_args += ['mcp']
+command = str(Path(os.environ['SystemRoot']) / 'System32' / 'wsl.exe')
+addition = ('\n\n# Linux Ghidra bridge for raw Motorola 68000 analysis.\n'
+            '[mcp_servers.rea_wsl]\n'
+            f'command = {json.dumps(command)}\nargs = {json.dumps(wsl_args)}\n'
+            'startup_timeout_sec = 60\ntool_timeout_sec = 450\n')
 after = before + addition.encode('utf-8')
 updated = tomllib.loads(after.decode('utf-8-sig'))
 updated['mcp_servers'].pop('rea_wsl')

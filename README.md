@@ -41,7 +41,7 @@ Modern separates throttle from the steering stick; triggers are on/off.
 Modern accelerates while gas is held and coasts on release; Original retains
 latched acceleration until braking. The same rule applies to keyboard gas.
 Text entry uses the original name editor; typing letters does not trigger driving shortcuts.
-See [playing and settings](docs/native-game.md) for menu, save and controller details.
+See [playing and settings](docs/playing.md) for menu, save and controller details.
 
 Normal launches store assets, preferences and saves under
 `%LOCALAPPDATA%/Stunt Car Racer/`. The development helper retains
@@ -82,8 +82,8 @@ links the component contracts and original-code evidence. These describe current
 behaviour; generated receipts under ignored `analysis/` identify what was
 actually checked and against which sources.
 
-The prepared Windows toolchain uses CMake, Visual Studio C++ Build Tools and
-`C:/Tools/amiga-re/venv/Scripts/python.exe`. A source checkout does not include
+The Windows build uses CMake and Visual Studio C++ Build Tools. Python is an
+optional development/check tool. A source checkout does not include
 game assets, test captures, third-party verification tools or built executables.
 See the development guide before setting up another machine. Build, test, stage
 and run are separate steps:
@@ -100,6 +100,7 @@ Release and Debug share `build/windows/`; original-code tests use
 `build/windows-oracle/`. `dist/` contains only the player executable. The
 existing private references and check reports remain under `analysis/`.
 See [build options and layout](docs/development.md#build-test-and-stage).
+See [local tool configuration](setup/README.md) when setting up development helpers.
 
 Gameplay algorithms live in `src/`, shared state adapters in `src/state/`, and
 the player application in `app/`. Optional replay tools live in `tools/replay/`;
@@ -118,7 +119,7 @@ The application validates one supported ADF by hash and retains an asset pack pl
 provenance manifest. Development import tooling writes these under `analysis/assets/`.
 Native code decodes graphics, audio and track
 data and constructs fresh game state from that pack. The supplied disk remains
-untouched. [Asset format and safeguards](docs/native-startup.md) describe the pipeline.
+untouched. [Asset format and safeguards](docs/components/native-startup.md) describe the pipeline.
 
 Only source, extraction recipes, hashes, documentation and authored tests belong
 in Git. Original media, packs, saves, captures, derived images/audio, binaries and
@@ -136,5 +137,5 @@ git config core.hooksPath .githooks
 - `scripts/start-native-race.ps1 -Track 5` opens a fresh direct Practice race for
   development, bypassing menus.
 
-These launch paths are distinct. See [reverse-engineering tools and mapping](docs/reverse-engineering.md)
+These launch paths are distinct. See [reverse-engineering tools and mapping](docs/research/reverse-engineering.md)
 for WinUAE controls, raw 68000 analysis and retained evidence locations.

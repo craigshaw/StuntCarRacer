@@ -5,6 +5,7 @@
 production implementations. `SCR_BUILD_DEV_TOOLS` controls these targets without
 enabling original-code tests. Only the player application is installed to `dist/`.
 
-Launch and verification commands remain in `scripts/`. See the
+Everyday launch and verification commands remain in `scripts/`; optional
+recovery and emulator utilities live in [research/](research/README.md). See the
 [development guide](../docs/development.md) and the separate
-[viewer controls](../docs/native-replay-viewer.md).
+[viewer controls](../docs/components/native-replay-viewer.md).

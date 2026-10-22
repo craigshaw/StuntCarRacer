@@ -12,22 +12,24 @@ uncommitted; preserve it. Read the matching [component guides](README.md), then
 select verification appropriate to the change. Do not repeat disk extraction
 discovery or replace original behaviour with the enhanced upstream disassembly.
 
-## Prepared Windows environment
+## Development environment
 
-Commands below run from the project root in PowerShell. This checkout is at
-`C:/Projects/Stunt Car Racer`.
+Commands below run from the project root in PowerShell.
 
 | Requirement | Prepared location / version |
 | --- | --- |
 | C++17 compiler | Visual Studio 2026 C++ Build Tools; CMake generator `Visual Studio 18 2026`, x64 |
 | CMake | 4.4.3 on PATH; project/preset minimum 3.21 |
-| Python | `C:/Tools/amiga-re/venv/Scripts/python.exe` |
+| Python | Optional for verification/helpers; local configuration, `.venv`, or PATH |
 | Python RE packages | Versions in `setup/requirements.txt` |
-| Local disk | Supported ADF, identity in [asset guide](native-startup.md) |
+| Local disk | Supported ADF, identity in [asset guide](components/native-startup.md) |
 
-The PowerShell launchers currently use the prepared Python path. On another
-machine, configure equivalent tools and review `scripts/env.ps1` and the launcher
-paths. Native Windows UI/audio/input use system libraries, including XInput;
+PowerShell helpers read the ignored `setup/local-tools.json`, then environment
+variables and installed commands. This checkout's existing tool paths are saved
+there. Copy `setup/local-tools.example.json` on another machine and fill only the
+overrides needed; see [local tool configuration](../setup/README.md).
+`scripts/env.ps1` exposes `$AmigaPython`, `$WinUae` and `rea-wsl` without requiring
+the research environment to be installed. Native Windows UI/audio/input use system libraries, including XInput;
 the game executable imports ADFs itself and has no Python or emulator runtime
 dependency. Release builds statically link the Visual C++ runtime. The supplied
 launchers do use Python for import, build and checks.
@@ -61,6 +63,8 @@ bundled there. Supplied local header artwork remains embedded in the executable.
 | `src/` | Typed gameplay, audio and rendering algorithms, with shared recovered-layout adapters in `src/state/` |
 | `app/` | Player session, menus, launcher and Windows host |
 | `tools/replay/` | Optional replay viewer and headless native replay entry points |
+| `scripts/`, `tools/research/` | Everyday checks/launchers and optional recovery, emulator and reference-analysis utilities |
+| `setup/local-tools.json` | Ignored per-machine tool paths; the checked-in example contains no machine paths |
 | `tests/unit/`, `tests/integration/`, `tests/oracle/` | Asset-free checks, native integration and test-only original-code comparisons |
 | `tests/support/`, `tests/replays/` | Test-only adapters/projections and authored replay inputs/provenance |
 | `CMakePresets.json`, `cmake/` | Shared toolchain settings, native/oracle target definitions and CTest registration |
@@ -76,6 +80,7 @@ intermediates have been removed. Current commands build only under `build/`.
 The gameplay algorithms retain their implementations. Shared state adapters
 belong to production source; test-only comparison ranges remain under
 `tests/support/`. Research evidence and its existing paths are unchanged.
+The [evidence map](research/evidence.md) identifies the retained data categories.
 
 Debug outputs and generated CTest artifacts are disposable. Rebuild Debug with
 its preset after cleaning it; CTest recreates its own output directories. Keep
@@ -207,7 +212,7 @@ source under `analysis/reference/musashi/`. Verify or fetch the latter with:
 ```
 
 Musashi is pinned by `setup/musashi-source-lock.json`. Tools do not normally
-download it during a check. [Reverse-engineering setup](reverse-engineering.md)
+download it during a check. [Reverse-engineering setup](research/reverse-engineering.md)
 describes the verified payload mapping, retained reference prerequisites and
 capture extraction. The old capture-based wrappers are development tools, not
 requirements for playing the native game. Cockpit/replay checks additionally use
@@ -217,7 +222,7 @@ Do not compare a fresh interactive drive against the default captured Practice
 seed. A valid differential replay needs the exact race-entry state and controls
 for that drive. Interactive recordings currently write controls and native traces,
 without exporting that seed. Session tests explicitly export seeds for their own
-recorded races; see [recordings](native-driving.md#recordings-and-verification).
+recorded races; see [recordings](components/native-driving.md#recordings-and-verification).
 
 ## Repository hygiene and handoff
 

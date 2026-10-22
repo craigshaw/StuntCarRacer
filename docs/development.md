@@ -58,7 +58,11 @@ bundled there. Supplied local header artwork remains embedded in the executable.
 
 | Path | Purpose |
 | --- | --- |
-| `src/`, `app/`, `tests/` | Existing gameplay, application and verification sources |
+| `src/` | Typed gameplay, audio and rendering algorithms, with shared recovered-layout adapters in `src/state/` |
+| `app/` | Player session, menus, launcher and Windows host |
+| `tools/replay/` | Optional replay viewer and headless native replay entry points |
+| `tests/unit/`, `tests/integration/`, `tests/oracle/` | Asset-free checks, native integration and test-only original-code comparisons |
+| `tests/support/`, `tests/replays/` | Test-only adapters/projections and authored replay inputs/provenance |
 | `CMakePresets.json`, `cmake/` | Shared toolchain settings, native/oracle target definitions and CTest registration |
 | `build/windows/` | Shared native compiler output for Release and Debug, CTest logs and per-configuration test outputs |
 | `build/windows-oracle/` | Separate original-code test build, including test-only Musashi |
@@ -69,7 +73,9 @@ bundled there. Supplied local header artwork remains embedded in the executable.
 All generated/local directories are ignored. Historical executables and hash
 receipts remain under `analysis/`; their obsolete CMake projects and compiler
 intermediates have been removed. Current commands build only under `build/`.
-No gameplay sources or recovered reference files were moved.
+The gameplay algorithms retain their implementations. Shared state adapters
+belong to production source; test-only comparison ranges remain under
+`tests/support/`. Research evidence and its existing paths are unchanged.
 
 Debug outputs and generated CTest artifacts are disposable. Rebuild Debug with
 its preset after cleaning it; CTest recreates its own output directories. Keep
@@ -104,6 +110,13 @@ before it runs. It does not import assets or refresh
 the detailed wrappers' source/fixture/executable receipts. Those wrappers remain
 the authority for retained differential evidence and run against the shared
 Release builds. Run one build/check wrapper at a time against a shared tree.
+Source relocations invalidate earlier build receipts; rerun the relevant wrapper
+before using `--skip-build`. Historical reports retain their recorded identities.
+
+Python unit tests also use the build's test-output directory, with unique
+temporary folders per test. Direct Python runs default to
+`build/windows/test-output/python/`; `SCR_TEST_OUTPUT_ROOT` overrides that base.
+CTest registers the asset-policy, replay-wrapper and lap-evidence Python suites.
 
 After preparing the original-code prerequisites, the equivalent oracle commands
 are `cmake --preset windows-oracle`, `cmake --build --preset windows-oracle`, and
@@ -210,12 +223,12 @@ recorded races; see [recordings](native-driving.md#recordings-and-verification).
 
 ```powershell
 & $AmigaPython scripts/check_repository_assets.py --worktree
-& $AmigaPython -m unittest discover -s tests -p test_asset_policy.py
+& $AmigaPython -m unittest discover -s tests/unit -p 'test_*.py'
 git diff --check
 ```
 
 The asset check inspects indexed blobs and, with `--worktree`, non-ignored source.
-CI currently runs the source asset policy and its synthetic tests. Native CTest
+CI currently runs the source asset policy and all Python synthetic tests. Native CTest
 unit tests can run without private inputs; the full game tests need the local
 pack. Never force-add original media, packs, saves,
 screenshots, extracted data, binary builds or RE databases. Keep derived files in

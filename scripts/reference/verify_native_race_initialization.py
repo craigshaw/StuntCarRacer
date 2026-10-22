@@ -66,7 +66,9 @@ def main():
               'test_executable_sha256': sha(args.test_executable.read_bytes()),
               'sources': {str(path.relative_to(ROOT)): sha(path.read_bytes()) for path in [
                   ROOT/'app/native_race_initialization.cpp', ROOT/'app/native_race_initialization.h',
-                  ROOT/'tests/native_race_initialization_tests.cpp', Path(__file__).resolve()]},
+                  ROOT/'tests/oracle/native_race_initialization_tests.cpp', Path(__file__).resolve(),
+                  *sorted((ROOT/'src/state').glob('*.h')),
+                  *sorted((ROOT/'tests/support').glob('*.h'))]},
               'limits': ['Native full-race closure reuses separately verified restart and gameplay stages.',
                          'Unused Practice opponent look-ahead geometry is omitted; its random advance is retained.',
                          'CIA and custom-chip writes are supplied by native backends and not compared here.',

@@ -19,27 +19,27 @@ def identity(path):
 def sources():
     paths = {ROOT / record['path'] for record in startup_sources()}
     paths.add(Path(__file__).resolve())
-    paths.add(ROOT / 'tests/native_game_session_tests.cpp')
-    paths.add(ROOT / 'tests/native_display_tests.cpp')
-    paths.add(ROOT / 'tests/native_launcher_tests.cpp')
-    paths.add(ROOT / 'tests/live_drive_tests.cpp')
-    paths.add(ROOT / 'tests/native_opening_session_tests.cpp')
-    paths.add(ROOT / 'tests/native_opponent_session_tests.cpp')
-    paths.add(ROOT / 'tests/native_multiplayer_session_tests.cpp')
-    paths.add(ROOT / 'tests/native_career_session_tests.cpp')
-    paths.add(ROOT / 'tests/native_render_audit.cpp')
-    paths.add(ROOT / 'tests/replay_scene_commands_tests.cpp')
-    paths.add(ROOT / 'tests/native_save_session_tests.cpp')
-    paths.add(ROOT / 'tests/native_save_store_tests.cpp')
-    paths.add(ROOT / 'tests/draw_bridge_oracle.cpp')
-    paths.add(ROOT / 'tests/draw_bridge_driving_tests.cpp')
-    paths.add(ROOT / 'tests/driving_replay_oracle.cpp')
+    paths.add(ROOT / 'tests/integration/native_game_session_tests.cpp')
+    paths.add(ROOT / 'tests/integration/native_display_tests.cpp')
+    paths.add(ROOT / 'tests/integration/native_launcher_tests.cpp')
+    paths.add(ROOT / 'tests/unit/live_drive_tests.cpp')
+    paths.add(ROOT / 'tests/integration/native_opening_session_tests.cpp')
+    paths.add(ROOT / 'tests/integration/native_opponent_session_tests.cpp')
+    paths.add(ROOT / 'tests/integration/native_multiplayer_session_tests.cpp')
+    paths.add(ROOT / 'tests/integration/native_career_session_tests.cpp')
+    paths.add(ROOT / 'tests/oracle/native_render_audit.cpp')
+    paths.add(ROOT / 'tests/oracle/replay_scene_commands_tests.cpp')
+    paths.add(ROOT / 'tests/integration/native_save_session_tests.cpp')
+    paths.add(ROOT / 'tests/unit/native_save_store_tests.cpp')
+    paths.add(ROOT / 'tests/oracle/draw_bridge_oracle.cpp')
+    paths.add(ROOT / 'tests/integration/draw_bridge_driving_tests.cpp')
+    paths.add(ROOT / 'tests/oracle/driving_replay_oracle.cpp')
     paths.add(ROOT / 'scripts/check_driving_replay.py')
     for name in ('native_menu_render', 'native_menu_flow', 'native_track_preview', 'native_palette_fade',
                  'native_hall_of_fame', 'native_hall_records', 'native_save_state', 'native_save_menu',
                  'native_multiplayer_state', 'native_multiplayer_render', 'native_opponent_race', 'native_competition_render',
                  'native_career_state'):
-        paths.add(ROOT / 'tests' / (name + '_tests.cpp'))
+        paths.add(ROOT / 'tests/oracle' / (name + '_tests.cpp'))
     paths.update(build_sources())
     return [identity(path) for path in sorted(paths)]
 

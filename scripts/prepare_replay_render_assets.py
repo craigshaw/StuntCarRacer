@@ -150,7 +150,7 @@ def main():
         'limitations': ['Captured display frame is a saved buffer, not a DMA/display timing observation.', 'Decoded static background has no moving road; foreground image is the decoded original background plus selected original masked objects.']}
     source_files = ['src/planar_image.h', 'src/planar_image.cpp',
                     'app/replay_render_assets.h', 'app/replay_render_assets.cpp',
-                    'scripts/prepare_replay_render_assets.py', 'tests/planar_image_oracle.cpp']
+                    'scripts/prepare_replay_render_assets.py', 'tests/oracle/planar_image_oracle.cpp']
     record['sources'] = [{'path': path, 'sha256': sha((ROOT / path).read_bytes())} for path in source_files]
     if args.oracle:
         executable_hash = sha(args.oracle.read_bytes())

@@ -6,7 +6,7 @@
 #include "native_competition_render.h"
 #include "native_multiplayer_render.h"
 #include "native_hall_of_fame.h"
-#include "../tests/draw_bridge_fixture.h"
+#include "state/draw_bridge_adapter.h"
 #include <algorithm>
 #include <cmath>
 #include <stdexcept>
@@ -75,7 +75,7 @@ void NativeGameSession::preparePreview(){
     initializeNativeTrack(*data_.memory,menu_->trackId());
     (*data_.memory)[0x691b3]=(*data_.memory)[0x1c9d0]?8:9;
     (*data_.memory)[0x691b2]=(*data_.memory)[0x1c9d0]?4:10;
-    if(test::drawBridge::animate(*data_.memory).geometryUpdated)rebuildNativeTrackGeometryCache(*data_.memory);
+    if(state::drawBridge::animate(*data_.memory).geometryUpdated)rebuildNativeTrackGeometryCache(*data_.memory);
     preview_.load(*data_.memory,(*data_.memory)[0x1bb57]);
 }
 void NativeGameSession::startRace(){

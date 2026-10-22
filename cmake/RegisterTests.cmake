@@ -69,9 +69,13 @@ find_package(Python3 COMPONENTS Interpreter)
 if(Python3_Interpreter_FOUND)
   add_test(NAME repository_asset_policy COMMAND "${Python3_EXECUTABLE}"
     "${PROJECT_SOURCE_DIR}/scripts/check_repository_assets.py" --worktree)
-  add_test(NAME asset_policy_tests COMMAND "${Python3_EXECUTABLE}"
-    -m unittest discover -s tests -p test_asset_policy.py)
-  set_tests_properties(repository_asset_policy asset_policy_tests PROPERTIES
+  foreach(suite asset_policy driving_replay_wrapper replay_lap)
+    add_test(NAME ${suite}_tests COMMAND "${Python3_EXECUTABLE}"
+      -m unittest discover -s tests/unit -p test_${suite}.py)
+    set_tests_properties(${suite}_tests PROPERTIES
+      ENVIRONMENT "SCR_TEST_OUTPUT_ROOT=${test_output}/python")
+  endforeach()
+  set_tests_properties(repository_asset_policy asset_policy_tests driving_replay_wrapper_tests replay_lap_tests PROPERTIES
     LABELS "source" WORKING_DIRECTORY "${PROJECT_SOURCE_DIR}" TIMEOUT 120)
 else()
   message(STATUS "Python3 not found: source-policy CTests are unavailable")

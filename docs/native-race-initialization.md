@@ -95,7 +95,7 @@ Fresh startup exposed two renderer-only bytes in an overly broad suspension
 comparison range: `0x1bb7c` and `0x1bb7f`. Neither is read or written by physics.
 The original renderer updates them between ticks, while the native renderer
 owns separate presentation state. Their reader/writer addresses are recorded
-next to the narrowed comparison in `tests/driving_replay_fixture.h`. Gameplay
+next to the narrowed comparison in `src/state/native_race.h`. Gameplay
 checks retain every other previously declared byte; no startup constants were
 added to make renderer scratch match.
 

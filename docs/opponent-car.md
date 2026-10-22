@@ -12,7 +12,7 @@ word arithmetic, size clamps, rounding and one-pixel biases.
 `0x599e2`. `OpponentCarInputs` holds the four footprint heights in original
 X1,Y1,X2,Y2 order, their four already camera-relative X/Z coordinate pairs,
 three road support bounds, angular camera state and visibility flags. The
-adapter in `tests/opponent_car_fixture.h` documents the original RAM format;
+adapter in `src/state/opponent_car_adapter.h` documents the original RAM format;
 the algorithm itself has no RAM, executable-code or emulator dependency.
 
 The frame returns 36 clipped edges and up to ten ordered quadrilateral fills.

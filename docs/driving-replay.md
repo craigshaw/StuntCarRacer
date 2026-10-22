@@ -65,7 +65,7 @@ it independently evolves state and emits a trace, without an internal oracle.
 The optional wrapper comparison excludes only `original_instructions`, which is
 zero in the native trace. It checks the displayed gameplay columns, while the
 oracle separately checks its broader RAM projections and effects at each stage.
-Both executables currently use capture-RAM serialization adapters under `tests/`
+Both executables use shared recovered-layout adapters under `src/state/`
 to connect the recovered stages. Production calculations under `src/` use typed
 native state. The standalone [native game](native-game.md) also uses this core,
 with native asset loading, rendering, input and audio.

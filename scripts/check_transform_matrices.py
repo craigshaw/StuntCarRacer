@@ -84,7 +84,7 @@ def main():
         'musashi_lock': identity(LOCK), 'build_commands': commands,
         'sources': [identity(ROOT / p) for p in [
             'CMakeLists.txt', 'src/transform_matrices.cpp', 'src/transform_matrices.h',
-            'src/wheel_coordinates.cpp', 'src/wheel_coordinates.h', 'tests/transform_oracle.cpp',
+            'src/wheel_coordinates.cpp', 'src/wheel_coordinates.h', 'tests/oracle/transform_oracle.cpp',
             'scripts/check_transform_matrices.py', 'scripts/check_wheel_coordinates.py',
             'scripts/prepare_wheel_oracle.py']] + [identity(path) for path in sorted(build_sources() - {ROOT / 'CMakeLists.txt'})],
         'executable': identity(exe), 'captures': capture_ids, 'results': checks,

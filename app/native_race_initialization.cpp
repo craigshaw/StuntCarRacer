@@ -2,17 +2,17 @@
 #include "native_multiplayer_state.h"
 #include "native_cockpit_presentation.h"
 #include "native_damage_holes.h"
-#include "../tests/driving_replay_fixture.h"
-#include "../tests/opponent_driving_fixture.h"
+#include "state/native_race.h"
+#include "state/opponent_driving_adapter.h"
 #include <algorithm>
 #include <stdexcept>
 
 namespace scr::viewer {
 namespace {
-using scr_test::readWord;
-using scr_test::readLong;
-using scr_test::writeWord;
-using scr_test::writeLong;
+using scr::state::memory::readWord;
+using scr::state::memory::readLong;
+using scr::state::memory::writeWord;
+using scr::state::memory::writeLong;
 
 std::uint8_t randomByte(NativeMemory& memory) {
     const auto seed=readLong(memory,0x625a2);
@@ -79,10 +79,10 @@ void sortSeason(NativeMemory& m) {
 void resetMatrices(NativeMemory& memory) {
     TrigTable trig{};
     for(unsigned i=0;i<trig.size();++i)trig[i]=readWord(memory,0x1ca42+2*i);
-    auto matrices=scr::test::motion::readMatrices(memory.data());
+    auto matrices=scr::state::motion::readMatrices(memory.data());
     updateTransformMatrices({readWord(memory,0x1bce4),readWord(memory,0x1bce6),
         readWord(memory,0x1bce8),readWord(memory,0x1bd5a)},trig,matrices);
-    scr::test::motion::writeMatrices(memory.data(),matrices);
+    scr::state::motion::writeMatrices(memory.data(),matrices);
 }
 std::uint8_t bcdFuel(std::uint8_t count) {
     // Original ABCD loop executes 256 times for a zero byte. Its first SUBQ
@@ -184,8 +184,8 @@ void initializeNativeRace(NativeMemory& memory) {
     memory[0x1bb1d]=memory[0x1ca1b];memory[0x1bb0c]=4;memory[0x1bbed]=0x4c;
     // Original initializeTrackCoordinates0x63a58 constructs road support and
     // seeds each opponent wheel before the two normal startup warm-up frames.
-    scr::test::opponent::initializeCoordinates(memory,scr::test::opponent::readData(memory));
-    scr::test::replay::NativeReplay state(memory);
+    scr::state::opponent::initializeCoordinates(memory,scr::state::opponent::readData(memory));
+    scr::state::replay::NativeReplay state(memory);
     NativeCockpitPresentation cockpit(memory,true);
     state.presentation=[&](auto stage,const auto& ram,const auto& events){cockpit.update(stage,ram,events);};
     state.restartStage(memory[0x1ca1b]);

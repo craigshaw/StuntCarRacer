@@ -88,8 +88,10 @@ def main():
               'limitations': ['Native startup deliberately omits Amiga OS interrupt vectors and hardware I/O.',
                               'Graphics and audio memory results are verified, not Amiga DMA or video beam timing.']}
     files = ['app/native_asset_initialization.h', 'app/native_asset_initialization.cpp',
-             'tests/native_asset_initialization_tests.cpp', 'scripts/reference/verify_native_asset_initialization.py',
+             'tests/oracle/native_asset_initialization_tests.cpp', 'scripts/reference/verify_native_asset_initialization.py',
              'src/engine_audio.cpp', 'src/planar_image.cpp', 'app/replay_render_assets.cpp']
+    files += [path.relative_to(ROOT).as_posix() for folder in ('src/state', 'tests/support')
+              for path in sorted((ROOT / folder).glob('*.h'))]
     record['sources'] = [{'path': name, 'sha256': sha((ROOT / name).read_bytes())} for name in files]
     destination = args.output / 'check-results.json'
     destination.write_text(json.dumps(record, indent=2) + '\n')

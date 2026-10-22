@@ -23,17 +23,17 @@ def identity(path):
 def sources():
     paths = {ROOT / 'CMakeLists.txt', Path(__file__).resolve(),
              ROOT / 'scripts/check_driving_replay.py', ROOT / 'scripts/import_native_assets.py',
-             ROOT / 'tests/native_opponent_driving_tests.cpp',
-             ROOT / 'tests/native_opponent_session_tests.cpp',
-             ROOT / 'tests/race_transitions_oracle.cpp',
-             ROOT / 'tests/driving_replay_oracle.cpp', ROOT / 'tests/native_opponent_race_tests.cpp',
-             ROOT / 'tests/native_competition_render_tests.cpp'}
-    for directory in ('src', 'app'):
-        paths.update((ROOT / directory).glob('*.cpp'))
-        paths.update((ROOT / directory).glob('*.h'))
-    paths.update((ROOT / 'tests').glob('*fixture.h'))
-    paths.update((ROOT / 'tests').glob('driving_replay*.h'))
-    paths.update((ROOT / 'tests').glob('opponent_*_oracle.cpp'))
+             ROOT / 'tests/integration/native_opponent_driving_tests.cpp',
+             ROOT / 'tests/integration/native_opponent_session_tests.cpp',
+             ROOT / 'tests/oracle/race_transitions_oracle.cpp',
+             ROOT / 'tests/oracle/driving_replay_oracle.cpp', ROOT / 'tests/oracle/native_opponent_race_tests.cpp',
+             ROOT / 'tests/oracle/native_competition_render_tests.cpp'}
+    for directory in ('src', 'app', 'tools/replay'):
+        paths.update((ROOT / directory).rglob('*.cpp'))
+        paths.update((ROOT / directory).rglob('*.h'))
+    paths.update((ROOT / 'tests/support').glob('*fixture.h'))
+    paths.update((ROOT / 'tests/support').glob('driving_replay*.h'))
+    paths.update((ROOT / 'tests/oracle').glob('opponent_*_oracle.cpp'))
     paths.update(build_sources())
     return [identity(path) for path in sorted(paths)]
 

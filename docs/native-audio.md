@@ -63,7 +63,7 @@ compares 97 instructions and all source operands with the pinned Vesuri source,
 and independently reproduces sample generation. It uses no operand wildcards.
 Its generated report is `analysis/audio-engine/reference-comparison.json`.
 
-`tests/engine_audio_oracle.cpp` runs only the original instruction slices in
+`tests/oracle/engine_audio_oracle.cpp` runs only the original instruction slices in
 test-only Musashi and compares typed C++ state plus every ordered 16-bit Paula
 write. The passing three-capture run contains 618,645 cases:
 

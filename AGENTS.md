@@ -18,6 +18,9 @@ guide. Inspect Git status and preserve existing work before editing.
   Install to dist/Stunt Car Racer.exe. Keep research evidence under analysis/.
   Drive Native.cmd remains a provisional build/check/launch helper. Direct-race
   and captured replay viewers are development tools with different controls.
+- Shared runtime adapters belong in src/state/, development entry points in
+  tools/replay/, and tests in unit/, integration/, oracle/ and support/ under
+  tests/. Production must not include test headers or link oracle code.
 - Choose checks using docs/development.md. Original-code comparisons belong
   only to test executables (SCR_BUILD_ORACLE); never link Musashi into the game.
   Retained passes require matching source, fixture and executable identities.

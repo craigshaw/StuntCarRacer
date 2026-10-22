@@ -54,9 +54,9 @@ def main():
     payload_path.write_bytes(payload)
     build = ORACLE_BUILD
     executable = build/'Release/track_initialization_oracle.exe'
-    compiled = build_sources() | set((ROOT/'src').glob('*.h')) | set((ROOT/'src').glob('*.cpp'))
-    compiled.update((ROOT/'tests').glob('*fixture.h'))
-    compiled.update({Path(__file__).resolve(), ROOT/'tests/track_initialization_oracle.cpp'})
+    compiled = build_sources() | set((ROOT / 'src').rglob('*.h')) | set((ROOT / 'src').rglob('*.cpp'))
+    compiled.update((ROOT / 'tests/support').glob('*fixture.h'))
+    compiled.update({Path(__file__).resolve(), ROOT/'tests/oracle/track_initialization_oracle.cpp'})
     source_hashes = {str(path.relative_to(ROOT)): sha(path.read_bytes()) for path in sorted(compiled)}
     receipt_path = output/'build-receipt.json'
     if args.skip_build:
@@ -93,7 +93,7 @@ def main():
     (output/'original-disassembly.asm').write_text('\n'.join(listing)+'\n', encoding='utf-8')
     files = ['src/track_initialization.h', 'src/track_initialization.cpp',
         'src/track_sampling.h', 'src/track_sampling.cpp',
-        'tests/track_initialization_oracle.cpp', 'scripts/check_native_track_initialization.py']
+        'tests/oracle/track_initialization_oracle.cpp', 'scripts/check_native_track_initialization.py']
     report = {'passed': True, 'source_adf_sha256': ADF_SHA, 'payload_sha256': PAYLOAD_SHA,
         'payload_adf_offset': '0xdc00', 'payload_length': len(payload), 'payload_ram_base': '0xe700',
         'oracle': metrics, 'original_code': spans,

@@ -117,7 +117,7 @@ bus contention are not included in these CPU-only timing measurements. The
 native host samples input during its display loop; it does not reproduce the
 original free-running polling loop's incidental RNG advances while idle.
 
-`tests/native_menu_flow_tests.cpp` links Musashi exclusively in its verification
+`tests/oracle/native_menu_flow_tests.cpp` links Musashi exclusively in its verification
 executable. It checks:
 
 - 3,584 input combinations against original instructions, comparing all 512 KiB

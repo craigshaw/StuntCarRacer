@@ -98,9 +98,10 @@ def main():
     source_paths = [ROOT / 'CMakeLists.txt', Path(__file__), ROOT / 'scripts/prepare_wheel_oracle.py',
                     ROOT / 'scripts/check_wheel_coordinates.py',
                     ROOT / 'scripts/reference/verify_transform_reference.py']
-    source_paths += sorted((ROOT / 'src').glob('*.cpp')) + sorted((ROOT / 'src').glob('*.h'))
+    source_paths += sorted((ROOT / 'src').rglob('*.cpp')) + sorted((ROOT / 'src').rglob('*.h'))
+    source_paths += sorted((ROOT / 'tests/support').glob('*.h'))
     source_paths += [ROOT / 'scripts/reference' / verifier for _, verifier, _ in STAGES]
-    source_paths += [ROOT / 'tests' / (target + '.cpp') for _, _, target in STAGES]
+    source_paths += [ROOT / 'tests/oracle' / (target + '.cpp') for _, _, target in STAGES]
     source_paths = sorted(set(source_paths) | build_sources())
     report = {
         'verified_at_utc': datetime.now(timezone.utc).isoformat(), 'payload': payload_id,

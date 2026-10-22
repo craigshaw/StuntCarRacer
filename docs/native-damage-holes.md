@@ -38,7 +38,7 @@ Independent Capstone MC68000 decoding agrees with the REA/Ghidra observations:
 | `0x6092e..0x60987` | Choose placement/parity and draw both buffers | `ev_a3d0b57e46689cd52ac4511569287cefbb5b3560bca39547859a951c9d6aa795` |
 | `0x69f42..0x69fe7` | Original masked-object primitive | Executed by the pixel oracle |
 
-`tests/native_damage_holes_tests.cpp` verifies the original code bytes against
+`tests/oracle/native_damage_holes_tests.cpp` verifies the original code bytes against
 the pack payload, executes the unmodified original routines in test-only
 Musashi, and compares whole memory with the native helper. Coverage includes
 all eleven hole states, the initialized background and varied underlying

@@ -26,20 +26,20 @@ def sources():
     paths = {ROOT / 'CMakeLists.txt', Path(__file__).resolve(),
              ROOT / 'scripts/check_driving_replay.py', ROOT / 'scripts/import_native_assets.py',
              ROOT / 'scripts/replay_lap.py',
-             ROOT / 'tests/native_cockpit_instruments_tests.cpp',
-             ROOT / 'tests/cockpit_timing_oracle.cpp', ROOT / 'tests/wheel_animation_oracle.cpp',
-             ROOT / 'tests/native_cockpit_replay_oracle.cpp',
-             ROOT / 'tests/native_race_messages_tests.cpp', ROOT / 'tests/native_driving_particles_tests.cpp',
-             ROOT / 'tests/native_boost_flames_tests.cpp', ROOT / 'tests/native_cockpit_chains_tests.cpp',
-             ROOT / 'tests/native_damage_holes_tests.cpp',
-             ROOT / 'tests/native_game_session_tests.cpp',
-             ROOT / 'tests/native_startup_tests.cpp', ROOT / 'tests/driving_replay_oracle.cpp',
-             ROOT / 'tests/native_opponent_driving_tests.cpp', ROOT / 'tests/driving_replay_native.cpp'}
-    for directory in ('src', 'app'):
-        paths.update((ROOT / directory).glob('*.cpp'))
-        paths.update((ROOT / directory).glob('*.h'))
-    paths.update((ROOT / 'tests').glob('*fixture.h'))
-    paths.update((ROOT / 'tests').glob('driving_replay*.h'))
+             ROOT / 'tests/oracle/native_cockpit_instruments_tests.cpp',
+             ROOT / 'tests/oracle/cockpit_timing_oracle.cpp', ROOT / 'tests/oracle/wheel_animation_oracle.cpp',
+             ROOT / 'tests/oracle/native_cockpit_replay_oracle.cpp',
+             ROOT / 'tests/oracle/native_race_messages_tests.cpp', ROOT / 'tests/oracle/native_driving_particles_tests.cpp',
+             ROOT / 'tests/oracle/native_boost_flames_tests.cpp', ROOT / 'tests/oracle/native_cockpit_chains_tests.cpp',
+             ROOT / 'tests/oracle/native_damage_holes_tests.cpp',
+             ROOT / 'tests/integration/native_game_session_tests.cpp',
+             ROOT / 'tests/integration/native_startup_tests.cpp', ROOT / 'tests/oracle/driving_replay_oracle.cpp',
+             ROOT / 'tests/integration/native_opponent_driving_tests.cpp', ROOT / 'tools/replay/driving_replay_native.cpp'}
+    for directory in ('src', 'app', 'tools/replay'):
+        paths.update((ROOT / directory).rglob('*.cpp'))
+        paths.update((ROOT / directory).rglob('*.h'))
+    paths.update((ROOT / 'tests/support').glob('*fixture.h'))
+    paths.update((ROOT / 'tests/support').glob('driving_replay*.h'))
     paths.update(build_sources())
     return [identity(path) for path in sorted(paths)]
 

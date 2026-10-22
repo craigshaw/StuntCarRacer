@@ -5,9 +5,9 @@
 #include "near_track_geometry.h"
 #include "near_track_visibility.h"
 #include "track_sides.h"
-#include "../tests/track_progress_fixture.h"
-#include "../tests/near_track_geometry_fixture.h"
-#include "../tests/draw_bridge_fixture.h"
+#include "state/track_progress_adapter.h"
+#include "state/near_track_geometry_adapter.h"
+#include "state/draw_bridge_adapter.h"
 #include <algorithm>
 #include <array>
 #include <stdexcept>
@@ -148,7 +148,7 @@ struct NativeTrackPreview::State {
     std::uint8_t angle{},releaseMask{31};
     void render(){
         auto image=background;
-        auto geometry=scr::test::nearGeometry::readState(memory);
+        auto geometry=scr::state::nearGeometry::readState(memory);
         auto& p=geometry.progress;
         const unsigned index=angle&3;
         p.worldPosition[0]=(p.worldPosition[0]&0x00ffffff)|(std::uint32_t(memory[0x60552+index])<<24);
@@ -195,10 +195,10 @@ void NativeTrackPreview::load(const NativeMemory& memory,std::uint8_t angle){
         // a caller's already animated race cannot advance the overview twice.
         initializeNativePlayerConfiguration(s.memory);
         initializeNativeTrack(s.memory,5);
-        scr::test::drawBridge::animate(s.memory);
+        scr::state::drawBridge::animate(s.memory);
         rebuildNativeTrackGeometryCache(s.memory);
     }
-    s.data=scr::test::trackProgress::readData(s.memory);
+    s.data=scr::state::trackProgress::readData(s.memory);
     const auto decoded=decodePlanarRle(memory.data()+0x2b994,memory.size()-0x2b994,320,200,4);
     const auto indexed=decodePlanarImage(decoded.planes.data(),decoded.planes.size(),320,200,4);
     std::copy(indexed.pixels.begin(),indexed.pixels.end(),s.background.indices.begin());

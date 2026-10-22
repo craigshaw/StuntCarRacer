@@ -12,18 +12,22 @@ decoders; retaining original code bytes in the pack does not make them executabl
 | `scr_physics` | `src/` gameplay modules | Fixed-point physics, controls, collision, AI, race timing, restart and bridge state |
 | `scr_audio` | `src/engine_audio.*`, `paula_mixer.*` | Recovered engine interrupt, sample handlers and four-channel mixing |
 | `scr_render` | `src/` geometry, projection, planar and raster modules | Original assets, geometry and native image generation |
+| `scr_state` | `src/state/` shared headers | Recovered memory-layout adapters, native race stages and replay I/O |
 | `scr_startup` | `app/native_startup.*`, `native_*` components | Asset/race initialization, original menus, text, records and competition rules |
 | `scr_game` | `app/native_game_session.*`, `replay_scene.*` | Session/menu/race handoff, independently evolved gameplay, snapshots and recordings |
 | `scr_display` | `app/native_launcher.*`, `windows_launcher.*`, `native_display_settings.*`, `windows_game_display.*` | Pre-game setup, display/control UI, scaling, fullscreen and preferences |
 | Windows host | `app/native_game.cpp`, `windows_drive_input.*`, `windows_audio_output.*` | Event/presentation loop, keyboard, XInput, device playback and window lifecycle |
 
-`CMakeLists.txt` owns production library linkage; `cmake/NativeTests.cmake` and
-`cmake/OracleTests.cmake` define separate test targets. Presets share the native
-build across suites, keep oracle output separate and stage only the player in
-`dist/`. Production
-state adapters currently reuse headers under `tests/`; the directory name does
-not imply a runtime CPU dependency. Core calculations use typed native values,
-while the compatibility memory layout preserves recovered byte/word semantics.
+`CMakeLists.txt` owns production library linkage; `cmake/DevTools.cmake` defines
+optional replay tools, and `cmake/NativeTests.cmake` and `cmake/OracleTests.cmake`
+define separate test targets. Presets share the native build across suites, keep
+oracle output separate and stage only the player in `dist/`. Production state
+adapters live under `src/state/` and use `scr::state` namespaces. Native
+race orchestration and replay I/O are shared by the player and development tools.
+Core calculations use typed native values, while the compatibility memory layout
+preserves recovered byte/word semantics. `tests/support/` imports these adapters
+into the historical test namespaces and owns the oracle ranges and comparison
+projections. Production targets have no test-support includes or Musashi linkage.
 
 ## Startup and race lifetime
 

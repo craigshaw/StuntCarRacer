@@ -151,8 +151,9 @@ def main():
             'inputs_sha256': sha(args.inputs.read_bytes()), 'executable': str(args.oracle.resolve()),
             'executable_sha256': sha(args.oracle.read_bytes()), 'source_sha256': {
                 str(path.relative_to(ROOT)): sha(path.read_bytes()) for path in [ROOT / 'src/near_track_geometry.h',
-                ROOT / 'src/near_track_geometry.cpp', ROOT / 'tests/near_track_geometry_fixture.h',
-                ROOT / 'tests/near_track_geometry_oracle.cpp', Path(__file__).resolve()]}})
+                ROOT / 'src/near_track_geometry.cpp', ROOT / 'tests/support/near_track_geometry_fixture.h',
+                ROOT / 'tests/oracle/near_track_geometry_oracle.cpp', Path(__file__).resolve(),
+                *sorted((ROOT / 'src/state').glob('*.h'))]}})
         (args.output / 'oracle.json').write_text(json.dumps(oracle, indent=2) + '\n')
     print(json.dumps({'report': str(args.output / 'reference-comparison.json'),
         'instructions': sum(item['instruction_count'] for item in routines), 'operand_wildcards': 0,

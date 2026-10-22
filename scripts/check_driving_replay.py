@@ -325,11 +325,11 @@ def main():
     build = ORACLE_BUILD
     exe = build / 'Release/driving_replay_oracle.exe'
     native_exe = build / 'Release/driving_replay_native.exe'
-    native_sources = [ROOT / 'CMakeLists.txt', ROOT / 'tests/driving_replay_oracle.cpp',
-                      ROOT / 'tests/driving_replay_native.cpp']
-    native_sources += sorted((ROOT / 'src').glob('*.cpp')) + sorted((ROOT / 'src').glob('*.h'))
-    native_sources += sorted((ROOT / 'tests').glob('*fixture.h'))
-    native_sources += sorted((ROOT / 'tests').glob('driving_replay*.h'))
+    native_sources = [ROOT / 'CMakeLists.txt', ROOT / 'tests/oracle/driving_replay_oracle.cpp',
+                      ROOT / 'tools/replay/driving_replay_native.cpp']
+    native_sources += sorted((ROOT / 'src').rglob('*.cpp')) + sorted((ROOT / 'src').rglob('*.h'))
+    native_sources += sorted((ROOT / 'tests/support').glob('*fixture.h'))
+    native_sources += sorted((ROOT / 'tests/support').glob('driving_replay*.h'))
     native_sources = sorted(set(native_sources) | build_sources())
     native_source_identities = [identity(path) for path in native_sources]
     commands = []
@@ -354,7 +354,7 @@ def main():
             executable = build / 'Release' / (target + '.exe')
             if not executable.exists():
                 raise RuntimeError(f'{target} does not exist; run without --skip-build')
-            sources = native_sources + [ROOT / 'tests' / (target + '.cpp')]
+            sources = native_sources + [ROOT / ('tools/replay' if target == 'driving_replay_native' else 'tests/oracle') / (target + '.cpp')]
             if args.skip_build and any(path.stat().st_mtime_ns > executable.stat().st_mtime_ns for path in sources):
                 raise RuntimeError(f'{target} predates a native source/fixture; rebuild without --skip-build')
         if args.run_leaf_tests:
@@ -367,7 +367,7 @@ def main():
                 stderr_path = result_path.with_name(result_path.stem + '-stderr.txt')
                 command = [str(executable), str(payload_path), 'replay-capture', str(chip)]
                 executable_before = identity(executable)
-                leaf_source = ROOT / 'tests' / (target + '.cpp')
+                leaf_source = ROOT / 'tests/oracle' / (target + '.cpp')
                 leaf_source_before = identity(leaf_source)
                 run = subprocess.run(command, cwd=ROOT, capture_output=True, text=True)
                 result_path.write_text(run.stdout, encoding='utf-8')

@@ -49,7 +49,7 @@ crossing latch disarms at segment 37. Reaching counter one starts the clock.
 It does not establish that a full lap was driven during the replay.
 
 `scripts/replay_lap.py` reads these markers directly from the starting Chip RAM
-using the same documented addresses as `tests/race_timing_fixture.h`. It
+using the same documented addresses as `src/state/race_timing_adapter.h`. It
 requires all of the following before reporting a complete lap:
 
 - Two observed counter increments at the lap marker, with the original
@@ -117,8 +117,8 @@ partial captures, counter-only false positives, shortcuts, reverse movement,
 off-track crossings and restart discontinuities:
 
 ```powershell
-& $AmigaPython .\tests\test_replay_lap.py
-& $AmigaPython .\tests\test_driving_replay_wrapper.py
+& $AmigaPython .\tests\unit\test_replay_lap.py
+& $AmigaPython .\tests\unit\test_driving_replay_wrapper.py
 ```
 
 Those synthetic trace tests exercise the validator. They are not game execution

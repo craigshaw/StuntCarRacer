@@ -124,7 +124,7 @@ suspension placement still belongs to the normal game-frame stage.
 
 ## Original-code verification
 
-`tests/cockpit_timing_oracle.cpp` executes the original scheduler and original
+`tests/oracle/cockpit_timing_oracle.cpp` executes the original scheduler and original
 text/icon routines in Musashi MC68000 mode. Instruction hooks observe call
 boundaries without patching instructions or substituting calls. At
 `0x5e326`, the oracle reads the actual low `D0/D1/D2` bytes and snapshots the
@@ -148,7 +148,7 @@ The first run against the fresh track-0 seed passed **15,997 cases** and
 The previous race-timing regression also passed **144,049 cases** after the
 event extension. Runtime state and original arithmetic are unchanged.
 
-`tests/native_cockpit_replay_oracle.cpp` additionally executes the complete
+`tests/oracle/native_cockpit_replay_oracle.cpp` additionally executes the complete
 original game loop, including its actual cockpit drawing routines, against an
 independently evolving `ReplayScene`. It compares both original buffers over
 the full 320 × 32 instrument strip at rows 168–199, including HUD changes

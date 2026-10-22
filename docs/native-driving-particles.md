@@ -37,7 +37,7 @@ Capstone's MC68000 decoding and execution in the test-only Musashi harness.
 The ignored export `analysis/rea/race-effects-evidence.json` retains the REA
 records. These addresses refer to observed runtime mapping, not disk offsets.
 
-`tests/native_driving_particles_tests.cpp` starts from the local asset pack,
+`tests/oracle/native_driving_particles_tests.cpp` starts from the local asset pack,
 checks the original executable ranges against the payload, and executes those
 bytes. It compares every canvas pixel for animation, alignment, clipping,
 overlap and spark colours. Full-stage sequences compare the ordered draw/audio

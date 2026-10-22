@@ -11,4 +11,4 @@ jobs:
         with:
           python-version: '3.12'
       - run: python scripts/check_repository_assets.py
-      - run: python -m unittest discover -s tests -p test_asset_policy.py
+      - run: python -m unittest discover -s tests/unit -p "test_*.py"

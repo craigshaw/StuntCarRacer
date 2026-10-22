@@ -58,6 +58,11 @@ else()
   target_compile_options(scr_render PRIVATE -Wall -Wextra -Werror -pedantic)
 endif()
 
+# Header-only adapters preserve the recovered layout without a CPU dependency.
+add_library(scr_state INTERFACE)
+target_include_directories(scr_state INTERFACE "${PROJECT_SOURCE_DIR}/src")
+target_compile_features(scr_state INTERFACE cxx_std_17)
+
 if(WIN32)
   add_library(scr_startup STATIC app/local_asset_pack.cpp app/native_startup.cpp
     app/native_asset_initialization.cpp app/native_race_initialization.cpp
@@ -72,7 +77,7 @@ if(WIN32)
     app/native_multiplayer_state.cpp app/native_multiplayer_render.cpp
     app/replay_view.cpp app/replay_scene_commands.cpp)
   target_include_directories(scr_startup PUBLIC app)
-  target_link_libraries(scr_startup PUBLIC scr_render scr_audio bcrypt)
+  target_link_libraries(scr_startup PUBLIC scr_render scr_audio scr_state bcrypt)
   target_compile_features(scr_startup PUBLIC cxx_std_17)
   add_library(scr_game STATIC app/native_game_session.cpp
     app/native_save_store.cpp
@@ -104,23 +109,10 @@ if(WIN32)
   if(MSVC)
     target_compile_options(native_game PRIVATE /W4 /utf-8 /permissive-)
   endif()
-  if(SCR_BUILD_DEV_TOOLS)
-    add_executable(native_replay_viewer WIN32 app/native_replay_viewer.cpp
-      app/replay_scene.cpp app/replay_render_assets.cpp app/replay_interpolation.cpp
-      app/live_drive.cpp app/windows_drive_input.cpp app/game_audio.cpp app/windows_audio_output.cpp)
-    target_link_libraries(native_replay_viewer PRIVATE scr_render scr_audio scr_startup user32 gdi32 shell32 xinput9_1_0 winmm)
-    target_compile_features(native_replay_viewer PRIVATE cxx_std_17)
-    target_compile_definitions(native_replay_viewer PRIVATE UNICODE _UNICODE)
-    if(MSVC)
-      target_compile_options(native_replay_viewer PRIVATE /W4 /utf-8 /permissive-)
-    endif()
-  endif()
 endif()
 
 if(SCR_BUILD_DEV_TOOLS)
-  add_executable(driving_replay_native tests/driving_replay_native.cpp)
-  target_link_libraries(driving_replay_native PRIVATE scr_physics)
-  target_compile_features(driving_replay_native PRIVATE cxx_std_17)
+  include(cmake/DevTools.cmake)
 endif()
 
 if(WIN32)
@@ -129,6 +121,7 @@ if(WIN32)
 endif()
 
 if(BUILD_TESTING)
+  include(cmake/TestSupport.cmake)
   include(cmake/NativeTests.cmake)
   if(SCR_BUILD_ORACLE)
     # Musashi is test-only and never linked into the player application.

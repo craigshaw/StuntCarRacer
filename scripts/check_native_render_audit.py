@@ -17,8 +17,8 @@ def identity(path):
 def sources():
     paths = {ROOT / 'CMakeLists.txt', Path(__file__).resolve()}
     for folder in ('app', 'src', 'tests'):
-        paths.update((ROOT / folder).glob('*.h'))
-        paths.update((ROOT / folder).glob('*.cpp'))
+        paths.update((ROOT / folder).rglob('*.h'))
+        paths.update((ROOT / folder).rglob('*.cpp'))
     paths.update(build_sources())
     return [identity(path) for path in sorted(paths)]
 

@@ -21,7 +21,7 @@ frequency, waveform and active-car handling, so it is not the behavioral oracle.
 ## Behavior and data ownership
 
 `src/draw_bridge.h` separates passive source data, current vehicle/track inputs,
-and mutable bridge state. `tests/draw_bridge_fixture.h` is the address-space
+and mutable bridge state. `src/state/draw_bridge_adapter.h` is the address-space
 serialization adapter shared with the native driving implementation. Its
 `scr::test::drawBridge::animate(memory)` entry point returns whether the raw
 geometry and already-generated render cache changed.
@@ -64,7 +64,7 @@ without advancing the bridge phase. Native preview preserves that behavior.
 
 ## Differential verification
 
-`tests/draw_bridge_oracle.cpp` executes the original disk instructions unchanged
+`tests/oracle/draw_bridge_oracle.cpp` executes the original disk instructions unchanged
 under a 68000 verification CPU and compares independently evolved native state.
 The standalone run passes 263,359 calls and 27,650,265 compared bytes with zero
 differences, executing 81,212,618 original instructions. It covers 131,072 phase and

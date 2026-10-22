@@ -16,12 +16,12 @@ def identity(path):
 
 def sources():
     paths = {ROOT / 'CMakeLists.txt', Path(__file__).resolve(), ROOT / 'scripts/import_native_assets.py',
-             ROOT / 'tests/native_startup_tests.cpp'}
-    for directory in ('src', 'app'):
-        paths.update((ROOT / directory).glob('*.cpp'))
-        paths.update((ROOT / directory).glob('*.h'))
-    paths.update((ROOT / 'tests').glob('*fixture.h'))
-    paths.update((ROOT / 'tests').glob('driving_replay*.h'))
+             ROOT / 'tests/integration/native_startup_tests.cpp'}
+    for directory in ('src', 'app', 'tools/replay'):
+        paths.update((ROOT / directory).rglob('*.cpp'))
+        paths.update((ROOT / directory).rglob('*.h'))
+    paths.update((ROOT / 'tests/support').glob('*fixture.h'))
+    paths.update((ROOT / 'tests/support').glob('driving_replay*.h'))
     paths.update(build_sources())
     return [identity(path) for path in sorted(paths)]
 

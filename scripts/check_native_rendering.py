@@ -32,8 +32,8 @@ def stored_path(record):
 
 def presentation_source(path):
     relative = path.resolve().relative_to(ROOT).as_posix()
-    return relative == 'CMakeLists.txt' or relative.startswith('app/') or (
-        relative.startswith('src/') and path.stem in RENDER_STEMS) or (
+    return relative in {'CMakeLists.txt', 'tools/replay/native_replay_viewer.cpp'} or relative.startswith('app/') or (
+        relative.startswith('src/') and path.stem.removesuffix('_adapter') in RENDER_STEMS) or (
         relative.startswith('tests/') and any(path.stem.startswith(stem) for stem in RENDER_STEMS)) or (
         relative.startswith('scripts/reference/') and path.stem.removeprefix('verify_') in RENDER_STEMS)
 
@@ -58,10 +58,10 @@ def verify_reference(path, inputs, capture_record):
             continue
         identity(source, record['sha256'])
         core_records[source] = record
-    required = set((ROOT / 'src').glob('*.cpp')) | set((ROOT / 'src').glob('*.h'))
-    required |= set((ROOT / 'tests').glob('*fixture.h'))
-    required |= set((ROOT / 'tests').glob('driving_replay*.h'))
-    required |= {ROOT / 'tests/driving_replay_oracle.cpp', ROOT / 'tests/driving_replay_native.cpp',
+    required = set((ROOT / 'src').rglob('*.cpp')) | set((ROOT / 'src').rglob('*.h'))
+    required |= set((ROOT / 'tests/support').glob('*fixture.h'))
+    required |= set((ROOT / 'tests/support').glob('driving_replay*.h'))
+    required |= {ROOT / 'tests/oracle/driving_replay_oracle.cpp', ROOT / 'tools/replay/driving_replay_native.cpp',
                  ROOT / 'scripts/check_driving_replay.py', ROOT / 'scripts/replay_lap.py'}
     missing = [str(source.relative_to(ROOT)) for source in required
                if not presentation_source(source) and source.resolve() not in core_records]
@@ -94,13 +94,13 @@ def verify_reference(path, inputs, capture_record):
 
 
 def viewer_sources():
-    paths = {ROOT / 'CMakeLists.txt', ROOT / 'tests/replay_interpolation_tests.cpp', ROOT / 'tests/live_drive_tests.cpp',
-             ROOT / 'tests/paula_mixer_tests.cpp', ROOT / 'tests/native_audio_tests.cpp'}
-    for directory in ('src', 'app'):
+    paths = {ROOT / 'CMakeLists.txt', ROOT / 'tests/unit/replay_interpolation_tests.cpp', ROOT / 'tests/unit/live_drive_tests.cpp',
+             ROOT / 'tests/unit/paula_mixer_tests.cpp', ROOT / 'tests/integration/native_audio_tests.cpp'}
+    for directory in ('src', 'app', 'tools/replay'):
         for pattern in ('*.cpp', '*.h'):
-            paths.update((ROOT / directory).glob(pattern))
-    paths.update((ROOT / 'tests').glob('*fixture.h'))
-    paths.update((ROOT / 'tests').glob('driving_replay*.h'))
+            paths.update((ROOT / directory).rglob(pattern))
+    paths.update((ROOT / 'tests/support').glob('*fixture.h'))
+    paths.update((ROOT / 'tests/support').glob('driving_replay*.h'))
     paths.update(build_sources())
     return sorted(paths)
 

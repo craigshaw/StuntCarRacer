@@ -1,6 +1,6 @@
 #pragma once
 #include "native_cockpit_instruments.h"
-#include "../tests/driving_replay_fixture.h"
+#include "state/native_race.h"
 #include <array>
 #include <memory>
 
@@ -12,7 +12,7 @@ using CockpitInstrumentPixels=std::array<std::uint8_t,320*(200-cockpitInstrument
 class NativeCockpitPresentation {
 public:
     explicit NativeCockpitPresentation(const NativeMemory&,bool fresh=false);
-    void update(test::replay::ReplayPresentationStage,const NativeMemory&,const RaceTimingEffects&);
+    void update(state::replay::ReplayPresentationStage,const NativeMemory&,const RaceTimingEffects&);
     CockpitInstrumentPixels capture()const;
     void storeInitialState(NativeMemory&)const;
 private:

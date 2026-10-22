@@ -116,8 +116,8 @@ def main():
         require(oracle['full_near_frames']==len(rows) and oracle['full_near_segment_passes']==3*len(rows) and oracle['full_frame_projection_code_executed'] is True,'Full near replay was not checked')
         oracle['command']=command;oracle['controls']={'path':str(controls),'sha256':sha(controls.read_bytes()),'ticks':len(rows)};oracle['controls_provenance']=provenance_identity
         oracle['executable']={'path':str(args.oracle.resolve()),'sha256':sha(args.oracle.read_bytes())}
-        dependencies=set((ROOT/'src').glob('*.h'))|set((ROOT/'src').glob('*.cpp'))|set((ROOT/'tests').glob('*fixture.h'))
-        dependencies.update({ROOT/'tests/driving_replay_io.h',ROOT/'tests/near_track_visibility_oracle.cpp',Path(__file__),ROOT/'CMakeLists.txt'})
+        dependencies=set((ROOT / 'src').rglob('*.h'))|set((ROOT / 'src').rglob('*.cpp'))|set((ROOT / 'tests/support').glob('*fixture.h'))
+        dependencies.update({ROOT/'tests/support/driving_replay_io.h',ROOT/'tests/oracle/near_track_visibility_oracle.cpp',Path(__file__),ROOT/'CMakeLists.txt'})
         oracle['sources']=[{'path':str(n.resolve()),'sha256':sha(n.read_bytes())} for n in sorted(dependencies)]
         oracle['reference_comparison_sha256']=sha((args.output/'reference-comparison.json').read_bytes());(args.output/'oracle.json').write_text(json.dumps(oracle,indent=2)+'\n')
         (args.output/'oracle-stdout.json').write_text(result.stdout);(args.output/'oracle-stderr.txt').write_text(result.stderr)

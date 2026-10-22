@@ -8,9 +8,9 @@ unsigned base(const NativeMemory& m){return (unsigned(m[0x6a584])<<24)|(unsigned
 NativeCockpitPresentation::NativeCockpitPresentation(const NativeMemory& memory,bool fresh):memory_(std::make_unique<NativeMemory>(memory)){
     if(fresh)initializeNativeCockpitInstruments(*memory_);
 }
-void NativeCockpitPresentation::update(test::replay::ReplayPresentationStage stage,const NativeMemory& gameplay,const RaceTimingEffects& effects){
+void NativeCockpitPresentation::update(state::replay::ReplayPresentationStage stage,const NativeMemory& gameplay,const RaceTimingEffects& effects){
     auto& m=*memory_;syncNativeCockpitInstrumentInputs(m,gameplay);
-    using Stage=test::replay::ReplayPresentationStage;
+    using Stage=state::replay::ReplayPresentationStage;
     switch(stage){
     case Stage::fuel:drawNativeCockpitBoostDigits(m);break;
     case Stage::speedometer:updateNativeCockpitSpeedometer(m);break;

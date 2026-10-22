@@ -1,14 +1,14 @@
 #include "replay_scene.h"
 #include "native_multiplayer_state.h"
 #include "replay_scene_commands.h"
-#include "track_mesh_capture.h"
+#include "state/track_mesh_adapter.h"
 #include "live_drive.h"
 #include "native_startup.h"
 #include "native_menu_render.h"
-#include "../tests/driving_replay_io.h"
-#include "../tests/near_track_geometry_fixture.h"
-#include "../tests/opponent_car_fixture.h"
-#include "../tests/wheel_animation_fixture.h"
+#include "state/replay_io.h"
+#include "state/near_track_geometry_adapter.h"
+#include "state/opponent_car_adapter.h"
+#include "state/wheel_animation_adapter.h"
 #include <algorithm>
 #include <cmath>
 #include <chrono>
@@ -53,8 +53,8 @@ OpponentCarInputs interpolateOpponent(const OpponentCarInputs& from,const Oppone
 }
 } // namespace
 struct ReplayScene::Simulation {
-    scr::test::replay::Ram initial;
-    scr::test::replay::NativeReplay native;
+    scr::state::replay::Ram initial;
+    scr::state::replay::NativeReplay native;
     NearTrackGeometryState geometry;
     NativeCockpitPresentation instruments;
     NativeRaceMessageFrame message;
@@ -69,12 +69,12 @@ struct ReplayScene::Simulation {
     std::ofstream controls,trace;
     std::filesystem::path recording;
     std::string lastRow;
-    explicit Simulation(const scr::test::replay::Ram& capture):initial(capture),native(capture),geometry(scr::test::nearGeometry::readState(capture)),instruments(capture),message(captureNativeRaceMessage(capture)),flameFrame(capture[0x1bb69]),wheels(scr::test::wheelAnimation::readState(capture.data())){}
+    explicit Simulation(const scr::state::replay::Ram& capture):initial(capture),native(capture),geometry(scr::state::nearGeometry::readState(capture)),instruments(capture),message(captureNativeRaceMessage(capture)),flameFrame(capture[0x1bb69]),wheels(scr::state::wheelAnimation::readState(capture.data())){}
 };
 ReplayScene::ReplayScene()=default;
 ReplayScene::~ReplayScene()=default;
 void ReplayScene::initialise(const std::filesystem::path& chip,const std::filesystem::path& payload){
-    auto capture=scr::test::replay::loadCapture(chip.string().c_str());const auto original=readFile(payload);
+    auto capture=scr::state::replay::loadCapture(chip.string().c_str());const auto original=readFile(payload);
     chipPath_=chip;payloadPath_=payload;nativePackPath_.clear();initialiseMemory(*capture,original);
 }
 void ReplayScene::initialiseMemory(const std::array<std::uint8_t,0x80000>& memory,const std::vector<std::uint8_t>& original){
@@ -98,7 +98,7 @@ void ReplayScene::initialiseMemory(const std::array<std::uint8_t,0x80000>& memor
     }
     simulation.native.presentation=[this,&simulation](auto stage,const auto& ram,const auto& events){
         simulation.instruments.update(stage,ram,events);
-        if(stage==scr::test::replay::ReplayPresentationStage::wheels){
+        if(stage==scr::state::replay::ReplayPresentationStage::wheels){
             if(simulation.chainRestarts!=simulation.native.restarts){
                 simulation.chains=captureNativeChainState(ram);
                 simulation.chainRestarts=simulation.native.restarts;
@@ -107,8 +107,8 @@ void ReplayScene::initialiseMemory(const std::array<std::uint8_t,0x80000>& memor
             advanceReplayFlames(ram[0x1bb62],simulation.flameFrame);
             simulation.message=captureNativeRaceMessage(ram);
         }
-        if(stage==scr::test::replay::ReplayPresentationStage::wait){
-            const auto inputs=scr::test::wheelAnimation::readInputs(ram.data());
+        if(stage==scr::state::replay::ReplayPresentationStage::wait){
+            const auto inputs=scr::state::wheelAnimation::readInputs(ram.data());
             simulation.wheels.framesToWait=ram[0x616d8];simulation.wheels.framesToWaitWhenFading=ram[0x616da];
             for(unsigned n=0;n<ram[0x616d8];++n){
                 (void)updateWheelVblank(wheelAssets_.animation,inputs,simulation.wheels);
@@ -122,7 +122,7 @@ void ReplayScene::initialiseMemory(const std::array<std::uint8_t,0x80000>& memor
     frames_.clear();cachedFrame_=~0u;
 }
 ReplaySceneFrame ReplayScene::captureFrame(Simulation& simulation,unsigned tick,unsigned controls){
-    namespace a=scr::test::audio;auto& state=simulation.native;auto& geometry=simulation.geometry;
+    namespace a=scr::state::audio;auto& state=simulation.native;auto& geometry=simulation.geometry;
     ReplaySceneFrame frame;frame.tick=tick;frame.controls=controls;
     if(state.ram[0x1ca33]==5){
         auto track=std::make_shared<ReplayTrackSnapshot>();track->progress=state.progressData;
@@ -140,7 +140,7 @@ ReplaySceneFrame ReplayScene::captureFrame(Simulation& simulation,unsigned tick,
     frame.camera.viewportCenterY=a::word(state.ram.data(),0x1bc42);
     frame.camera.sinRoll=a::word(state.ram.data(),0x1c250);frame.camera.cosRoll=a::word(state.ram.data(),0x1c252);
     auto& nearInputs=frame.nearInputs;
-    nearInputs.progress=scr::test::trackProgress::readState(state.ram);nearInputs.camera=frame.camera;
+    nearInputs.progress=scr::state::trackProgress::readState(state.ram);nearInputs.camera=frame.camera;
     // Original off-grid progress retains the near-render index which the
     // previous frame already cleared at0x65002. The native gameplay adapter
     // keeps renderer writes separate, so restore that presentation value here.
@@ -151,12 +151,12 @@ ReplaySceneFrame ReplayScene::captureFrame(Simulation& simulation,unsigned tick,
     nearInputs.drawing.renderingOrderMode=state.ram[0x1bb9a];nearInputs.drawing.raceStartTimer=state.ram[0x1bbdf];
     nearInputs.drawing.offRoadSideFlags=nearInputs.progress.offRoadSide;nearInputs.drawing.offsetFromRoadCenter=nearInputs.progress.lateralOffset;
     nearInputs.drawing.sideEdgeColor=simulation.initial[0x691b3];nearInputs.drawing.alternateSideColor=simulation.initial[0x691b2];
-    frame.nearSeed=geometry;frame.progressInputs=scr::test::trackProgress::readInputs(state.ram);
+    frame.nearSeed=geometry;frame.progressInputs=scr::state::trackProgress::readInputs(state.ram);
     auto near=buildNearTrackFrame(presentation,segmentRenderFlags_,nearInputs,geometry);
     frame.opponentEnabled=(state.ram[0x1ca22]&0x80)!=0;
     std::optional<OpponentCarInputs> opponent;
     if(frame.opponentEnabled){
-        frame.opponent=scr::test::opponentCar::readInputs(state.ram.data());frame.opponent.camera=frame.camera;
+        frame.opponent=scr::state::opponentCar::readInputs(state.ram.data());frame.opponent.camera=frame.camera;
         opponent=frame.opponent;
     }
     auto scene=buildReplaySceneCommands(near,nearInputs.drawing,projection_,frame.movingTrack?frame.movingTrack->farTrack:far_,
@@ -165,7 +165,7 @@ ReplaySceneFrame ReplayScene::captureFrame(Simulation& simulation,unsigned tick,
     return frame;
 }
 void ReplayScene::finishFrame(Simulation& simulation,ReplaySceneFrame& frame){
-    namespace a=scr::test::audio;const auto& state=simulation.native;
+    namespace a=scr::state::audio;const auto& state=simulation.native;
     frame.restarts=state.restarts;frame.action=unsigned(state.outerAction);
     frame.cockpit=captureCockpitFrame(state.ram.data(),state.ram.size());
     frame.cockpit.flameFrame=simulation.flameFrame;
@@ -200,12 +200,12 @@ ReplaySceneFrame ReplayScene::advanceSimulation(Simulation& simulation,unsigned 
     // Original rendering boundary: before effects, timing and outer transitions.
     auto frame=captureFrame(simulation,simulation.ticks,controls);
     state.groundStage();state.wheelsStage();state.bridgeStage();state.speedometerStage();state.damageStage();state.timingStage();state.distanceStage();state.outerStage();finishFrame(simulation,frame);
-    std::ostringstream row;scr::test::replay::traceRow(row,state.ram,simulation.ticks,controls,0,unsigned(state.outerAction),state.restarts,quit);
+    std::ostringstream row;scr::state::replay::traceRow(row,state.ram,simulation.ticks,controls,0,unsigned(state.outerAction),state.restarts,quit);
     simulation.lastRow=row.str();++simulation.ticks;return frame;
 }
 void ReplayScene::load(const std::filesystem::path& chip,const std::filesystem::path& payload,
     const std::filesystem::path& inputs,const std::filesystem::path& referenceTrace,const std::filesystem::path& nativeTrace){
-    namespace replay=scr::test::replay;initialise(chip,payload);
+    namespace replay=scr::state::replay;initialise(chip,payload);
     const auto input=replay::loadInputs(inputs.string().c_str());
     std::ifstream reference(referenceTrace);if(!reference)throw std::runtime_error("Verified original trace is required");
     std::string line;std::getline(reference,line);const auto expectedHeader=columns(line);
@@ -240,7 +240,7 @@ void ReplayScene::loadNativeState(const std::array<std::uint8_t,0x80000>& memory
 }
 void ReplayScene::finishLiveExit(std::array<std::uint8_t,0x80000>& sessionMemory){
     if(!liveTerminal())throw std::logic_error("Race exit requires a terminal transition");
-    namespace t=scr::test::transitions;
+    namespace t=scr::state::transitions;
     auto& memory=simulation_->native.ram;
     if(memory[0x5eb76]&&(memory[0x1ca22]&0x80))finishNativeMultiplayerRaceExit(memory);
     auto state=t::readState(memory.data());
@@ -257,7 +257,7 @@ void ReplayScene::beginLiveRecording(const std::filesystem::path& directory){
     auto& simulation=*simulation_;simulation.recording=base.string()+"-controls.csv";
     simulation.controls.open(simulation.recording);simulation.trace.open(base.string()+"-native.csv");
     if(!simulation.controls||!simulation.trace)throw std::runtime_error("Cannot create live input recording");
-    simulation.controls<<"tick,controls,quit,hold_acceleration\n";scr::test::replay::traceHeader(simulation.trace);
+    simulation.controls<<"tick,controls,quit,hold_acceleration\n";scr::state::replay::traceHeader(simulation.trace);
     }
     auto& simulation=*simulation_;
     simulation.wheelTimeline.fill(simulation.wheels);
@@ -273,7 +273,7 @@ unsigned ReplayScene::liveTicks()const noexcept{return simulation_?simulation_->
 bool ReplayScene::liveTerminal()const noexcept{return simulation_&&(simulation_->native.outerAction==RaceTransitionAction::raceEnd||simulation_->native.outerAction==RaceTransitionAction::quit);}
 const std::filesystem::path& ReplayScene::liveRecording()const noexcept{return simulation_->recording;}
 GameAudioSeed ReplayScene::audioSeed()const{
-    namespace a=scr::test::audio;const auto& ram=simulation_->initial;GameAudioSeed seed;
+    namespace a=scr::state::audio;const auto& ram=simulation_->initial;GameAudioSeed seed;
     seed.samples.assign(ram.begin(),ram.end());seed.parameters=a::readData(ram.data());seed.playback=a::readState(ram.data());
     seed.engine={a::word(ram.data(),0x1bc34),a::word(ram.data(),0xf472)};seed.pitchDelta=a::word(ram.data(),0x1bbf4);
     seed.frame.forwardSpeed=a::word(ram.data(),0x1bd30);seed.frame.wheelMovement=ram[0x1bb7e];seed.frame.inputFlags=ram[0x1bb47];
@@ -328,7 +328,7 @@ std::vector<std::uint8_t> ReplayScene::captureLiveIndices(bool endMessage){
     }catch(...){assets_.palette=saved;bitmapOnly_=false;cachedFrame_=~0u;throw;}
 }
 unsigned ReplayScene::verifyLiveReplay(const std::filesystem::path& inputs,const std::filesystem::path& referencePath,const std::filesystem::path& tracePath){
-    namespace replay=scr::test::replay;const auto input=replay::loadInputs(inputs.string().c_str());
+    namespace replay=scr::state::replay;const auto input=replay::loadInputs(inputs.string().c_str());
     std::ifstream reference(referencePath);std::ofstream trace(tracePath);
     if(!reference||!trace)throw std::runtime_error("Cannot open live verification trace");
     std::string line;std::getline(reference,line);const auto fields=columns(line);std::ostringstream header;replay::traceHeader(header);

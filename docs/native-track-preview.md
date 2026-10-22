@@ -27,7 +27,7 @@ prevents the menu's held fire button from immediately starting a race and
 prevents a held direction from repeatedly rotating. Fire begins the race after
 release. Up and down have no preview action.
 
-`tests/native_track_preview_tests.cpp` runs the original payload through a
+`tests/oracle/native_track_preview_tests.cpp` runs the original payload through a
 verification-only 68000 core and compares the entire 320-by-200 display against
 the native overview. The original payload is never patched. The harness models
 the display interrupt countdowns to let the original palette fades complete;

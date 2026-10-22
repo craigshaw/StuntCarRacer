@@ -2,7 +2,7 @@
 #include "local_asset_pack.h"
 #include "native_race_initialization.h"
 #include "track_initialization.h"
-#include "../tests/draw_bridge_fixture.h"
+#include "state/draw_bridge_adapter.h"
 #include <algorithm>
 #include <stdexcept>
 
@@ -19,7 +19,7 @@ NativeStartupData startNativeRace(const std::filesystem::path& pack,unsigned tra
     if(trackId>=8)throw std::invalid_argument("Native track ID must be0..7");
     auto data=startNativeGame(pack);
     initializeNativeTrack(*data.memory,trackId);
-    if(test::drawBridge::animate(*data.memory).geometryUpdated)rebuildNativeTrackGeometryCache(*data.memory);
+    if(state::drawBridge::animate(*data.memory).geometryUpdated)rebuildNativeTrackGeometryCache(*data.memory);
     initializeNativeRace(*data.memory);
     return data;
 }

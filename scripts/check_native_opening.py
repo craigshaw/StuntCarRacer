@@ -22,7 +22,8 @@ def sources():
     paths = {ROOT / record['path'] for record in game_sources()}
     paths.add(Path(__file__).resolve())
     for name in ('native_opening_flow', 'native_player_name', 'native_opening_render', 'native_opening_session'):
-        paths.add(ROOT / 'tests' / (name + '_tests.cpp'))
+        group = 'integration' if name == 'native_opening_session' else 'oracle'
+        paths.add(ROOT / 'tests' / group / (name + '_tests.cpp'))
     paths.update(build_sources())
     return [identity(path) for path in sorted(paths)]
 

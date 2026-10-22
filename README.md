@@ -101,6 +101,10 @@ Release and Debug share `build/windows/`; original-code tests use
 existing private references and check reports remain under `analysis/`.
 See [build options and layout](docs/development.md#build-test-and-stage).
 
+Gameplay algorithms live in `src/`, shared state adapters in `src/state/`, and
+the player application in `app/`. Optional replay tools live in `tools/replay/`;
+`tests/` separates unit, integration and original-code oracle checks.
+
 ```powershell
 . .\scripts\env.ps1
 & $AmigaPython scripts/check_native_game.py

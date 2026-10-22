@@ -32,8 +32,8 @@ done
 npm install --global --prefix "$HOME/.local" rea-agents@6.7.0
 
 archive="$project_root/setup/upstream/ghidra_12.1.4_PUBLIC_20260921.zip"
-printf '%s  %s\n' ddac49f903da9d5bac833e5cc79395098b9c33cfd3279be5f31bd00387d2d4db "$archive" | sha256sum -c -
 if [[ ! -d "$opt/ghidra_12.1.4_PUBLIC" ]]; then
+  printf '%s  %s\n' ddac49f903da9d5bac833e5cc79395098b9c33cfd3279be5f31bd00387d2d4db "$archive" | sha256sum -c -
   unzip -q "$archive" -d "$opt"
 fi
 export GHIDRA_INSTALL_DIR="$opt/ghidra_12.1.4_PUBLIC"

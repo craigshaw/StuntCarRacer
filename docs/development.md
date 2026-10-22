@@ -66,9 +66,16 @@ bundled there. Supplied local header artwork remains embedded in the executable.
 | `analysis/` | Private inputs, recovered references, research evidence and detailed verification reports |
 | `working/` | Development settings, saves and emulator working copies |
 
-All generated/local directories are ignored. Existing historical build trees in
-`analysis/` are retained with their evidence; current commands no longer build
-there. No gameplay sources or recovered reference files were moved.
+All generated/local directories are ignored. Historical executables and hash
+receipts remain under `analysis/`; their obsolete CMake projects and compiler
+intermediates have been removed. Current commands build only under `build/`.
+No gameplay sources or recovered reference files were moved.
+
+Debug outputs and generated CTest artifacts are disposable. Rebuild Debug with
+its preset after cleaning it; CTest recreates its own output directories. Keep
+original inputs, captured fixtures, references, research exports and identified
+verification results. On this Windows checkout, retained `analysis/` data uses
+transparent Windows compression: file contents, hashes and paths are unchanged.
 
 Use `windows-debug` for Configure, Build and CTest to select Debug in the same
 native tree. MSVC Debug executables reserve an 8 MiB stack for unoptimized

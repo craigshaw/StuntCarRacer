@@ -23,6 +23,9 @@ Dot-source `scripts/env.ps1` for `$AmigaPython`, `$WinUae` and the `rea-wsl`
 PowerShell helper. Python dependencies are pinned in `setup/requirements.txt`.
 WSL provisioning/registration is recorded in `setup/install-rea-wsl.sh` and
 `setup/register-rea-wsl.py`. Downloaded references and tool archives stay ignored.
+Ghidra and WinUAE installer archives can be removed after installation. A fresh
+WSL Ghidra installation needs the archive named and hash-pinned by its setup
+script; an existing installation does not need that download retained.
 
 Use **`rea_wsl` for raw 68000**. Its file arguments use Linux paths such as
 `/mnt/c/Projects/Stunt Car Racer/analysis/...`. The native Windows REA server does

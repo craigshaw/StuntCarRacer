@@ -37,6 +37,7 @@ public:
     NativeGameSession(const std::filesystem::path& pack,const std::filesystem::path& recordings,
         NativeGameStart start=NativeGameStart::OriginalOpening,const std::filesystem::path& saveFile={});
     NativeGameUpdate update(double elapsed,const NativeGameInput&);
+    void setNavigation(NativeMenuNavigation);
     const std::vector<std::uint32_t>& render(bool interpolate=false,bool paused=false);
     NativeMenuPage page()const noexcept{
         if(openingActive())return NativeMenuPage::Opening;
@@ -54,7 +55,7 @@ public:
     const ReplayScene& race()const noexcept{return race_;}
     bool raceEnded()const noexcept{return page()==NativeMenuPage::Race&&race_.liveTerminal();}
     bool transitioning()const noexcept{return transition_!=Transition::None;}
-    void releaseInput()noexcept;
+    void releaseInput(const NativeMenuInput& held={})noexcept;
 private:
     NativeStartupData data_;
     std::unique_ptr<NativeMenuFlow> menu_;
@@ -77,6 +78,12 @@ private:
     std::vector<std::uint32_t> pixels_;
     NativeFireWait endFireWait_;
     bool quitPending_{};
+    NativeMenuNavigation navigation_{NativeMenuNavigation::Original};
+    NativeMenuInputClock navigationClock_;
+    std::array<unsigned,8> nameLengths_{};
+    bool previewPrepared_{};
+    unsigned preparedTrack_{},preparedLeague_{};
+    bool preparedCompetitive_{};
     enum class Transition {None,InitialMenu,OutPreview,InPreview,OutRace,RaceDelay,InRace,OutMenu,InMenu,OutCompetition,InCompetition,OutOpening,InOpening,OutHall,InHall,OutHallMenu,InHallMenu,OutSaveRoster,InSaveRoster,OutReplayFrame,InReplayFrame,OutRestartOpening,SaveDelay};
     Transition transition_{Transition::InitialMenu};
     NativePaletteFade fade_;
@@ -90,8 +97,11 @@ private:
     void updateOpening(const NativeGameInput&,double,NativeGameUpdate&);
     void handleOpeningAction(NativeOpeningAction,const NativeMenuImage&,NativeGameUpdate&);
     void handleSaveAction(const NativeSaveMenuResult&);
-    void finishSave();
+    void finishSave(bool cancelled=false);
     void showSaveReturn(const NativeMenuImage&);
     void replayGame(const NativeMenuImage&);
+    NativeGameUpdate updateImpl(double,const NativeGameInput&);
+    void finishResponsiveTransitions(NativeGameUpdate&);
+    unsigned navigationScreen()const noexcept;
 };
 } // namespace scr::viewer

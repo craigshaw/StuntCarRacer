@@ -37,17 +37,20 @@ development option retains that facility.
 
 Launcher and in-game Settings share one set of saved preferences. Launcher
 changes are saved when Play is pressed. The in-game menu retains its existing
-Apply/Cancel behaviour. The four configurable choices remain display mode,
-scaling, interpolation and the Original/Modern control preset.
+Apply/Cancel behaviour. The five configurable choices are display mode,
+scaling, interpolation, the Original/Modern driving preset and
+[Responsive/Original menu navigation](menu-navigation-design.md).
 
 Closing the launcher discards settings edits not saved through Play, without a
 confirmation prompt. Successfully imported assets remain available. Restore
-original defaults resets the pending four choices to windowed, integer scaling,
-original updates and Original controls; assets and saved games are unaffected.
+original defaults resets the pending choices to windowed, integer scaling,
+original updates, Original driving controls and Original menu navigation;
+assets and saved games are unaffected. New/migrated preferences default to
+Responsive navigation.
 
 If saving preferences fails, retain the selected values, explain the failure and
 offer a retry without starting the game. Missing or invalid preferences retain
-the existing faithful-default fallback. If game initialization fails after
+the documented defaults, including Responsive navigation. If game initialization fails after
 import, keep the launcher accessible with an explanation and retry action.
 
 ### Provisional development helper
@@ -75,7 +78,7 @@ available. The original ADF is always preserved.
 
 ## Launcher layout
 
-Use one screen: game-data status near the top, the four grouped settings below,
+Use one screen: game-data status near the top, the five grouped settings below,
 and Play and Quit at the bottom. Once imported, show Game data ready, the source
 filename and Change ADF. Keep technical diagnostics under Details.
 

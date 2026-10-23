@@ -66,6 +66,11 @@ NativePlayerNameUpdate NativePlayerNameEntry::begin(){
     state_={};phase_=Phase::Release;
     return {true,false,false,{}};
 }
+NativePlayerNameUpdate NativePlayerNameEntry::beginResponsive(unsigned length){
+    if(length>12)throw std::invalid_argument("Player name exceeds original limit");
+    startTextInput();state_.position=std::uint8_t(length);
+    return {true,false,false,{}};
+}
 void NativePlayerNameEntry::startTextInput(){
     state_.offset=std::uint8_t(std::uint8_t(11-memory_[0x5eb76])<<4);
     state_.maximumLength=12;state_.position=0;state_.complete=false;

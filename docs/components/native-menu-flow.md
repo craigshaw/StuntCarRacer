@@ -11,6 +11,17 @@ option still enters this class directly for independent race regressions.
 
 ## Evidence and addresses
 
+The recovered contracts and oracle comparisons below describe **Original**
+navigation, which remains separately selectable. The player defaults to
+**Responsive** navigation: `native_menu_navigation.h` filters fresh actions and
+host-time direction repeats; menu flows provide explicit Back routes and cached
+selections. `NativeGameSession` completes presentation transitions immediately
+through their existing handlers and reuses prepared previews on revisits.
+Championship reports retain their one-way commits. See the
+[navigation design](../design/menu-navigation-design.md) for the complete route
+table, settings and cancellation boundaries, and `native_navigation_tests` for
+native integration coverage of the enhancement.
+
 All addresses below are runtime addresses in the supplied disk's plaintext
 payload, loaded at `0xe700` from disk offset `0xdc00`, length 408,540. The payload
 SHA-256 is `508646f12af15115de73b06940c79e579f920bf47ce55f7cd8920eca60b7921c`.

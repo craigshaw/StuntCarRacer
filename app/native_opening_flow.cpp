@@ -61,10 +61,12 @@ void NativeOpeningFlow::delay(unsigned units){
     remaining_=nativeMenuDelaySeconds(units,memory_[0x1bb1b]);memory_[0x1bb1a]=20;
 }
 void NativeOpeningFlow::openMenu(NativeOpeningPage page,unsigned offset,unsigned finalRow){
+    const int remembered=page==NativeOpeningPage::Mode?modeSelection_:addSelection_;
     page_=page;memory_[0x1bb8b]=std::uint8_t(offset);
     // Original displayMenu takes the last row, decrements it, and still draws
     // maxMenuIndex+2 rows. NativeMenuRenderState::count means final row.
     memory_[maximum]=std::uint8_t(finalRow-1);memory_[selected]=memory_[highlight]=0;
+    if(navigation_==NativeMenuNavigation::Responsive&&remembered>=0)memory_[selected]=std::uint8_t(remembered);
     phase_=Phase::PaintDelay;delay(15);
 }
 void NativeOpeningFlow::returnToMode(){
@@ -80,6 +82,7 @@ NativeMenuRenderState NativeOpeningFlow::renderState()const{
     return state;
 }
 NativeOpeningAction NativeOpeningFlow::showRoster(){
+    if(navigation_==NativeMenuNavigation::Responsive)setupCheckpoint_=std::make_unique<NativeMemory>(memory_);
     memory_[0x5eb75]=0;
     if(memory_[0x5eb76]){
         prepareNativeOpeningLocalStandings(memory_);page_=NativeOpeningPage::LocalStandings;
@@ -88,6 +91,7 @@ NativeOpeningAction NativeOpeningFlow::showRoster(){
 }
 NativeOpeningAction NativeOpeningFlow::nameCompleted(){
     if(page_!=NativeOpeningPage::Name)throw std::logic_error("Opening has no active name entry");
+    completedPlayers_=std::max(completedPlayers_,unsigned(memory_[0x5eb76])+1);
     if(!multiplayer_)return showRoster();
     if(memory_[0x5eb76]>=7)return showRoster();
     openMenu(NativeOpeningPage::AddPlayer,0x14,1);return NativeOpeningAction::Changed;
@@ -95,12 +99,14 @@ NativeOpeningAction NativeOpeningFlow::nameCompleted(){
 NativeOpeningAction NativeOpeningFlow::confirm(){
     const auto choice=memory_[selected];
     if(page_==NativeOpeningPage::Mode){
+        modeSelection_=choice;completedPlayers_=0;
         if(choice>=2){page_=NativeOpeningPage::ComputerLinkUnavailable;return NativeOpeningAction::UnsupportedComputerLink;}
         // Private native choice bit, retained in the object rather than game
         // RAM: single mode and multiplayer's first name both have count zero.
         multiplayer_=choice==1;
         page_=NativeOpeningPage::Name;return NativeOpeningAction::BeginName;
     }
+    addSelection_=choice;
     if(choice==0){++memory_[0x5eb76];page_=NativeOpeningPage::Name;return NativeOpeningAction::BeginName;}
     if(!memory_[0x5eb76]){
         openMenu(NativeOpeningPage::AddPlayer,0x14,1);return NativeOpeningAction::Changed;
@@ -109,28 +115,55 @@ NativeOpeningAction NativeOpeningFlow::confirm(){
 }
 NativeOpeningAction NativeOpeningFlow::update(const NativeMenuInput& input,double elapsed){
     if(!std::isfinite(elapsed)||elapsed<0)throw std::invalid_argument("Invalid opening elapsed time");
+    const bool responsive=navigation_==NativeMenuNavigation::Responsive;
+    if(responsive&&input.back)return back();
     const auto controls=std::uint8_t(input.controls&31);
     if(page_==NativeOpeningPage::Complete||page_==NativeOpeningPage::Name||
             page_==NativeOpeningPage::ComputerLinkUnavailable)return NativeOpeningAction::None;
     if(page_==NativeOpeningPage::Roster||page_==NativeOpeningPage::LocalStandings){
         memory_[0x1bb47]=controls;
-        if(!fire_.update(controls,elapsed))return NativeOpeningAction::None;
+        if(responsive?!(controls&16):!fire_.update(controls,elapsed))return NativeOpeningAction::None;
         memory_[0x1bb6e]=0;saveRandom(memory_);memory_[0x57c64]=0xf3;
         page_=NativeOpeningPage::Complete;return NativeOpeningAction::Complete;
     }
     if(phase_==Phase::PaintDelay||phase_==Phase::ReleaseDelay||phase_==Phase::ConfirmDelay){
-        remaining_-=elapsed;if(remaining_>0)return NativeOpeningAction::None;
+        remaining_=responsive?0:remaining_-elapsed;if(remaining_>0)return NativeOpeningAction::None;
         memory_[0x1bb1a]=memory_[0x1bb1b]=0;
         if(phase_==Phase::ConfirmDelay)return confirm();
-        phase_=phase_==Phase::PaintDelay?Phase::Release:Phase::Input;
+        phase_=phase_==Phase::PaintDelay&&!responsive?Phase::Release:Phase::Input;
     }
     if(phase_==Phase::Release){
+        if(responsive)phase_=Phase::Input;
+        else{
         memory_[0x1bb47]=controls;
         if(!controls){phase_=Phase::ReleaseDelay;delay(2);}
         return NativeOpeningAction::None;
+        }
     }
     if(!applyNativeMenuInput(memory_,input))return NativeOpeningAction::None;
+    if(responsive){
+        if(page_==NativeOpeningPage::Mode)modeSelection_=memory_[selected];else addSelection_=memory_[selected];
+        if(memory_[highlight])return confirm();
+        phase_=Phase::Input;return NativeOpeningAction::Changed;
+    }
     delay(15);phase_=memory_[highlight]?Phase::ConfirmDelay:Phase::PaintDelay;
     return NativeOpeningAction::Changed;
+}
+NativeOpeningAction NativeOpeningFlow::back(){
+    if(navigation_!=NativeMenuNavigation::Responsive)return NativeOpeningAction::None;
+    if(page_==NativeOpeningPage::Roster||page_==NativeOpeningPage::LocalStandings){
+        if(setupCheckpoint_)memory_=*setupCheckpoint_;
+        if(!multiplayer_||memory_[0x5eb76]==7){page_=NativeOpeningPage::Name;return NativeOpeningAction::BeginName;}
+        openMenu(NativeOpeningPage::AddPlayer,0x14,1);return NativeOpeningAction::Changed;
+    }
+    if(page_==NativeOpeningPage::AddPlayer){
+        addSelection_=memory_[selected];page_=NativeOpeningPage::Name;return NativeOpeningAction::BeginName;
+    }
+    if(page_==NativeOpeningPage::Name){
+        if(!memory_[0x5eb76]){returnToMode();return NativeOpeningAction::Changed;}
+        if(unsigned(memory_[0x5eb76])>=completedPlayers_)--memory_[0x5eb76];
+        openMenu(NativeOpeningPage::AddPlayer,0x14,1);return NativeOpeningAction::Changed;
+    }
+    return NativeOpeningAction::None;
 }
 } // namespace scr::viewer

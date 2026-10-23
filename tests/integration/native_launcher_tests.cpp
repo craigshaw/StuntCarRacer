@@ -48,9 +48,10 @@ void preferences(const std::filesystem::path& root){
     const auto temporary=std::filesystem::path(files.settings.wstring()+L".tmp");std::filesystem::create_directory(temporary);
     require(!staged.saveForPlay()&&loadDisplayPreferences(files.settings)==original&&staged.preferences().interpolate,"Failed save lost staged values or replaced settings");
     std::filesystem::remove(temporary);require(staged.saveForPlay()&&loadDisplayPreferences(files.settings)==staged.preferences(),"Play did not save shared preferences");
-    staged.resetPreferences();require(staged.preferences()==original&&staged.ready(),"Restoring defaults changed assets");require(staged.saveForPlay(),"Cannot restore original preferences");
+    auto faithful=original;faithful.navigation=NativeMenuNavigation::Original;
+    staged.resetPreferences();require(staged.preferences()==faithful&&staged.ready(),"Restoring defaults changed assets or did not restore Original navigation");require(staged.saveForPlay(),"Cannot restore original preferences");
     NativeLauncher overridden(files,true,true);require(overridden.preferences().fullscreen&&overridden.preferences().interpolate,"Launch override not visible");
-    require(overridden.saveForPlay()&&loadDisplayPreferences(files.settings)==original,"Play persisted a launch-only override");
+    require(overridden.saveForPlay()&&loadDisplayPreferences(files.settings)==faithful,"Play persisted a launch-only override");
     overridden.change(2);overridden.change(2);require(overridden.saveForPlay()&&loadDisplayPreferences(files.settings).interpolate,"Explicit preference edit did not override launch policy");
     require(defaultNativeLaunchPaths().pack.is_absolute()&&defaultNativeLaunchPaths().recordings.empty(),"Player defaults depend on working directory or enable recording");
 }

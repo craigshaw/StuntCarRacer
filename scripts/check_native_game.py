@@ -22,6 +22,7 @@ def sources():
     paths.add(ROOT / 'tests/integration/native_game_session_tests.cpp')
     paths.add(ROOT / 'tests/integration/native_display_tests.cpp')
     paths.add(ROOT / 'tests/integration/native_launcher_tests.cpp')
+    paths.add(ROOT / 'tests/integration/native_navigation_tests.cpp')
     paths.add(ROOT / 'tests/unit/live_drive_tests.cpp')
     paths.add(ROOT / 'tests/integration/native_opening_session_tests.cpp')
     paths.add(ROOT / 'tests/integration/native_opponent_session_tests.cpp')
@@ -106,12 +107,13 @@ def main():
     display_test = binary_dir / 'Release/native_display_tests.exe'
     controls_test = binary_dir / 'Release/live_drive_tests.exe'
     launcher_test = binary_dir / 'Release/native_launcher_tests.exe'
+    navigation_test = binary_dir / 'Release/native_navigation_tests.exe'
     artwork = identity(ROOT / 'logo.png') if (ROOT / 'logo.png').exists() else None
     receipt = output / 'build-receipt.json'
     records = sources()
     executables = {'game': executable, 'test': test, 'opening_test': opening_test, 'startup_test': startup_test,
                    'bridge_test': bridge_test, 'season_test': season_test, 'multiplayer_test': multiplayer_test,
-                   'career_test': career_test, 'save_test': save_test, 'store_test': store_test, 'display_test': display_test, 'controls_test': controls_test, 'launcher_test': launcher_test}
+                   'career_test': career_test, 'save_test': save_test, 'store_test': store_test, 'display_test': display_test, 'controls_test': controls_test, 'launcher_test': launcher_test, 'navigation_test': navigation_test}
     if args.skip_build:
         old = json.loads(receipt.read_text())
         if old['sources'] != records or old.get('artwork') != artwork or any(old.get(key) != identity(path) for key, path in executables.items()):
@@ -121,7 +123,7 @@ def main():
                ['cmake', '--build', binary_dir, '--config', 'Release', '--target',
                 'native_game', 'native_game_session_tests', 'native_opening_session_tests', 'native_startup_tests', 'draw_bridge_driving_tests',
                 'native_opponent_session_tests', 'native_multiplayer_session_tests', 'native_career_session_tests',
-                'native_save_session_tests', 'native_save_store_tests', 'native_display_tests', 'native_launcher_tests', 'live_drive_tests', '--parallel', '4']], output / 'build.log')
+                'native_save_session_tests', 'native_save_store_tests', 'native_display_tests', 'native_launcher_tests', 'native_navigation_tests', 'live_drive_tests', '--parallel', '4']], output / 'build.log')
         receipt.write_text(json.dumps({'sources': records, 'artwork': artwork, **{key: identity(path) for key, path in executables.items()}}, indent=2) + '\n')
     launcher_args = [launcher_test, pack, output / 'launcher']
     disk = args.adf or ROOT / 'Stunt Car Racer (MicroStyle).adf'
@@ -129,6 +131,12 @@ def main():
         launcher_args.append(disk)
     disk_fixture = {'filename': disk.name, 'sha256': hashlib.sha256(disk.read_bytes()).hexdigest()} if disk.exists() else None
     launcher = run_json(launcher_args, output / 'launcher-results.json')
+    navigation = run_json([navigation_test, pack, output / 'navigation'], output / 'navigation-results.json')
+    if (navigation.get('status') != 'passed' or navigation.get('practice_routes') != 8
+            or navigation.get('local_player_counts') != list(range(2, 9))
+            or any(navigation.get(key) is not True for key in ('responsive_taps', 'repeat_timing', 'back_routes',
+                                                            'preview_rng_preserved', 'save_cancellation', 'competition_progression'))):
+        raise RuntimeError('Responsive navigation or state-preservation regression failed')
     if (launcher.get('shared_preferences') is not True or launcher.get('launch_overrides_transient') is not True
             or launcher.get('recording_isolation_ticks') != 96 or launcher.get('rendered_states') != 3
             or launcher.get('recording_final_memory_identical') is not True
@@ -186,7 +194,7 @@ def main():
     if storage.get('slots') != 30 or storage.get('atomic_failure_checked') is not True:
         raise RuntimeError('Native save-file storage regression failed')
     display = run_json([display_test, pack, output / 'display'], output / 'display-results.json')
-    if (display.get('preference_roundtrips') != 24 or display.get('scaling_cases') != 12
+    if (display.get('preference_roundtrips') != 48 or display.get('scaling_cases') != 12
             or display.get('legacy_preferences_migrated') is not True or display.get('control_preset_navigation') is not True
             or display.get('fullscreen_roundtrips') != 4 or display.get('paused_presentations') != 120
             or display.get('original_tick_phase_preserved') is not True
@@ -281,7 +289,7 @@ def main():
         raise RuntimeError('Staged player executable differs from the checked build')
     report = {'status': 'passed', 'capture_input': False, 'rom_input': False, 'cpu_emulation': False,
               'pack': identity(pack), 'game': identity(staged), 'build_game': identity(executable), 'sources': records, 'artwork': artwork, 'launcher_disk': disk_fixture, 'launcher': launcher,
-              'integration': integration, 'opening': opening, 'startup': startup, 'bridge_driving': bridge,
+              'integration': integration, 'navigation': navigation, 'opening': opening, 'startup': startup, 'bridge_driving': bridge,
               'season': season, 'multiplayer': multiplayer, 'career': career, 'saves': saves, 'save_store': storage, 'display': display, 'controls': controls, 'original_comparisons': original}
     (output / 'check-results.json').write_text(json.dumps(report, indent=2) + '\n')
     if original:

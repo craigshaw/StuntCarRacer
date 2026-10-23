@@ -29,6 +29,7 @@ local players taking turns against the computer pace car.
 | Action | Keyboard | Xbox / XInput controller |
 | --- | --- | --- |
 | Navigate / confirm | Arrows, Enter or Space | Stick/D-pad, A |
+| Back in menus (Responsive) | Escape | B |
 | Accelerate / brake | Up/Down or W/S | Original: stick/D-pad up/down; Modern: RT/LT |
 | Steer / boost | Left/Right or A/D, Space | Stick/D-pad, A or RB |
 | Pause | P | Start |
@@ -41,6 +42,12 @@ Modern separates throttle from the steering stick; triggers are on/off.
 Modern accelerates while gas is held and coasts on release; Original retains
 latched acceleration until braking. The same rule applies to keyboard gas.
 Text entry uses the original name editor; typing letters does not trigger driving shortcuts.
+Menus default to **Responsive** navigation: immediate input, held-direction
+repeat and Back one level with remembered selections. Choose **Original** menu
+navigation in the launcher or Settings for the faithful timing and routes.
+This setting is independent of the driving preset. Back does nothing at the
+mode chooser, main menu, championship matchup or championship report screens;
+use A/Enter to continue reports. Existing Cancel entries remain available.
 See [playing and settings](docs/playing.md) for menu, save and controller details.
 
 Normal launches store assets, preferences and saves under

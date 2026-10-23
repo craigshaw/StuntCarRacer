@@ -1,12 +1,13 @@
 #pragma once
 #include "native_menu_render.h"
 #include "native_player_name.h"
+#include "native_menu_navigation.h"
 #include <array>
 #include <memory>
 
 namespace scr::viewer {
 enum class NativeSaveMenuAction { None,Changed,ReadDirectory,Select,Cancel };
-enum class NativeSaveMenuPhase { InsertDisc,Directory,FormatWarning,DirectionRelease,LoadSelection,SaveName,BlankName,Incompatible,InvalidData,Retry,RetryDelay,Complete };
+enum class NativeSaveMenuPhase { InsertDisc,Directory,FormatWarning,DirectionRelease,LoadSelection,SaveName,BlankName,Incompatible,InvalidData,Retry,RetryDelay,Complete,SaveSelection };
 struct NativeSaveMenuResult {
     NativeSaveMenuAction action{NativeSaveMenuAction::None};
     std::uint8_t slot{},kind{};
@@ -20,6 +21,8 @@ public:
     NativeSaveMenu(NativeMemory&,bool write,const NativeMenuImage* previousImage=nullptr);
     [[nodiscard]] NativeSaveMenuResult update(std::uint8_t controls,double elapsedSeconds);
     [[nodiscard]] NativeSaveMenuResult directoryLoaded();
+    NativeSaveMenuResult back();
+    void setNavigation(NativeMenuNavigation);
     void operationFailed(std::uint8_t originalError);
     void invalidSaveData();
     void complete();
@@ -34,6 +37,8 @@ private:
     NativeSaveMenuAction pending_{NativeSaveMenuAction::ReadDirectory};
     NativeTextInputState text_{};
     bool write_{},release_{true};
+    bool directoryReady_{};
+    NativeMenuNavigation navigation_{NativeMenuNavigation::Original};
     unsigned invalidReads_{};
     double remaining_{};
     void frame();
@@ -52,5 +57,7 @@ private:
     NativeSaveMenuResult selected();
     NativeSaveMenuResult result(NativeSaveMenuAction)const;
     void finish();
+    NativeSaveMenuResult updateResponsive(std::uint8_t);
+    void returnToSlots();
 };
 } // namespace scr::viewer

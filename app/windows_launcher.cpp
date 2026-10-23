@@ -18,7 +18,7 @@ void text(HDC dc,HFONT font,RECT rect,const std::wstring& value,COLORREF colour,
     DrawTextW(dc,value.c_str(),int(value.size()),&rect,flags|DT_NOPREFIX);SelectObject(dc,previous);
 }
 LRESULT CALLBACK controlProcedure(HWND child,UINT message,WPARAM key,LPARAM data,UINT_PTR,DWORD_PTR){
-    if((message==WM_PAINT||message==WM_PRINT||message==WM_PRINTCLIENT)&&GetDlgCtrlID(child)>=LauncherDisplay&&GetDlgCtrlID(child)<=LauncherControls){
+    if((message==WM_PAINT||message==WM_PRINT||message==WM_PRINTCLIENT)&&GetDlgCtrlID(child)>=LauncherDisplay&&GetDlgCtrlID(child)<=LauncherNavigation){
         const auto result=DefSubclassProc(child,message,key,data);const auto dc=message==WM_PAINT?GetDC(child):reinterpret_cast<HDC>(key);RECT rect{};GetClientRect(child,&rect);
         // Keep the native combobox's accessibility and popup, while matching
         // its closed border and arrow to the launcher surface.
@@ -29,7 +29,7 @@ LRESULT CALLBACK controlProcedure(HWND child,UINT message,WPARAM key,LPARAM data
     }
     if(message==WM_KEYDOWN||message==WM_KEYUP){
         const auto id=GetDlgCtrlID(child);
-        const bool combo=id>=LauncherDisplay&&id<=LauncherControls;
+        const bool combo=id>=LauncherDisplay&&id<=LauncherNavigation;
         if(combo&&SendMessageW(child,CB_GETDROPPEDSTATE,0,0))return DefSubclassProc(child,message,key,data);
         unsigned nav=key==VK_UP?1:key==VK_DOWN?2:key==VK_LEFT?4:key==VK_RIGHT?8:(key==VK_RETURN||key==VK_SPACE)?16:key==VK_ESCAPE?32:0;
         if(nav){if(message==WM_KEYDOWN&&(data&0x40000000))return 0;if(message==WM_KEYUP)nav=0;SendMessageW(GetParent(child),WindowsLauncher::navigationMessage,nav,0);return 0;}
@@ -37,7 +37,8 @@ LRESULT CALLBACK controlProcedure(HWND child,UINT message,WPARAM key,LPARAM data
     return DefSubclassProc(child,message,key,data);
 }
 unsigned valueAt(const NativeDisplayPreferences& value,unsigned row){
-    return row==0?unsigned(value.fullscreen):row==1?unsigned(value.scaling):row==2?unsigned(value.interpolate):unsigned(value.controls==DriveControlPreset::Modern);
+    return row==0?unsigned(value.fullscreen):row==1?unsigned(value.scaling):row==2?unsigned(value.interpolate):
+        row==3?unsigned(value.controls==DriveControlPreset::Modern):unsigned(value.navigation==NativeMenuNavigation::Original);
 }
 }
 struct WindowsLauncher::Artwork {
@@ -62,7 +63,7 @@ WindowsLauncher::~WindowsLauncher(){for(auto font:fonts_)if(font)DeleteObject(fo
 void WindowsLauncher::create(HWND parent){
     parent_=parent;
     for(unsigned n=0;n<controls_.size();++n){
-        const auto id=LauncherAdf+n;const bool combo=id>=LauncherDisplay&&id<=LauncherControls;
+        const auto id=LauncherAdf+n;const bool combo=id>=LauncherDisplay&&id<=LauncherNavigation;
         controls_[n]=CreateWindowExW(0,combo?L"COMBOBOX":L"BUTTON",L"",WS_CHILD|WS_VISIBLE|WS_TABSTOP|
             (combo?(CBS_DROPDOWNLIST|CBS_OWNERDRAWFIXED|CBS_HASSTRINGS|WS_VSCROLL):BS_OWNERDRAW),0,0,10,10,parent,
             reinterpret_cast<HMENU>(UINT_PTR(id)),GetModuleHandleW(nullptr),nullptr);
@@ -70,10 +71,10 @@ void WindowsLauncher::create(HWND parent){
         SetWindowSubclass(controls_[n],controlProcedure,1,0);
     }
     const wchar_t* choices[][3]{{L"Windowed",L"Borderless fullscreen",nullptr},{L"Integer",L"Fit sharp",L"Fit smooth"},
-        {L"Original updates",L"Smooth interpolation",nullptr},{L"Original",L"Modern",nullptr}};
-    for(unsigned row=0;row<4;++row)for(const auto choice:choices[row])if(choice)SendMessageW(controls_[row+2],CB_ADDSTRING,0,reinterpret_cast<LPARAM>(choice));
-    SetWindowTextW(controls_[1],L"Details");SetWindowTextW(controls_[6],L"Restore original defaults");
-    SetWindowTextW(controls_[7],L"Quit");SetWindowTextW(controls_[8],L"Play");
+        {L"Original updates",L"Smooth interpolation",nullptr},{L"Original",L"Modern",nullptr},{L"Responsive",L"Original",nullptr}};
+    for(unsigned row=0;row<5;++row)for(const auto choice:choices[row])if(choice)SendMessageW(controls_[row+2],CB_ADDSTRING,0,reinterpret_cast<LPARAM>(choice));
+    SetWindowTextW(controls_[1],L"Details");SetWindowTextW(controls_[7],L"Restore original defaults");
+    SetWindowTextW(controls_[8],L"Quit");SetWindowTextW(controls_[9],L"Play");
     layout(parent);
 }
 void WindowsLauncher::visible(bool enabled){visible_=enabled;for(const auto control:controls_)if(control)ShowWindow(control,enabled?SW_SHOW:SW_HIDE);}
@@ -91,24 +92,24 @@ void WindowsLauncher::layout(HWND window){
     const auto px=[&](int value){return int(std::lround(value*scale_));};
     margin_=px(40);header_=px(145);assetY_=header_;assetHeight_=px(82);footerY_=height_-px(82);
     settingsY_=assetY_+assetHeight_+px(details_?106:39);
-    rowHeight_=std::max(px(43),(footerY_-px(98)-settingsY_)/4);
+    rowHeight_=std::max(px(43),(footerY_-px(98)-settingsY_)/5);
     const int right=width_-margin_,comboWidth=px(245),buttonHeight=px(40);
     MoveWindow(controls_[0],right-px(148),assetY_+px(21),px(130),buttonHeight,TRUE);
     MoveWindow(controls_[1],margin_,assetY_+assetHeight_+px(5),px(78),px(28),TRUE);
-    for(unsigned n=0;n<4;++n){MoveWindow(controls_[n+2],right-comboWidth,settingsY_+int(n)*rowHeight_+px(8),comboWidth,px(210),TRUE);
+    for(unsigned n=0;n<5;++n){MoveWindow(controls_[n+2],right-comboWidth,settingsY_+int(n)*rowHeight_+px(8),comboWidth,px(210),TRUE);
         SendMessageW(controls_[n+2],CB_SETITEMHEIGHT,WPARAM(-1),px(33));SendMessageW(controls_[n+2],CB_SETITEMHEIGHT,0,px(32));}
-    MoveWindow(controls_[6],margin_,settingsY_+4*rowHeight_+px(5),px(200),px(28),TRUE);
-    MoveWindow(controls_[7],right-px(224),footerY_+px(21),px(82),buttonHeight,TRUE);
-    MoveWindow(controls_[8],right-px(130),footerY_+px(21),px(130),buttonHeight,TRUE);
+    MoveWindow(controls_[7],margin_,settingsY_+5*rowHeight_+px(5),px(200),px(28),TRUE);
+    MoveWindow(controls_[8],right-px(224),footerY_+px(21),px(82),buttonHeight,TRUE);
+    MoveWindow(controls_[9],right-px(130),footerY_+px(21),px(130),buttonHeight,TRUE);
     InvalidateRect(window,nullptr,FALSE);
 }
 void WindowsLauncher::sync(const NativeLauncher& model){
     if(!parent_)return;
-    SetWindowTextW(controls_[0],model.ready()?L"Change ADF…":L"Choose ADF…");EnableWindow(controls_[8],model.ready());
-    for(unsigned row=0;row<4;++row)SendMessageW(controls_[row+2],CB_SETCURSEL,valueAt(model.preferences(),row),0);
+    SetWindowTextW(controls_[0],model.ready()?L"Change ADF…":L"Choose ADF…");EnableWindow(controls_[9],model.ready());
+    for(unsigned row=0;row<5;++row)SendMessageW(controls_[row+2],CB_SETCURSEL,valueAt(model.preferences(),row),0);
     InvalidateRect(parent_,nullptr,FALSE);for(const auto control:controls_)InvalidateRect(control,nullptr,FALSE);
 }
-void WindowsLauncher::focusInitial(const NativeLauncher& model){SetFocus(controls_[model.ready()?8:0]);previous_=~0u;}
+void WindowsLauncher::focusInitial(const NativeLauncher& model){SetFocus(controls_[model.ready()?9:0]);previous_=~0u;}
 void WindowsLauncher::paint(HDC dc,int width,int height,const NativeLauncher& model){
     fill(dc,{0,0,width,height},background);
     const auto px=[&](int value){return int(std::lround(value*scale_));};
@@ -131,12 +132,13 @@ void WindowsLauncher::paint(HDC dc,int width,int height,const NativeLauncher& mo
         text(dc,fonts_[2],{margin_,assetY_+assetHeight_+px(33),right,settingsY_-px(20)},
             L"Supported ADF SHA-256: 548fd106cd62f2d80159d48ddd5293d8b22b6b17f80c17a84a61d75f5c8a9e06\nGame data: "+model.paths().pack.wstring(),muted,DT_LEFT|DT_TOP|DT_WORDBREAK);
     }
-    const wchar_t* labels[]{L"Display mode",L"Scaling",L"Motion",L"Driving controls"};
+    const wchar_t* labels[]{L"Display mode",L"Scaling",L"Motion",L"Driving controls",L"Menu navigation"};
     const auto& prefs=model.preferences();
     const wchar_t* scalingHelp=prefs.scaling==NativeScaling::Integer?L"Whole-pixel enlargement with crisp original edges.":prefs.scaling==NativeScaling::FitSharp?L"Fit the display, keeping crisp pixel edges.":L"Fit the display with softer, filtered edges.";
     const wchar_t* help[]{L"Fullscreen takes effect when you press Play.",scalingHelp,prefs.interpolate?L"Smoother motion with a small presentation delay.":L"Original, stepped motion.",
-        prefs.controls==DriveControlPreset::Original?L"Original throttle stays on until you brake.":L"Hold gas to accelerate; release to coast. Controller RT / LT."};
-    for(unsigned n=0;n<4;++n){const int y=settingsY_+int(n)*rowHeight_;
+        prefs.controls==DriveControlPreset::Original?L"Original throttle stays on until you brake.":L"Hold gas to accelerate; release to coast. Controller RT / LT.",
+        prefs.navigation==NativeMenuNavigation::Responsive?L"Immediate response. Esc / B goes back.":L"Original menu timing and navigation."};
+    for(unsigned n=0;n<5;++n){const int y=settingsY_+int(n)*rowHeight_;
         if(n)fill(dc,{margin_,y,right,y+1},line);
         text(dc,fonts_[1],{margin_,y+px(5),right-px(265),y+px(29)},labels[n],ink);
         text(dc,fonts_[2],{margin_,y+px(29),right-px(265),y+rowHeight_},help[n],muted,DT_LEFT|DT_TOP|DT_WORDBREAK);
@@ -147,7 +149,7 @@ void WindowsLauncher::paint(HDC dc,int width,int height,const NativeLauncher& mo
     text(dc,fonts_[2],{margin_,footerY_+px(40),right-px(250),footerY_+px(66)},L"Arrows / D-pad: navigate   Enter / A: confirm",muted);
 }
 void WindowsLauncher::drawButton(const DRAWITEMSTRUCT& item){
-    const auto dc=item.hDC;const bool combo=item.CtlID>=LauncherDisplay&&item.CtlID<=LauncherControls;
+    const auto dc=item.hDC;const bool combo=item.CtlID>=LauncherDisplay&&item.CtlID<=LauncherNavigation;
     const bool selected=(item.itemState&ODS_SELECTED)!=0,disabled=(item.itemState&ODS_DISABLED)!=0;
     const bool focus=(item.itemState&ODS_FOCUS)!=0;
     const bool primary=item.CtlID==LauncherPlay;
@@ -169,7 +171,7 @@ LauncherAction WindowsLauncher::command(unsigned id,NativeLauncher& model){
     if(id==LauncherQuit)return LauncherAction::Quit;
     if(id==LauncherDetails){details_=!details_;SetWindowTextW(controls_[1],details_?L"Hide details":L"Details");layout(parent_);}
     else if(id==LauncherReset)model.resetPreferences();
-    else if(id>=LauncherDisplay&&id<=LauncherControls){const unsigned row=id-LauncherDisplay;const auto chosen=SendMessageW(controls_[row+2],CB_GETCURSEL,0,0);
+    else if(id>=LauncherDisplay&&id<=LauncherNavigation){const unsigned row=id-LauncherDisplay;const auto chosen=SendMessageW(controls_[row+2],CB_GETCURSEL,0,0);
         for(unsigned n=0;n<3&&chosen>=0&&valueAt(model.preferences(),row)!=unsigned(chosen);++n)model.change(row);}
     sync(model);return LauncherAction::None;
 }
@@ -177,7 +179,7 @@ void WindowsLauncher::selectFocus(int direction,const NativeLauncher& model){
     const auto focus=GetFocus();int current=-1;
     for(unsigned n=0;n<controls_.size();++n)if(controls_[n]==focus)current=int(n);
     for(unsigned n=0;n<controls_.size();++n){current=(current+int(controls_.size())+direction)%int(controls_.size());
-        if(current!=8||model.ready()){SetFocus(controls_[current]);return;}}
+        if(current!=9||model.ready()){SetFocus(controls_[current]);return;}}
 }
 LauncherAction WindowsLauncher::navigate(unsigned navigation,NativeLauncher& model){
     const unsigned pressed=navigation&~previous_;previous_=navigation;
@@ -185,7 +187,7 @@ LauncherAction WindowsLauncher::navigate(unsigned navigation,NativeLauncher& mod
     if(pressed&32)return LauncherAction::Quit;
     if(pressed&1)selectFocus(-1,model);else if(pressed&2)selectFocus(1,model);
     const auto id=unsigned(GetDlgCtrlID(GetFocus()));
-    if(id>=LauncherDisplay&&id<=LauncherControls&&(pressed&(4|8|16))){model.change(id-LauncherDisplay,(pressed&4)?-1:1);sync(model);return LauncherAction::None;}
+    if(id>=LauncherDisplay&&id<=LauncherNavigation&&(pressed&(4|8|16))){model.change(id-LauncherDisplay,(pressed&4)?-1:1);sync(model);return LauncherAction::None;}
     if(pressed&16)return command(id,model);
     return LauncherAction::None;
 }

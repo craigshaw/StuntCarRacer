@@ -29,6 +29,7 @@ class NativePlayerNameEntry {
 public:
     explicit NativePlayerNameEntry(NativeMemory& memory):memory_(memory){}
     [[nodiscard]] NativePlayerNameUpdate begin();
+    [[nodiscard]] NativePlayerNameUpdate beginResponsive(unsigned length);
     [[nodiscard]] NativePlayerNameUpdate update(std::uint8_t controls);
     [[nodiscard]] bool complete()const noexcept{return phase_==Phase::Done;}
     [[nodiscard]] const NativeTextInputState& state()const noexcept{return state_;}

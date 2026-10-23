@@ -1,5 +1,6 @@
 #pragma once
 #include "live_drive.h"
+#include "native_menu_navigation.h"
 #include <filesystem>
 #include <string>
 
@@ -9,8 +10,9 @@ struct NativeDisplayPreferences {
     bool fullscreen{},interpolate{};
     NativeScaling scaling{NativeScaling::Integer};
     DriveControlPreset controls{DriveControlPreset::Original};
+    NativeMenuNavigation navigation{NativeMenuNavigation::Responsive};
     bool operator==(const NativeDisplayPreferences& other)const noexcept {
-        return fullscreen==other.fullscreen&&interpolate==other.interpolate&&scaling==other.scaling&&controls==other.controls;
+        return fullscreen==other.fullscreen&&interpolate==other.interpolate&&scaling==other.scaling&&controls==other.controls&&navigation==other.navigation;
     }
 };
 NativeDisplayPreferences loadDisplayPreferences(const std::filesystem::path&);

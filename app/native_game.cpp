@@ -119,6 +119,7 @@ private:
         try{
             const auto& paths=launcher_.paths();
             auto started=std::make_unique<NativeGameSession>(paths.pack,paths.recordings,NativeGameStart::OriginalOpening,paths.save);
+            started->setNavigation(launcher_.preferences().navigation);
             settings_=NativeDisplaySettings(launcher_.preferences());display_.fullscreen(window,settings_.preferences().fullscreen);
             game_=std::move(started);launcherView_.visible(false);SetFocus(window);clearGameInput();
             for(const unsigned key:{unsigned(VK_RETURN),unsigned(VK_SPACE),unsigned(VK_ESCAPE),unsigned(VK_UP),unsigned(VK_DOWN),unsigned(VK_LEFT),unsigned(VK_RIGHT),unsigned('W'),unsigned('A'),unsigned('S'),unsigned('D')})
@@ -134,6 +135,7 @@ private:
         if(suppressInput_)return value;
         value.rawKeys=rawKeys_;
         const auto& p=pad_.pad;
+        value.menu.back=keys_[VK_ESCAPE]||(p.connected&&(p.buttons&0x2000));
         if(game_->usingTextInput()){
             // The original raw keyboard scanner owns name entry. Letters
             // such as WASD and M/I must reach it without host shortcuts.
@@ -142,6 +144,9 @@ private:
                 (((p.buttons&0x0002)||p.y<-16000)?2:0)|
                 (((p.buttons&0x0004)||p.x<-16000)?4:0)|
                 (((p.buttons&0x0008)||p.x>16000)?8:0)|((p.buttons&0x1000)?16:0));
+            if(settings_.preferences().navigation==NativeMenuNavigation::Responsive)
+                value.menu.controls|=std::uint8_t((keys_[VK_UP]?1:0)|(keys_[VK_DOWN]?2:0)|(keys_[VK_LEFT]?4:0)|
+                    (keys_[VK_RIGHT]?8:0)|(keys_[VK_RETURN]?16:0));
             value.quit=(p.connected&&(p.buttons&0x0020));return value;
         }
         value.driveControls=mapDriveControls({keys_['W']||keys_[VK_UP],keys_['S']||keys_[VK_DOWN],
@@ -157,6 +162,7 @@ private:
     }
     void update(HWND window,double elapsed){
         if(!focused_||settings_.blocksGame())return;
+        game_->setNavigation(settings_.preferences().navigation);
         const auto changes=game_->update(elapsed,input());
         rawKeys_.clear();
         if(changes.raceStarted){
@@ -169,7 +175,7 @@ private:
             audio_->setPlaying(game_->page()==NativeMenuPage::Race&&!game_->raceEnded()&&!game_->transitioning());
         }
         if(changes.unavailable!=NativeGameUnavailable::none){
-            keys_.fill(false);rawKeys_.clear();game_->releaseInput();
+            clearGameInput();
             const auto text=changes.unavailable==NativeGameUnavailable::computerLink?
                 L"Computer Link has not been ported yet. Single Player and local Multiplayer are available.":
                 L"This route is unavailable in the current game mode.";
@@ -180,7 +186,8 @@ private:
         if(!game_){pad_=controller_.poll();if(focused_)launcherAction(window,launcherView_.navigate(displayPadNavigation(pad_.pad),launcher_));return;}
         if(freshGame_){elapsed=0;freshGame_=false;}
         const bool wasBlocked=settings_.blocksGame();
-        pad_=controller_.poll();
+        const bool wasConnected=pad_.pad.connected;pad_=controller_.poll();
+        if(!wasConnected&&pad_.pad.connected)clearGameInput();
         if(pad_.disconnected){
             if(inRace())settings_.suspendRace(navigation());clearGameInput();
         }
@@ -206,13 +213,17 @@ private:
         }
     }
     bool inRace()const{return game_&&game_->page()==NativeMenuPage::Race&&!game_->transitioning();}
+    bool responsiveMenu()const{return game_&&!inRace()&&settings_.preferences().navigation==NativeMenuNavigation::Responsive;}
     unsigned navigation()const{
         return displayPadNavigation(pad_.pad)|(keys_[VK_UP]?1u:0u)|(keys_[VK_DOWN]?2u:0u)|
             (keys_[VK_LEFT]?4u:0u)|(keys_[VK_RIGHT]?8u:0u)|((keys_[VK_RETURN]||keys_[VK_SPACE])?16u:0u)|(keys_[VK_ESCAPE]?32u:0u);
     }
     void clearGameInput(){
+        const auto held=navigation();
         for(unsigned n=0;n<keys_.size();++n)blockedKeys_[n]=blockedKeys_[n]||keys_[n];
-        keys_.fill(false);rawKeys_.clear();if(game_)game_->releaseInput();suppressInput_=true;
+        keys_.fill(false);rawKeys_.clear();
+        if(game_)game_->releaseInput({std::uint8_t(held&31),0,bool(held&32)});
+        suppressInput_=!responsiveMenu();
         if(audio_)audio_->setPlaying(false);
     }
     void syncDisplay(HWND window){if(game_)display_.fullscreen(window,settings_.preferences().fullscreen);InvalidateRect(window,nullptr,FALSE);}
@@ -262,6 +273,7 @@ private:
         case WM_ACTIVATEAPP:
             focused_=key!=0;
             if(!focused_){if(inRace())settings_.suspendRace();clearGameInput();blockedKeys_.fill(false);settings_.releaseNavigation();launcherView_.releaseNavigation();}
+            else if(responsiveMenu())for(unsigned n=0;n<blockedKeys_.size();++n)blockedKeys_[n]=(GetAsyncKeyState(int(n))&0x8000)!=0;
             return 0;
         case WM_SYSKEYDOWN:
             if(key==VK_F10||key==VK_F11)return message(window,WM_KEYDOWN,key,data);
@@ -283,6 +295,7 @@ private:
                 return 0;
             }
             if(settings_.blocksGame()&&(data&0x40000000))return 0;
+            if(responsiveMenu()&&key<blockedKeys_.size()&&blockedKeys_[key])return 0;
             if(key<keys_.size())keys_[key]=true;
             if(settings_.blocksGame()){
                 if(!(data&0x40000000)){

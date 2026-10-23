@@ -83,6 +83,11 @@ void NativeMenuFlow::startDelay(unsigned units,bool repaint){
     remaining_=nativeMenuDelaySeconds(units,memory_[0x1bb1b]);memory_[0x1bb1a]=20;
 }
 void NativeMenuFlow::openPage(NativeMenuPage page,unsigned offset,unsigned count,unsigned selected,unsigned textMode){
+    if(navigation_==NativeMenuNavigation::Responsive){
+        const int remembered=page==NativeMenuPage::Main?mainSelection_:page==NativeMenuPage::Division?divisionSelection_:
+            page==NativeMenuPage::LoadSave?saveSelection_:page==NativeMenuPage::Track?trackSelections_[memory_[0x5eb7c]&3]:-1;
+        if(remembered>=0)selected=unsigned(remembered);
+    }
     page_=page;memory_[0x1bb8b]=std::uint8_t(offset);memory_[maxIndex]=std::uint8_t(count-1);
     memory_[selection]=std::uint8_t(selected);memory_[highlight]=0;memory_[0x5eb75]=std::uint8_t(textMode);
     phase_=Phase::PaintDelay;startDelay(15,true);
@@ -108,6 +113,7 @@ NativeMenuRenderState NativeMenuFlow::renderState()const{
     return state;
 }
 NativeMenuAction NativeMenuFlow::confirm(){
+    rememberSelection();
     const unsigned selected=memory_[selection];
     if(page_==NativeMenuPage::Main){
         if(selected==0){
@@ -138,7 +144,7 @@ NativeMenuAction NativeMenuFlow::confirm(){
     }
     if(page_==NativeMenuPage::Track){
         memory_[0x5eb75]=0;
-        if(selected>=2){openMain();return NativeMenuAction::Changed;}
+        if(selected>=2){if(navigation_==NativeMenuNavigation::Responsive)return back();openMain();return NativeMenuAction::Changed;}
         memory_[0x1ca22]=std::uint8_t(selected);memory_[0x5eb7d]=1;
         const unsigned ordinal=unsigned(memory_[0x5eb7c])*2+selected;
         if(ordinal>=8)throw std::runtime_error("Invalid original Practice division");
@@ -152,11 +158,14 @@ NativeMenuAction NativeMenuFlow::confirm(){
 
 NativeMenuAction NativeMenuFlow::update(const NativeMenuInput& input,double elapsed){
     if(elapsed<0)throw std::invalid_argument("Negative menu elapsed time");
+    const bool responsive=navigation_==NativeMenuNavigation::Responsive;
+    if(responsive&&input.back)return back();
     const auto controls=std::uint8_t(input.controls&0x1f);
     if(page_==NativeMenuPage::Race)return NativeMenuAction::None;
     if(page_==NativeMenuPage::HallOfFame){
         memory_[0x1bb47]=controls;
-        if(!competitionFire_.update(controls,elapsed))return NativeMenuAction::None;
+        if(responsive?!(controls&16):!competitionFire_.update(controls,elapsed))return NativeMenuAction::None;
+        rememberSelection();
         openMain(false);return NativeMenuAction::LeaveHallOfFame;
     }
     if(page_==NativeMenuPage::Matchup||page_==NativeMenuPage::Results||
@@ -164,7 +173,7 @@ NativeMenuAction NativeMenuFlow::update(const NativeMenuInput& input,double elap
             page_==NativeMenuPage::SeasonAward||page_==NativeMenuPage::Roster||page_==NativeMenuPage::Records||
             page_==NativeMenuPage::RaceResults||page_==NativeMenuPage::TrackResults){
         memory_[0x1bb47]=controls;
-        if(!competitionFire_.update(controls,elapsed))return NativeMenuAction::None;
+        if(responsive?!(controls&16):!competitionFire_.update(controls,elapsed))return NativeMenuAction::None;
         memory_[0x1bb6e]=0;
         if(page_==NativeMenuPage::Matchup){
             if(memory_[0xead6+0x50]){
@@ -225,7 +234,7 @@ NativeMenuAction NativeMenuFlow::update(const NativeMenuInput& input,double elap
     }
     if(page_==NativeMenuPage::Preview){
         memory_[0x1bb47]=controls;previewReleaseMask_&=controls;memory_[0x5d9da]=previewReleaseMask_;
-        if(previewReleaseMask_)return NativeMenuAction::None;
+        if(!responsive&&previewReleaseMask_)return NativeMenuAction::None;
         if(controls&0x0c){
             memory_[0x1bb57]=std::uint8_t(memory_[0x1bb57]+((controls&4)?1:-1));
             previewReleaseMask_=0x1f;memory_[0x5d9da]=0x1f;return NativeMenuAction::RotatePreview;
@@ -236,23 +245,39 @@ NativeMenuAction NativeMenuFlow::update(const NativeMenuInput& input,double elap
         return NativeMenuAction::None;
     }
     if(phase_==Phase::PaintDelay||phase_==Phase::ReleaseDelay||phase_==Phase::ConfirmDelay||phase_==Phase::TrackDelay||phase_==Phase::LoadSaveDelay||phase_==Phase::MainDelay){
-        remaining_-=elapsed;if(remaining_>0)return NativeMenuAction::None;
+        remaining_=responsive?0:remaining_-elapsed;if(remaining_>0)return NativeMenuAction::None;
         memory_[0x1bb1a]=memory_[0x1bb1b]=0;
         if(phase_==Phase::LoadSaveDelay){openPage(NativeMenuPage::LoadSave,4,3,3,0);return NativeMenuAction::Changed;}
         if(phase_==Phase::MainDelay){openMain(false);return NativeMenuAction::Changed;}
-        if(phase_==Phase::ConfirmDelay)return confirm();
+        if(phase_==Phase::ConfirmDelay){
+            const auto action=confirm();
+            if(responsive&&action==NativeMenuAction::None)return update({},0);
+            return action;
+        }
         if(phase_==Phase::TrackDelay){
             page_=NativeMenuPage::Preview;memory_[0x57c62]=0x12;previewReleaseMask_=0x1f;memory_[0x5d9da]=0x1f;
             return NativeMenuAction::EnterPreview;
         }
-        phase_=phase_==Phase::PaintDelay?Phase::Release:Phase::Input;
+        phase_=phase_==Phase::PaintDelay&&!responsive?Phase::Release:Phase::Input;
     }
     if(phase_==Phase::Release){
+        if(responsive)phase_=Phase::Input;
+        else{
         memory_[0x1bb47]=controls;
         if(!controls){phase_=Phase::ReleaseDelay;startDelay(2);}
         return NativeMenuAction::None;
+        }
     }
     if(!applyNativeMenuInput(memory_,input))return NativeMenuAction::None;
+    if(responsive){
+        rememberSelection();
+        if(memory_[highlight]){
+            const auto action=confirm();
+            if(action==NativeMenuAction::None)return update({},0);
+            return action;
+        }
+        phase_=Phase::Input;return NativeMenuAction::Changed;
+    }
     startDelay(15,true);
     phase_=memory_[highlight]?Phase::ConfirmDelay:Phase::PaintDelay;
     return NativeMenuAction::Changed;
@@ -277,7 +302,34 @@ void NativeMenuFlow::returnFromRace(){
 void NativeMenuFlow::cancelPreview(){
     memory_[0x5eb7d]=0;openMain();
 }
-void NativeMenuFlow::returnFromSave(){openMain(false);}
+void NativeMenuFlow::returnFromSave(bool cancelled){
+    if(cancelled&&navigation_==NativeMenuNavigation::Responsive)openPage(NativeMenuPage::LoadSave,4,3,3,0);
+    else openMain(false);
+}
+void NativeMenuFlow::rememberSelection(){
+    const int row=memory_[selection];
+    if(page_==NativeMenuPage::Main)mainSelection_=row;
+    else if(page_==NativeMenuPage::Division)divisionSelection_=row;
+    else if(page_==NativeMenuPage::Track)trackSelections_[memory_[0x5eb7c]&3]=row;
+    else if(page_==NativeMenuPage::LoadSave)saveSelection_=row;
+}
+NativeMenuAction NativeMenuFlow::back(){
+    if(navigation_!=NativeMenuNavigation::Responsive)return NativeMenuAction::None;
+    rememberSelection();
+    switch(page_){
+    case NativeMenuPage::Division:memory_[0x5eb7d]=0;openMain(false);break;
+    case NativeMenuPage::Track:
+        memory_[0x5eb7d]=0;openPage(NativeMenuPage::Division,0x18,3,(memory_[0x1c9ce]^3)&3,0x80);break;
+    case NativeMenuPage::Preview:
+        if(competitive_)openCompetitionPage(NativeMenuPage::Matchup,0x11);
+        else{memory_[0x57c62]=0x10;openPage(NativeMenuPage::Track,0x1c,2,memory_[0x1ca22]&1,0x40);}break;
+    case NativeMenuPage::HallOfFame:openMain(false);return NativeMenuAction::LeaveHallOfFame;
+    case NativeMenuPage::LoadSave:openMain(false);break;
+    case NativeMenuPage::SaveSlots:openPage(NativeMenuPage::LoadSave,4,3,3,0);break;
+    default:return NativeMenuAction::None;
+    }
+    return NativeMenuAction::Changed;
+}
 void NativeMenuFlow::openCompetitionPage(NativeMenuPage page,unsigned gameState){
     page_=page;memory_[0x57c62]=std::uint8_t(gameState);competitionFire_.reset();
     if(multiplayer()){

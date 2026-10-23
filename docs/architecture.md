@@ -67,8 +67,10 @@ RNG and persistence effects.
 - The host targets **60 presentations per second**. Original-update presentation
   holds gameplay poses; optional interpolation blends completed poses with one
   physics tick of live presentation latency.
-- Opening/menu delays and palette transitions use their recovered timing rules,
-  independently of the driving timestep.
+- Original menu navigation uses recovered opening/menu delays and palette
+  transitions, independently of the driving timestep. Responsive navigation is
+  the player default; it removes these deliberate waits and completes the same
+  transition handlers without advancing simulation time.
 
 Input is polled on the presentation loop and retained until a physics tick.
 Original and Modern control presets select the same five digital bits before
@@ -111,7 +113,13 @@ timing, analog audio filtering and cycle-exact host input/display timing are not
 claimed. Busy-loop delays use measured PAL timing; bus contention, rendering cost
 and incidental idle-poll RNG advances are not reproduced.
 
-The faithful game is the default baseline. Future aspect, camera, filter and
+The faithful gameplay remains the baseline. Menu navigation defaults to
+Responsive, with Original separately selectable from the driving preset.
+The host-time input clock emits fresh Confirm/Back actions and timed direction
+repeats; explicit parent routes restore selections. Preview revisits reuse
+prepared state, and championship reports keep their one-way progression.
+See the [menu navigation design](design/menu-navigation-design.md) for routes
+and cancellation boundaries. Future aspect, camera, filter and
 graphics options belong in presentation and should preserve that baseline as a
 selectable behaviour. Computer Link remains explicitly deferred. See
 [presentation boundaries](components/native-presentation.md) and

@@ -88,7 +88,8 @@ void NativeSaveMenu::allSlots(){
 void NativeSaveMenu::selectSlot(){
     auto& d=*drawing_;memory_[0x62bb4]=memory_[write_?0x62bb7:0x62bb6];
     memory_[0x62bb8]=memory_[0x62bb9]=0;paper(2);displaySlot();d[0x5983e]=std::uint8_t(d[0x5983e]-9);
-    ink(0);glyph('>');memory_[0x62bba]=d[0x5983e];phase_=NativeSaveMenuPhase::DirectionRelease;
+    ink(0);glyph('>');memory_[0x62bba]=d[0x5983e];
+    phase_=navigation_==NativeMenuNavigation::Responsive?(write_?NativeSaveMenuPhase::SaveSelection:NativeSaveMenuPhase::LoadSelection):NativeSaveMenuPhase::DirectionRelease;
 }
 void NativeSaveMenu::refreshSlot(){
     auto& d=*drawing_;paper(3);d[0x5983e]=std::uint8_t(memory_[0x62bba]-1);glyph(' ');
@@ -101,6 +102,7 @@ void NativeSaveMenu::startText(){
 }
 NativeSaveMenuResult NativeSaveMenu::directoryLoaded(){
     if(phase_!=NativeSaveMenuPhase::Directory)throw std::logic_error("Native save directory was not requested");
+    directoryReady_=true;
     const bool valid=longword(memory_,0x7a234)==0x47826653;
     memory_[0x62bbb]=valid?0:128;memory_[0x1bb92]=0;
     if(!valid&&write_){
@@ -140,6 +142,7 @@ void NativeSaveMenu::finish(){memory_[0x62bb5]=0;paper(3);phase_=NativeSaveMenuP
 void NativeSaveMenu::complete(){finish();}
 NativeSaveMenuResult NativeSaveMenu::update(std::uint8_t controls,double elapsed){
     if(!std::isfinite(elapsed)||elapsed<0)throw std::invalid_argument("Invalid native save elapsed time");
+    if(navigation_==NativeMenuNavigation::Responsive)return updateResponsive(controls);
     controls&=31;
     if(phase_==NativeSaveMenuPhase::Complete||phase_==NativeSaveMenuPhase::Directory)return {};
     if(phase_==NativeSaveMenuPhase::RetryDelay){
@@ -191,6 +194,55 @@ NativeSaveMenuResult NativeSaveMenu::update(std::uint8_t controls,double elapsed
         colouredMessage(0x91);const auto bits=memory_[0x5b83d];
         if(bits&128){memory_[0x1bb92]=128;finish();return result(NativeSaveMenuAction::Cancel);}
         if(bits){navigate(bits);return result(NativeSaveMenuAction::Changed);}
+        if(memory_[0x1ed6b]!=' ')return selected();
+        colouredMessage(0x7f);memory_[0x5b83e]=0;startText();return result(NativeSaveMenuAction::Changed);
+    }
+    return {};
+}
+void NativeSaveMenu::setNavigation(NativeMenuNavigation mode){
+    if(mode==navigation_)return;
+    navigation_=mode;
+    if(mode==NativeMenuNavigation::Responsive&&phase_==NativeSaveMenuPhase::DirectionRelease)
+        phase_=write_?NativeSaveMenuPhase::SaveSelection:NativeSaveMenuPhase::LoadSelection;
+    else if(mode==NativeMenuNavigation::Original&&phase_==NativeSaveMenuPhase::SaveSelection)startText();
+}
+void NativeSaveMenu::returnToSlots(){
+    const auto slot=memory_[0x62bb4];
+    frame();message(write_?0x16:0);allSlots();
+    memory_[write_?0x62bb7:0x62bb6]=slot;selectSlot();
+}
+NativeSaveMenuResult NativeSaveMenu::back(){
+    if(phase_==NativeSaveMenuPhase::SaveName){refreshSlot();selectSlot();return result(NativeSaveMenuAction::Changed);}
+    if(directoryReady_&&(phase_==NativeSaveMenuPhase::Incompatible||phase_==NativeSaveMenuPhase::InvalidData||phase_==NativeSaveMenuPhase::Retry)){
+        returnToSlots();return result(NativeSaveMenuAction::Changed);
+    }
+    memory_[0x1bb92]=128;finish();return result(NativeSaveMenuAction::Cancel);
+}
+NativeSaveMenuResult NativeSaveMenu::updateResponsive(std::uint8_t controls){
+    if(phase_==NativeSaveMenuPhase::Complete||phase_==NativeSaveMenuPhase::Directory)return {};
+    const auto scan=scanNativeNameInput(memory_,controls&31);
+    if(!scan.available)return {};
+    if(scan.code==0x4500)return back();
+    if(phase_==NativeSaveMenuPhase::InsertDisc||phase_==NativeSaveMenuPhase::FormatWarning||
+            phase_==NativeSaveMenuPhase::RetryDelay||(phase_==NativeSaveMenuPhase::Retry&&!directoryReady_)){
+        frame();message(write_?0x16:0);phase_=NativeSaveMenuPhase::Directory;return result(NativeSaveMenuAction::ReadDirectory);
+    }
+    if(phase_==NativeSaveMenuPhase::Incompatible||phase_==NativeSaveMenuPhase::InvalidData){returnToSlots();return result(NativeSaveMenuAction::Changed);}
+    if(phase_==NativeSaveMenuPhase::Retry)return selected();
+    if(phase_==NativeSaveMenuPhase::LoadSelection||phase_==NativeSaveMenuPhase::SaveSelection||phase_==NativeSaveMenuPhase::DirectionRelease){
+        const auto bits=direction(scan.code);
+        if(bits){navigate(bits);return result(NativeSaveMenuAction::Changed);}
+        if(std::uint8_t(scan.code)==13){
+            if(write_){startText();return result(NativeSaveMenuAction::Changed);}
+            if(memory_[0x1ed6b]!=' ')return selected();
+        }
+        return {};
+    }
+    if(phase_==NativeSaveMenuPhase::SaveName){
+        const auto change=applyNativeTextInputCode(memory_,text_,scan.code);
+        if(change.drewCharacter)glyph(change.character);
+        if(!change.complete)return result(change.drewCharacter?NativeSaveMenuAction::Changed:NativeSaveMenuAction::None);
+        if(const auto bits=memory_[0x5b83d]){navigate(bits);return result(NativeSaveMenuAction::Changed);}
         if(memory_[0x1ed6b]!=' ')return selected();
         colouredMessage(0x7f);memory_[0x5b83e]=0;startText();return result(NativeSaveMenuAction::Changed);
     }

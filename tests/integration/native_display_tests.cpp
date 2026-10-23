@@ -28,17 +28,21 @@ void tap(NativeDisplaySettings& settings,unsigned controls){settings.navigate(0)
 void storage(const std::filesystem::path& output){
     const auto file=output/"preferences.ini";
     for(bool fullscreen:{false,true})for(bool smooth:{false,true})for(unsigned scale=0;scale<3;++scale)
-        for(auto preset:{DriveControlPreset::Original,DriveControlPreset::Modern}){
-        NativeDisplayPreferences preferences{fullscreen,smooth,NativeScaling(scale),preset};
+        for(auto preset:{DriveControlPreset::Original,DriveControlPreset::Modern})for(auto navigation:{NativeMenuNavigation::Original,NativeMenuNavigation::Responsive}){
+        NativeDisplayPreferences preferences{fullscreen,smooth,NativeScaling(scale),preset,navigation};
         if(!saveDisplayPreferences(file,preferences))throw std::runtime_error("Display preference test write failed: Windows error "+std::to_string(GetLastError()));
         require(loadDisplayPreferences(file)==preferences,"Display preference roundtrip differs");
     }
     {std::ofstream out(file);out<<"SCR display 1\nfullscreen=1\nscaling=smooth\ninterpolate=1\n";}
     require(loadDisplayPreferences(file)==NativeDisplayPreferences{true,true,NativeScaling::FitSmooth,DriveControlPreset::Original},"Legacy preferences lost display choices or enabled Modern");
+    {std::ofstream out(file);out<<"SCR display 2\nfullscreen=1\nscaling=sharp\ninterpolate=0\ncontrols=modern\n";}
+    require(loadDisplayPreferences(file)==NativeDisplayPreferences{true,false,NativeScaling::FitSharp,DriveControlPreset::Modern,NativeMenuNavigation::Responsive},"Version 2 migration lost choices or did not adopt responsive navigation");
     for(const std::string content:std::vector<std::string>{"", "SCR display 2\nfullscreen=0\nscaling=integer\ninterpolate=0\n",
         "SCR display 1\nfullscreen=2\nscaling=integer\ninterpolate=0\n", "SCR display 1\nfullscreen=0\nscaling=unknown\ninterpolate=0\n",
         "SCR display 1\nfullscreen=0\nscaling=integer\n", "SCR display 1\nfullscreen=0\nscaling=integer\ninterpolate=0\nfullscreen=1\n",
         "SCR display 2\nfullscreen=0\nscaling=integer\ninterpolate=0\ncontrols=unknown\n",
+        "SCR display 3\nfullscreen=0\nscaling=integer\ninterpolate=0\ncontrols=modern\nnavigation=unknown\n",
+        "SCR display 3\nfullscreen=0\nscaling=integer\ninterpolate=0\ncontrols=modern\n",
         "SCR display 2\nfullscreen=0\nscaling=integer\ninterpolate=0\ncontrols=modern\ncontrols=original\n",std::string(2048,'x')}){
         {std::ofstream out(file);out<<content;}
         require(loadDisplayPreferences(file)==NativeDisplayPreferences{},"Invalid preferences were applied");
@@ -63,6 +67,8 @@ void navigation(){
     tap(settings,2);tap(settings,8);require(settings.preferences().controls==DriveControlPreset::Modern,"Controls setting did not select Modern");
     tap(settings,4);require(settings.preferences().controls==DriveControlPreset::Original,"Controls setting did not restore Original");
     tap(settings,16);require(settings.preferences().controls==DriveControlPreset::Modern,"Confirm cannot toggle control presets");
+    tap(settings,2);tap(settings,8);require(settings.preferences().navigation==NativeMenuNavigation::Original,"Menu navigation setting did not select Original");
+    tap(settings,8);require(settings.preferences().navigation==NativeMenuNavigation::Responsive,"Menu navigation setting did not restore Responsive");
     tap(settings,2);settings.navigate(0);require(settings.navigate(16)&&settings.blocksGame(),"Apply did not request saving while blocking gameplay");
     settings.applied();require(!settings.blocksGame(),"Applied direct settings did not return to game");
     const auto saved=settings.preferences();settings.pause();tap(settings,2);tap(settings,16);
@@ -70,7 +76,7 @@ void navigation(){
     require(settings.page()==NativeDisplayPage::Pause&&settings.preferences()==saved,"Cancel did not restore preferences and paused state");settings.back();
     settings.openSettings();tap(settings,2);tap(settings,2);tap(settings,2);tap(settings,8);
     require(settings.preferences().controls==DriveControlPreset::Original,"Controls did not preview on reopening settings");
-    tap(settings,2);tap(settings,2);tap(settings,16);
+    tap(settings,2);tap(settings,2);tap(settings,2);tap(settings,16);
     require(!settings.blocksGame()&&settings.preferences()==saved,"Cancel row did not restore the saved control preset");
     settings.openSettings();tap(settings,8);settings.suspendRace();settings.applied();
     require(settings.page()==NativeDisplayPage::Pause,"Focus loss allowed settings to resume a race");
@@ -152,6 +158,6 @@ int main(int argc,char** argv)try{
     if(argc!=3)throw std::invalid_argument("native_display_tests asset-pack output-directory");
     const std::filesystem::path output=argv[2];std::filesystem::create_directories(output);
     storage(output);navigation();WindowsGameDisplay display;const auto cases=scaling(display);fullscreen(display);timing(argv[1],output,display);
-    std::cout<<"{\"status\":\"passed\",\"preference_roundtrips\":24,\"corrupt_preferences\":9,\"legacy_preferences_migrated\":true,\"control_preset_navigation\":true,\"atomic_failure_checked\":true,\"controller_navigation\":true,\"scaling_cases\":"<<cases
+    std::cout<<"{\"status\":\"passed\",\"preference_roundtrips\":48,\"corrupt_preferences\":11,\"legacy_preferences_migrated\":true,\"control_preset_navigation\":true,\"atomic_failure_checked\":true,\"controller_navigation\":true,\"scaling_cases\":"<<cases
         <<",\"fullscreen_roundtrips\":4,\"paused_presentations\":120,\"changing_1080p_filter_ms\":"<<filterMilliseconds<<",\"original_tick_phase_preserved\":true,\"final_simulation_memory_identical\":true}\n";return 0;
 }catch(const std::exception& error){std::cerr<<error.what()<<'\n';return 1;}

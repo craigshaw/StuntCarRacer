@@ -16,10 +16,10 @@ source hash and local pack path. The original logo is a subdued header backgroun
 Mouse, Tab, arrows and controller navigation operate the launcher; Windows' file
 picker uses its normal keyboard/mouse controls.
 
-The launcher offers display mode, scaling, motion and driving controls. Changes
+The launcher offers display mode, scaling, motion, driving controls and menu navigation. Changes
 are saved when Play is pressed; closing discards pending setting edits while
 retaining completed asset imports. Restore original defaults resets only those
-four choices. Failed saves and game initialization remain in the launcher with
+five choices, including Original menu navigation. Failed saves and game initialization remain in the launcher with
 an explanation and retry. The launcher stays windowed; Play applies the selected
 display mode and enters the original mode chooser in the same window. In-game
 Settings remains available, and closing the game exits the application.
@@ -41,7 +41,8 @@ Letters, digits, spaces and the original `.`, `/` and `:` punctuation are
 accepted; leading spaces are ignored. Typing is independent of the racing
 physics clock, and letters such as WASD, M and I reach the name editor.
 Continue past the original driver portrait roster with a fresh fire press to
-reach the main menu. Its original palette fades and release waits are retained.
+reach the main menu. Responsive navigation removes deliberate waits and blocking
+palette fades; Original navigation retains them.
 
 **Multiplayer** retains the original name/add-player loop for two through eight
 local drivers, then shows their startup standings. Continue requires at least
@@ -53,13 +54,23 @@ The **Computer Link** serial transport remains unavailable.
 Use Up/Down or the controller stick/D-pad to select, then Return/Space or the
 controller A button to confirm. Number keys 1–4 select a row; confirmation is a
 separate action. Navigation clamps at the first/last option. The original
-release waits and approximately 326 ms repaint delay are retained, so held
-input deliberately does not scroll continuously.
+release waits and approximately 326 ms repaint delay remain available under
+Original menu navigation. Responsive is the default: presses act immediately,
+and held directions repeat after 300 ms, then every 100 ms. Confirm and Back
+require fresh presses. Controls held across a screen change require release;
+other fresh presses still work immediately.
+
+In Responsive menus, **Escape / controller B** goes back one logical level and
+restores the previous selection. Existing Cancel items follow the same route.
+Player setup lets you revisit names; Backspace still deletes text. Back does
+nothing at the mode chooser or main menu, championship matchups, or championship
+results/standings/award screens. Continue reports with A/Enter. Back on a
+championship preview returns to its prepared matchup without preparing it again.
 
 Choose **Hall of Fame** to view the lap and three-lap race records for all eight
 tracks. It retains the original artwork, twelve-character driver names, time
 formatting and palette fades. Release fire, then press Return/Space/controller A
-again to return to the main menu. It displays the current car context's record
+again to return to the main menu, or use Escape/B in Responsive mode. It displays the current car context's record
 bank and retains competitive records throughout the session. Use a save name
 beginning with `HALL` in the Load/Save/Replay route to retain them between launches.
 
@@ -68,7 +79,11 @@ Load and Save retain the original save-disc prompt; press any key to use the
 local save file. The thirty slots occupy three columns. Up/Down moves through
 them with wrapping; Left/Right moves between columns. Save names have eight
 characters, use uppercase letters and support Backspace. Return or controller
-fire accepts a name or loads a populated slot; Escape cancels slot selection.
+fire accepts a name or loads a populated slot. In Responsive mode, confirm a
+save slot before editing its name; Escape/B returns from the editor to the slot
+list, then to Load/Save, then main. Unconfirmed edits are discarded; completed
+saves/loads remain committed. Original navigation retains its existing editor
+and Escape cancellation.
 The original unformatted-disc warning appears when first saving to a new file.
 
 A normal save name stores the original career state: player name, driver order,
@@ -90,8 +105,10 @@ The native loader rejects malformed states before applying them. Saves and
 temporary save files are ignored by Git and rejected by the asset safeguard.
 
 Choose **Practise**, then a division and one of its two tracks. The original
-track overview appears. Left/Right rotates it by quarter turns; release before
-another turn. Return/Space/A starts driving after release. Arrow keys or WASD
+track overview appears. Left/Right rotates it by quarter turns. In Responsive
+mode, Escape/B returns to track selection; track Cancel returns to division
+selection. Original navigation retains its release waits and Cancel-to-main
+route. Return/Space/A starts driving after release. Arrow keys or WASD
 drive and Space boosts in either control preset. XInput steering uses the left
 stick or D-pad; A or RB boosts. Choose a preset in Settings:
 
@@ -115,7 +132,8 @@ Escape during a race requests the original quit path; its original gameplay
 gates still apply. Controller Back/View maps to that exit. At the end message,
 release fire and press it again. The original exit cleanup saves RNG state and
 restores the player's persistent data. Practice returns directly to the same
-division's track selection. Select **Cancel** there to return to the main menu.
+division's track selection. In Responsive mode, Cancel/Back goes to divisions,
+then Back returns to main. Original track Cancel returns directly to main.
 Choosing a track again creates a fresh race inside the same menu session.
 
 **Start the Racing Season** enters the original local season against computer
@@ -150,7 +168,9 @@ F10 opens Settings from any screen. Controller Start opens it directly
 from the original menus. Use arrows or the stick/D-pad to select rows; Left/Right
 changes values, and Return/A changes a selected value or activates Apply and Back.
 The options are Windowed/Borderless Fullscreen, Integer/Fit Sharp/Fit Smooth scaling,
-Original Updates/Smooth Interpolation, and Original/Modern controls. Changes
+Original Updates/Smooth Interpolation, Original/Modern driving controls, and
+Responsive/Original menu navigation. Menu navigation is independent of the
+driving preset; applying it keeps the current session and screen. Changes
 preview immediately. Apply and Back saves them; Cancel, Escape, B, F10 or Start restores the choices from before
 entry. Settings entered from the pause panel return there. Focus loss while
 adjusting settings during a race also requires an explicit resume.

@@ -18,7 +18,7 @@ NativeDisplayPreferences loadDisplayPreferences(const std::filesystem::path& pat
     if(error||size>1024)return preferences;
     std::ifstream input(path);std::string header,full,scale,motion,extra;
     if(!std::getline(input,header)||!std::getline(input,full)||!std::getline(input,scale)||!std::getline(input,motion))return {};
-    if((header!="SCR display 1"&&header!="SCR display 2")||(full!="fullscreen=0"&&full!="fullscreen=1")||
+    if((header!="SCR display 1"&&header!="SCR display 2"&&header!="SCR display 3")||(full!="fullscreen=0"&&full!="fullscreen=1")||
        (motion!="interpolate=0"&&motion!="interpolate=1"))return {};
     if(scale=="scaling=integer")preferences.scaling=NativeScaling::Integer;
     else if(scale=="scaling=sharp")preferences.scaling=NativeScaling::FitSharp;
@@ -26,10 +26,15 @@ NativeDisplayPreferences loadDisplayPreferences(const std::filesystem::path& pat
     else return {};
     // Version 1 predates control presets. Keep its display choices and use
     // the faithful controls until the player explicitly selects Modern.
-    if(header=="SCR display 2"){
+    if(header!="SCR display 1"){
         std::string controls;if(!std::getline(input,controls))return {};
         if(controls=="controls=modern")preferences.controls=DriveControlPreset::Modern;
         else if(controls!="controls=original")return {};
+    }
+    if(header=="SCR display 3"){
+        std::string navigation;if(!std::getline(input,navigation))return {};
+        if(navigation=="navigation=original")preferences.navigation=NativeMenuNavigation::Original;
+        else if(navigation!="navigation=responsive")return {};
     }
     while(std::getline(input,extra))if(!extra.empty())return {};
     preferences.fullscreen=full=="fullscreen=1";preferences.interpolate=motion=="interpolate=1";return preferences;
@@ -38,12 +43,15 @@ bool saveDisplayPreferences(const std::filesystem::path& path,const NativeDispla
     validatePath(path);
     std::error_code error;if(path.has_parent_path())std::filesystem::create_directories(path.parent_path(),error);
     if(error)return false;
-    std::ostringstream output;output<<"SCR display 2\nfullscreen="<<preferences.fullscreen<<"\nscaling=";
+    std::ostringstream output;output<<"SCR display 3\nfullscreen="<<preferences.fullscreen<<"\nscaling=";
     switch(preferences.scaling){case NativeScaling::Integer:output<<"integer";break;
         case NativeScaling::FitSharp:output<<"sharp";break;case NativeScaling::FitSmooth:output<<"smooth";break;default:return false;}
     output<<"\ninterpolate="<<preferences.interpolate<<"\ncontrols=";
     switch(preferences.controls){case DriveControlPreset::Original:output<<"original";break;
         case DriveControlPreset::Modern:output<<"modern";break;default:return false;}
+    output<<"\nnavigation=";
+    switch(preferences.navigation){case NativeMenuNavigation::Original:output<<"original";break;
+        case NativeMenuNavigation::Responsive:output<<"responsive";break;default:return false;}
     output<<'\n';const auto bytes=output.str();
     const std::filesystem::path pending=path.wstring()+L".tmp";
     const auto handle=CreateFileW(pending.c_str(),GENERIC_WRITE,0,nullptr,CREATE_ALWAYS,FILE_ATTRIBUTE_NORMAL,nullptr);
@@ -84,18 +92,19 @@ bool NativeDisplaySettings::navigate(unsigned controls){
     if(waitForRelease_){previous_=controls;if(controls==0)waitForRelease_=false;return false;}
     const auto pressed=controls&~previous_;previous_=controls;if(!blocksGame())return false;
     if(pressed&32){back();return false;}
-    const unsigned count=page_==NativeDisplayPage::Pause?2:6;
+    const unsigned count=page_==NativeDisplayPage::Pause?2:7;
     if(pressed&1)selected_=(selected_+count-1)%count;
     else if(pressed&2)selected_=(selected_+1)%count;
     if(page_==NativeDisplayPage::Pause){
         if(pressed&16){if(selected_==0)back();else openSettings(controls);}return false;
     }
-    if(selected_<4&&(pressed&(4|8|16))){
+    if(selected_<5&&(pressed&(4|8|16))){
         if(selected_==0)toggleFullscreen();
         else if(selected_==2)toggleInterpolation();
         else if(selected_==3)preferences_.controls=preferences_.controls==DriveControlPreset::Original?DriveControlPreset::Modern:DriveControlPreset::Original;
+        else if(selected_==4)preferences_.navigation=preferences_.navigation==NativeMenuNavigation::Original?NativeMenuNavigation::Responsive:NativeMenuNavigation::Original;
         else preferences_.scaling=NativeScaling((unsigned(preferences_.scaling)+((pressed&4)?2:1))%3);
-    }else if(pressed&16){if(selected_==4)return true;if(selected_==5)back();}
+    }else if(pressed&16){if(selected_==5)return true;if(selected_==6)back();}
     return false;
 }
 } // namespace scr::viewer

@@ -1,5 +1,6 @@
 #pragma once
 #include "native_menu_flow.h"
+#include <memory>
 
 namespace scr::viewer {
 enum class NativeOpeningPage { Mode,Name,AddPlayer,Roster,LocalStandings,ComputerLinkUnavailable,Complete };
@@ -21,6 +22,8 @@ public:
     explicit NativeOpeningFlow(NativeMemory&);
     NativeOpeningAction update(const NativeMenuInput&,double elapsedSeconds);
     NativeOpeningAction nameCompleted();
+    NativeOpeningAction back();
+    void setNavigation(NativeMenuNavigation mode)noexcept{navigation_=mode;}
     // The original failed/cancelled serial-link path returns to selectGameMode.
     // The host exposes its unsupported boundary before calling this method.
     void returnToMode();
@@ -36,6 +39,10 @@ private:
     double remaining_{};
     NativeFireWait fire_;
     bool multiplayer_{};
+    NativeMenuNavigation navigation_{NativeMenuNavigation::Original};
+    unsigned completedPlayers_{};
+    int modeSelection_{-1},addSelection_{-1};
+    std::unique_ptr<NativeMemory> setupCheckpoint_;
     void openMenu(NativeOpeningPage,unsigned offset,unsigned finalRow);
     void delay(unsigned units);
     NativeOpeningAction confirm();

@@ -40,6 +40,7 @@ Options parse(){
         else if(key==L"--recordings-dir")options.paths.recordings=args[n];
         else if(key==L"--save-file")options.paths.save=args[n];
         else if(key==L"--settings-file")options.paths.settings=args[n];
+        else if(key==L"--data-dir")options.paths.dataRoot=args[n];
         else throw std::runtime_error("Unknown native game argument");
     }}catch(...){LocalFree(args);throw;}
     LocalFree(args);
@@ -49,10 +50,20 @@ class GameWindow {
 public:
     explicit GameWindow(const Options& options):launcher_(options.paths,options.fullscreen,options.interpolate),
         settingsFile_(options.paths.settings),settings_(launcher_.preferences()){}
-    ~GameWindow(){if(timer_)CloseHandle(timer_);}
+    ~GameWindow(){game_.reset();if(timer_)CloseHandle(timer_);if(instanceLock_)CloseHandle(instanceLock_);}
     int run(HINSTANCE instance,int show){
+        const auto root=std::filesystem::weakly_canonical(launcher_.paths().dataRoot).wstring();
+        std::wstring normalized=root;std::transform(normalized.begin(),normalized.end(),normalized.begin(),[](wchar_t c){return wchar_t(towlower(c));});
+        const auto key=scr::state::checkpoint::hash(reinterpret_cast<const std::uint8_t*>(normalized.data()),normalized.size()*sizeof(wchar_t));
+        instanceName_=L"StuntCarRacerNativeGame-"+std::to_wstring(key);
+        instanceLock_=CreateMutexW(nullptr,FALSE,(L"Local\\"+instanceName_).c_str());
+        if(!instanceLock_)throw std::runtime_error("Cannot reserve the save-data location");
+        if(GetLastError()==ERROR_ALREADY_EXISTS){
+            const auto window=FindWindowW(instanceName_.c_str(),nullptr);
+            if(window){ShowWindow(window,SW_RESTORE);SetForegroundWindow(window);}return 0;
+        }
         WNDCLASSEXW type{};type.cbSize=sizeof(type);type.hInstance=instance;type.lpfnWndProc=procedure;
-        type.lpszClassName=L"StuntCarRacerNativeGame";type.hCursor=LoadCursorW(nullptr,IDC_ARROW);
+        type.lpszClassName=instanceName_.c_str();type.hCursor=LoadCursorW(nullptr,IDC_ARROW);
         RegisterClassExW(&type);RECT extent{0,0,960,720};AdjustWindowRect(&extent,WS_OVERLAPPEDWINDOW,FALSE);
         auto window=CreateWindowExW(WS_EX_CONTROLPARENT,type.lpszClassName,L"Stunt Car Racer",WS_OVERLAPPEDWINDOW|WS_CLIPCHILDREN,
             CW_USEDEFAULT,CW_USEDEFAULT,extent.right-extent.left,extent.bottom-extent.top,nullptr,nullptr,instance,this);
@@ -102,6 +113,8 @@ private:
     std::wstring settingsError_;
     bool muted_{},focused_{true},suppressInput_{},freshGame_{};
     HANDLE timer_{};
+    HANDLE instanceLock_{};
+    std::wstring instanceName_;
     unsigned frames_{};
     double fps_{};
     std::chrono::steady_clock::time_point fpsStart_=std::chrono::steady_clock::now();
@@ -119,6 +132,7 @@ private:
         try{
             const auto& paths=launcher_.paths();
             auto started=std::make_unique<NativeGameSession>(paths.pack,paths.recordings,NativeGameStart::OriginalOpening,paths.save);
+            started->enableCareers(paths.dataRoot);
             started->setNavigation(launcher_.preferences().navigation);
             settings_=NativeDisplaySettings(launcher_.preferences());display_.fullscreen(window,settings_.preferences().fullscreen);
             game_=std::move(started);launcherView_.visible(false);SetFocus(window);clearGameInput();
@@ -164,6 +178,7 @@ private:
         if(!focused_||settings_.blocksGame())return;
         game_->setNavigation(settings_.preferences().navigation);
         const auto changes=game_->update(elapsed,input());
+        if(game_->closeReady()){DestroyWindow(window);return;}
         rawKeys_.clear();
         if(changes.raceStarted){
             if(audio_)audio_->reset(game_->race().audioSeed());
@@ -209,6 +224,9 @@ private:
             if(settings_.preferences().interpolate)title<<L"  |  Interpolation";
             title<<L"  |  F10 Settings";
             if(!settingsError_.empty())title<<L"  |  Settings not saved";
+            if(game_->page()!=NativeMenuPage::Race||settings_.blocksGame()){
+                const auto status=game_->saveStatus();title<<L"  |  "<<std::wstring(status.begin(),status.end());
+            }
             SetWindowTextW(window,title.str().c_str());
         }
     }
@@ -323,6 +341,9 @@ private:
         case WM_SIZE:if(!game_)launcherView_.layout(window);InvalidateRect(window,nullptr,FALSE);return 0;
         case WM_DISPLAYCHANGE:display_.monitorChanged(window);InvalidateRect(window,nullptr,FALSE);return 0;
         case WM_PAINT:paint(window);return 0;
+        case WM_CLOSE:
+            if(!game_||game_->requestClose())DestroyWindow(window);
+            else{while(settings_.blocksGame())settings_.back();clearGameInput();InvalidateRect(window,nullptr,FALSE);}return 0;
         case WM_DESTROY:PostQuitMessage(0);return 0;
         default:return DefWindowProcW(window,kind,key,data);
         }

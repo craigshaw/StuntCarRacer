@@ -23,6 +23,9 @@ public:
     NativeOpeningAction update(const NativeMenuInput&,double elapsedSeconds);
     NativeOpeningAction nameCompleted();
     NativeOpeningAction back();
+    NativeOpeningAction beginSingleName(){multiplayer_=false;completedPlayers_=0;memory_[0x5eb76]=0;page_=NativeOpeningPage::Name;return NativeOpeningAction::BeginName;}
+    NativeOpeningAction beginMultiplayerName(){multiplayer_=true;completedPlayers_=0;memory_[0x5eb76]=0;page_=NativeOpeningPage::Name;return NativeOpeningAction::BeginName;}
+    bool multiplayer()const noexcept{return multiplayer_;}
     void setNavigation(NativeMenuNavigation mode)noexcept{navigation_=mode;}
     // The original failed/cancelled serial-link path returns to selectGameMode.
     // The host exposes its unsupported boundary before calling this method.

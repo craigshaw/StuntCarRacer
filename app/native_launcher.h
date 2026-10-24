@@ -4,7 +4,7 @@
 
 namespace scr::viewer {
 struct NativeLaunchPaths {
-    std::filesystem::path pack,settings,save,recordings;
+    std::filesystem::path pack,settings,save,recordings,dataRoot;
 };
 NativeLaunchPaths defaultNativeLaunchPaths();
 std::wstring launcherErrorText(const std::exception&);

@@ -68,6 +68,9 @@ public:
         const std::vector<std::uint8_t>& payload,const std::filesystem::path& recordingsDirectory);
     // Complete the recovered local race exit after quit or the end-message wait.
     void finishLiveExit(std::array<std::uint8_t,0x80000>& sessionMemory);
+    // Observation/copy boundaries for native persistence; no live mutation.
+    void copyLiveExit(std::array<std::uint8_t,0x80000>& sessionMemory)const;
+    void copyLiveRecords(std::array<std::uint8_t,32>& entries)const;
     void resetLive();
     bool stepLive(unsigned controls,bool quit=false,DriveControlPreset preset=DriveControlPreset::Original);
     unsigned verifyLiveReplay(const std::filesystem::path& inputs,const std::filesystem::path& reference,

@@ -247,6 +247,21 @@ void ReplayScene::finishLiveExit(std::array<std::uint8_t,0x80000>& sessionMemory
     (void)finishLocalRaceExit(t::readInputs(memory.data()),state);t::writeState(memory.data(),state);
     sessionMemory=memory;
 }
+void ReplayScene::copyLiveExit(std::array<std::uint8_t,0x80000>& memory)const{
+    if(!liveTerminal())throw std::logic_error("Checkpoint exit requires a finished race");
+    memory=simulation_->native.ram;
+    if(memory[0x5eb76]&&(memory[0x1ca22]&0x80))finishNativeMultiplayerRaceExit(memory);
+    namespace t=scr::state::transitions;
+    auto state=t::readState(memory.data());(void)finishLocalRaceExit(t::readInputs(memory.data()),state);t::writeState(memory.data(),state);
+}
+void ReplayScene::copyLiveRecords(std::array<std::uint8_t,32>& entries)const{
+    const auto& memory=simulation_->native.ram;
+    for(unsigned kind=0;kind<2;++kind){
+        const unsigned name=kind?0x5ec55:0x5ec48;std::copy_n(memory.begin()+name,12,entries.begin()+kind*16);
+        for(unsigned field=0;field<3;++field)entries[kind*16+12+field]=memory[0x1c916+kind+24*field];
+        entries[kind*16+15]=0;
+    }
+}
 void ReplayScene::beginLiveRecording(const std::filesystem::path& directory){
     recordingsDirectory_=directory;
     if(!directory.empty()){

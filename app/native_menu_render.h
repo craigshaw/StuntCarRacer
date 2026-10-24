@@ -3,6 +3,7 @@
 #include <array>
 #include <cstdint>
 #include <vector>
+#include <string>
 
 namespace scr::viewer {
 struct NativeMenuRenderState {
@@ -27,6 +28,9 @@ void drawNativeMenuCharacter(const NativeMemory&,NativeMenuImage&,NativeMenuText
 void packNativeMenuPixels(const NativeMenuImage&,std::vector<std::uint32_t>&);
 [[nodiscard]] NativeMenuImage makeNativeMenuImage(const NativeMemory&,const NativeMenuRenderState&);
 void renderNativeMenu(const NativeMemory&,const NativeMenuRenderState&,std::vector<std::uint32_t>&);
+// Authored options reuse the supplied artwork, strips and original glyphs.
+NativeMenuImage makeNativeChoiceImage(const NativeMemory&,const std::string& heading,
+    const std::vector<std::string>& options,unsigned selected,const std::string& detail={},const std::string& status={});
 // Original in-race message glyphs (0x5e540..0x5e64e). The caller composes
 // object 51 first and decides when the message is active or blinking.
 void drawNativeGameMessage(const NativeMemory&,std::vector<std::uint32_t>&,

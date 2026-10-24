@@ -150,7 +150,9 @@ Packs must remain under ignored `analysis/`.
 These checkout-local paths belong to development commands. A normal executable
 launch uses `%LOCALAPPDATA%/Stunt Car Racer/` and opens the setup/settings launcher
 even without an asset pack. `--asset-pack`, `--settings-file` and `--save-file`
-override individual paths; `--recordings-dir` opts into development recordings.
+override individual paths; `--data-dir` isolates careers/Hall and single-instance
+ownership. The development helper defaults that directory to `working/player-data/`.
+`--recordings-dir` opts into development recordings.
 Drive Native.cmd remains a provisional helper, independent of the player app.
 
 The supplied local `logo.png` is ignored and embedded as a native resource when

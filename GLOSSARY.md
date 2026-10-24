@@ -31,3 +31,33 @@ The faithful baseline's game-menu behaviour, selectable independently of the dri
 
 **Back**:
 The game-menu action that returns one logical level and restores the previous selection, subject to the screen's cancellation and competition-progression rules.
+
+**Career**:
+A persistent single-player driver identity and its progress across seasons. Multiple careers may use the same driver name.
+
+**Driver name**:
+The name shown for a player in the original game's rosters, races and record tables. It does not uniquely identify a career.
+
+**Career selection menu**:
+The Single Player entry menu for opening the last-used career, creating a career or browsing saved careers.
+
+**Single Player main menu**:
+An open career's home, containing Hall of Fame, Practise and either Start Season or Resume Season.
+
+**Continue**:
+The action that opens the last-used career's Single Player main menu. An active career retains its in-memory progress after a save failure until it is saved or explicitly discarded.
+
+**Resume Season**:
+The action that returns an open career to its suspended season stage, including pending matchups, finish messages and reports.
+
+**Career autosave**:
+The automatically retained continuation point for a career.
+
+**Career checkpoint**:
+A saved point in a career containing its progression and continuation stage. It represents a pre-race position or committed progress between races, including pending finish/results screens.
+
+**Career recovery copy**:
+An earlier valid career checkpoint retained for restoring a damaged current autosave.
+
+**Hall of Fame**:
+The shared collection of eligible best-lap and three-lap race records, with their holder names, independent of any one career.

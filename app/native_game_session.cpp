@@ -45,6 +45,7 @@ std::optional<NativeMultiplayerScreen> multiplayerScreen(NativeMenuPage page){
 }
 }
 NativeMenuImage NativeGameSession::menuImage()const{
+    if(careerPanel_!=CareerPanel::None)return careerImage();
     if(saveReturn_==SaveReturn::Roster)return makeNativeCompetitionImage(*data_.memory,NativeMenuPage::Roster,(*data_.memory)[0x1c9ce]);
     if(saveReturn_==SaveReturn::Standings)return makeNativeOpeningStandingsImage(*data_.memory);
     if(saveMenu_)return saveMenu_->image();
@@ -60,6 +61,9 @@ NativeMenuImage NativeGameSession::menuImage()const{
     if(menu_->multiplayer())if(const auto screen=multiplayerScreen(page()))
         return makeNativeMultiplayerImage(*data_.memory,*screen,menu_->competitionDivision(),menu_->competitionContext());
     if(page()!=NativeMenuPage::LoadSave&&page()>=NativeMenuPage::Matchup)return makeNativeCompetitionImage(*data_.memory,page(),menu_->competitionDivision(),menu_->competitionContext());
+    if(careerStore_&&activeCareer_&&!(*data_.memory)[0x5eb76]&&page()==NativeMenuPage::Main)
+        return makeNativeChoiceImage(*data_.memory,"Division "+std::to_string(4-(*data_.memory)[0x1c9ce]),
+            {"Hall of Fame","Practise",hasSuspendedSeason()?"Resume Season":"Start Season"},menu_->renderState().selected,{},{});
     return makeNativeMenuImage(*data_.memory,menu_->renderState());
 }
 NativeGameSession::NativeGameSession(const std::filesystem::path& pack,const std::filesystem::path& recordings,NativeGameStart start,const std::filesystem::path& saveFile):
@@ -72,7 +76,7 @@ NativeGameSession::NativeGameSession(const std::filesystem::path& pack,const std
 }
 void NativeGameSession::preparePreview(){
     const unsigned track=menu_->trackId(),league=(*data_.memory)[0x1c9d0];
-    if(navigation_==NativeMenuNavigation::Responsive&&previewPrepared_&&preparedTrack_==track&&
+    if((careerStore_||navigation_==NativeMenuNavigation::Responsive)&&previewPrepared_&&preparedTrack_==track&&
             preparedLeague_==league&&preparedCompetitive_==menu_->competitive()){
         preview_.load(*data_.memory,(*data_.memory)[0x1bb57]);return;
     }
@@ -85,6 +89,9 @@ void NativeGameSession::preparePreview(){
     previewPrepared_=true;preparedTrack_=track;preparedLeague_=league;preparedCompetitive_=menu_->competitive();
 }
 void NativeGameSession::startRace(){
+    // Commit the prepared fixture while still in the menu handoff. Active
+    // driving never waits for disk I/O; a failure is offered before tick one.
+    if(careerStore_)(void)careerStore_->flush();
     previewPrepared_=false;
     restoreCockpit(*data_.memory);initializeNativeRace(*data_.memory);
     race_.loadNativeState(*data_.memory,data_.payload,recordings_);
@@ -195,7 +202,9 @@ void NativeGameSession::finishResponsiveTransitions(NativeGameUpdate& result){
 }
 NativeGameUpdate NativeGameSession::update(double elapsed,const NativeGameInput& held){
     if(!std::isfinite(elapsed)||elapsed<0)throw std::invalid_argument("Invalid native game elapsed time");
-    if(navigation_==NativeMenuNavigation::Original)return updateImpl(elapsed,held);
+    NativeGameUpdate managed;if(updateCareers(elapsed,held,managed))return managed;
+    const auto oldPage=page();
+    if(navigation_==NativeMenuNavigation::Original){const auto screen=navigationScreen();auto result=updateImpl(elapsed,held);observeCareerState(oldPage);if(screen!=navigationScreen())careerClock_.enterScreen(held.menu);return result;}
     NativeGameUpdate initial;finishResponsiveTransitions(initial);
     const auto previous=navigationScreen();
     NativeGameInput input=held;input.menu=navigationClock_.sample(held.menu,elapsed);
@@ -203,8 +212,10 @@ NativeGameUpdate NativeGameSession::update(double elapsed,const NativeGameInput&
     setNativeRawKey(*data_.memory,0x45,false);
     auto result=updateImpl(elapsed,input);finishResponsiveTransitions(result);
     result.raceStarted=result.raceStarted||initial.raceStarted;result.raceExited=result.raceExited||initial.raceExited;
+    observeCareerState(oldPage);
     if(previous!=navigationScreen()){
         navigationClock_.enterScreen(held.menu);
+        careerClock_.enterScreen(held.menu);
         // A menu's initiating Return/arrow must not become text on arrival.
         for(unsigned key=0;key<128;++key)if(key!=0x60&&key!=0x61)(*data_.memory)[0xead6+key]=0;
     }
@@ -249,7 +260,14 @@ NativeGameUpdate NativeGameSession::updateImpl(double elapsed,const NativeGameIn
         for(unsigned n=0;n<steps;++n){
             race_.stepLive(driveLatch_.consume(input.drivePreset),quitPending_,input.drivePreset);quitPending_=input.quit;
             result.audio.push_back(race_.frames().back().audio);
+            observeHall();
             if(race_.liveTerminal()){
+                if(careerStore_){
+                    saveCheckpoint(true);
+                    // Driving has stopped. Commit the outcome before exposing
+                    // its acknowledgement screen, or report the failed write.
+                    (void)careerStore_->flush();
+                }
                 if(race_.frames().back().action==unsigned(RaceTransitionAction::quit)){
                     leaveRace();
                 }else endFireWait_.reset();
@@ -296,6 +314,7 @@ NativeGameUpdate NativeGameSession::updateImpl(double elapsed,const NativeGameIn
 void NativeGameSession::releaseInput(const NativeMenuInput& held)noexcept{
     driveLatch_.clear();quitPending_=false;
     navigationClock_.clear();navigationClock_.enterScreen(held);
+    careerClock_.clear();careerClock_.enterScreen(held);
     std::fill_n(data_.memory->begin()+0xead6,128,std::uint8_t{});
 }
 void NativeGameSession::handleSaveAction(const NativeSaveMenuResult& result){
@@ -310,6 +329,9 @@ void NativeGameSession::handleSaveAction(const NativeSaveMenuResult& result){
     }
     if(result.action!=NativeSaveMenuAction::Select)return;
     const auto kind=static_cast<NativeSaveKind>(result.kind);
+    if(careerStore_&&kind==NativeSaveKind::Records){
+        finishSave(true);notice_="Hall saves automatically";returnPanel_=CareerPanel::None;showCareerPanel(CareerPanel::Notice);return;
+    }
     auto next=std::make_unique<NativeMemory>(memory);
     commitNativeSaveDirectory(*next,result.slot,result.name,saveMenu_->writing());
     NativeSaveBlock directory{};std::copy_n(next->begin()+0x7a21a,directory.size(),directory.begin());
@@ -368,6 +390,11 @@ void NativeGameSession::replayGame(const NativeMenuImage& previous){
 }
 void NativeGameSession::handleOpeningAction(NativeOpeningAction action,const NativeMenuImage& previous,NativeGameUpdate& result){
     if(action==NativeOpeningAction::BeginName){
+        if(careerStore_&&opening_->multiplayer()&&!multiplayerSetup_){(void)depart(Departure::Multiplayer);return;}
+        if(careerStore_&&!opening_->multiplayer()&&!creatingCareer_){
+            showCareerPanel(CareerPanel::Home);
+            return;
+        }
         nameScreen_=std::make_unique<NativeOpeningNameScreen>(*data_.memory);
         if(navigation_==NativeMenuNavigation::Responsive){
             const auto length=nameLengths_[(*data_.memory)[0x5eb76]];
@@ -390,6 +417,7 @@ void NativeGameSession::handleOpeningAction(NativeOpeningAction action,const Nat
             transitionIndices_.assign(previous.indices.begin(),previous.indices.end());
             fade_.fadeToColor(readNativePalette(*data_.memory,0x23c32)[0]);transition_=Transition::OutOpening;
         }
+        if(careerStore_&&creatingCareer_&&single)registerCareer();
     }else if(action==NativeOpeningAction::UnsupportedComputerLink){
         result.unavailable=NativeGameUnavailable::computerLink;
         opening_->returnToMode();
@@ -419,6 +447,8 @@ void NativeGameSession::updateOpening(const NativeGameInput& input,double elapse
     handleOpeningAction(opening_->update(input.menu,elapsed),previous,result);
 }
 const std::vector<std::uint32_t>& NativeGameSession::render(bool interpolate,bool paused){
+    if(careerPanel_!=CareerPanel::None){packNativeMenuPixels(careerImage(),pixels_);return pixels_;}
+    if(finishPending_){pixels_=finishPixels_;return pixels_;}
     if(transitioning()){
         const auto palette=fade_.rgbPalette();pixels_.resize(transitionIndices_.size());
         for(unsigned i=0;i<transitionIndices_.size();++i)pixels_[i]=palette[transitionIndices_[i]];

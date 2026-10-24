@@ -8,6 +8,7 @@ Start with the [project README](../README.md). For a new development thread, rea
 
 - [Launcher design](design/launcher-design.md): setup flow, agreed scope and UX decisions.
 - [Menu navigation design](design/menu-navigation-design.md): responsive navigation, Back routes and preservation of Original navigation.
+- [Career persistence design](design/career-persistence-design.md): career selection, Continue, Resume Season, autosave and Hall of Fame.
 - [Glossary](../GLOSSARY.md): language for the native port and its setup experience.
 
 ## Run, build and boundaries
@@ -33,7 +34,7 @@ Start with the [project README](../README.md). For a new development thread, rea
   [career state](components/native-career-state.md), [career screens](components/native-career-render.md),
   [multiplayer state](components/native-multiplayer-state.md),
   [multiplayer screens](components/native-multiplayer-render.md).
-- Records and saves: [Hall of Fame](components/native-hall-of-fame.md),
+- Records and saves: [career persistence](components/native-career-persistence.md), [Hall of Fame](components/native-hall-of-fame.md),
   [record state](components/native-hall-records.md), [save encoding and Replay](components/native-save-state.md),
   [save UI](components/native-save-menu.md), [host storage](components/native-save-store.md).
 - Fresh state: [asset initialization](components/native-asset-initialization.md),

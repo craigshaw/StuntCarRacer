@@ -12,7 +12,7 @@ NativeLaunchPaths defaultNativeLaunchPaths(){
     if(FAILED(SHGetKnownFolderPath(FOLDERID_LocalAppData,KF_FLAG_DEFAULT,nullptr,&folder)))
         throw std::runtime_error("Cannot locate your Windows application-data folder.");
     const auto root=std::filesystem::path(folder)/L"Stunt Car Racer";CoTaskMemFree(folder);
-    return {root/L"assets/stunt-car-racer.scr-assets",root/L"settings/display.ini",root/L"saves/stunt-car-racer.scr-save",{}};
+    return {root/L"assets/stunt-car-racer.scr-assets",root/L"settings/display.ini",root/L"saves/stunt-car-racer.scr-save",{},root};
 }
 std::wstring launcherErrorText(const std::exception& error){
     const auto count=MultiByteToWideChar(CP_UTF8,0,error.what(),-1,nullptr,0);

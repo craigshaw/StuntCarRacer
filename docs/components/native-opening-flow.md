@@ -5,6 +5,11 @@ add-player loop and opening roster before the main menu. The existing direct
 Practice startup remains useful for replay and physics checks; it does not
 pretend that the opening menus have already run.
 
+The recovered sequence below describes the baseline. In the current player,
+Single Player first opens [career selection](native-career-persistence.md).
+Only New Career enters this name/roster journey; Continue and Browse Careers
+open the selected driver's three-row main menu. Multiplayer setup is unchanged.
+
 The native flow takes normalized original controller bits and elapsed time.
 The host freezes it while the original palette transitions run, owns the
 separate name-entry component, and reports a completed name through

@@ -113,6 +113,20 @@ NativeMenuImage makeNativeMenuImage(const NativeMemory& m,const NativeMenuRender
 void renderNativeMenu(const NativeMemory& m,const NativeMenuRenderState& state,std::vector<std::uint32_t>& pixels) {
     packNativeMenuPixels(makeNativeMenuImage(m,state),pixels);
 }
+NativeMenuImage makeNativeChoiceImage(const NativeMemory& m,const std::string& heading,
+        const std::vector<std::string>& options,unsigned selected,const std::string& detail,const std::string& status){
+    if(options.empty()||options.size()>4||selected>=options.size())throw std::invalid_argument("Invalid career menu options");
+    auto image=makeNativeMenuFrame(m,m[0x1c9ce],false);
+    const auto text=[&](const std::string& value,unsigned column,unsigned row,unsigned colour){
+        NativeMenuTextCursor cursor;cursor.column=column;cursor.row=row;cursor.colour=colour;cursor.yOffset=4;
+        for(unsigned char c:value.substr(0,31))character(m,image,cursor,c>=32&&c<127?c:'?');
+    };
+    text(heading,5,11,15);
+    for(unsigned n=0;n<options.size();++n){const unsigned row=m[0x64af4+n];strip(m,image,row,n==selected?1:2);text(std::to_string(n+1)+". "+options[n],5,row,0);}
+    if(!detail.empty())text(detail,5,22,1);
+    if(!status.empty())text(status,5,24,15);
+    return image;
+}
 void drawNativeGameMessage(const NativeMemory& m,std::vector<std::uint32_t>& pixels,
         const std::array<std::uint32_t,16>& palette,unsigned index,unsigned mode,bool blink) {
     if(pixels.size()!=320*200||mode==0||mode>4||index+mode*4>0xe4)

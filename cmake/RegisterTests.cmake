@@ -31,7 +31,7 @@ if(WIN32)
   foreach(target native_game_session_tests native_opening_session_tests native_startup_tests
       draw_bridge_driving_tests native_opponent_driving_tests native_opponent_session_tests
       native_multiplayer_session_tests native_career_session_tests native_save_session_tests
-      native_display_tests native_launcher_tests native_navigation_tests)
+      native_display_tests native_launcher_tests native_navigation_tests native_autosave_tests)
     scr_test(${target} "native;assets" "${SCR_TEST_ASSET_PACK}"
       "${SCR_TEST_ASSET_PACK}" "${test_output}/${target}")
   endforeach()

@@ -22,8 +22,11 @@ On the prepared development machine, **[Drive Native.cmd](Drive%20Native.cmd)**
 remains a provisional build/check helper. It opens the same launcher using the
 checkout's existing assets, settings and saves.
 
-Select Single Player League, enter your name, continue past the roster, then
-choose Practise or Start the Racing Season. The game also supports two to eight
+Select Single Player League to see New Career, plus Continue for the available
+last-used career and Browse Careers when saved careers exist. New Career asks
+for a name and confirms the roster, then saves automatically. Continue and Browse
+open the three-row single-player menu: Hall of Fame, Practise and Start Season
+or Resume Season. The game also supports two to eight
 local players taking turns against the computer pace car.
 
 | Action | Keyboard | Xbox / XInput controller |
@@ -45,14 +48,17 @@ Text entry uses the original name editor; typing letters does not trigger drivin
 Menus default to **Responsive** navigation: immediate input, held-direction
 repeat and Back one level with remembered selections. Choose **Original** menu
 navigation in the launcher or Settings for the faithful timing and routes.
-This setting is independent of the driving preset. Back does nothing at the
-mode chooser, main menu, championship matchup or championship report screens;
-use A/Enter to continue reports. Existing Cancel entries remain available.
+This setting is independent of the driving preset. In a single-player career,
+Back from a matchup or report returns to that career's main menu while preserving
+the exact pending stage. Resume Season restores it; A/Enter advances reports.
+Back from the main menu returns to career selection, then to the mode chooser.
+Practice preserves a suspended season. Existing Cancel entries remain available.
 See [playing and settings](docs/playing.md) for menu, save and controller details.
 
 Normal launches store assets, preferences and saves under
 `%LOCALAPPDATA%/Stunt Car Racer/`. The development helper retains
-`working/settings/display.ini` and `working/saves/stunt-car-racer.scr-save`.
+`working/settings/display.ini` and `working/saves/stunt-car-racer.scr-save` for
+multiplayer manual saves, with careers and shared Hall in `working/player-data/`.
 Settings provide control presets, borderless
 fullscreen, integer/sharp/smooth scaling and optional motion interpolation.
 Physics stays at **120 ms per update**, wheel/engine interrupts at **50 Hz**, and
@@ -71,7 +77,8 @@ To run an existing build directly, from the project root:
 - Original startup, name entry, menus, overview and all eight tracks, including Draw Bridge.
 - Practice, opponent races, both leagues, career progression and championship endings.
 - Two-to-eight-player local championships, results, damage and track bonuses.
-- Hall of Fame, thirty save slots, career/record/multiplayer saves and original Replay flow.
+- Independent single-player careers, Continue, automatic checkpoints and shared Hall records.
+- Thirty manual multiplayer save slots and its original Replay flow.
 - Cockpit instruments, wheel animation, engine sound and effects, keyboard and XInput input.
 - ADF setup launcher, fullscreen, saved preferences and optional smooth presentation.
 

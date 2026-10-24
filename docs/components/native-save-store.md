@@ -1,5 +1,10 @@
 # Native save-file backing
 
+This guide describes retained multiplayer/manual transport and baseline regression
+instances. The player uses [native career persistence](native-career-persistence.md)
+for single-player autosaves and shared Hall records; legacy HALL import/export is
+disabled there. The manual file is never an input to the new stores.
+
 `NativeSaveStore` supplies the local storage used by the original native
 Load/Save/Replay flow. Its file contains the original 512-byte directory and
 thirty 512-byte transfer blocks, in that order: 15,872 bytes in total. These

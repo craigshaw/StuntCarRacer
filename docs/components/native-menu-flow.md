@@ -9,6 +9,13 @@ class by [NativeOpeningFlow](native-opening-flow.md) and the
 slots and names before the main menu starts. An explicit established-menu test
 option still enters this class directly for independent race regressions.
 
+The player's single-player caller adds
+[career selection and Resume Season](native-career-persistence.md). Its main menu
+has three rows, configured by `setMainRowCount(3)`; the fourth row is removed from
+both rendering and selection. Baseline/multiplayer instances retain four rows.
+Career Back routes apply in both timing policies and preserve a separate season
+checkpoint while the main menu or Practice is open.
+
 ## Evidence and addresses
 
 The recovered contracts and oracle comparisons below describe **Original**

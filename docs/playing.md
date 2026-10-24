@@ -26,22 +26,30 @@ Settings remains available, and closing the game exits the application.
 
 Normal executable launches use `%LOCALAPPDATA%/Stunt Car Racer/`: `assets/` for
 the pack and provenance, `settings/display.ini` for preferences and
-`saves/stunt-car-racer.scr-save` for saves. Drive Native.cmd is a provisional
-development helper using the existing checkout-local paths. No captured memory,
+`careers/`, `last.scr-index` and `hall.scr-hall` for automatic persistence.
+`saves/stunt-car-racer.scr-save` retains manual multiplayer saves. Drive Native.cmd
+isolates careers/Hall under `working/player-data/`; `-DataDirectory` or the native
+`--data-dir` argument selects another location. A second launch using the same
+data directory brings the existing player forward. No captured memory,
 Kickstart ROM, WinUAE, Python or CPU emulator is needed by the executable.
 Automatic driving recordings are off; `--recordings-dir` explicitly enables them
 for development. The direct-race and captured replay viewers retain their controls.
 
 ## Controls and original route
 
-Select **Single Player League**, type a name and press Return or controller A.
+Select **Single Player League** to open career selection every time.
+**New Career** always appears; **Continue** appears when the last-used career is
+available, and **Browse Careers** appears when any saved careers exist. With no
+careers, New Career is the only row. Choose it to enter a name and press Return
+or controller A.
 The original name editor accepts up to twelve characters, keeps their case,
 uses Shift for capitals and Backspace for deletion, and retries empty names.
 Letters, digits, spaces and the original `.`, `/` and `:` punctuation are
 accepted; leading spaces are ignored. Typing is independent of the racing
 physics clock, and letters such as WASD, M and I reach the name editor.
 Continue past the original driver portrait roster with a fresh fire press to
-reach the main menu. Responsive navigation removes deliberate waits and blocking
+create the first autosave and reach the single-player main menu. A failed first save offers
+Retry/Cancel before racing. Responsive navigation removes deliberate waits and blocking
 palette fades; Original navigation retains them.
 
 **Multiplayer** retains the original name/add-player loop for two through eight
@@ -63,19 +71,71 @@ other fresh presses still work immediately.
 In Responsive menus, **Escape / controller B** goes back one logical level and
 restores the previous selection. Existing Cancel items follow the same route.
 Player setup lets you revisit names; Backspace still deletes text. Back does
-nothing at the mode chooser or main menu, championship matchups, or championship
-results/standings/award screens. Continue reports with A/Enter. Back on a
-championship preview returns to its prepared matchup without preparing it again.
+nothing at the mode chooser. In single-player careers, Back from a championship
+matchup, finish message or report returns to the profile's main menu, preserving
+the exact pending stage. **Resume Season** restores it; A/Enter advances reports.
+Back from the main menu returns to career selection, then to the mode chooser. These suspension
+routes work with either navigation policy. Back on a championship preview returns
+to its prepared matchup without preparing it again. Multiplayer retains its
+existing matchup/report acknowledgement flow.
 
 Choose **Hall of Fame** to view the lap and three-lap race records for all eight
 tracks. It retains the original artwork, twelve-character driver names, time
 formatting and palette fades. Release fire, then press Return/Space/controller A
 again to return to the main menu, or use Escape/B in Responsive mode. It displays the current car context's record
-bank and retains competitive records throughout the session. Use a save name
-beginning with `HALL` in the Load/Save/Replay route to retain them between launches.
+bank. Eligible human lap and three-lap competitive records save automatically in
+both leagues and both modes. An earned lap survives closing during the remaining
+race. Practice, partial laps and opponents cannot add records; ties retain the
+existing holder. Deleting or restoring a career cannot roll the shared Hall back.
+
+## Careers and autosave
+
+**Continue** opens the last-used career's main menu. It does not jump straight
+into a race or report. **New Career** creates an independent driver identity and
+progress across seasons; two careers may have the same name. **Browse Careers** is sorted by last played,
+with the selected driver's division, league and date beneath the list. Up/Down
+scrolls and Left/Right moves three careers at a time. Select a career to continue
+or delete it. Delete requires confirmation, removes its recovery copies and keeps
+the shared Hall. Rename is not offered. Deleting the last-used career requires
+explicitly choosing another before Continue appears again.
+
+An open career's main menu has three rows: **Hall of Fame**, **Practise** and
+**Start Season**. When a season is suspended, the third row becomes **Resume
+Season** and reopens its exact matchup, finish message, results, standings, award
+or roster. There is no fourth Career row; Escape/B returns to career selection.
+Autosave is always enabled and does
+not depend on the navigation or driving preset. There is no single-player manual
+save/load/Replay route or import of old saves/HALL records. Existing legacy files
+remain untouched. To switch careers during a season, back out through the main
+menu to career selection and browse or create another career.
+
+Closing or crashing during an unfinished competitive race restarts the same
+fixture at its matchup through Resume Season, with the pre-race state and damage.
+Continue always opens the main menu first. A completed race is saved before its finish message
+is acknowledged, and its result is scored once. Practice exits normally to track
+selection and retains its resulting RNG in the profile's main-menu state. A
+suspended season keeps its own exact state and RNG throughout Practice, including
+closing during Practice. Resume Season restores that saved season; Practice
+cannot overwrite it or score points. The existing Pause and Leave Race controls
+retain their racing behaviour.
+
+Saving/Saved appears in career panels and the window title in menus or pause.
+**Not saved** stays visible after failure. At a safe menu choose Retry or Continue
+without saving; the latest progress remains in RAM for Continue. Future checkpoint
+boundaries retry. Switching careers or closing flushes writes; a failed flush
+offers Retry, Leave unsaved or Cancel. Leaving unsaved can lose progress since the
+last successful write.
+
+Each store retains two prior valid generations. A damaged/missing current file
+recovers the newest valid copy with a notice. A career with no usable copy stays
+unavailable; choose, create or delete explicitly. A damaged Hall offers an explicit
+fresh start while preserving the damaged files. Unsupported formats are not
+overwritten. See [storage and verification](components/native-career-persistence.md).
+
+## Manual multiplayer saves
 
 **Load/Save/Replay** opens the original four-row submenu with Cancel selected.
-Load and Save retain the original save-disc prompt; press any key to use the
+In multiplayer, Load and Save retain the original save-disc prompt; press any key to use the
 local save file. The thirty slots occupy three columns. Up/Down moves through
 them with wrapping; Left/Right moves between columns. Save names have eight
 characters, use uppercase letters and support Backspace. Return or controller
@@ -86,13 +146,13 @@ saves/loads remain committed. Original navigation retains its existing editor
 and Escape cancellation.
 The original unformatted-disc warning appears when first saving to a new file.
 
-A normal save name stores the original career state: player name, driver order,
-division, remaining damage allowance and league context. Names beginning with
-`HALL` save both record banks; loading merges better records and keeps current
-holders on ties. Names beginning with `MP` save the local multiplayer names,
+A normal save name retains the manual access/career data: player name, driver
+order, division, remaining damage allowance and league context. Names beginning
+with `HALL` are retired: records save automatically and legacy record files are
+not imported. Names beginning with `MP` save the local multiplayer names,
 scores and damage. The original compatibility warning enforces the player mode.
 Career operations return through the original driver roster, multiplayer data
-through standings, and `HALL` directly to the main menu.
+through standings.
 
 **Replay** restores the retained season setup, resets the race tables and shows
 the original roster. Holding F1 when confirming Replay returns to the original

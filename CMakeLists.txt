@@ -80,6 +80,9 @@ if(WIN32)
   target_link_libraries(scr_startup PUBLIC scr_render scr_audio scr_state bcrypt)
   target_compile_features(scr_startup PUBLIC cxx_std_17)
   add_library(scr_game STATIC app/native_game_session.cpp
+    app/native_career_session.cpp
+    app/native_career_store.cpp
+    app/native_career_checkpoint.cpp
     app/native_save_store.cpp
     app/replay_scene.cpp app/replay_render_assets.cpp app/replay_interpolation.cpp
     app/live_drive.cpp app/game_audio.cpp)

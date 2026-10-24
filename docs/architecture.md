@@ -14,7 +14,7 @@ decoders; retaining original code bytes in the pack does not make them executabl
 | `scr_render` | `src/` geometry, projection, planar and raster modules | Original assets, geometry and native image generation |
 | `scr_state` | `src/state/` shared headers | Recovered memory-layout adapters, native race stages and replay I/O |
 | `scr_startup` | `app/native_startup.*`, `native_*` components | Asset/race initialization, original menus, text, records and competition rules |
-| `scr_game` | `app/native_game_session.*`, `replay_scene.*` | Session/menu/race handoff, independently evolved gameplay, snapshots and recordings |
+| `scr_game` | `app/native_game_session.*`, `native_career_*`, `replay_scene.*` | Session/menu/race handoff, career continuation/storage, independently evolved gameplay, snapshots and recordings |
 | `scr_display` | `app/native_launcher.*`, `windows_launcher.*`, `native_display_settings.*`, `windows_game_display.*` | Pre-game setup, display/control UI, scaling, fullscreen and preferences |
 | Windows host | `app/native_game.cpp`, `windows_drive_input.*`, `windows_audio_output.*` | Event/presentation loop, keyboard, XInput, device playback and window lifecycle |
 
@@ -49,10 +49,25 @@ change simulation advancement or the initial presentation snapshots.
 4. `NativeGameSession` prepares the selected track, preview and race context.
    `initializeNativeRace` constructs fresh fuel, damage, timing and placement;
    `ReplayScene` runs the recovered gameplay step.
-5. Race exit transfers persistent state back to the same menu session. Career,
-   multiplayer, records and the original save/Replay codecs retain their own
-   recovered rules. `NativeSaveStore` replaces floppy transport with atomic local
-   file storage.
+5. Race exit transfers persistent state back to the same menu session. Native
+   career checkpoints retain the exact continuation stage and both RNG stores.
+   A finished race stages its exit/scoring on a private copy before acknowledgement;
+   restoration resumes the resulting report without repeating those effects.
+   A shared Hall store observes eligible competitive records independently.
+   Multiplayer manual progress uses the original codec and `NativeSaveStore`.
+
+Single-player career selection always precedes name entry or opening a career.
+Continue and Browse Careers open a three-row main menu. Resume Season restores
+a separate suspended continuation, while Practice uses the main-menu state and
+cannot consume the suspended season's RNG or advance its reports. Native
+checkpoint version 2 can persist both states; version 1 remains readable.
+
+The player enables [career persistence](components/native-career-persistence.md)
+explicitly; legacy flow instances remain available to original-code regression
+tests. A serial worker writes immutable payloads with flushed atomic replacement
+and two valid recovery generations. Checkpoint capture, Hall observation and
+restoration do not invoke the legacy RNG-consuming encoder. A per-data-directory
+Windows mutex prevents simultaneous player writers; `--data-dir` isolates development.
 
 Preview rendering owns a copy of track state. Race entry clears the menu text
 mode before drawing the cockpit; it must not inherit menu displacement. Reset,

@@ -12,6 +12,7 @@
 #include "native_save_menu.h"
 #include "native_save_state.h"
 #include "native_save_store.h"
+#include "native_career_checkpoint.h"
 #include <optional>
 
 namespace scr::viewer {
@@ -37,26 +38,86 @@ public:
     NativeGameSession(const std::filesystem::path& pack,const std::filesystem::path& recordings,
         NativeGameStart start=NativeGameStart::OriginalOpening,const std::filesystem::path& saveFile={});
     NativeGameUpdate update(double elapsed,const NativeGameInput&);
+    void enableCareers(const std::filesystem::path& dataRoot);
+    bool requestClose();
+    bool closeReady()const noexcept{return closeReady_;}
+    std::string saveStatus()const;
+    bool careerHome()const noexcept{return careerPanel_==CareerPanel::Home;}
+    bool hasSuspendedSeason()const noexcept{return !suspendedSeason_.empty();}
+    const std::optional<NativeCareerInfo>& activeCareer()const noexcept{return activeCareer_;}
     void setNavigation(NativeMenuNavigation);
     const std::vector<std::uint32_t>& render(bool interpolate=false,bool paused=false);
     NativeMenuPage page()const noexcept{
+        if(careerPanel_!=CareerPanel::None)return NativeMenuPage::Opening;
+        if(finishPending_)return NativeMenuPage::Race;
         if(openingActive())return NativeMenuPage::Opening;
         if(saveReturn_==SaveReturn::Roster)return NativeMenuPage::Roster;
         if(saveReturn_==SaveReturn::Standings)return NativeMenuPage::Standings;
         return menu_->page();
     }
-    NativeMenuRenderState menuState()const{return openingActive()?opening_->renderState():menu_->renderState();}
-    bool openingActive()const noexcept{return opening_&&!opening_->complete();}
+    NativeMenuRenderState menuState()const{
+        if(careerPanel_!=CareerPanel::None){
+            NativeMenuRenderState state;state.selected=careerPanel_==CareerPanel::List?listSelection_%3:careerSelection_;state.division=(*data_.memory)[0x1c9ce];
+            if(careerPanel_==CareerPanel::Notice)state.count=0;
+            else if(careerPanel_==CareerPanel::Home)state.count=unsigned(homeActions_.size()-1);
+            else if(careerPanel_==CareerPanel::Delete||careerPanel_==CareerPanel::SaveError||careerPanel_==CareerPanel::CreateError)state.count=1;
+            else if(careerPanel_==CareerPanel::List){const auto first=(listSelection_/3)*3;state.count=careerList_.empty()?0:unsigned(std::min<std::size_t>(3,careerList_.size()-first))-1;}
+            else state.count=2;
+            return state;
+        }
+        return openingActive()?opening_->renderState():menu_->renderState();
+    }
+    bool openingActive()const noexcept{return careerPanel_==CareerPanel::None&&opening_&&!opening_->complete();}
     NativeOpeningPage openingPage()const noexcept{return opening_?opening_->page():NativeOpeningPage::Complete;}
     bool enteringName()const noexcept{return openingActive()&&opening_->page()==NativeOpeningPage::Name;}
     bool usingTextInput()const noexcept{return enteringName()||bool(saveMenu_);}
     std::optional<NativeSaveMenuPhase> savePhase()const noexcept{return saveMenu_?std::optional{saveMenu_->phase()}:std::nullopt;}
     const NativeMemory& memory()const noexcept{return *data_.memory;}
     const ReplayScene& race()const noexcept{return race_;}
-    bool raceEnded()const noexcept{return page()==NativeMenuPage::Race&&race_.liveTerminal();}
+    bool raceEnded()const noexcept{return page()==NativeMenuPage::Race&&(finishPending_||race_.liveTerminal());}
     bool transitioning()const noexcept{return transition_!=Transition::None;}
     void releaseInput(const NativeMenuInput& held={})noexcept;
 private:
+    enum class CareerPanel {None,Home,List,Actions,Delete,Notice,SaveError,CreateError,HallRecovery,Departure};
+    enum class Departure {None,Close,NewCareer,LoadCareer,Multiplayer};
+    enum class HomeAction {Continue,NewCareer,Browse};
+    std::unique_ptr<NativeMemory> careerBaseline_;
+    std::unique_ptr<NativeMemory> careerDraft_;
+    unsigned draftNameLength_{};
+    std::unique_ptr<NativeCareerStore> careerStore_;
+    NativeHallBanks hall_{};
+    bool hallWritable_{true},creatingCareer_{},finishPending_{},closeReady_{},errorAcknowledged_{},multiplayerSetup_{};
+    CareerPanel careerPanel_{CareerPanel::None},returnPanel_{CareerPanel::None},departureReturnPanel_{CareerPanel::None};
+    Departure departure_{Departure::None};
+    unsigned careerSelection_{},listSelection_{};
+    std::vector<NativeCareerInfo> careerList_;
+    std::optional<NativeCareerInfo> activeCareer_,newCareer_;
+    CareerBytes checkpoint_,newCheckpoint_,suspendedSeason_;
+    std::vector<HomeAction> homeActions_;
+    std::string recentCareerName_;
+    std::vector<std::uint32_t> finishPixels_;
+    NativeMenuInputClock careerClock_;
+    std::string lastCareer_,notice_,loadCareer_;
+    void showCareerPanel(CareerPanel);
+    void showCareerHome();
+    void refreshCareerHome();
+    void openSinglePlayerMenu(bool captureSeason=true);
+    void resumeSeason();
+    NativeMenuImage careerImage()const;
+    bool updateCareers(double,const NativeGameInput&,NativeGameUpdate&);
+    void observeCareerState(NativeMenuPage previous);
+    void saveCheckpoint(bool terminal=false);
+    void restoreCheckpoint(const CareerBytes&);
+    bool loadCareer(const std::string&);
+    void beginCareer();
+    void registerCareer();
+    void completeCareerCreation();
+    void cancelCareerCreation();
+    void mergeHallInto(NativeMemory&)const;
+    void observeHall();
+    bool depart(Departure,const std::string& id={});
+    void completeDeparture();
+    void checkSaveFailure();
     NativeStartupData data_;
     std::unique_ptr<NativeMenuFlow> menu_;
     std::unique_ptr<NativeOpeningFlow> opening_;

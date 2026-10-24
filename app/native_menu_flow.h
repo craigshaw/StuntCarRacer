@@ -33,11 +33,22 @@ private:
     double remaining_{};
 };
 
+struct NativeMenuContinuation {
+    NativeMenuPage page{NativeMenuPage::Main};
+    bool competitive{},multiplayerTrackEnd{};
+    unsigned division{},context{};
+    int mainSelection{-1},divisionSelection{-1},saveSelection{-1};
+    std::array<int,4> trackSelections{{-1,-1,-1,-1}};
+};
+
 class NativeMenuFlow {
 public:
     explicit NativeMenuFlow(NativeMemory&);
+    NativeMenuFlow(NativeMemory&,const NativeMenuContinuation&);
+    NativeMenuContinuation continuation()const noexcept;
     NativeMenuAction update(const NativeMenuInput&,double elapsedSeconds);
     void setNavigation(NativeMenuNavigation mode)noexcept{navigation_=mode;}
+    void setMainRowCount(unsigned count);
     NativeMenuAction back();
     void returnFromRace();
     void cancelPreview();
@@ -58,6 +69,7 @@ private:
     double remaining_{};
     std::uint8_t previewReleaseMask_{0x1f};
     unsigned unsupported_{};
+    unsigned mainRowCount_{4};
     bool competitive_{};
     bool multiplayerTrackEnd_{};
     unsigned competitionDivision_{};

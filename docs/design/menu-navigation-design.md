@@ -2,6 +2,13 @@
 
 Status: implemented after confirmation of shared understanding.
 
+This design records navigation for the faithful baseline flow. The player's
+current single-player hierarchy is defined by the
+[career persistence design](career-persistence-design.md): career selection,
+the three-row main menu and Resume Season. Its Back/suspension routes apply in
+both navigation timing policies; the baseline route table below remains useful
+for multiplayer and original-code comparisons.
+
 The next quality-of-life improvement targets navigation through the original
 game menus. Preserve their original appearance and high-level structure while
 making button presses respond immediately and adding a dedicated Back action.
@@ -66,7 +73,7 @@ load is committed and cannot be undone through Back. Error/warning prompts
 follow their unfinished operation's cancellation route. Existing Settings and
 Pause cancellation retain their own Apply/Cancel and resume behaviour.
 
-The main menu does not return to mode selection or end the session. No new
+The baseline main menu does not return to mode selection or end the session. No new
 quit confirmation or return-to-launcher flow is part of this improvement.
 
 ## Agreed setting

@@ -3,6 +3,7 @@ param(
     [string]$AssetPack = 'analysis/assets/stunt-car-racer.scr-assets',
     [string]$SaveFile = 'working/saves/stunt-car-racer.scr-save',
     [string]$SettingsFile = 'working/settings/display.ini',
+    [string]$DataDirectory = 'working/player-data',
     [switch]$Fullscreen,
     [switch]$Interpolate,
     [switch]$SkipBuild
@@ -14,6 +15,7 @@ $pythonTool = Get-ScrPython
 if (-not [System.IO.Path]::IsPathRooted($AssetPack)) { $AssetPack = Join-Path $taskRoot $AssetPack }
 if (-not [System.IO.Path]::IsPathRooted($SaveFile)) { $SaveFile = Join-Path $taskRoot $SaveFile }
 if (-not [System.IO.Path]::IsPathRooted($SettingsFile)) { $SettingsFile = Join-Path $taskRoot $SettingsFile }
+if (-not [System.IO.Path]::IsPathRooted($DataDirectory)) { $DataDirectory = Join-Path $taskRoot $DataDirectory }
 $checkArguments = @((Join-Path $PSScriptRoot 'check_native_game.py'), '--pack', $AssetPack)
 if ($Adf) { $checkArguments += @('--adf', $Adf) }
 if ($SkipBuild) { $checkArguments += '--skip-build' }
@@ -27,6 +29,7 @@ try {
     $executable = Join-Path $taskRoot $checked.game.path
     $arguments = @('--asset-pack', $AssetPack, '--recordings-dir', (Join-Path $taskRoot 'analysis/live-driving'), '--save-file', $SaveFile)
     $arguments += @('--settings-file', $SettingsFile)
+    $arguments += @('--data-dir', $DataDirectory)
     if ($Fullscreen) { $arguments += '--fullscreen' }
     if ($Interpolate) { $arguments += '--interpolate' }
     $quotedArguments = ($arguments | ForEach-Object { '"' + $_ + '"' }) -join ' '

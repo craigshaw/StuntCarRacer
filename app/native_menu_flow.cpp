@@ -74,6 +74,16 @@ bool NativeFireWait::update(std::uint8_t controls,double elapsed){
 }
 
 NativeMenuFlow::NativeMenuFlow(NativeMemory& memory):memory_(memory){openMain();}
+NativeMenuFlow::NativeMenuFlow(NativeMemory& memory,const NativeMenuContinuation& state):memory_(memory){
+    if(unsigned(state.page)>unsigned(NativeMenuPage::TrackResults)||state.division>3||(state.context!=0&&state.context!=11))throw std::invalid_argument("Invalid continuation phase");
+    page_=state.page;competitive_=state.competitive;multiplayerTrackEnd_=state.multiplayerTrackEnd;
+    competitionDivision_=state.division;competitionContext_=state.context;
+    mainSelection_=state.mainSelection;divisionSelection_=state.divisionSelection;saveSelection_=state.saveSelection;trackSelections_=state.trackSelections;
+    phase_=Phase::Input;previewReleaseMask_=0;
+}
+NativeMenuContinuation NativeMenuFlow::continuation()const noexcept{
+    return {page_,competitive_,multiplayerTrackEnd_,competitionDivision_,competitionContext_,mainSelection_,divisionSelection_,saveSelection_,trackSelections_};
+}
 
 void NativeMenuFlow::startDelay(unsigned units,bool repaint){
     // Original renderTrackName leaves its 15-character loop counter here.
@@ -96,8 +106,14 @@ void NativeMenuFlow::openMain(bool beginLoop){
     // Original menuSystemLoop and handleMainMenu,0x5cfb8 /0x5baea.
     if(beginLoop){memory_[0x1bb5b]&=0x7f;memory_[0x57c62]=0x10;}
     memory_[0x5b83d]=0;
-    openPage(NativeMenuPage::Main,0,3,(memory_[0x1ca22]&0x80)?2:1,0);
+    openPage(NativeMenuPage::Main,0,mainRowCount_-1,(memory_[0x1ca22]&0x80)?2:1,0);
     competitive_=false;
+}
+void NativeMenuFlow::setMainRowCount(unsigned count){
+    if(count<3||count>4)throw std::invalid_argument("Invalid main menu row count");
+    mainRowCount_=count;
+    if(mainSelection_>=int(count))mainSelection_=int(count)-1;
+    if(page_==NativeMenuPage::Main){memory_[maxIndex]=std::uint8_t(count-2);memory_[selection]=std::uint8_t(std::min(unsigned(memory_[selection]),count-1));}
 }
 void NativeMenuFlow::openPractice(){
     const bool skipDivision=(memory_[0x5eb7d]&1)!=0;

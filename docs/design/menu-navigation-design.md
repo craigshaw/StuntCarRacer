@@ -46,7 +46,8 @@ making button presses respond immediately and adding a dedicated Back action.
 
 | Screen | Back action |
 | --- | --- |
-| Mode chooser or main menu | None; these are root screens. Closing the window remains the way to quit. |
+| Mode chooser | B has no parent; Escape opens the native Game menu. |
+| Baseline main menu | Back has no parent; P/Start opens the native Game menu. Career main-menu Back follows the career hierarchy above. |
 | First player's name | Return to mode chooser. |
 | Additional player's name | Return to Add Player; remove an unfinished new player slot. |
 | Add Player | Edit the most recently completed name. |
@@ -73,8 +74,9 @@ load is committed and cannot be undone through Back. Error/warning prompts
 follow their unfinished operation's cancellation route. Existing Settings and
 Pause cancellation retain their own Apply/Cancel and resume behaviour.
 
-The baseline main menu does not return to mode selection or end the session. No new
-quit confirmation or return-to-launcher flow is part of this improvement.
+The baseline main menu does not return to mode selection or end the session.
+Application exit is available through the separate native
+[Game menu](game-menu-design.md), with confirmation and save-aware closing.
 
 ## Agreed setting
 

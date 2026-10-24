@@ -8,6 +8,7 @@ Start with the [project README](../README.md). For a new development thread, rea
 
 - [Launcher design](design/launcher-design.md): setup flow, agreed scope and UX decisions.
 - [Menu navigation design](design/menu-navigation-design.md): responsive navigation, Back routes and preservation of Original navigation.
+- [Game menu design](design/game-menu-design.md): Esc/Start/P, Leave Race and save-aware Quit to Desktop.
 - [Career persistence design](design/career-persistence-design.md): career selection, Continue, Resume Season, autosave and Hall of Fame.
 - [Glossary](../GLOSSARY.md): language for the native port and its setup experience.
 

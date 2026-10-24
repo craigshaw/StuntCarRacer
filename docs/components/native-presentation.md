@@ -41,6 +41,15 @@ immutable. Overlay navigation suspends game/audio updates and retains the curren
 physics-clock fraction. See [display controls](../playing.md) for the keyboard,
 controller and preference-file behaviour.
 
+The native Game menu opens with Esc in races/the mode chooser, P outside name
+editing, or controller Start. Nested menu Esc continues to reach the original
+Back handling. Resume and Settings are always offered; Leave Race appears only
+for an unfinished race and feeds the original latched quit request. Quit to
+Desktop opens a separate confirmation defaulting to Cancel, then uses
+`NativeGameSession::requestClose`. A pending save decision remains interactive;
+cancelled closing restores the Game menu. Host menu, Settings and confirmation
+pages block simulation/audio without consuming the retained race-clock phase.
+
 The optional F-key FPS counter is composed last at the host surface's top left,
 after game scaling and Pause/Settings. It draws text directly over the image
 without a background panel. Its one-second average counts presented

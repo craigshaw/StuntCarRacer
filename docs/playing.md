@@ -75,7 +75,8 @@ other fresh presses still work immediately.
 In Responsive menus, **Escape / controller B** goes back one logical level and
 restores the previous selection. Existing Cancel items follow the same route.
 Player setup lets you revisit names; Backspace still deletes text. Back does
-nothing at the mode chooser. In single-player careers, Back from a championship
+has no parent at the mode chooser; Escape there opens the native Game menu,
+while controller B does nothing. In single-player careers, Back from a championship
 matchup, finish message or report returns to the profile's main menu, preserving
 the exact pending stage. **Resume Season** restores it; A/Enter advances reports.
 Back from the main menu returns to career selection, then to the mode chooser. These suspension
@@ -192,8 +193,10 @@ on release, without applying the brake. Releasing before the next physics tick
 cancels Modern's pending gas press. Boost alone does not restart acceleration
 while coasting. Menus and text entry retain their controls.
 
-Escape during a race requests the original quit path; its original gameplay
-gates still apply. Controller Back/View maps to that exit. At the end message,
+During an unfinished race, **Game menu → Leave Race** requests the original
+race-exit path; its gameplay gates and scoring rules still apply. Controller
+Back/View remains a direct shortcut to that exit. Escape opens the Game menu.
+At the end message,
 release fire and press it again. The original exit cleanup saves RNG state and
 restores the player's persistent data. Practice returns directly to the same
 division's track selection. In Responsive mode, Cancel/Back goes to divisions,
@@ -223,18 +226,33 @@ saves continue the names, scores and damage between launches; load a career agai
 to restore later-track access. Holding F1 when confirming a matchup forfeits the
 remaining turns on that track and proceeds to its summary.
 
-P/controller Start opens the native pause panel while driving. Choose Resume or
-Settings with Up/Down and Return/A. P, Start, Escape or B resumes from
-that panel. Focus loss and controller disconnection also pause driving; resume
-explicitly. M mutes. I toggles and saves interpolation outside text entry.
+**Escape** opens the native **Game menu** while racing or at the top-level mode
+chooser. In nested original menus it keeps its existing Back/Cancel route.
+**P** opens the Game menu elsewhere, and **controller Start** opens it from
+both racing and menus. P types normally in player/save-name editors.
+
+The Game menu offers **Resume**, **Settings**, **Leave Race** during an
+unfinished race, and **Quit to Desktop**. Use arrows/D-pad and Enter/A.
+Escape/B, P or Start closes it to resume. From Settings those keys go back one
+level instead. Focus loss and controller disconnection also pause driving;
+resume explicitly. M mutes. I toggles and saves interpolation outside text entry.
+
+Quit to Desktop opens a confirmation with **Cancel** selected. Escape/B, P or
+Start cancels back to the Game menu. The confirmation explains that an unfinished
+career race restarts at its saved matchup, or that multiplayer progress since
+the last manual save will be lost. Confirmed quitting uses the same career/Hall
+flush as closing the window or Alt+F4. Failed saves retain the existing
+Retry/Leave Without Saving/Cancel choice; cancelling a failed close returns to
+the Game menu without resuming a race. Leave Race retains its existing scoring
+consequences and does not close the application.
 
 F toggles a small FPS counter at the top left of the game window, including
 fullscreen. It starts hidden on each launch and shows host presentation frames
 per second, averaged over roughly one second. It remains available in menus,
 Pause and Settings. During name entry, F types normally instead of toggling it.
 
-F10 opens Settings from any screen. Controller Start opens it directly
-from the original menus. Use arrows or the stick/D-pad to select rows; Left/Right
+F10 opens Settings directly, except while confirming Quit. Settings is also
+available from the Game menu. Use arrows or the stick/D-pad to select rows; Left/Right
 changes values, and Return/A changes a selected value or activates Apply and Back.
 The options are Windowed/Borderless Fullscreen, Integer/Fit/Stretch image sizing,
 Integer scale or Filtering, 60 FPS smoothing Off/On, Original/Modern driving controls, and

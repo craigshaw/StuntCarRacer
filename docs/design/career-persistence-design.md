@@ -123,9 +123,11 @@ start another season. Career selection provides New Career and Browse Careers
 without discarding a saved season. Apply these routes independently of navigation timing policy;
 multiplayer retains its existing routes.
 
-While driving, Escape remains the existing Leave Race action with its original
-scoring consequences. Do not add a Return to Careers command to Pause. The
-existing Start/P and F10 behaviour remains applicable.
+While driving, Escape opens the native [Game menu](game-menu-design.md).
+Its Leave Race action retains the original exit gates and scoring consequences;
+Quit to Desktop uses the checkpoint-aware application-close path. Do not add a
+Return to Careers command to this menu. Start/P also opens the Game menu, and
+F10 retains direct Settings access outside Quit confirmation.
 
 Career selection is the parent of career creation and each selected career's
 main menu; its own Back returns to the mode chooser. Keep setup drafts separate from a

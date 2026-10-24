@@ -31,7 +31,10 @@ constexpr unsigned displayRowOrder[]{0,1,5,2,3,4};
 void changeDisplayPreference(NativeDisplayPreferences&,unsigned row,int direction=1);
 // Bits shared by keyboard and controller navigation: up/down/left/right/A/B.
 unsigned displayPadNavigation(const DrivePad&)noexcept;
-enum class NativeDisplayPage { Closed, Pause, Settings };
+bool gameMenuShortcut(unsigned virtualKey,bool textEntry,bool raceScreen,bool modeChooser)noexcept;
+enum class NativeDisplayPage { Closed, Pause, Settings, QuitConfirmation };
+enum class NativeDisplayAction { None, LeaveRace, Quit };
+enum class NativeQuitContext { General, Career, CareerRace, Multiplayer };
 class NativeDisplaySettings {
 public:
     explicit NativeDisplaySettings(NativeDisplayPreferences preferences={}):preferences_(preferences){}
@@ -39,9 +42,14 @@ public:
     NativeDisplayPage page()const noexcept{return page_;}
     bool blocksGame()const noexcept{return page_!=NativeDisplayPage::Closed;}
     unsigned selected()const noexcept{return selected_;}
+    unsigned optionCount()const noexcept;
+    bool canLeaveRace()const noexcept{return canLeaveRace_;}
+    NativeQuitContext quitContext()const noexcept{return quitContext_;}
+    NativeDisplayAction takeAction()noexcept{const auto action=action_;action_=NativeDisplayAction::None;return action;}
     void openSettings(unsigned held=0);
+    void openGameMenu(bool allowLeaveRace,unsigned held=0,NativeQuitContext context=NativeQuitContext::General);
     void pause(unsigned held=0);
-    void suspendRace(unsigned held=0);
+    void suspendRace(unsigned held=0,bool allowLeaveRace=true,NativeQuitContext context=NativeQuitContext::General);
     void back();
     // True requests an atomic preference save. Call applied only on success.
     bool navigate(unsigned controls);
@@ -53,6 +61,8 @@ private:
     NativeDisplayPreferences preferences_,before_;
     NativeDisplayPage page_{NativeDisplayPage::Closed},returnPage_{NativeDisplayPage::Closed};
     unsigned selected_{},previous_{};
-    bool waitForRelease_{};
+    bool waitForRelease_{},canLeaveRace_{};
+    NativeDisplayAction action_{NativeDisplayAction::None};
+    NativeQuitContext quitContext_{NativeQuitContext::General};
 };
 } // namespace scr::viewer

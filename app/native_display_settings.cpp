@@ -118,13 +118,24 @@ void NativeDisplaySettings::openSettings(unsigned held){
     if(page_==NativeDisplayPage::Settings)return;
     returnPage_=page_;before_=preferences_;page_=NativeDisplayPage::Settings;selected_=0;previous_=held;
 }
-void NativeDisplaySettings::pause(unsigned held){page_=NativeDisplayPage::Pause;selected_=0;previous_=held;}
-void NativeDisplaySettings::suspendRace(unsigned held){
+bool gameMenuShortcut(unsigned key,bool textEntry,bool raceScreen,bool modeChooser)noexcept{
+    return key==VK_ESCAPE?(raceScreen||modeChooser):key=='P'&&!textEntry;
+}
+unsigned NativeDisplaySettings::optionCount()const noexcept{
+    return page_==NativeDisplayPage::Settings?8:page_==NativeDisplayPage::Pause?(canLeaveRace_?4:3):page_==NativeDisplayPage::QuitConfirmation?2:0;
+}
+void NativeDisplaySettings::openGameMenu(bool allowLeaveRace,unsigned held,NativeQuitContext context){
+    canLeaveRace_=allowLeaveRace;quitContext_=context;page_=NativeDisplayPage::Pause;selected_=0;previous_=held;action_=NativeDisplayAction::None;
+}
+void NativeDisplaySettings::pause(unsigned held){openGameMenu(true,held);}
+void NativeDisplaySettings::suspendRace(unsigned held,bool allowLeaveRace,NativeQuitContext context){
+    canLeaveRace_=allowLeaveRace;quitContext_=context;
     if(page_==NativeDisplayPage::Settings){returnPage_=NativeDisplayPage::Pause;previous_=held;}
-    else pause(held);
+    else if(page_!=NativeDisplayPage::QuitConfirmation)openGameMenu(allowLeaveRace,held,context);
 }
 void NativeDisplaySettings::back(){
     if(page_==NativeDisplayPage::Settings){preferences_=before_;page_=returnPage_;selected_=page_==NativeDisplayPage::Pause?1:0;}
+    else if(page_==NativeDisplayPage::QuitConfirmation){page_=NativeDisplayPage::Pause;selected_=canLeaveRace_?3:2;}
     else if(page_==NativeDisplayPage::Pause)page_=NativeDisplayPage::Closed;
 }
 void NativeDisplaySettings::applied(){
@@ -134,11 +145,21 @@ bool NativeDisplaySettings::navigate(unsigned controls){
     if(waitForRelease_){previous_=controls;if(controls==0)waitForRelease_=false;return false;}
     const auto pressed=controls&~previous_;previous_=controls;if(!blocksGame())return false;
     if(pressed&32){back();return false;}
-    const unsigned count=page_==NativeDisplayPage::Pause?2:8;
+    const unsigned count=optionCount();
     if(pressed&1)selected_=(selected_+count-1)%count;
     else if(pressed&2)selected_=(selected_+1)%count;
     if(page_==NativeDisplayPage::Pause){
-        if(pressed&16){if(selected_==0)back();else openSettings(controls);}return false;
+        if(pressed&16){
+            if(selected_==0)back();
+            else if(selected_==1)openSettings(controls);
+            else if(canLeaveRace_&&selected_==2){action_=NativeDisplayAction::LeaveRace;page_=NativeDisplayPage::Closed;}
+            else{page_=NativeDisplayPage::QuitConfirmation;selected_=0;}
+        }
+        return false;
+    }
+    if(page_==NativeDisplayPage::QuitConfirmation){
+        if(pressed&16){if(selected_==0)back();else{action_=NativeDisplayAction::Quit;page_=NativeDisplayPage::Closed;}}
+        return false;
     }
     if(selected_<6&&(pressed&(4|8|16)))changeDisplayPreference(preferences_,displayRowOrder[selected_],(pressed&4)?-1:1);
     else if(pressed&16){if(selected_==6)return true;if(selected_==7)back();}

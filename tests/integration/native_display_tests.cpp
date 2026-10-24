@@ -99,6 +99,29 @@ void navigation(){
     require(settings.page()==NativeDisplayPage::Pause,"Held fire resumed after focus loss");
     settings.navigate(0);settings.navigate(16);require(!settings.blocksGame(),"Fresh fire could not resume after focus loss");
 }
+void gameMenu(){
+    require(gameMenuShortcut(VK_ESCAPE,false,true,false)&&gameMenuShortcut(VK_ESCAPE,false,false,true),"Esc did not open the Game menu in a race or at the mode chooser");
+    require(!gameMenuShortcut(VK_ESCAPE,false,false,false)&&!gameMenuShortcut(VK_ESCAPE,true,false,false),"Esc intercepted Back in a nested menu or name editor");
+    require(gameMenuShortcut('P',false,false,false)&&gameMenuShortcut('P',false,true,false)&&!gameMenuShortcut('P',true,false,false),"P shortcut interfered with name entry or stopped opening the Game menu");
+    NativeDisplaySettings menu;menu.openGameMenu(false,16,NativeQuitContext::Multiplayer);
+    menu.navigate(16);require(menu.optionCount()==3&&menu.selected()==0&&menu.takeAction()==NativeDisplayAction::None,"Held confirm activated the newly opened non-race menu");
+    menu.navigate(0);tap(menu,1);require(menu.selected()==2,"Non-race menu did not expose Quit as its final action");
+    menu.navigate(16);menu.navigate(16);
+    require(menu.page()==NativeDisplayPage::QuitConfirmation&&menu.selected()==0&&menu.quitContext()==NativeQuitContext::Multiplayer,"Quit confirmation did not start on Cancel or retained confirm activated it");
+    menu.navigate(0);tap(menu,16);require(menu.page()==NativeDisplayPage::Pause&&menu.selected()==2&&menu.takeAction()==NativeDisplayAction::None,"Cancel did not restore the Quit selection");
+    tap(menu,16);tap(menu,32);require(menu.page()==NativeDisplayPage::Pause&&menu.selected()==2,"Escape did not cancel Quit");
+    tap(menu,16);menu.suspendRace(0,false,NativeQuitContext::Career);menu.releaseNavigation();menu.navigate(16);
+    require(menu.page()==NativeDisplayPage::QuitConfirmation&&menu.selected()==0,"Focus loss dismissed or confirmed Quit");
+    menu.navigate(0);tap(menu,2);tap(menu,16);
+    require(!menu.blocksGame()&&menu.takeAction()==NativeDisplayAction::Quit&&menu.takeAction()==NativeDisplayAction::None,"Confirmed Quit was missing or dispatched more than once");
+    menu.openGameMenu(true,0,NativeQuitContext::CareerRace);require(menu.optionCount()==4,"Race menu did not expose Leave Race");
+    tap(menu,2);tap(menu,16);require(menu.page()==NativeDisplayPage::Settings,"Game menu did not open Settings");
+    const auto original=menu.preferences();tap(menu,8);menu.back();
+    require(menu.page()==NativeDisplayPage::Pause&&menu.selected()==1&&menu.preferences()==original&&menu.canLeaveRace(),"Settings Cancel did not return to the same Game menu");
+    tap(menu,2);tap(menu,16);require(!menu.blocksGame()&&menu.takeAction()==NativeDisplayAction::LeaveRace,"Leave Race did not dispatch the original race-exit request");
+    menu.openGameMenu(false,32);menu.navigate(32);require(menu.blocksGame(),"Held Esc immediately closed the Game menu");
+    menu.navigate(0);tap(menu,32);require(!menu.blocksGame(),"Fresh Esc could not resume from the Game menu");
+}
 double filterMilliseconds{};
 unsigned scaling(WindowsGameDisplay& display){
     std::vector<std::uint32_t> source(64000);for(unsigned y=0;y<200;++y)for(unsigned x=0;x<320;++x)source[y*320+x]=((x/8+y/8)&1)?0xff2020:0x2040ff;
@@ -185,12 +208,14 @@ void timing(const std::filesystem::path& pack,const std::filesystem::path& outpu
             viewed.update(0.06,{});twin.update(0.06,{});const auto before=viewed.race().liveTicks();const auto image=viewed.render(true);
             settings.openSettings();
             for(unsigned n=0;n<120;++n){
+                if(n==40){settings.back();settings.openGameMenu(true,0,NativeQuitContext::CareerRace);}
+                if(n==80){tap(settings,1);tap(settings,16);require(settings.page()==NativeDisplayPage::QuitConfirmation,"Paused presentation fixture missed quit confirmation");}
                 if(!settings.blocksGame())viewed.update(1.0/60,{});
                 auto presentation=settings.preferences();presentation.scaling=NativeScaling(n%3);presentation.filtering=NativeFiltering(n%2);presentation.integerScale=n%4;
                 display.paint(surface.dc,800,500,viewed.render(true,true),presentation);display.overlay(surface.dc,800,500,settings,L"");
                 display.fpsOverlay(surface.dc,800,500,60.0);
             }
-            require(viewed.race().liveTicks()==before,"Settings advanced physics ticks");settings.back();
+            require(viewed.race().liveTicks()==before,"Game menu or quit confirmation advanced physics ticks");while(settings.blocksGame())settings.back();
             require(viewed.render(true)==image,"Settings contaminated the underlying race image");
             viewed.update(0.059,{});twin.update(0.059,{});require(viewed.race().liveTicks()==before,"Settings changed the retained sub-tick phase");
             viewed.update(0.001,{});twin.update(0.001,{});require(viewed.race().liveTicks()==before+1,"Resuming lost the original tick boundary");
@@ -198,7 +223,9 @@ void timing(const std::filesystem::path& pack,const std::filesystem::path& outpu
         viewed.update(0.12,{{},17,false});twin.update(0.12,{{},17,false});
         require(viewed.race().liveTicks()==twin.race().liveTicks(),"Display settings changed later physics scheduling");
     }
-    for(unsigned n=0;n<600&&viewed.page()==NativeMenuPage::Race&&!viewed.transitioning()&&!viewed.raceEnded();++n){viewed.update(0.12,{{},0,true});twin.update(0.12,{{},0,true});}
+    settings.openGameMenu(true);tap(settings,2);tap(settings,2);tap(settings,16);
+    const bool leave=settings.takeAction()==NativeDisplayAction::LeaveRace;require(leave&&!settings.blocksGame(),"Practice could not leave via the Game menu");
+    for(unsigned n=0;n<600&&viewed.page()==NativeMenuPage::Race&&!viewed.transitioning()&&!viewed.raceEnded();++n){viewed.update(0.12,{{},0,leave});twin.update(0.12,{{},0,true});}
     if(viewed.raceEnded()){fire(viewed);fire(twin);}settle(viewed);settle(twin);
     require(viewed.page()==NativeMenuPage::Track&&twin.page()==NativeMenuPage::Track,"Display test did not return through the original quit gate");
     require(viewed.memory()==twin.memory(),"Display settings altered final game RAM");
@@ -207,7 +234,7 @@ void timing(const std::filesystem::path& pack,const std::filesystem::path& outpu
 int main(int argc,char** argv)try{
     if(argc!=3)throw std::invalid_argument("native_display_tests asset-pack output-directory");
     const std::filesystem::path output=argv[2];std::filesystem::create_directories(output);
-    storage(output);navigation();WindowsGameDisplay display;const auto cases=scaling(display);fullscreen(display);timing(argv[1],output,display);
-    std::cout<<"{\"status\":\"passed\",\"preference_roundtrips\":384,\"corrupt_preferences\":17,\"legacy_preferences_migrated\":true,\"control_preset_navigation\":true,\"atomic_failure_checked\":true,\"controller_navigation\":true,\"scaling_cases\":"<<cases
+    storage(output);navigation();gameMenu();WindowsGameDisplay display;const auto cases=scaling(display);fullscreen(display);timing(argv[1],output,display);
+    std::cout<<"{\"status\":\"passed\",\"preference_roundtrips\":384,\"corrupt_preferences\":17,\"legacy_preferences_migrated\":true,\"control_preset_navigation\":true,\"game_menu\":true,\"quit_confirmation\":true,\"leave_race_equivalence\":true,\"atomic_failure_checked\":true,\"controller_navigation\":true,\"scaling_cases\":"<<cases
         <<",\"fullscreen_roundtrips\":4,\"paused_presentations\":120,\"changing_1080p_filter_ms\":"<<filterMilliseconds<<",\"original_tick_phase_preserved\":true,\"final_simulation_memory_identical\":true}\n";return 0;
 }catch(const std::exception& error){std::cerr<<error.what()<<'\n';return 1;}

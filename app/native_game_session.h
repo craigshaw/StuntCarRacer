@@ -41,6 +41,9 @@ public:
     void enableCareers(const std::filesystem::path& dataRoot);
     bool requestClose();
     bool closeReady()const noexcept{return closeReady_;}
+    bool closePending()const noexcept{return departure_==Departure::Close;}
+    bool multiplayer()const noexcept{return (*data_.memory)[0x5eb76]!=0;}
+    bool competitive()const noexcept{return menu_&&menu_->competitive();}
     std::string saveStatus()const;
     bool careerHome()const noexcept{return careerPanel_==CareerPanel::Home;}
     bool hasSuspendedSeason()const noexcept{return !suspendedSeason_.empty();}

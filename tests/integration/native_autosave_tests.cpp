@@ -134,8 +134,10 @@ void failures(const std::filesystem::path& pack,const std::filesystem::path& roo
     const auto path=root/"careers"/(game->activeCareer()->id+".scr-career.tmp");
     const auto lock=CreateFileW(path.c_str(),GENERIC_WRITE,0,nullptr,CREATE_ALWAYS,FILE_ATTRIBUTE_NORMAL,nullptr);require(lock!=INVALID_HANDLE_VALUE,"Cannot lock checkpoint temporary file");
     choose(*game,2);tap(*game);const auto fixture=progress(game->memory());require(!game->requestClose(),"Failed write permitted silent close");
+    require(game->closePending(),"Failed close did not expose its pending save decision");
     require(!game->requestClose(),"Repeated close bypassed the pending failure choice");
     image(*game,root/"departure-error.ppm");choose(*game,2);tap(*game);game->update(0,{}); // cancel close, then acknowledge the safe-menu warning
+    require(!game->closePending()&&!game->closeReady(),"Cancelled close still appeared pending or ready");
     if(game->page()==NativeMenuPage::Opening){choose(*game,1);tap(*game);}
     require(game->page()==NativeMenuPage::Matchup,"Cancel close discarded RAM progress");back(*game);back(*game);tap(*game);resume(*game);
     require(game->page()==NativeMenuPage::Matchup&&progress(game->memory())==fixture&&game->saveStatus()=="NOT SAVED","Continue used stale disk state after write failure");

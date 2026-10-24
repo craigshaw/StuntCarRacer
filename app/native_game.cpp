@@ -112,6 +112,7 @@ private:
     WindowsLauncher launcherView_;
     std::wstring settingsError_;
     bool muted_{},focused_{true},suppressInput_{},freshGame_{},showFps_{},displayEditing_{};
+    bool leaveRaceRequested_{},closeFromMenu_{};
     HANDLE timer_{};
     HANDLE instanceLock_{};
     std::wstring instanceName_;
@@ -144,6 +145,26 @@ private:
             game_.reset();display_.fullscreen(window,false);launcher_.refreshAssets();launcher_.failedStart(failure);launcherView_.visible(true);launcherView_.layout(window);launcherView_.sync(launcher_);launcherView_.focusInitial(launcher_);
         }
     }
+    bool canLeaveRace()const{return inRace()&&!game_->raceEnded();}
+    bool typingName()const{return game_->enteringName()||game_->savePhase()==NativeSaveMenuPhase::SaveName;}
+    NativeQuitContext quitContext()const{
+        if(game_->multiplayer())return NativeQuitContext::Multiplayer;
+        if(game_->activeCareer())return canLeaveRace()&&game_->competitive()?NativeQuitContext::CareerRace:NativeQuitContext::Career;
+        return NativeQuitContext::General;
+    }
+    void openGameMenu(HWND window){
+        settings_.openGameMenu(canLeaveRace(),navigation(),quitContext());clearGameInput();syncDisplay(window);
+    }
+    void toggleGameMenu(HWND window){
+        if(settings_.blocksGame()){settings_.back();clearGameInput();syncDisplay(window);}
+        else openGameMenu(window);
+    }
+    void closeApplication(HWND window){
+        if(!game_||game_->requestClose()){DestroyWindow(window);return;}
+        closeFromMenu_=game_->closePending();
+        while(settings_.blocksGame())settings_.back();
+        clearGameInput();syncDisplay(window);
+    }
     NativeGameInput input()const{
         NativeGameInput value;
         value.drivePreset=settings_.preferences().controls;
@@ -173,13 +194,15 @@ private:
         const bool fire=keys_[VK_RETURN]||keys_[VK_SPACE]||(p.connected&&(p.buttons&0x1000));
         value.menu.controls=std::uint8_t((up?1:0)|(down?2:0)|(left?4:0)|(right?8:0)|(fire?16:0));
         for(unsigned n=0;n<4;++n)if(keys_['1'+n]||keys_[VK_NUMPAD1+n])value.menu.numberedKeys|=std::uint8_t(1u<<n);
-        value.quit=keys_[VK_ESCAPE]||(p.connected&&(p.buttons&0x0020));return value;
+        value.quit=leaveRaceRequested_||(p.connected&&(p.buttons&0x0020));return value;
     }
     void update(HWND window,double elapsed){
         if(!focused_||settings_.blocksGame())return;
         game_->setNavigation(settings_.preferences().navigation);
         const auto changes=game_->update(elapsed,input());
         if(game_->closeReady()){DestroyWindow(window);return;}
+        if(closeFromMenu_&&!game_->closePending()){closeFromMenu_=false;openGameMenu(window);return;}
+        if(changes.raceStarted||changes.raceExited||game_->raceEnded())leaveRaceRequested_=false;
         rawKeys_.clear();
         if(changes.raceStarted){
             if(audio_)audio_->reset(game_->race().audioSeed());
@@ -205,13 +228,12 @@ private:
         const bool wasConnected=pad_.pad.connected;pad_=controller_.poll();
         if(!wasConnected&&pad_.pad.connected)clearGameInput();
         if(pad_.disconnected){
-            if(inRace())settings_.suspendRace(navigation());clearGameInput();
+            if(inRace())settings_.suspendRace(navigation(),canLeaveRace(),quitContext());clearGameInput();
         }
         if(focused_&&pad_.pausePressed){
-            if(settings_.blocksGame())settings_.back();
-            else if(inRace())settings_.pause(navigation());else settings_.openSettings(navigation());
-            clearGameInput();syncDisplay(window);
+            toggleGameMenu(window);
         }else if(focused_&&settings_.blocksGame())navigateOverlay(window);
+        if(!IsWindow(window))return;
         // Wait for controls from both presets to release after a settings
         // change, so switching layouts cannot turn a held trigger into gas.
         if(suppressInput_&&std::none_of(blockedKeys_.begin(),blockedKeys_.end(),[](bool down){return down;})&&
@@ -223,7 +245,8 @@ private:
             std::wostringstream title;title<<L"Stunt Car Racer  |  "<<std::fixed<<std::setprecision(1)<<fps_<<L" FPS";
             if(settings_.blocksGame())title<<L"  |  Paused";
             if(settings_.preferences().interpolate)title<<L"  |  Interpolation";
-            title<<L"  |  F10 Settings";
+            const bool escapeMenu=game_->page()==NativeMenuPage::Race||(game_->openingActive()&&game_->openingPage()==NativeOpeningPage::Mode);
+            title<<(escapeMenu?L"  |  Esc / Start Game menu":L"  |  P / Start Game menu")<<L"  |  F10 Settings";
             if(!settingsError_.empty())title<<L"  |  Settings not saved";
             if(game_->page()!=NativeMenuPage::Race||settings_.blocksGame()){
                 const auto status=game_->saveStatus();title<<L"  |  "<<std::wstring(status.begin(),status.end());
@@ -265,6 +288,9 @@ private:
         if(applied)settings_.applied();
         if(settings_.page()!=before)clearGameInput();
         syncDisplay(window,applied);
+        const auto action=settings_.takeAction();
+        if(action==NativeDisplayAction::LeaveRace){leaveRaceRequested_=true;clearGameInput();}
+        else if(action==NativeDisplayAction::Quit)closeApplication(window);
     }
     void paint(HWND window){
         // Keep the last completed image visible while rendering. Clearing the
@@ -310,7 +336,7 @@ private:
             if(!game_)launcherAction(window,launcherView_.navigate(unsigned(key),launcher_));return 0;
         case WM_ACTIVATEAPP:
             focused_=key!=0;
-            if(!focused_){if(inRace())settings_.suspendRace();clearGameInput();blockedKeys_.fill(false);settings_.releaseNavigation();launcherView_.releaseNavigation();}
+            if(!focused_){if(inRace())settings_.suspendRace(0,canLeaveRace(),quitContext());clearGameInput();blockedKeys_.fill(false);settings_.releaseNavigation();launcherView_.releaseNavigation();}
             else if(responsiveMenu())for(unsigned n=0;n<blockedKeys_.size();++n)blockedKeys_[n]=(GetAsyncKeyState(int(n))&0x8000)!=0;
             return 0;
         case WM_SYSKEYDOWN:
@@ -325,6 +351,7 @@ private:
             if(key==VK_F10||key==VK_F11){
                 if(!(data&0x40000000)){
                     if(key==VK_F10){
+                        if(settings_.page()==NativeDisplayPage::QuitConfirmation)return 0;
                         if(settings_.page()==NativeDisplayPage::Settings)settings_.back();else settings_.openSettings(navigation());
                         clearGameInput();
                     }else{settings_.toggleFullscreen();if(settings_.page()!=NativeDisplayPage::Settings)saveSettings();}
@@ -341,12 +368,15 @@ private:
             if(key<keys_.size())keys_[key]=true;
             if(settings_.blocksGame()){
                 if(!(data&0x40000000)){
-                    if(key=='P'&&settings_.page()==NativeDisplayPage::Pause){settings_.back();clearGameInput();}
+                    if(key=='P')toggleGameMenu(window);
                     else navigateOverlay(window);
                 }
                 return 0;
             }
-            if(key=='P'&&inRace()&&!(data&0x40000000)){settings_.pause(navigation());clearGameInput();InvalidateRect(window,nullptr,FALSE);return 0;}
+            if(gameMenuShortcut(unsigned(key),typingName(),game_->page()==NativeMenuPage::Race,
+                game_->openingActive()&&game_->openingPage()==NativeOpeningPage::Mode)){
+                if(!(data&0x40000000))openGameMenu(window);return 0;
+            }
             if(suppressInput_){if(key<blockedKeys_.size())blockedKeys_[key]=true;return 0;}
             if(!(data&0x40000000)){
                 if(const auto raw=nativeAmigaRawKey(unsigned(key),(unsigned(data)>>16)&255,(data&0x01000000)!=0))rawKeys_.push_back({*raw,true});
@@ -360,15 +390,14 @@ private:
             if(key<blockedKeys_.size())blockedKeys_[key]=false;
             if(key=='F'&&!game_->usingTextInput())return 0;
             if(settings_.blocksGame()){navigateOverlay(window);return 0;}
+            if(key=='P'&&!typingName())return 0;
             if(suppressInput_||key==VK_F10||key==VK_F11)return 0;
             if(const auto raw=nativeAmigaRawKey(unsigned(key),(unsigned(data)>>16)&255,(data&0x01000000)!=0))rawKeys_.push_back({*raw,false});
             update(window,0);return 0;
         case WM_SIZE:if(!game_)launcherView_.layout(window);InvalidateRect(window,nullptr,FALSE);return 0;
         case WM_DISPLAYCHANGE:display_.monitorChanged(window);if(game_)display_.apply(window,settings_.preferences(),true);InvalidateRect(window,nullptr,FALSE);return 0;
         case WM_PAINT:paint(window);return 0;
-        case WM_CLOSE:
-            if(!game_||game_->requestClose())DestroyWindow(window);
-            else{while(settings_.blocksGame())settings_.back();clearGameInput();syncDisplay(window);}return 0;
+        case WM_CLOSE:closeApplication(window);return 0;
         case WM_DESTROY:PostQuitMessage(0);return 0;
         default:return DefWindowProcW(window,kind,key,data);
         }

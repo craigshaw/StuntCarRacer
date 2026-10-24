@@ -35,9 +35,10 @@ local players taking turns against the computer pace car.
 | Back in menus (Responsive) | Escape | B |
 | Accelerate / brake | Up/Down or W/S | Original: stick/D-pad up/down; Modern: RT/LT |
 | Steer / boost | Left/Right or A/D, Space | Stick/D-pad, A or RB |
-| Pause | P | Start |
-| Leave a race | Escape | Back/View |
-| Settings | F10 | Start from menus; pause panel during races |
+| Game menu | Esc during racing or at the mode chooser; P outside name entry | Start |
+| Leave a race | Game menu → Leave Race | Game menu → Leave Race; Back/View shortcut |
+| Quit to desktop | Game menu → Quit to Desktop | Game menu → Quit to Desktop |
+| Settings | F10; Game menu → Settings | Game menu → Settings |
 | Fullscreen / interpolation / mute | F11 / I / M | Settings for fullscreen and interpolation |
 | Toggle FPS counter | F | — |
 

@@ -109,17 +109,21 @@ are developer APIs, without a player camera selector. The world uses one recover
 far/near painter in Practice and competitive races; opponent insertion depends
 on race mode.
 
-Both aspect modes retain the complete **320×200** bitmap and present it at
-the original **4:3** display proportions. Original renders its **256×128**
-world viewport. Extended renders behind the original foreground across
-**320×144**, preserving the existing projection scale and centre. A mask
-reveals only outside-connected black upper-corner regions; the complete frame,
-engine, wheels, exhausts and instruments retain their original pixels and
-coordinates. Private near/far geometry and clipping extend left/right by 32
-and above by 16 original pixels. No generated artwork is used.
-Host aspect correction, fitting, filtering and settings UI happen after
-rendering; window shape alone does not change projection. See the
-[Extended view contract](components/native-extended-view.md). 16:9 is deferred.
+The **4:3 (Original)** and **4:3 (Extended)** modes retain their **320×200**
+bitmap and original display proportions. Original renders its **256×128**
+world viewport; Extended reveals scenery behind the frame across **320×144**.
+**16:9** uses a **432×200** working canvas, centring the same-size original car
+and main arch at offset (56,0). Only the side braces and blue interior are
+extended; the outer 14 columns of each brace are straightened to meet those
+extensions. All car objects, hardware wheels, effects, instruments and message
+panels use their existing 320×200 compositors, then translate by 56 pixels.
+The wider world fills every exposed corner, with unchanged projection scale
+and private near/far clipping bounds [-88,344] × [-16,184].
+Host aspect correction and a symmetric outer crop present that working canvas
+at exactly 16:9, preserving the car's scale at the same display height. Menus,
+track previews and persisted finish images retain 4:3. No generated artwork
+is loaded. Window shape alone does not change projection. See the
+[view contract](components/native-extended-view.md).
 
 ## Fidelity contract
 

@@ -81,6 +81,11 @@ int main(int argc,char** argv)try {
     renderer.drawFrame(flat,sides,{},camera,tables,palette,pixels,false,&nearTrack,32,true);
     if(pixels[0]!=palette[15]||pixels[15*320+31]!=palette[15]||pixels[16*320+32]!=palette[7])
         throw std::runtime_error("Extended renderer lost geometry above/left of the original viewport");
-    std::cout<<"{\"total_cases\":11,\"mismatches\":0,\"concave_notch_preserved\":true,\"winding_independent\":true,\"near_road_gap_absent\":true,\"near_culling_preserved\":true,\"offscreen_near_boundary_closed\":true,\"near_highlight_clipped\":true,\"near_painter_occlusion_preserved\":true,\"original_pixel_equality_claimed\":false}\n";
+    std::vector<std::uint32_t> wide(432*200,0x123456);
+    nearTrack.commands.clear();nearTrack.commands.push_back(rectangle(-88,144,-40,184,scr::NearTrackSurface::road,15));
+    renderer.drawFrame(flat,sides,{},camera,tables,palette,wide,false,&nearTrack,88,true,56);
+    if(wide[175*432]!=palette[15]||wide[199*432+47]!=palette[15]||wide[199*432+48]==0x123456)
+        throw std::runtime_error("Widescreen renderer omitted scenery in the exposed lower corners");
+    std::cout<<"{\"total_cases\":12,\"mismatches\":0,\"concave_notch_preserved\":true,\"winding_independent\":true,\"near_road_gap_absent\":true,\"near_culling_preserved\":true,\"offscreen_near_boundary_closed\":true,\"near_highlight_clipped\":true,\"near_painter_occlusion_preserved\":true,\"widescreen_lower_corners_rendered\":true,\"original_pixel_equality_claimed\":false}\n";
     return 0;
 }catch(const std::exception& error){std::cerr<<error.what()<<'\n';return 1;}

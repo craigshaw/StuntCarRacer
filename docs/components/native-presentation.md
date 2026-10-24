@@ -29,13 +29,15 @@ source images.
 The native game's host now supplies a separate display overlay and borderless
 fullscreen, with persisted image sizing, filtering, integer scale and motion
 preferences. Integer uses nearest-neighbour samples at Auto or fixed 1×–32×.
-Fit preserves the 4:3 display aspect; Stretch fills both target axes. Both expose
+Fit preserves the selected 4:3 or 16:9 display aspect; Stretch fills both target axes. Both expose
 independent nearest-neighbour or separable bilinear filtering, with clamped
-edges and cached coordinates. Version 6 preferences migrate versions 1–5:
+edges and cached coordinates. Version 7 preferences migrate versions 1–6:
 integer becomes Integer Auto, sharp becomes Fit/Nearest neighbour and smooth
 becomes Fit/Bilinear. Invalid fields reject the complete preference file.
 Windowed fixed scales resize the client in physical pixels, capped to the
-monitor work area; fullscreen fixed scales centre without cropping. Cancel
+monitor work area; fullscreen fixed scales centre the selected view. The 16:9
+working canvas overdraws its aperture slightly, cropping only new outer pixels
+to retain the original car scale. Cancel
 restores the pre-edit window placement as well as preferences. The source image remains
 immutable. Overlay navigation suspends game/audio updates and retains the current
 physics-clock fraction. See [display controls](../playing.md) for the keyboard,
@@ -60,8 +62,11 @@ Original and [Extended](native-extended-view.md) retain 320 by 200, presented
 at the original 4:3 display proportions. Original uses its 256 by 128 world
 viewport. Extended draws across 320 by 144, then composites the original frame
 with only its outside-connected upper black corners transparent. The complete
-cockpit and car remain in their original positions. Integer and Fit use the
-4:3 display aspect; Stretch changes display proportions while retaining its view.
+cockpit and car remain in their original positions. The 16:9 mode renders a
+432 by 200 world around the centred original-size car and main arch. Only side
+braces and blue interior are extended; all dynamic car compositors keep their
+320 by 200 coordinates and translate by 56 pixels. Integer and Fit preserve
+the selected aspect; Stretch changes display proportions while retaining its view.
 A complete free camera still needs independent placement and broader visibility
 handling. These options remain separate from simulation.
 

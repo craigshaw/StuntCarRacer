@@ -99,13 +99,17 @@ void snapshot(const std::filesystem::path& root,NativeLauncher& model,int width,
         SendMessageW(detail,CB_SETCURSEL,1,0);view.command(LauncherScaleDetail,model);require(model.preferences().filtering==NativeFiltering::Bilinear,"Launcher filter choice was not applied");
         model.change(1);model.change(1);view.sync(model);require(SendMessageW(detail,CB_GETCURSEL,0,0)==3,"Switching modes lost the chosen integer scale");
         const auto raceView=GetDlgItem(window,LauncherView);
-        require(SendMessageW(raceView,CB_GETCOUNT,0,0)==2,"Aspect menu exposed an unfinished 16:9 mode");
+        require(SendMessageW(raceView,CB_GETCOUNT,0,0)==3,"Aspect menu did not retain both 4:3 options and 16:9");
         wchar_t aspectLabel[64]{};SendMessageW(raceView,CB_GETLBTEXT,0,reinterpret_cast<LPARAM>(aspectLabel));
         require(std::wstring(aspectLabel)==L"4:3 (Original)","Original aspect label differs");
         SendMessageW(raceView,CB_GETLBTEXT,1,reinterpret_cast<LPARAM>(aspectLabel));
         require(std::wstring(aspectLabel)==L"4:3 (Extended)","Extended aspect label differs");
         SendMessageW(raceView,CB_SETCURSEL,1,0);view.command(LauncherView,model);
         require(model.preferences().view==NativeView::Extended,"Launcher did not select Extended");
+        SendMessageW(raceView,CB_GETLBTEXT,2,reinterpret_cast<LPARAM>(aspectLabel));
+        require(std::wstring(aspectLabel)==L"16:9","Widescreen aspect label differs");
+        SendMessageW(raceView,CB_SETCURSEL,2,0);view.command(LauncherView,model);
+        require(model.preferences().view==NativeView::Widescreen,"Launcher did not select 16:9");
         model.resetPreferences();if(width<800){model.change(1);model.change(5);}view.sync(model);
     }
     view.focusInitial(model);

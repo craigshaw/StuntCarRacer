@@ -198,8 +198,17 @@ void scenes(const std::filesystem::path& pack,const std::filesystem::path& outpu
                     require(extendedPixels[y*320+x]==originalPixels[y*320+x],"Extended view changed the complete car assembly");
                 require(pixelsHash(viewed.renderView(double(current),extended))==pixelsHash(extendedPixels),"Extended view is not deterministic");
                 require(viewed.renderView(0.5,extended).size()==320*200,"Extended interpolated query failed");
+                ReplayViewSettings widescreen;widescreen.view=NativeView::Widescreen;
+                const auto widePixels=viewed.renderView(double(current),widescreen);
+                require(widePixels.size()==432*200,"Widescreen canvas has the wrong dimensions");
+                for(unsigned y=23;y<200;++y)for(unsigned x=0;x<320;++x)if(carMask[y*320+x]!=replayTransparent)
+                    require(widePixels[y*432+56+x]==originalPixels[y*320+x],"Widescreen changed the complete original car assembly");
+                for(unsigned y=168;y<200;++y)for(unsigned x=32;x<288;++x)
+                    require(widePixels[y*432+56+x]==originalPixels[y*320+x],"Widescreen changed the original instrument pixels");
+                require(pixelsHash(viewed.renderView(double(current),widescreen))==pixelsHash(widePixels),"Widescreen view is not deterministic");
+                require(viewed.renderView(0.5,widescreen).size()==432*200,"Widescreen interpolated query failed");
                 require(pixelsHash(viewed.render(current))==exact,"Alternate view leaked into default image");
-                require(timelineHash(viewed)==before,"Rendering changed a retained frame or track snapshot");++counts.snapshotChecks;counts.queries+=12;
+                require(timelineHash(viewed)==before,"Rendering changed a retained frame or track snapshot");++counts.snapshotChecks;counts.queries+=16;
                 if(!competition){
                     auto geometry=frame.nearSeed;const auto& data=frame.movingTrack?frame.movingTrack->progress:probe->progressData;
                     auto dense=buildNearTrackFrame(data,flags,frame.nearInputs,geometry);dense.presentation.horizonMode=frame.nearTrack.horizonMode;

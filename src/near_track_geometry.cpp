@@ -163,7 +163,7 @@ std::array<NearTrackCutEdge,4> prepareNearTrackCutEdges(const TrackProgressData&
     for(unsigned n=0;n<4;++n){
         const unsigned from=s.renderingLoopIndex+(n&1)*2+(n>=2?120:0);auto& current=point(s,from);
         auto& previous=point(s,from-4);auto& edge=result[n];edge.fromIndex=b(from);edge.toIndex=b(from-4);
-        if((n>=2&&(current.height&0x8000))||!nearTrackInsideX(current.x,s.horizontalPadding)||!nearTrackInsideY(current.y,s.topPadding))continue;
+        if((n>=2&&(current.height&0x8000))||!nearTrackInsideX(current.x,s.horizontalPadding)||!nearTrackInsideY(current.y,s.topPadding,s.bottomPadding))continue;
         edge.valid=true;previous.height=n>=2?512:s.savedHeights[n&1];
         const unsigned section=s.progress.progressOffset>>8;
         const auto base=b(read(d,offset(s.progress.segment.descriptorOffset))+7);
@@ -178,9 +178,9 @@ std::array<NearTrackCutEdge,4> prepareNearTrackCutEdges(const TrackProgressData&
         const auto interpolate=[&](unsigned axis){const auto difference=w(int(second[axis])-first[axis]);return w(shr(sw(difference)*int(fraction),8)+((s.segmentHalfFlags&0x80)?second[axis]:first[axis]));};
         if(n<2){const auto difference=w(int(current.height)-previous.height);previous.height=w(previous.height+multiplyMatrixWord(difference,std::uint16_t((unsigned(fraction)<<7)&0x7fff)));}
         horizontal(d,s,previous,interpolate(0),interpolate(1));vertical(d,s,previous);if(!(previous.height&0x8000))rotate(previous,s.camera);
-        if(nearTrackInsideX(previous.x,s.horizontalPadding)&&nearTrackInsideY(previous.y,s.topPadding)){
+        if(nearTrackInsideX(previous.x,s.horizontalPadding)&&nearTrackInsideY(previous.y,s.topPadding,s.bottomPadding)){
             const auto dx=w(previous.x-current.x);auto dy=w(previous.y-current.y);if(!dy&&!dx)dy=1;
-            unsigned guard=0;do{previous.x=sw(w(previous.x+dx));previous.y=sw(w(previous.y+dy));if(++guard>65536)throw std::runtime_error("Near boundary ray did not exit viewport");}while(nearTrackInsideX(previous.x,s.horizontalPadding)&&nearTrackInsideY(previous.y,s.topPadding));
+            unsigned guard=0;do{previous.x=sw(w(previous.x+dx));previous.y=sw(w(previous.y+dy));if(++guard>65536)throw std::runtime_error("Near boundary ray did not exit viewport");}while(nearTrackInsideX(previous.x,s.horizontalPadding)&&nearTrackInsideY(previous.y,s.topPadding,s.bottomPadding));
         }
     }
     return result;

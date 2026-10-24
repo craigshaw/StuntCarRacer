@@ -28,8 +28,10 @@ bool saveDisplayPreferences(const std::filesystem::path&,const NativeDisplayPref
 const wchar_t* scalingName(NativeScaling)noexcept;
 const wchar_t* filteringName(NativeFiltering)noexcept;
 std::wstring integerScaleName(unsigned);
+const wchar_t* viewName(NativeView)noexcept;
+int displayWidthAtScale(NativeView,unsigned scale)noexcept;
 PresentationRectangle displayRectangle(int width,int height,const NativeDisplayPreferences&,int sourceWidth=0);
-// Existing preference row identities stay stable; the dependent row is last.
+// Existing preference row identities stay stable; aspect ratio follows navigation.
 constexpr unsigned displayRowOrder[]{0,1,5,2,3,4,6};
 void changeDisplayPreference(NativeDisplayPreferences&,unsigned row,int direction=1);
 // Bits shared by keyboard and controller navigation: up/down/left/right/A/B.

@@ -24,6 +24,17 @@ void compareArtwork(const std::vector<std::uint32_t>& original,const std::vector
             require(extended[at]==original[at],"Extended moved/replaced an original cockpit, wheel, exhaust or instrument pixel");
     }
 }
+void compareWidescreen(const std::vector<std::uint32_t>& original,const std::vector<std::uint32_t>& wide,
+    const ReplayRenderAssets& assets,const CockpitFrame& cockpit,const NativeWheelSprites& sprites,
+    const NativeWheelSpriteFrame& placements,const scr::WheelAnimationState& animation){
+    require(wide.size()==432*200,"Widescreen canvas dimensions differ");
+    std::vector<std::uint32_t> dynamic(320*200,replayTransparent);
+    composeReplayCockpit(assets,cockpit,dynamic,true);composeNativeWheelSprites(sprites,placements,animation,dynamic);
+    for(unsigned y=0;y<200;++y)for(unsigned x=0;x<320;++x){const unsigned at=y*320+x;
+        if(dynamic[at]!=replayTransparent||(x>=14&&x<306&&!worldPixel(x,y)&&!assets.exteriorMask[at]))
+            require(wide[y*432+56+x]==original[at],"Widescreen changed the original car assembly, instrument or main arch artwork");
+    }
+}
 void maskTests(){
     scr::IndexedImage image;image.width=320;image.height=200;image.pixels.assign(320*200,10);
     for(unsigned y=0;y<20;++y)for(unsigned x=0;x<3;++x){image.pixels[y*320+x]=0;image.pixels[y*320+319-x]=0;}
@@ -74,6 +85,10 @@ unsigned assemblyVariants(const ReplayRenderAssets& assets,const NativeWheelSpri
         composeReplayCockpit(assets,frame,original);composeReplayCockpit(assets,frame,extended,true);
         composeNativeWheelSprites(sprites,placements,animation,original);composeNativeWheelSprites(sprites,placements,animation,extended);
         compareArtwork(original,extended,assets,frame,sprites,placements,animation);
+        std::vector<std::uint32_t> wide(432*200,0x234567),foreground(320*200,replayTransparent);
+        composeReplayWidescreenFrame(assets,wide);composeReplayCockpit(assets,frame,foreground,true);
+        composeNativeWheelSprites(sprites,placements,animation,foreground);compositeReplayCentred(foreground,wide);
+        compareWidescreen(extended,wide,assets,frame,sprites,placements,animation);
         ++cases;
     }
     return cases;
@@ -83,7 +98,8 @@ int main(int argc,char** argv)try{
     if(argc!=3)throw std::runtime_error("Usage: native_extended_view_tests assets output");
     const std::filesystem::path pack=argv[1],output=argv[2];std::filesystem::create_directories(output);
     maskTests();ReplayViewSettings extended;extended.view=NativeView::Extended;
-    unsigned queries=0,cornerChanges=0,variants=0,maskPixels=0;
+    ReplayViewSettings widescreen;widescreen.view=NativeView::Widescreen;
+    unsigned queries=0,cornerChanges=0,variants=0,maskPixels=0,lowerWorldPixels=0;
     for(unsigned track=0;track<8;++track){
         auto seed=startNativeRace(pack,track);
         ReplayScene control,viewed;control.loadNativeState(*seed.memory,seed.payload,{});viewed.loadNativeState(*seed.memory,seed.payload,{});
@@ -98,6 +114,11 @@ int main(int argc,char** argv)try{
                 const auto original=control.renderLive(0,false,false);
                 const auto image=viewed.renderLive(0,false,false,NativeView::Extended);
                 const auto& exact=viewed.frames().back();compareArtwork(original,image,assets,exact.cockpit,sprites,exact.wheelSprites,exact.wheelTimeline[0]);
+                const auto wide=viewed.renderLive(0,false,false,NativeView::Widescreen);
+                compareWidescreen(image,wide,assets,exact.cockpit,sprites,exact.wheelSprites,exact.wheelTimeline[0]);
+                require(viewed.renderLive(0,false,false,NativeView::Widescreen)==wide,"Widescreen is not deterministic");
+                for(unsigned y=144;y<200;++y)for(unsigned x=0;x<432;++x)
+                    if(assets.widescreenFrame[y*432+x]==replayFrameTransparent&&wide[y*432+x]!=assets.palette[0])++lowerWorldPixels;
                 for(unsigned at=0;at<assets.exteriorMask.size();++at)if(assets.exteriorMask[at]){
                     require(original[at]==assets.palette[0],"Exterior mask includes original foreground artwork");cornerChanges+=image[at]!=original[at];
                 }
@@ -109,6 +130,15 @@ int main(int argc,char** argv)try{
                 const bool interpolated=canInterpolateReplay(from.restarts,to.restarts,from.action,to.action);
                 const auto visual=interpolated?interpolateReplayVisuals(from,to,0.5,trig):static_cast<const ReplayVisualState&>(from);
                 compareArtwork(originalMidpoint,midpoint,assets,visual.cockpit,sprites,from.wheelSprites,from.wheelTimeline[interpolated?3:0]);
+                const auto wideMidpoint=viewed.renderView(0.5,widescreen);
+                compareWidescreen(midpoint,wideMidpoint,assets,visual.cockpit,sprites,from.wheelSprites,from.wheelTimeline[interpolated?3:0]);
+                require(viewed.renderView(0.5,widescreen)==wideMidpoint,"Widescreen interpolation is not deterministic");
+                const auto wideClean=viewed.renderLive(0.5,false,true,NativeView::Widescreen);
+                require(viewed.renderLiveMessage(0x4c,2).size()==432*200,"Widescreen pause panel changed dimensions");
+                require(viewed.renderLive(0.5,false,true,NativeView::Widescreen)==wideClean,"Pause panel leaked into widescreen frames");
+                require(viewed.captureLiveIndices(false,NativeView::Widescreen).size()==432*200,"Widescreen palette capture has wrong dimensions");
+                require(viewed.captureLiveIndices(true,NativeView::Widescreen).size()==432*200,"Widescreen end-message fade capture failed");
+                require(viewed.renderLive(0.5,false,true,NativeView::Widescreen)==wideClean,"Palette capture changed widescreen view");
                 const auto clean=viewed.renderLive(0.5,false,true,NativeView::Extended);
                 require(viewed.renderLiveMessage(0x4c,2).size()==320*200,"Extended pause panel changed dimensions");
                 require(viewed.renderLive(0.5,false,true,NativeView::Extended)==clean,"Pause panel leaked into later frames");
@@ -116,6 +146,7 @@ int main(int argc,char** argv)try{
                 require(viewed.renderLive(0.5,false,true,NativeView::Extended)==clean,"Palette capture changed Extended view");
                 ++queries;
                 if(tick==128){viewed.renderLive(0,false,false,NativeView::Extended);viewed.saveBitmap(output/("track-"+std::to_string(track)+"-extended.bmp"));
+                    viewed.renderLive(0,false,false,NativeView::Widescreen);viewed.saveBitmap(output/("track-"+std::to_string(track)+"-widescreen.bmp"));
                     viewed.render(1);viewed.saveBitmap(output/("track-"+std::to_string(track)+"-original.bmp"));}
             }
             require(viewed.frames().back().pose.worldPosition==control.frames().back().pose.worldPosition,"Extended changed the simulation camera");
@@ -125,8 +156,9 @@ int main(int argc,char** argv)try{
         auto expected=std::make_unique<NativeMemory>(*seed.memory),actual=std::make_unique<NativeMemory>(*seed.memory);
         control.copyLiveExit(*expected);viewed.copyLiveExit(*actual);require(*expected==*actual,"Extended changed race/RNG/exit memory");
     }
-    require(maskPixels==3166&&cornerChanges>0,"Extended changed the expected repaired exterior outline");
+    require(maskPixels==3166&&cornerChanges>0&&lowerWorldPixels>0,"Expanded views did not render scenery in all exposed areas");
     const auto edge=scr::makeNearTrackEdge({-32,-16},{-1,-1},32,16);require(!(edge.clipFlags&15),"Extended upper/side clipping rejected visible world geometry");
-    std::cout<<"{\"status\":\"passed\",\"tracks\":8,\"queries\":"<<queries<<",\"assembly_variants\":"<<variants<<",\"mask_pixels\":"<<maskPixels<<",\"corner_changes\":"<<cornerChanges<<",\"frame_seam_repairs\":2,\"original_car_artwork_exact\":true,\"original_bitmap_unchanged\":true,\"simulation_memory_identical\":true}\n";
+    const auto lower=scr::makeNearTrackEdge({-88,150},{-70,180},88,16,56);require(!(lower.clipFlags&15),"Widescreen lower-side clipping rejected visible world geometry");
+    std::cout<<"{\"status\":\"passed\",\"tracks\":8,\"queries\":"<<queries<<",\"assembly_variants\":"<<variants<<",\"widescreen_assembly_variants\":"<<variants<<",\"widescreen_queries\":"<<queries<<",\"lower_world_pixels\":"<<lowerWorldPixels<<",\"mask_pixels\":"<<maskPixels<<",\"corner_changes\":"<<cornerChanges<<",\"frame_seam_repairs\":2,\"original_car_artwork_exact\":true,\"original_bitmap_unchanged\":true,\"simulation_memory_identical\":true}\n";
     return 0;
 }catch(const std::exception& error){std::cerr<<error.what()<<'\n';return 1;}

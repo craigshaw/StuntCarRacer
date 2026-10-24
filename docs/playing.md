@@ -256,7 +256,7 @@ available from the Game menu. Use arrows or the stick/D-pad to select rows; Left
 changes values, and Return/A changes a selected value or activates Apply and Back.
 The options are Windowed/Borderless Fullscreen, Integer/Fit/Stretch image sizing,
 Integer scale or Filtering, 60 FPS smoothing Off/On, Original/Modern driving controls, and
-Responsive/Original menu navigation, and 4:3 Original/Extended aspect modes. Menu navigation is independent of the
+Responsive/Original menu navigation, and 4:3 Original, 4:3 Extended or 16:9 views. Menu navigation is independent of the
 driving preset; applying it keeps the current session and screen. Changes
 preview immediately. Apply and Back saves them; Cancel, Escape, B, F10 or Start restores the choices from before
 entry. Settings entered from the pause panel return there. Focus loss while
@@ -265,13 +265,14 @@ adjusting settings during a race also requires an explicit resume.
 F11 toggles borderless fullscreen on the window's monitor and restores the prior
 window placement when leaving. Image sizing and filtering are separate:
 
-- **Integer** uses crisp nearest-neighbour enlargement in 320×240 display-size steps. **Auto**, the default, selects
+- **Integer** uses crisp nearest-neighbour enlargement at the selected aspect ratio. **Auto**, the default, selects
   the largest whole-number display scale that fits. Fixed **1×–32×** scales centre the
   image in fullscreen; selecting one in windowed mode resizes the game area
-  (for example, 3× gives 960×720). Oversized choices use the largest fitting
+  (3× gives 960×720 for 4:3, or 1280×720 for 16:9). Oversized choices use the largest fitting
   whole scale. Manually shrinking a window can also limit the selected scale.
-- **Fit** preserves the original 4:3 display proportions and fills whichever screen
-  dimension limits it. A 1920×1080 display shows 1440×1080 with side borders.
+- **Fit** preserves the selected aspect ratio and fills whichever screen
+  dimension limits it. At 1920×1080, 4:3 shows 1440×1080 with side borders;
+  a 16:9 race fills the display.
 - **Stretch** fills the entire window or monitor, changing image proportions.
   It shows the same game view and retains all HUD and menu content.
 - **Filtering**, shown for Fit and Stretch, offers **Nearest neighbour** for
@@ -284,25 +285,29 @@ placement, including after changing a fixed scale or fullscreen. Apply retains
 the preview and saves it. Sizing and filtering do not change the field of view. Display UI is
 composited after scaling, independently of the original game pixels.
 
-**Aspect ratio** is a separate choice in the launcher and Settings. Both
-**4:3 (Original)**, the default, and **4:3 (Extended)** retain the complete
-320×200 source artwork. Extended reveals world scenery in the black upper
-corners outside the original cockpit arch, while retaining the original car,
-frame and instrument positions. It adds no tyre or engine artwork. 16:9 will
-be offered after this composition has been reviewed.
+**Aspect ratio** is a separate choice in the launcher and Settings:
 
-The bitmap uses the original 4:3 display proportions, with non-square pixels;
-its source pixels remain unchanged. Integer Auto/fixed sizing uses 320×240
-display-size steps and nearest-neighbour sampling. Fit retains 4:3; Stretch
-fills the display explicitly. Changing the aspect mode previews immediately;
-Cancel restores the previous choice.
+- **4:3 (Original)** is the default and keeps the original viewport.
+- **4:3 (Extended)** reveals scenery in the unused upper corners while
+  retaining the original cockpit, car and instrument positions.
+- **16:9** renders a wider world around the same-size original car and main
+  arch. Its straight side braces and blue interior extend into the added space.
+  The engine, tyres, exhausts and instruments keep their original artwork.
+
+All three retain the original car's pixel proportions. At a fixed display
+height, 16:9 adds space to either side rather than shrinking the car. Integer
+sizing uses 240-pixel height steps: 4:3 widths are 320, 640, 960; 16:9 widths
+are 427, 853, 1280. Auto chooses the largest scale that fits the current window.
+Menus, track previews and saved career finish screens stay 4:3 in all modes.
+Changing aspect previews immediately; Cancel restores the previous choice.
 
 Preferences are stored atomically; the development helper uses
 `working/settings/display.ini`. Invalid or
 missing preferences use windowed, integer-scaled, original-update presentation
 and Original controls. Older display-only preferences retain their display
 choices and use Original controls; saving upgrades them to include the preset.
-Version 6 saves the aspect mode. Versions 1–4 retain Original; the old
+Version 7 saves all three aspect modes. Version 6 retains its existing choice;
+versions 1–4 retain Original; the old
 version-5 widescreen prototype selection migrates to Extended.
 Failed saves retain the last good file and show an error with an Apply retry.
 `-SettingsFile` selects another `.ini` for development; `-Fullscreen` and

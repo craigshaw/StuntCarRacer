@@ -64,10 +64,12 @@ multiplayer manual saves, with careers and shared Hall in `working/player-data/`
 Settings provide control presets, borderless
 fullscreen, Integer/Fit/Stretch sizing, separate filtering and optional 60 FPS
 smoothing. Integer Auto is the default; fixed 1×–32× scales are also available.
-**Aspect ratio** offers **4:3 (Original)** (default) or **4:3 (Extended)** in the
-launcher and Settings. Extended reveals scenery in the black upper corners
-outside the original arch. Both keep the complete original 320×200 artwork,
-presented at 4:3. A 16:9 option is deferred until this composition is reviewed.
+**Aspect ratio** offers **4:3 (Original)** (default), **4:3 (Extended)** and
+**16:9** in the launcher and Settings. Extended reveals scenery in the black
+upper corners outside the original arch. 16:9 adds a wider world around the
+same-size car and main arch, extending only the side braces and blue interior.
+The original engine, wheels, exhausts and instruments keep their pixels and
+scale. Menus and saved career finish images retain their original 4:3 format.
 Physics stays at **120 ms per update**, wheel/engine interrupts at **50 Hz**, and
 host presentation targets **60 FPS**.
 
@@ -91,7 +93,7 @@ To run an existing build directly, from the project root:
 
 **Computer Link is deliberately deferred.** Alternate cameras, further graphical
 enhancements and distribution packaging are future work. Fullscreen fits the
-original 4:3 proportions; Extended adds scenery outside the upper cockpit arch.
+selected 4:3 or 16:9 view; image sizing and filtering remain independent.
 The native rasterizer, audio output and host timing
 have [documented fidelity boundaries](docs/architecture.md#fidelity-contract).
 

@@ -19,10 +19,10 @@ Polar polar(const RenderProjectionTables& t,std::uint16_t x,std::uint16_t z){
 }
 void rotate(NearTrackVertex& p,const RenderProjectionCamera& c){const auto x=w(int(multiplyMatrixWord(w(p.x),c.cosRoll))+multiplyMatrixWord(w(p.y),c.sinRoll));const auto y=w(int(multiplyMatrixWord(w(p.y),c.cosRoll))-multiplyMatrixWord(w(p.x),c.sinRoll));p.x=shr(sw(x),2)+128;p.y=shr(sw(y),2)+64;}
 int ratioStep(int small,int large,int distance){if(large>=small)return large==small?distance:int(((std::uint64_t(unsigned(small))<<16)/unsigned(large))*unsigned(distance)>>16);return distance>=large?small:int(((std::uint64_t(unsigned(distance))<<16)/unsigned(large))*unsigned(small)>>16);}
-unsigned horizonStorage(NearTrackPoint a,NearTrackPoint c,int padding,int topPadding){
-    const auto ordinary=makeNearTrackEdge(a,c,padding,topPadding);if(ordinary.clipFlags&15)return ordinary.storageBytes;if(a.y<c.y)std::swap(a,c);
+unsigned horizonStorage(NearTrackPoint a,NearTrackPoint c,int padding,int topPadding,int bottomPadding){
+    const auto ordinary=makeNearTrackEdge(a,c,padding,topPadding,bottomPadding);if(ordinary.clipFlags&15)return ordinary.storageBytes;if(a.y<c.y)std::swap(a,c);
     const auto clipY=[](NearTrackPoint& p,const NearTrackPoint& q,int y){const int dx=sw(unsigned(q.x-p.x)),dy=sw(unsigned(q.y-p.y));const int step=ratioStep(std::abs(dx),std::abs(dy),std::abs(y-p.y));p.x=sw(unsigned(p.x+(dx<0?-step:step)));p.y=y;};
-    if(a.y<-topPadding)clipY(a,c,-topPadding);else if(a.y>=128)clipY(a,c,128);if(c.y<-topPadding)clipY(c,a,-topPadding);else if(c.y>=128)clipY(c,a,128);
+    if(a.y<-topPadding)clipY(a,c,-topPadding);else if(a.y>=128+bottomPadding)clipY(a,c,128+bottomPadding);if(c.y<-topPadding)clipY(c,a,-topPadding);else if(c.y>=128+bottomPadding)clipY(c,a,128+bottomPadding);
     const auto clipX=[](NearTrackPoint& p,const NearTrackPoint& q,int x){const int dx=sw(unsigned(q.x-p.x)),dy=sw(unsigned(q.y-p.y));const int step=ratioStep(std::abs(dy),std::abs(dx),std::abs(x-p.x));p.y=sw(unsigned(p.y+(dy<0?-step:step)));p.x=x;};
     if(a.x<-padding)clipX(a,c,-padding);else if(a.x>=256+padding)clipX(a,c,256+padding);if(c.x<-padding)clipX(c,a,-padding);else if(c.x>=256+padding)clipX(c,a,256+padding);
     return 10+2*unsigned(std::abs(a.y-c.y));
@@ -30,7 +30,7 @@ unsigned horizonStorage(NearTrackPoint a,NearTrackPoint c,int padding,int topPad
 NearTrackPoint point(const NearTrackVertex& p){return {sw(unsigned(p.x)),sw(unsigned(p.y))};}
 NearTrackEdge line(OpponentFarTrackFrame& out,const NearTrackVertex& a,const NearTrackVertex& c,unsigned offset,unsigned index){
     NearTrackEdge e{};e.clipFlags=0x80;e.originQueueOffset=std::uint16_t(offset);e.originEdge=std::uint8_t(index);
-    if((a.height|c.height)&0x8000||out.queue.lineBytes>=0x2328)return e;e=makeNearTrackEdge(point(a),point(c),out.queue.horizontalPadding,out.queue.topPadding);e.originQueueOffset=std::uint16_t(offset);e.originEdge=std::uint8_t(index);out.queue.lineBytes=std::uint16_t(out.queue.lineBytes+e.storageBytes);return e;
+    if((a.height|c.height)&0x8000||out.queue.lineBytes>=0x2328)return e;e=makeNearTrackEdge(point(a),point(c),out.queue.horizontalPadding,out.queue.topPadding,out.queue.bottomPadding);e.originQueueOffset=std::uint16_t(offset);e.originEdge=std::uint8_t(index);out.queue.lineBytes=std::uint16_t(out.queue.lineBytes+e.storageBytes);return e;
 }
 void quad(std::vector<NearTrackDrawCommand>& out,const NearTrackQueueState& q,unsigned end,unsigned first,NearTrackSurface surface,unsigned color,std::array<const NearTrackEdge*,4> edges){
     unsigned common=15;for(const auto* e:edges){if(!e->present)return;common&=e->clipFlags;}if(common)return;
@@ -87,16 +87,16 @@ std::uint16_t allocateOpponentBackgroundLines(std::uint16_t bytes,const Mountain
         const auto x=w(int(multiplyMatrixWord(w(side),camera.cosRoll))+multiplyMatrixWord(down,camera.sinRoll));
         const auto y=w(int(multiplyMatrixWord(down,camera.cosRoll))-multiplyMatrixWord(w(side),camera.sinRoll));
         return NearTrackPoint{shr(sw(x),2)+128,shr(sw(y),2)+64};};
-    const int padding=history?history->horizontalPadding:0,topPadding=history?history->topPadding:0;
+    const int padding=history?history->horizontalPadding:0,topPadding=history?history->topPadding:0,bottomPadding=history?history->bottomPadding:0;
     const auto first=horizonPoint(-0x500),last=horizonPoint(0x500);
     if(history){history->upper[2].x=first.x;history->upper[2].y=first.y;history->upper[3].x=last.x;history->upper[3].y=last.y;}
-    bytes=std::uint16_t(bytes+horizonStorage(first,last,padding,topPadding));
+    bytes=std::uint16_t(bytes+horizonStorage(first,last,padding,topPadding,bottomPadding));
     const auto mountains=projectMountainHorizon(data,yaw,camera,padding);
     for(const auto& instance:mountains.instances){
         if(history)for(unsigned n=0;n<instance.vertices.size();++n){auto& p=n<60?history->upper.at(n):history->lower.at(n-60);p.x=instance.vertices[n].x;p.y=instance.vertices[n].y;}
         for(const auto& edge:data.shapes.at(instance.shapeIndex).edges){
             if(bytes>=0x2328)continue;const auto& a=instance.vertices.at(edge[0]);const auto& c=instance.vertices.at(edge[1]);
-            bytes=std::uint16_t(bytes+makeNearTrackEdge({a.x,a.y},{c.x,c.y},padding,topPadding).storageBytes);
+            bytes=std::uint16_t(bytes+makeNearTrackEdge({a.x,a.y},{c.x,c.y},padding,topPadding,bottomPadding).storageBytes);
         }
     }return bytes;
 }

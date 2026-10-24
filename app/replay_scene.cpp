@@ -309,7 +309,7 @@ bool ReplayScene::stepLive(unsigned controls,bool quit,DriveControlPreset preset
 }
 const std::vector<std::uint32_t>& ReplayScene::renderLive(double fraction,bool wireframe,bool interpolate,NativeView view){
     fraction=std::clamp(fraction,0.0,1.0);lastLiveFraction_=fraction;lastLiveInterpolate_=interpolate;lastLiveView_=view;
-    if(view==NativeView::Extended){ReplayViewSettings settings;settings.view=view;return renderView(interpolate?fraction:1,settings,wireframe);}
+    if(view!=NativeView::Original){ReplayViewSettings settings;settings.view=view;return renderView(interpolate?fraction:1,settings,wireframe);}
     if(interpolate)return renderInterpolated(fraction,wireframe);
     const auto& frame=frames_[1];draw(frame,frame.nearTrack,wireframe,frame.movingTrack.get(),&frame,fraction);
     cachedFrame_=~0u;return pixels_;
@@ -320,8 +320,12 @@ const std::vector<std::uint32_t>& ReplayScene::renderLiveMessage(unsigned index,
     cachedFrame_=~0u;renderLive(lastLiveFraction_,false,lastLiveInterpolate_,lastLiveView_);
     const auto& memory=simulation_->native.ram;
     const auto cockpit=captureCockpitFrame(memory.data(),memory.size());
-    compositeMaskedObject(assets_,51,cockpit.objects[51],pixels_);
-    drawNativeGameMessage(memory,pixels_,assets_.palette,index,mode,memory[0x1bb88]!=0);
+    const bool wide=lastLiveView_==NativeView::Widescreen;
+    if(wide)foreground_.assign(320*200,replayTransparent);
+    auto& panel=wide?foreground_:pixels_;
+    compositeMaskedObject(assets_,51,cockpit.objects[51],panel);
+    drawNativeGameMessage(memory,panel,assets_.palette,index,mode,memory[0x1bb88]!=0);
+    if(wide)compositeReplayCentred(panel,pixels_);
     cachedFrame_=~0u;return pixels_;
 }
 std::vector<std::uint8_t> ReplayScene::captureLiveIndices(bool endMessage,NativeView view){
@@ -336,7 +340,7 @@ std::vector<std::uint8_t> ReplayScene::captureLiveIndices(bool endMessage,Native
         for(unsigned i=0;i<assets_.palette.size();++i)assets_.palette[i]=i;
         cachedFrame_=~0u;
         ReplayViewSettings settings;settings.view=view;
-        const auto& frame=endMessage?renderLiveMessage(0x3c,4):view==NativeView::Extended?renderView(1,settings):render(1);
+        const auto& frame=endMessage?renderLiveMessage(0x3c,4):view!=NativeView::Original?renderView(1,settings):render(1);
         std::vector<std::uint8_t> indices;indices.reserve(frame.size());
         for(auto pixel:frame){
             if(pixel>=16)throw std::logic_error("Native race renderer emitted a non-palette pixel");
@@ -390,10 +394,10 @@ const std::vector<std::uint32_t>& ReplayScene::renderInterpolated(double positio
     return pixels_;
 }
 NearTrackPresentation ReplayScene::buildViewCommands(const ReplayVisualState& visual,const ReplaySceneFrame& from,
-    const std::optional<OpponentCarInputs>& opponent,int padding,int topPadding)const{
+    const std::optional<OpponentCarInputs>& opponent,int padding,int topPadding,int bottomPadding)const{
     // All view queries rebuild from private presentation history. Track lookup
     // updates this local copy, independently of the driver's physics state.
-    auto inputs=from.nearInputs;auto progress=from.progressInputs;auto seed=from.nearSeed;seed.horizontalPadding=padding;seed.topPadding=topPadding;
+    auto inputs=from.nearInputs;auto progress=from.progressInputs;auto seed=from.nearSeed;seed.horizontalPadding=padding;seed.topPadding=topPadding;seed.bottomPadding=bottomPadding;
     const auto& presentation=from.movingTrack?from.movingTrack->progress:presentationTrack_;
     inputs.progress.worldPosition=visual.pose.worldPosition;
     progress.pitch=visual.pose.pitch;progress.yaw=visual.pose.yaw;progress.averageWheelVelocity=visual.pose.averageWheelVelocity;
@@ -420,28 +424,31 @@ const std::vector<std::uint32_t>& ReplayScene::renderView(double position,const 
         const auto& to=fraction>1e-9?frames_[index+1]:from;
         if(to.opponentEnabled)opponent=interpolateOpponent(from.opponent,to.opponent,visual.camera,fraction);
     }
-    const auto commands=buildViewCommands(visual,from,opponent,settings.view==NativeView::Extended?extendedHorizontalPadding:0,settings.view==NativeView::Extended?extendedTopPadding:0);
+    const auto commands=buildViewCommands(visual,from,opponent,viewPadding(settings.view),settings.view!=NativeView::Original?16:0,settings.view==NativeView::Widescreen?56:0);
     draw(visual,commands,wireframe,from.movingTrack.get(),&from,fraction,settings.showCockpit,settings.view);
     return pixels_;
 }
 void ReplayScene::draw(const ReplayVisualState& frame,const NearTrackPresentation& nearTrack,bool wireframe,const ReplayTrackSnapshot* movingTrack,const ReplaySceneFrame* discrete,double wheelFraction,bool showCockpit,NativeView view){
-    const bool extended=view==NativeView::Extended;
-    if(showCockpit)makeReplayBackground(assets_,pixels_);else pixels_.assign(320*200,0);
-    const auto mountains=projectMountainHorizon(mountains_,frame.pose.yaw,frame.camera,extended?extendedHorizontalPadding:0);
-    statistics_=renderer_.drawFrame(movingTrack?movingTrack->mesh:mesh_,movingTrack?movingTrack->sides:sides_,mountains,frame.camera,projection_,assets_.palette,pixels_,wireframe,&nearTrack,extended?extendedHorizontalPadding:0,extended);
-    if(extended&&showCockpit)composeReplayFrame(assets_,pixels_);
-    if(discrete)composeNativeDrivingParticles(assets_,particleData_,discrete->particleDraws,discrete->particleFrameCounter,pixels_);
-    if(discrete&&showCockpit)composeNativeChains(assets_,discrete->chainDraws,pixels_);
-    if(showCockpit)composeReplayCockpit(assets_,frame.cockpit,pixels_,extended);
+    const bool wide=view==NativeView::Widescreen,extended=view!=NativeView::Original;
+    if(showCockpit&&!wide)makeReplayBackground(assets_,pixels_);else pixels_.assign(viewWidth(view)*200,0);
+    const auto mountains=projectMountainHorizon(mountains_,frame.pose.yaw,frame.camera,viewPadding(view));
+    statistics_=renderer_.drawFrame(movingTrack?movingTrack->mesh:mesh_,movingTrack?movingTrack->sides:sides_,mountains,frame.camera,projection_,assets_.palette,pixels_,wireframe,&nearTrack,viewPadding(view),extended,wide?56:0);
+    if(extended&&showCockpit){if(wide)composeReplayWidescreenFrame(assets_,pixels_);else composeReplayFrame(assets_,pixels_);}
+    if(wide)foreground_.assign(320*200,replayTransparent);
+    auto& foreground=wide?foreground_:pixels_;
+    if(discrete)composeNativeDrivingParticles(assets_,particleData_,discrete->particleDraws,discrete->particleFrameCounter,foreground);
+    if(discrete&&showCockpit)composeNativeChains(assets_,discrete->chainDraws,foreground);
+    if(showCockpit)composeReplayCockpit(assets_,frame.cockpit,foreground,extended);
     if(discrete&&showCockpit){
-        for(unsigned n=0;n<discrete->instrumentPixels.size();++n)pixels_[320*cockpitInstrumentTop+n]=assets_.palette[discrete->instrumentPixels[n]];
+        for(unsigned n=0;n<discrete->instrumentPixels.size();++n)foreground[320*cockpitInstrumentTop+n]=assets_.palette[discrete->instrumentPixels[n]];
         const unsigned vblank=std::min(6u,unsigned(std::floor(wheelFraction*6+1e-9)));
-        if(!bitmapOnly_)composeNativeWheelSprites(wheelAssets_,discrete->wheelSprites,discrete->wheelTimeline[vblank],pixels_);
-        drawNativeRaceMessage(simulation_->initial,assets_,discrete->message,pixels_);
+        if(!bitmapOnly_)composeNativeWheelSprites(wheelAssets_,discrete->wheelSprites,discrete->wheelTimeline[vblank],foreground);
+        drawNativeRaceMessage(simulation_->initial,assets_,discrete->message,foreground);
     }
+    if(wide)compositeReplayCentred(foreground,pixels_);
 }
 void ReplayScene::saveBitmap(const std::filesystem::path& path) const {
-    if(pixels_.size()!=320*200)throw std::runtime_error("Render a frame before exporting");
+    if(pixels_.size()!=320*200&&pixels_.size()!=replayWidescreenWidth*200)throw std::runtime_error("Render a frame before exporting");
     const auto width=std::uint32_t(pixels_.size()/200);
     std::ofstream out(path,std::ios::binary);if(!out)throw std::runtime_error("Cannot create rendered bitmap");
     const std::uint32_t size=54+width*200*4;out.put('B');out.put('M');littleLong(out,size);littleLong(out,0);littleLong(out,54);

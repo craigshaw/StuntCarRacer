@@ -23,7 +23,46 @@ struct Surface {
         require(dc&&bitmap,"Cannot create display test surface");previous=SelectObject(dc,bitmap);
     }
     ~Surface(){SelectObject(dc,previous);DeleteObject(bitmap);DeleteDC(dc);}
+    void save(const std::filesystem::path& path)const{
+        std::ofstream out(path,std::ios::binary);
+        const auto u16=[&](unsigned n){out.put(char(n));out.put(char(n>>8));};
+        const auto u32=[&](unsigned n){u16(n);u16(n>>16);};
+        out.write("BM",2);u32(54+width*height*4);u32(0);u32(54);u32(40);u32(width);u32(unsigned(-height));u16(1);u16(32);
+        u32(0);u32(width*height*4);u32(2835);u32(2835);u32(0);u32(0);
+        out.write(reinterpret_cast<const char*>(pixels),std::streamsize(width*height*4));require(bool(out),"Cannot save native display capture");
+    }
 };
+void widescreenDisplay(WindowsGameDisplay& display,const std::filesystem::path& pack,const std::filesystem::path& output){
+    NativeDisplayPreferences prefs;prefs.view=NativeView::Widescreen;prefs.scaling=NativeScaling::Fit;
+    const auto fit=displayRectangle(1920,1080,prefs);require(fit.width==1920&&fit.height==1080,"Widescreen Fit is not 16:9");
+    const auto menu=displayRectangle(1920,1080,prefs,320);require(menu.width==1440&&menu.x==240,"Widescreen stretched an original menu");
+    prefs.scaling=NativeScaling::Integer;const auto automatic=displayRectangle(1920,1080,prefs);
+    require(automatic.width==1707&&automatic.height==960,"Widescreen Integer Auto did not preserve the source scale");
+    require(displayWidthAtScale(NativeView::Widescreen,1)==427&&displayWidthAtScale(NativeView::Widescreen,2)==853&&displayWidthAtScale(NativeView::Widescreen,3)==1280,"Widescreen fixed window widths differ");
+    std::vector<std::uint32_t> source(64000),wide(432*200,0x155131);
+    for(unsigned y=0;y<200;++y)for(unsigned x=0;x<320;++x)
+        wide[y*432+56+x]=source[y*320+x]=((x/7+y/5)&1)?0xff2020:0x2040ff;
+    for(auto mode:{NativeScaling::Integer,NativeScaling::Fit,NativeScaling::Stretch})
+    for(auto filtering:{NativeFiltering::NearestNeighbour,NativeFiltering::Bilinear}){
+        prefs.scaling=mode;prefs.filtering=filtering;Surface actual(1280,720),reference(960,720);
+        auto original=prefs;original.view=NativeView::Original;
+        display.paint(actual.dc,1280,720,wide,prefs);display.paint(reference.dc,960,720,source,original);GdiFlush();
+        // Bilinear edge samples may blend against the added side pixels. The
+        // rest of the original canvas must retain precisely the same scale.
+        const int edge=mode!=NativeScaling::Integer&&filtering==NativeFiltering::Bilinear?4:0;
+        for(int y=0;y<720;++y)for(int x=edge;x<960-edge;++x)
+            require((actual.pixels[y*1280+x+160]&0xffffff)==(reference.pixels[y*960+x]&0xffffff),"16:9 stretched or rescaled the original car canvas");
+    }
+    prefs.scaling=NativeScaling::Fit;prefs.filtering=NativeFiltering::Bilinear;
+    Surface ultrawide(1920,720);display.paint(ultrawide.dc,1920,720,wide,prefs);GdiFlush();
+    for(int y=0;y<720;++y)for(int x=0;x<1920;++x)if(x<320||x>=1600)
+        require(!(ultrawide.pixels[y*1920+x]&0xffffff),"Widescreen canvas overdraw escaped its 16:9 aperture");
+    ReplayScene scene;scene.loadNative(pack,{},6);
+    for(unsigned tick=0;tick<=128;++tick)require(scene.stepLive(1|(tick%40<8?16:0)|(tick>100&&tick%40<4?4:0)),"Display capture race ended early");
+    prefs.filtering=NativeFiltering::NearestNeighbour;Surface gameplay(1280,720);
+    display.paint(gameplay.dc,1280,720,scene.renderLive(0,false,false,NativeView::Widescreen),prefs);GdiFlush();
+    gameplay.save(output/"16x9-gameplay.bmp");
+}
 void tap(NativeDisplaySettings& settings,unsigned controls){settings.navigate(0);settings.navigate(controls);settings.navigate(0);}
 void storage(const std::filesystem::path& output){
     const auto file=output/"preferences.ini";
@@ -36,11 +75,15 @@ void storage(const std::filesystem::path& output){
     }
     NativeDisplayPreferences wide;wide.view=NativeView::Extended;
     require(saveDisplayPreferences(file,wide)&&loadDisplayPreferences(file)==wide,"Extended preference did not roundtrip");
+    wide.view=NativeView::Widescreen;
+    require(saveDisplayPreferences(file,wide)&&loadDisplayPreferences(file)==wide,"Widescreen preference did not roundtrip");
     const std::string modernFields="fullscreen=1\nscaling=fit\ninterpolate=1\ncontrols=modern\nnavigation=responsive\nfiltering=nearest\ninteger-scale=2\n";
     {std::ofstream out(file);out<<"SCR display 4\n"<<modernFields;}
     require(loadDisplayPreferences(file).view==NativeView::Original&&loadDisplayPreferences(file).integerScale==2,"Version 4 aspect migration lost the original view or scale");
     {std::ofstream out(file);out<<"SCR display 5\n"<<modernFields<<"view=widescreen\n";}
     require(loadDisplayPreferences(file).view==NativeView::Extended&&loadDisplayPreferences(file).fullscreen,"Old prototype view did not migrate to Extended");
+    {std::ofstream out(file);out<<"SCR display 6\n"<<modernFields<<"aspect=extended\n";}
+    require(loadDisplayPreferences(file).view==NativeView::Extended,"Version 6 Extended selection was lost");
     for(const auto suffix:{"aspect=unknown\n","","aspect=extended\nextra=1\n"}){
         {std::ofstream out(file);out<<"SCR display 6\n"<<modernFields<<suffix;}
         require(loadDisplayPreferences(file)==NativeDisplayPreferences{},"Malformed aspect preferences were applied");
@@ -94,6 +137,8 @@ void navigation(){
     tap(settings,8);require(settings.preferences().navigation==NativeMenuNavigation::Responsive,"Menu navigation setting did not restore Responsive");
     tap(settings,2);tap(settings,8);require(settings.preferences().view==NativeView::Extended,"Aspect ratio did not select Extended");
     tap(settings,4);require(settings.preferences().view==NativeView::Original,"Aspect ratio did not restore Original");
+    tap(settings,4);require(settings.preferences().view==NativeView::Widescreen,"Aspect ratio cannot select 16:9 backwards");
+    tap(settings,8);require(settings.preferences().view==NativeView::Original,"Aspect ratio did not cycle from 16:9 to Original");
     tap(settings,2);settings.navigate(0);require(settings.navigate(16)&&settings.blocksGame(),"Apply did not request saving while blocking gameplay");
     settings.applied();require(!settings.blocksGame(),"Applied direct settings did not return to game");
     const auto saved=settings.preferences();settings.pause();tap(settings,2);tap(settings,16);
@@ -230,7 +275,8 @@ void timing(const std::filesystem::path& pack,const std::filesystem::path& outpu
                 if(n==80){tap(settings,1);tap(settings,16);require(settings.page()==NativeDisplayPage::QuitConfirmation,"Paused presentation fixture missed quit confirmation");}
                 if(!settings.blocksGame())viewed.update(1.0/60,{});
                 auto presentation=settings.preferences();presentation.scaling=NativeScaling(n%3);presentation.filtering=NativeFiltering(n%2);presentation.integerScale=n%4;
-                display.paint(surface.dc,800,500,viewed.render(true,true),presentation);display.overlay(surface.dc,800,500,settings,L"");
+                presentation.view=NativeView(n%3);
+                display.paint(surface.dc,800,500,viewed.render(true,true,presentation.view),presentation);display.overlay(surface.dc,800,500,settings,L"");
                 display.fpsOverlay(surface.dc,800,500,60.0);
             }
             require(viewed.race().liveTicks()==before,"Game menu or quit confirmation advanced physics ticks");while(settings.blocksGame())settings.back();
@@ -252,7 +298,7 @@ void timing(const std::filesystem::path& pack,const std::filesystem::path& outpu
 int main(int argc,char** argv)try{
     if(argc!=3)throw std::invalid_argument("native_display_tests asset-pack output-directory");
     const std::filesystem::path output=argv[2];std::filesystem::create_directories(output);
-    storage(output);navigation();gameMenu();WindowsGameDisplay display;const auto cases=scaling(display);fullscreen(display);timing(argv[1],output,display);
+    storage(output);navigation();gameMenu();WindowsGameDisplay display;const auto cases=scaling(display);widescreenDisplay(display,argv[1],output);fullscreen(display);timing(argv[1],output,display);
     std::cout<<"{\"status\":\"passed\",\"preference_roundtrips\":384,\"corrupt_preferences\":17,\"legacy_preferences_migrated\":true,\"control_preset_navigation\":true,\"game_menu\":true,\"quit_confirmation\":true,\"leave_race_equivalence\":true,\"atomic_failure_checked\":true,\"controller_navigation\":true,\"scaling_cases\":"<<cases
         <<",\"fullscreen_roundtrips\":4,\"paused_presentations\":120,\"changing_1080p_filter_ms\":"<<filterMilliseconds<<",\"original_tick_phase_preserved\":true,\"final_simulation_memory_identical\":true}\n";return 0;
 }catch(const std::exception& error){std::cerr<<error.what()<<'\n';return 1;}

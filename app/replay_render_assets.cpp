@@ -1,5 +1,6 @@
 #include "replay_render_assets.h"
 #include <algorithm>
+#include <cmath>
 #include <stdexcept>
 
 namespace scr::viewer {
@@ -37,6 +38,7 @@ ReplayRenderAssets decodeReplayRenderAssets(const std::uint8_t* payload,std::siz
     const auto decoded=decodePlanarRle(payload+background-base,payloadSize-(background-base),320,200,4);
     assets.background=decodePlanarImage(decoded.planes.data(),decoded.planes.size(),320,200,4);
     assets.exteriorMask=makeReplayExteriorMask(assets.background);
+    assets.widescreenFrame=makeReplayWidescreenFrame(assets);
     assets.backgroundCompressedBytes=decoded.consumed;
     for(unsigned i=0;i<16;++i)assets.palette[i]=originalPaletteRgb(word(payload,payloadSize,palette-base+2*i));
     // Original startup patches six font bytes (0x1feed,0x1fef7/8,
@@ -124,6 +126,56 @@ void composeReplayFrame(const ReplayRenderAssets& assets,std::vector<std::uint32
         if(x>=32&&x<288&&y>=16&&y<144)continue;
         const unsigned at=y*320+x;if(!assets.exteriorMask[at])pixels[at]=assets.palette[extendedFrameIndex(assets.background,at)];
     }
+}
+std::vector<std::uint8_t> makeReplayWidescreenFrame(const ReplayRenderAssets& assets){
+    const auto& image=assets.background;
+    if(image.width!=320||image.height!=200||image.pixels.size()!=320*200||assets.exteriorMask.size()!=320*200)
+        throw std::invalid_argument("Invalid widescreen frame source");
+    // Same indexed geometry as the approved straight-brace study. Fit the
+    // original highlight, then continue the slimmer column-14 material profile.
+    double sumX=0,sumY=0,sumXX=0,sumXY=0;
+    for(unsigned x=0;x<14;++x){
+        unsigned first=200,last=0;
+        for(unsigned y=85;y<145;++y)if(image.pixels[y*320+x]==12){first=std::min(first,y);last=y;}
+        if(first>last)throw std::invalid_argument("Missing original brace highlight");
+        const double centre=(first+last)*0.5;sumX+=x;sumY+=centre;sumXX+=x*x;sumXY+=x*centre;
+    }
+    const double slope=-(14*sumXY-sumX*sumY)/(14*sumXX-sumX*sumX);
+    const auto side=[&](bool right,int x,unsigned y)->std::uint8_t{
+        const int shift=int(std::lround((14-x)*slope));
+        if(int(y)<85+shift)return replayFrameTransparent;
+        if(int(y)<118+shift)return image.pixels[unsigned(int(y)-shift)*320+(right?305:14)];
+        return x>=10||int(y)>=194-2*x?8:7;
+    };
+    std::vector<std::uint8_t> frame(replayWidescreenWidth*200,replayFrameTransparent);
+    for(unsigned y=0;y<200;++y)for(unsigned x=0;x<320;++x){
+        const unsigned at=y*320+x;
+        if(!(x>=32&&x<288&&y>=16&&y<144)&&!assets.exteriorMask[at])
+            frame[y*replayWidescreenWidth+replayWidescreenOffset+x]=extendedFrameIndex(image,at);
+    }
+    for(unsigned x=0;x<14;++x)for(bool right:{false,true}){
+        const unsigned column=right?319-x:x;unsigned end=100;
+        while(end<160&&image.pixels[end*320+column]!=7&&image.pixels[end*320+column]!=8)++end;
+        if(end==160)throw std::invalid_argument("Missing original side interior");
+        for(unsigned y=0;y<end;++y)frame[y*replayWidescreenWidth+replayWidescreenOffset+column]=side(right,int(x),y);
+    }
+    for(unsigned y=0;y<200;++y)for(unsigned d=1;d<=replayWidescreenOffset;++d){
+        frame[y*replayWidescreenWidth+replayWidescreenOffset-d]=side(false,-int(d),y);
+        frame[y*replayWidescreenWidth+replayWidescreenOffset+319+d]=side(true,-int(d),y);
+    }
+    return frame;
+}
+void composeReplayWidescreenFrame(const ReplayRenderAssets& assets,std::vector<std::uint32_t>& pixels){
+    if(pixels.size()!=replayWidescreenWidth*200||assets.widescreenFrame.size()!=pixels.size())
+        throw std::invalid_argument("Invalid widescreen frame canvas");
+    for(unsigned at=0;at<pixels.size();++at)if(assets.widescreenFrame[at]!=replayFrameTransparent)
+        pixels[at]=assets.palette[assets.widescreenFrame[at]];
+}
+void compositeReplayCentred(const std::vector<std::uint32_t>& original,std::vector<std::uint32_t>& wide){
+    frameSize(original);
+    if(wide.size()!=replayWidescreenWidth*200)throw std::invalid_argument("Invalid centred foreground canvas");
+    for(unsigned y=0;y<200;++y)for(unsigned x=0;x<320;++x)if(original[y*320+x]!=replayTransparent)
+        wide[y*replayWidescreenWidth+replayWidescreenOffset+x]=original[y*320+x];
 }
 void compositeMaskedObject(const ReplayRenderAssets& assets,unsigned id,
         const ReplayObjectPlacement& o,std::vector<std::uint32_t>& pixels) {

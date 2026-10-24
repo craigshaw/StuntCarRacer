@@ -9,10 +9,10 @@ namespace scr {
 namespace {
 struct ScreenVertex {double x{},y{},inverseDepth{};};
 struct RenderCanvas {
-    int padding{};bool extended{};
+    int padding{};bool extended{};int bottomPadding{};
     int topPadding()const{return extended?16:0;}
-    int width()const{return extended?320:320+2*padding;}
-    int viewportHeight()const{return 128+topPadding();}
+    int width()const{return extended?viewportWidth():320+2*padding;}
+    int viewportHeight()const{return 128+topPadding()+bottomPadding;}
     int viewportWidth()const{return 256+2*padding;}
     std::size_t viewIndex(int x,int y)const{return std::size_t(y*viewportWidth()+x);}
     std::size_t pixelIndex(int x,int y)const{return std::size_t((y+(extended?0:16))*width()+x+(extended?0:32));}
@@ -145,10 +145,10 @@ void nearPolygon(const NearTrackDrawCommand& command,std::uint32_t color,
 RenderStatistics SoftwareReplayRenderer::drawFrame(const TrackMesh& mesh,const std::vector<TrackSideFace>& sides,
     const MountainHorizonFrame& mountains,const RenderProjectionCamera& camera,
     const RenderProjectionTables& tables,const std::array<std::uint32_t,16>& palette,
-    std::vector<std::uint32_t>& pixels,bool wireframe,const NearTrackPresentation* nearTrack,int padding,bool extended) {
+    std::vector<std::uint32_t>& pixels,bool wireframe,const NearTrackPresentation* nearTrack,int padding,bool extended,int bottomPadding) {
     if(padding<0||padding>128)throw std::invalid_argument("Invalid render viewport padding");
-    const RenderCanvas canvas{padding,extended};
-    if(extended&&padding!=32)throw std::invalid_argument("Extended corners require the original full canvas");
+    const RenderCanvas canvas{padding,extended,bottomPadding};
+    if(bottomPadding<0||canvas.viewportHeight()+(extended?0:16)>height)throw std::invalid_argument("Invalid render viewport height");
     if(pixels.size()!=std::size_t(canvas.width()*height))throw std::invalid_argument("Renderer background dimensions do not match its viewport");
     inverseDepth_.assign(canvas.viewportWidth()*canvas.viewportHeight(),0);
     coverage_.assign(canvas.viewportWidth()*canvas.viewportHeight(),0);

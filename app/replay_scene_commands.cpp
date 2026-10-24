@@ -26,7 +26,7 @@ ReplaySceneCommands buildReplaySceneCommands(const NearTrackFrame& near,
         // competitive races use the occluded slot (0x58600).
         if(!consumeOpponentCarPainterSlot(static_cast<OpponentCarPainterSlot>(slot),
             0,offset,marker)||!opponent)return;
-        auto inputs=*opponent;inputs.camera=camera;inputs.lineBytes=lineBytes;inputs.horizontalPadding=geometry.horizontalPadding;inputs.topPadding=geometry.topPadding;
+        auto inputs=*opponent;inputs.camera=camera;inputs.lineBytes=lineBytes;inputs.horizontalPadding=geometry.horizontalPadding;inputs.topPadding=geometry.topPadding;inputs.bottomPadding=geometry.bottomPadding;
         const auto car=buildOpponentCarFrame(inputs,tables);
         result.opponentAttempted=true;result.opponentAdmitted=car.admitted;
         lineBytes=car.lineBytes;

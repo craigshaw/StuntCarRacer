@@ -85,7 +85,7 @@ void WindowsLauncher::create(HWND parent){
         {scalingName(NativeScaling::Integer),scalingName(NativeScaling::Fit),scalingName(NativeScaling::Stretch)},
         {L"Off",L"On",nullptr},{L"Original",L"Modern",nullptr},{L"Responsive",L"Original",nullptr}};
     for(unsigned row=0;row<5;++row)for(const auto choice:choices[row])if(choice)SendMessageW(controls_[row+2],CB_ADDSTRING,0,reinterpret_cast<LPARAM>(choice));
-    for(const auto label:{L"4:3 (Original)",L"4:3 (Extended)"})SendMessageW(controls_[11],CB_ADDSTRING,0,reinterpret_cast<LPARAM>(label));
+    for(const auto label:{L"4:3 (Original)",L"4:3 (Extended)",L"16:9"})SendMessageW(controls_[11],CB_ADDSTRING,0,reinterpret_cast<LPARAM>(label));
     SetWindowTextW(controls_[1],L"Details");SetWindowTextW(controls_[7],L"Restore original defaults");
     SetWindowTextW(controls_[8],L"Quit");SetWindowTextW(controls_[9],L"Play");
     SetWindowPos(controls_[10],controls_[3],0,0,0,0,SWP_NOMOVE|SWP_NOSIZE|SWP_NOACTIVATE);
@@ -164,15 +164,15 @@ void WindowsLauncher::paint(HDC dc,int width,int height,const NativeLauncher& mo
     const auto& prefs=model.preferences();
     const bool integer=prefs.scaling==NativeScaling::Integer;
     const wchar_t* labels[]{L"Display mode",L"Image sizing",integer?L"Integer scale":L"Filtering",L"60 FPS smoothing",L"Driving controls",L"Menu navigation",L"Aspect ratio"};
-    const wchar_t* scalingHelp=integer?L"Crisp enlargement with original 4:3 proportions and borders.":prefs.scaling==NativeScaling::Fit?L"Largest image that fits, preserving its proportions.":L"Fill the display, stretching the image's proportions.";
+    const wchar_t* scalingHelp=integer?L"Crisp enlargement at the selected aspect ratio, with borders.":prefs.scaling==NativeScaling::Fit?L"Largest image that fits, preserving its proportions.":L"Fill the display, stretching the image's proportions.";
     int targetWidth=width,targetHeight=height;
     if(prefs.fullscreen){MONITORINFO monitor{sizeof(MONITORINFO)};if(GetMonitorInfoW(MonitorFromWindow(parent_,MONITOR_DEFAULTTONEAREST),&monitor)){targetWidth=monitor.rcMonitor.right-monitor.rcMonitor.left;targetHeight=monitor.rcMonitor.bottom-monitor.rcMonitor.top;}}
     const auto fit=displayRectangle(targetWidth,targetHeight,prefs);
-    const auto integerHelp=prefs.integerScale?L"Windowed games resize; oversized scales are reduced to fit.":L"Largest fitting scale at original 4:3 proportions. Currently "+std::to_wstring(fit.width/viewWidth(prefs.view))+L"×.";
+    const auto integerHelp=prefs.integerScale?L"Windowed games resize; oversized scales are reduced to fit.":L"Largest fitting scale. Currently "+std::to_wstring(fit.height/originalDisplayHeight)+L"×.";
     const wchar_t* detailHelp=integer?integerHelp.c_str():prefs.filtering==NativeFiltering::Bilinear?L"Blend pixel edges for a softer image.":L"Keep pixel edges crisp and unfiltered.";
     const wchar_t* help[]{L"Fullscreen takes effect when you press Play.",scalingHelp,detailHelp,prefs.interpolate?L"Smooth animation at 60 FPS.":L"Original, stepped animation. Game speed stays the same.",
         prefs.controls==DriveControlPreset::Original?L"Original throttle stays on until you brake.":L"Hold gas to accelerate; release to coast. Controller RT / LT.",
-        prefs.navigation==NativeMenuNavigation::Responsive?L"Immediate response. Esc / B goes back.":L"Original menu timing and navigation.",L"Original artwork; Extended reveals scenery outside the upper arch."};
+        prefs.navigation==NativeMenuNavigation::Responsive?L"Immediate response. Esc / B goes back.":L"Original menu timing and navigation.",L"Keep the car artwork fixed; reveal more scenery around it."};
     for(unsigned n=0;n<7;++n){const int y=settingsY_+int(n)*rowHeight_;
         if(n)fill(dc,{margin_,y,right,y+1},line);
         text(dc,fonts_[1],{margin_,y+px(5),right-px(265),y+px(29)},labels[n],ink);

@@ -12,7 +12,8 @@ guide. Inspect Git status and preserve existing work before editing.
   Gameplay stays at 120 ms per update; wheel/engine interrupt state at 50 Hz;
   host presentation targets 60 Hz. Interpolation and alternate views must never
   mutate simulation state. Keep future visual options separate from the faithful
-  baseline. Fullscreen currently fits the original image, not a wider projection.
+  baseline. Keep both 4:3 views and the optional 16:9 world/frame presentation
+  independent of simulation; the original car artwork retains its scale.
 - Use CMake presets and CTest; native Release/Debug share build/windows/ and
   original-code tests use build/windows-oracle/. Stage the player with CMake
   Install to dist/Stunt Car Racer.exe. Keep research evidence under analysis/.

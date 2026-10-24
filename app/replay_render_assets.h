@@ -8,6 +8,8 @@
 
 namespace scr::viewer {
 constexpr unsigned replayWidth=320,replayHeight=200;
+constexpr unsigned replayWidescreenWidth=432,replayWidescreenOffset=56;
+constexpr std::uint8_t replayFrameTransparent=255;
 struct ReplayViewport { unsigned x=32,y=16,width=256,height=128; };
 struct MaskedPixelWord { std::uint16_t preserve{};std::array<std::uint16_t,4> planes{}; };
 struct ReplayMaskedObject {
@@ -17,6 +19,7 @@ struct ReplayMaskedObject {
 struct ReplayRenderAssets {
     IndexedImage background;
     std::vector<std::uint8_t> exteriorMask;
+    std::vector<std::uint8_t> widescreenFrame; // Indexed static foreground; 255 is transparent.
     std::array<std::uint32_t,16> palette{}; // Packed0x00RRGGBB.
     std::array<ReplayMaskedObject,52> objects;
     std::array<std::uint8_t,96*8> font{};
@@ -44,6 +47,9 @@ void makeReplayBackground(const ReplayRenderAssets&,std::vector<std::uint32_t>& 
 // top strip. Its two post/brace seam pixels stay opaque in the derived frame.
 std::vector<std::uint8_t> makeReplayExteriorMask(const IndexedImage&);
 void composeReplayFrame(const ReplayRenderAssets&,std::vector<std::uint32_t>&);
+std::vector<std::uint8_t> makeReplayWidescreenFrame(const ReplayRenderAssets&);
+void composeReplayWidescreenFrame(const ReplayRenderAssets&,std::vector<std::uint32_t>&);
+void compositeReplayCentred(const std::vector<std::uint32_t>& original,std::vector<std::uint32_t>& wide);
 constexpr std::uint32_t replayTransparent=0x01000000;
 void compositeMaskedObject(const ReplayRenderAssets&,unsigned objectId,
     const ReplayObjectPlacement&,std::vector<std::uint32_t>& pixels);

@@ -42,7 +42,8 @@ physics-clock fraction. See [display controls](../playing.md) for the keyboard,
 controller and preference-file behaviour.
 
 The optional F-key FPS counter is composed last at the host surface's top left,
-after game scaling and Pause/Settings. Its one-second average counts presented
+after game scaling and Pause/Settings. It draws text directly over the image
+without a background panel. Its one-second average counts presented
 game frames, independently of simulation ticks. The counter starts hidden and
 does not change preferences, game pixels or saved state; name entry retains F.
 

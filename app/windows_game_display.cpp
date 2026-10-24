@@ -117,10 +117,8 @@ void WindowsGameDisplay::fpsOverlay(HDC dc,int width,int height,double framesPer
     const auto value=label.str();const auto saved=SaveDC(dc);
     const auto font=CreateFontW(-px(14),0,0,0,FW_SEMIBOLD,FALSE,FALSE,FALSE,DEFAULT_CHARSET,
         OUT_DEFAULT_PRECIS,CLIP_DEFAULT_PRECIS,CLEARTYPE_QUALITY,DEFAULT_PITCH,L"Consolas");
-    SelectObject(dc,font);SIZE extent{};GetTextExtentPoint32W(dc,value.c_str(),int(value.size()),&extent);
+    SelectObject(dc,font);
     const int margin=px(8),padding=px(6);
-    RECT rect{margin,margin,margin+extent.cx+2*padding,margin+extent.cy+2*padding};
-    const auto brush=CreateSolidBrush(RGB(16,21,28));FillRect(dc,&rect,brush);DeleteObject(brush);
     SetTextColor(dc,RGB(241,242,235));SetBkMode(dc,TRANSPARENT);
     TextOutW(dc,margin+padding,margin+padding,value.c_str(),int(value.size()));
     RestoreDC(dc,saved);DeleteObject(font);

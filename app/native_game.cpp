@@ -111,7 +111,7 @@ private:
     WindowsGameDisplay display_;
     WindowsLauncher launcherView_;
     std::wstring settingsError_;
-    bool muted_{},focused_{true},suppressInput_{},freshGame_{};
+    bool muted_{},focused_{true},suppressInput_{},freshGame_{},showFps_{};
     HANDLE timer_{};
     HANDLE instanceLock_{};
     std::wstring instanceName_;
@@ -138,6 +138,7 @@ private:
             game_=std::move(started);launcherView_.visible(false);SetFocus(window);clearGameInput();
             for(const unsigned key:{unsigned(VK_RETURN),unsigned(VK_SPACE),unsigned(VK_ESCAPE),unsigned(VK_UP),unsigned(VK_DOWN),unsigned(VK_LEFT),unsigned(VK_RIGHT),unsigned('W'),unsigned('A'),unsigned('S'),unsigned('D')})
                 blockedKeys_[key]=(GetAsyncKeyState(int(key))&0x8000)!=0;
+            frames_=0;fps_=0;fpsStart_=std::chrono::steady_clock::now();
             freshGame_=true;InvalidateRect(window,nullptr,FALSE);
         }catch(const std::exception& failure){
             display_.fullscreen(window,false);launcher_.refreshAssets();launcher_.failedStart(failure);launcherView_.visible(true);launcherView_.sync(launcher_);launcherView_.focusInitial(launcher_);
@@ -216,7 +217,7 @@ private:
         if(suppressInput_&&std::none_of(blockedKeys_.begin(),blockedKeys_.end(),[](bool down){return down;})&&
             !displayPadNavigation(pad_.pad)&&!mapDriveControls({},pad_.pad))suppressInput_=false;
         if(!wasBlocked)update(window,elapsed);
-        if(!IsIconic(window)){InvalidateRect(window,nullptr,FALSE);UpdateWindow(window);++frames_;}
+        if(!IsIconic(window)){InvalidateRect(window,nullptr,FALSE);UpdateWindow(window);}
         const auto now=std::chrono::steady_clock::now();const auto seconds=std::chrono::duration<double>(now-fpsStart_).count();
         if(seconds>=1){fps_=frames_/seconds;frames_=0;fpsStart_=now;
             std::wostringstream title;title<<L"Stunt Car Racer  |  "<<std::fixed<<std::setprecision(1)<<fps_<<L" FPS";
@@ -268,13 +269,18 @@ private:
             throw std::runtime_error("Cannot allocate native game presentation buffer");
         }
         const auto previous=SelectObject(dc,surface);
-        if(pixels){display_.paint(dc,client.right,client.bottom,*pixels,settings_.preferences().scaling);display_.overlay(dc,client.right,client.bottom,settings_,settingsError_);}
+        if(pixels){
+            display_.paint(dc,client.right,client.bottom,*pixels,settings_.preferences().scaling);
+            display_.overlay(dc,client.right,client.bottom,settings_,settingsError_);
+            if(showFps_)display_.fpsOverlay(dc,client.right,client.bottom,fps_);
+        }
         else launcherView_.paint(dc,client.right,client.bottom,launcher_);
         // Background, letterboxing and game pixels become visible together.
         const bool presented=BitBlt(target,0,0,client.right,client.bottom,dc,0,0,SRCCOPY)!=0;
         SelectObject(dc,previous);DeleteObject(surface);DeleteDC(dc);
         EndPaint(window,&painting);
         if(!presented)throw std::runtime_error("Cannot present the native game frame");
+        if(pixels&&!IsIconic(window))++frames_;
     }
     LRESULT message(HWND window,UINT kind,WPARAM key,LPARAM data){
         switch(kind){
@@ -312,6 +318,10 @@ private:
                 }
                 return 0;
             }
+            if(key=='F'&&!game_->usingTextInput()){
+                if(!(data&0x40000000)){showFps_=!showFps_;InvalidateRect(window,nullptr,FALSE);}
+                return 0;
+            }
             if(settings_.blocksGame()&&(data&0x40000000))return 0;
             if(responsiveMenu()&&key<blockedKeys_.size()&&blockedKeys_[key])return 0;
             if(key<keys_.size())keys_[key]=true;
@@ -334,6 +344,7 @@ private:
             if(!game_){launcherView_.navigate(0,launcher_);return 0;}
             if(key<keys_.size())keys_[key]=false;
             if(key<blockedKeys_.size())blockedKeys_[key]=false;
+            if(key=='F'&&!game_->usingTextInput())return 0;
             if(settings_.blocksGame()){navigateOverlay(window);return 0;}
             if(suppressInput_||key==VK_F10||key==VK_F11)return 0;
             if(const auto raw=nativeAmigaRawKey(unsigned(key),(unsigned(data)>>16)&255,(data&0x01000000)!=0))rawKeys_.push_back({*raw,false});

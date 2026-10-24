@@ -39,6 +39,7 @@ local players taking turns against the computer pace car.
 | Leave a race | Escape | Back/View |
 | Settings | F10 | Start from menus; pause panel during races |
 | Fullscreen / interpolation / mute | F11 / I / M | Settings for fullscreen and interpolation |
+| Toggle FPS counter | F | — |
 
 Settings offer saved **Original** (default) and **Modern** digital control presets.
 Modern separates throttle from the steering stick; triggers are on/off.

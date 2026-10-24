@@ -16,6 +16,7 @@ public:
     bool isFullscreen()const noexcept{return fullscreen_;}
     void paint(HDC,int width,int height,const std::vector<std::uint32_t>&,NativeScaling);
     void overlay(HDC,int width,int height,const NativeDisplaySettings&,const std::wstring& error);
+    void fpsOverlay(HDC,int width,int height,double framesPerSecond);
 private:
     ULONG_PTR token_{};
     bool fullscreen_{};

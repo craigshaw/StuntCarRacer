@@ -34,6 +34,11 @@ immutable. Overlay navigation suspends game/audio updates and retains the curren
 physics-clock fraction. See [display controls](../playing.md) for the keyboard,
 controller and preference-file behaviour.
 
+The optional F-key FPS counter is composed last at the host surface's top left,
+after game scaling and Pause/Settings. Its one-second average counts presented
+game frames, independently of simulation ticks. The counter starts hidden and
+does not change preferences, game pixels or saved state; name entry retains F.
+
 The current game image remains 320 by 200 and its world viewport remains 256 by
 128. Fitting that image into a wide window preserves its original aspect; it
 does not extend the field of view. Actual widescreen rendering still needs a

@@ -108,6 +108,14 @@ unsigned scaling(WindowsGameDisplay& display){
     }
     Surface surface(800,500);display.paint(surface.dc,800,500,source,NativeScaling::Integer);GdiFlush();
     const std::vector<std::uint32_t> baseline(surface.pixels,surface.pixels+800*500);
+    display.fpsOverlay(surface.dc,800,500,59.9);GdiFlush();
+    unsigned fpsPixels=0;
+    for(int y=0;y<500;++y)for(int x=0;x<800;++x)if((baseline[y*800+x]&0xffffff)!=(surface.pixels[y*800+x]&0xffffff)){
+        require(x<200&&y<63,"FPS overlay escaped the top-left corner");++fpsPixels;
+    }
+    require(fpsPixels>0&&source==original,"FPS overlay did not compose independently of game pixels");
+    display.paint(surface.dc,800,500,source,NativeScaling::Integer);GdiFlush();
+    require(std::equal(baseline.begin(),baseline.end(),surface.pixels),"Hiding FPS left pixels on the game surface");
     NativeDisplaySettings settings;settings.openSettings();display.overlay(surface.dc,800,500,settings,L"");GdiFlush();
     require(!std::equal(baseline.begin(),baseline.end(),surface.pixels)&&source==original,"Overlay did not compose separately from game pixels");
     Surface hd(1920,1080);const auto began=std::chrono::steady_clock::now();
@@ -139,6 +147,7 @@ void timing(const std::filesystem::path& pack,const std::filesystem::path& outpu
             for(unsigned n=0;n<120;++n){
                 if(!settings.blocksGame())viewed.update(1.0/60,{});
                 display.paint(surface.dc,800,500,viewed.render(true,true),NativeScaling(n%3));display.overlay(surface.dc,800,500,settings,L"");
+                display.fpsOverlay(surface.dc,800,500,60.0);
             }
             require(viewed.race().liveTicks()==before,"Settings advanced physics ticks");settings.back();
             require(viewed.render(true)==image,"Settings contaminated the underlying race image");

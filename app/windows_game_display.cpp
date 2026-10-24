@@ -6,6 +6,8 @@
 #include <gdiplus.h>
 #include <algorithm>
 #include <cmath>
+#include <iomanip>
+#include <sstream>
 #include <stdexcept>
 
 namespace scr::viewer {
@@ -75,6 +77,21 @@ void WindowsGameDisplay::paint(HDC dc,int width,int height,const std::vector<std
             smooth?filtered_.data():pixels.data(),&info,DIB_RGB_COLORS,SRCCOPY);
         if(drawn==GDI_ERROR||!drawn)throw std::runtime_error("Cannot scale native game image");
     }
+}
+void WindowsGameDisplay::fpsOverlay(HDC dc,int width,int height,double framesPerSecond){
+    const double scale=std::clamp(std::min(double(width)/960,double(height)/720),0.75,1.5);
+    const auto px=[&](int value){return int(std::lround(value*scale));};
+    std::wostringstream label;label<<std::fixed<<std::setprecision(1)<<framesPerSecond<<L" FPS";
+    const auto value=label.str();const auto saved=SaveDC(dc);
+    const auto font=CreateFontW(-px(14),0,0,0,FW_SEMIBOLD,FALSE,FALSE,FALSE,DEFAULT_CHARSET,
+        OUT_DEFAULT_PRECIS,CLIP_DEFAULT_PRECIS,CLEARTYPE_QUALITY,DEFAULT_PITCH,L"Consolas");
+    SelectObject(dc,font);SIZE extent{};GetTextExtentPoint32W(dc,value.c_str(),int(value.size()),&extent);
+    const int margin=px(8),padding=px(6);
+    RECT rect{margin,margin,margin+extent.cx+2*padding,margin+extent.cy+2*padding};
+    const auto brush=CreateSolidBrush(RGB(16,21,28));FillRect(dc,&rect,brush);DeleteObject(brush);
+    SetTextColor(dc,RGB(241,242,235));SetBkMode(dc,TRANSPARENT);
+    TextOutW(dc,margin+padding,margin+padding,value.c_str(),int(value.size()));
+    RestoreDC(dc,saved);DeleteObject(font);
 }
 void WindowsGameDisplay::overlay(HDC dc,int width,int height,const NativeDisplaySettings& settings,const std::wstring& error){
     if(!settings.blocksGame())return;

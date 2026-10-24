@@ -228,6 +228,11 @@ Settings with Up/Down and Return/A. P, Start, Escape or B resumes from
 that panel. Focus loss and controller disconnection also pause driving; resume
 explicitly. M mutes. I toggles and saves interpolation outside text entry.
 
+F toggles a small FPS counter at the top left of the game window, including
+fullscreen. It starts hidden on each launch and shows host presentation frames
+per second, averaged over roughly one second. It remains available in menus,
+Pause and Settings. During name entry, F types normally instead of toggling it.
+
 F10 opens Settings from any screen. Controller Start opens it directly
 from the original menus. Use arrows or the stick/D-pad to select rows; Left/Right
 changes values, and Return/A changes a selected value or activates Apply and Back.

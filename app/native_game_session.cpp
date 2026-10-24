@@ -98,7 +98,7 @@ void NativeGameSession::startRace(){
     driveClock_.reset();driveLatch_.clear();endFireWait_.reset();quitPending_=false;
 }
 void NativeGameSession::leaveRace(){
-    transitionIndices_=race_.captureLiveIndices(race_.frames().back().action==unsigned(RaceTransitionAction::raceEnd));
+    transitionIndices_=race_.captureLiveIndices(race_.frames().back().action==unsigned(RaceTransitionAction::raceEnd),presentationView_);
     fade_.fadeToColor(0);transition_=Transition::OutMenu;
     driveClock_.reset();releaseInput();
 }
@@ -122,7 +122,7 @@ void NativeGameSession::advanceTransition(double elapsed,NativeGameUpdate& resul
         preparePreview();transitionIndices_=preview_.indices();
         fade_.animateTo(readNativePalette(*data_.memory,0x2b974));transition_=Transition::InPreview;break;
     case Transition::OutRace:
-        startRace();transitionIndices_=race_.captureLiveIndices();
+        startRace();transitionIndices_=race_.captureLiveIndices(false,presentationView_);
         raceDelay_=nativeMenuDelaySeconds(3);transition_=Transition::RaceDelay;break;
     case Transition::OutMenu:{
         race_.finishLiveExit(*data_.memory);
@@ -446,7 +446,8 @@ void NativeGameSession::updateOpening(const NativeGameInput& input,double elapse
     }
     handleOpeningAction(opening_->update(input.menu,elapsed),previous,result);
 }
-const std::vector<std::uint32_t>& NativeGameSession::render(bool interpolate,bool paused){
+const std::vector<std::uint32_t>& NativeGameSession::render(bool interpolate,bool paused,NativeView view){
+    presentationView_=view;
     if(careerPanel_!=CareerPanel::None){packNativeMenuPixels(careerImage(),pixels_);return pixels_;}
     if(finishPending_){pixels_=finishPixels_;return pixels_;}
     if(transitioning()){
@@ -456,9 +457,11 @@ const std::vector<std::uint32_t>& NativeGameSession::render(bool interpolate,boo
     }
     if(page()==NativeMenuPage::Preview)return preview_.pixels();
     if(page()==NativeMenuPage::Race){
+        // Set the presentation view even when paused or at the terminal panel.
+        if(race_.liveTerminal()||paused)race_.renderLive(driveClock_.fraction(),false,interpolate,view);
         if(race_.liveTerminal())return race_.renderLiveMessage(0x3c,4);
         if(paused)return race_.renderLiveMessage(0x4c,2);
-        return race_.renderLive(driveClock_.fraction(),false,interpolate);
+        return race_.renderLive(driveClock_.fraction(),false,interpolate,view);
     }
     packNativeMenuPixels(menuImage(),pixels_);return pixels_;
 }

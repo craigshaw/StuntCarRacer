@@ -76,6 +76,11 @@ int main(int argc,char** argv)try {
     statistics=renderer.drawFrame(flat,sides,{},camera,tables,palette,pixels,false,&nearTrack);
     if(pixels[pixel(64,100)]!=palette[3]||pixels[pixel(192,100)]!=palette[15]||statistics.edgeHighlightPixels!=128)
         throw std::runtime_error("Later near side fill failed to occlude an earlier highlight");
-    std::cout<<"{\"total_cases\":10,\"mismatches\":0,\"concave_notch_preserved\":true,\"winding_independent\":true,\"near_road_gap_absent\":true,\"near_culling_preserved\":true,\"offscreen_near_boundary_closed\":true,\"near_highlight_clipped\":true,\"near_painter_occlusion_preserved\":true,\"original_pixel_equality_claimed\":false}\n";
+    nearTrack.commands.clear();nearTrack.coveredSegments.fill(true);
+    nearTrack.commands.push_back(rectangle(-32,-16,0,0,scr::NearTrackSurface::road,15));
+    renderer.drawFrame(flat,sides,{},camera,tables,palette,pixels,false,&nearTrack,32,true);
+    if(pixels[0]!=palette[15]||pixels[15*320+31]!=palette[15]||pixels[16*320+32]!=palette[7])
+        throw std::runtime_error("Extended renderer lost geometry above/left of the original viewport");
+    std::cout<<"{\"total_cases\":11,\"mismatches\":0,\"concave_notch_preserved\":true,\"winding_independent\":true,\"near_road_gap_absent\":true,\"near_culling_preserved\":true,\"offscreen_near_boundary_closed\":true,\"near_highlight_clipped\":true,\"near_painter_occlusion_preserved\":true,\"original_pixel_equality_claimed\":false}\n";
     return 0;
 }catch(const std::exception& error){std::cerr<<error.what()<<'\n';return 1;}

@@ -75,9 +75,9 @@ public:
     bool stepLive(unsigned controls,bool quit=false,DriveControlPreset preset=DriveControlPreset::Original);
     unsigned verifyLiveReplay(const std::filesystem::path& inputs,const std::filesystem::path& reference,
         const std::filesystem::path& nativeTrace);
-    const std::vector<std::uint32_t>& renderLive(double fraction,bool wireframe=false,bool interpolate=true);
+    const std::vector<std::uint32_t>& renderLive(double fraction,bool wireframe=false,bool interpolate=true,NativeView view=NativeView::Original);
     const std::vector<std::uint32_t>& renderLiveMessage(unsigned index,unsigned mode);
-    std::vector<std::uint8_t> captureLiveIndices(bool endMessage=false);
+    std::vector<std::uint8_t> captureLiveIndices(bool endMessage=false,NativeView view=NativeView::Original);
     unsigned liveTicks() const noexcept;
     bool liveTerminal() const noexcept;
     const std::filesystem::path& liveRecording() const noexcept;
@@ -127,11 +127,12 @@ private:
     bool cachedWireframe_{};
     double lastLiveFraction_{};
     bool lastLiveInterpolate_{true};
+    NativeView lastLiveView_{NativeView::Original};
     bool bitmapOnly_{};
     NearTrackPresentation buildViewCommands(const ReplayVisualState&,const ReplaySceneFrame&,
-        const std::optional<OpponentCarInputs>&)const;
+        const std::optional<OpponentCarInputs>&,int padding=0,int topPadding=0)const;
     void draw(const ReplayVisualState&,const NearTrackPresentation&,bool wireframe,
         const ReplayTrackSnapshot* movingTrack=nullptr,const ReplaySceneFrame* discrete=nullptr,double wheelFraction=0,
-        bool showCockpit=true);
+        bool showCockpit=true,NativeView view=NativeView::Original);
 };
 } // namespace scr::viewer

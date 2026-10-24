@@ -192,6 +192,9 @@ changes require evidence that view queries leave simulation state intact, plus
 visual inspection where appearance changes. Interactive display/device behaviour
 also needs an appropriate manual check.
 
+The rendering audit accepts `--jobs 1` when parallel MSBuild workers are
+unavailable in a restricted environment; its comparison coverage is unchanged.
+
 Most wrappers write `check-results.json`, build logs and a source/executable
 receipt under their directory. Read the result and verify its source, input,
 asset and executable hashes before relying on a retained pass. A file existing

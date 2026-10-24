@@ -8,6 +8,15 @@
 namespace scr {
 namespace {
 struct ScreenVertex {double x{},y{},inverseDepth{};};
+struct RenderCanvas {
+    int padding{};bool extended{};
+    int topPadding()const{return extended?16:0;}
+    int width()const{return extended?320:320+2*padding;}
+    int viewportHeight()const{return 128+topPadding();}
+    int viewportWidth()const{return 256+2*padding;}
+    std::size_t viewIndex(int x,int y)const{return std::size_t(y*viewportWidth()+x);}
+    std::size_t pixelIndex(int x,int y)const{return std::size_t((y+(extended?0:16))*width()+x+(extended?0:32));}
+};
 using Polygon=std::vector<RenderWorldPoint>;
 constexpr double nearPlane=1.0;
 int signedWord(std::uint16_t value){return value<0x8000?int(value):int(value)-65536;}
@@ -42,12 +51,12 @@ Polygon clipNear(const Polygon& input,const RenderProjectionCamera& camera) {
 }
 void triangle(const ScreenVertex& a,const ScreenVertex& b,const ScreenVertex& c,std::uint32_t color,
     std::vector<std::uint32_t>& pixels,std::vector<float>& depth,std::vector<std::uint8_t>& coverage,
-    std::uint8_t surface,RenderStatistics& stats) {
+    std::uint8_t surface,RenderStatistics& stats,const RenderCanvas& canvas) {
     const double area=edge(a,b,c.x,c.y);if(std::abs(area)<0.001)return;
     const auto x0=std::max(0,int(std::floor(std::min({a.x,b.x,c.x}))));
     const auto y0=std::max(0,int(std::floor(std::min({a.y,b.y,c.y}))));
-    const auto x1=std::min(255,int(std::ceil(std::max({a.x,b.x,c.x}))));
-    const auto y1=std::min(127,int(std::ceil(std::max({a.y,b.y,c.y}))));
+    const auto x1=std::min(canvas.viewportWidth()-1,int(std::ceil(std::max({a.x,b.x,c.x}))));
+    const auto y1=std::min(canvas.viewportHeight()-1,int(std::ceil(std::max({a.y,b.y,c.y}))));
     if(x1<x0||y1<y0)return;
     ++stats.triangles;
     for(int y=y0;y<=y1;++y)for(int x=x0;x<=x1;++x){
@@ -56,10 +65,10 @@ void triangle(const ScreenVertex& a,const ScreenVertex& b,const ScreenVertex& c,
         const double wc=1-wa-wb;
         if(wa<-0.000001||wb<-0.000001||wc<-0.000001)continue;
         const double inverse=wa*a.inverseDepth+wb*b.inverseDepth+wc*c.inverseDepth;
-        const auto index=std::size_t(y*256+x);
+        const auto index=canvas.viewIndex(x,y);
         if(inverse>depth[index]){
             depth[index]=float(inverse);
-            coverage[index]=surface;pixels[std::size_t((y+16)*320+x+32)]=color;
+            coverage[index]=surface;pixels[canvas.pixelIndex(x,y)]=color;
         }
     }
 }
@@ -67,7 +76,7 @@ void triangle(const ScreenVertex& a,const ScreenVertex& b,const ScreenVertex& c,
 // against the same buffer as surfaces, so distant outlines cannot draw through
 // foreground track. Angular interpolation remains a presentation approximation.
 void line(ScreenVertex a,ScreenVertex b,std::uint32_t color,std::vector<std::uint32_t>& pixels,
-    const std::vector<float>& depth,bool depthTest=true,std::vector<std::uint8_t>* highlights=nullptr) {
+    const std::vector<float>& depth,const RenderCanvas& canvas,bool depthTest=true,std::vector<std::uint8_t>* highlights=nullptr) {
     const double dx=b.x-a.x,dy=b.y-a.y;double first=0,last=1;
     const auto clip=[&](double p,double q){
         if(std::abs(p)<1e-12)return q>=0;
@@ -75,28 +84,28 @@ void line(ScreenVertex a,ScreenVertex b,std::uint32_t color,std::vector<std::uin
         if(p<0){if(t>last)return false;first=std::max(first,t);}
         else{if(t<first)return false;last=std::min(last,t);}return true;
     };
-    if(!clip(-dx,a.x)||!clip(dx,255-a.x)||!clip(-dy,a.y)||!clip(dy,127-a.y))return;
+    if(!clip(-dx,a.x)||!clip(dx,canvas.viewportWidth()-1-a.x)||!clip(-dy,a.y)||!clip(dy,canvas.viewportHeight()-1-a.y))return;
     const auto old=a;
     a={old.x+dx*first,old.y+dy*first,old.inverseDepth+(b.inverseDepth-old.inverseDepth)*first};
     b={old.x+dx*last,old.y+dy*last,old.inverseDepth+(b.inverseDepth-old.inverseDepth)*last};
     const int steps=std::max(1,int(std::ceil(std::max(std::abs(b.x-a.x),std::abs(b.y-a.y)))));
     for(int n=0;n<=steps;++n){
         const double t=double(n)/steps;const int x=int(std::round(a.x+(b.x-a.x)*t)),y=int(std::round(a.y+(b.y-a.y)*t));
-        if(x<0||x>255||y<0||y>127)continue;
+        if(x<0||x>=canvas.viewportWidth()||y<0||y>=canvas.viewportHeight())continue;
         const double inverse=a.inverseDepth+(b.inverseDepth-a.inverseDepth)*t;
-        if(!depthTest||inverse*1.015+0.000001>=depth[std::size_t(y*256+x)]){
-            pixels[std::size_t((y+16)*320+x+32)]=color;
-            if(highlights)(*highlights)[std::size_t(y*256+x)]=1;
+        if(!depthTest||inverse*1.015+0.000001>=depth[canvas.viewIndex(x,y)]){
+            pixels[canvas.pixelIndex(x,y)]=color;
+            if(highlights)(*highlights)[canvas.viewIndex(x,y)]=1;
         }
     }
 }
 // Some original mountain quads are concave. Fill their recovered boundary
 // directly, so a fixed diagonal cannot paint across a notch between peaks.
 void mountainPolygon(const MountainScreenPolygon& polygon,std::uint32_t color,
-    std::vector<std::uint32_t>& pixels,std::vector<std::uint8_t>& coverage) {
-    int top=127,bottom=0;
+    std::vector<std::uint32_t>& pixels,std::vector<std::uint8_t>& coverage,const RenderCanvas& canvas) {
+    int top=canvas.viewportHeight()-1,bottom=0;
     for(unsigned n=0;n<polygon.vertexCount;++n){top=std::min(top,polygon.vertices[n].y);bottom=std::max(bottom,polygon.vertices[n].y);}
-    top=std::max(0,top);bottom=std::min(127,bottom);
+    top=std::max(0,top);bottom=std::min(canvas.viewportHeight()-1,bottom);
     for(int y=top;y<=bottom;++y){
         const double scan=y+0.5;std::array<double,4> crossings{};unsigned count=0;
         for(unsigned n=0;n<polygon.vertexCount;++n){
@@ -106,27 +115,27 @@ void mountainPolygon(const MountainScreenPolygon& polygon,std::uint32_t color,
         std::sort(crossings.begin(),crossings.begin()+count);
         for(unsigned n=0;n+1<count;n+=2){
             const int left=std::max(0,int(std::ceil(crossings[n]-0.5)));
-            const int right=std::min(255,int(std::ceil(crossings[n+1]-0.5))-1);
-            for(int x=left;x<=right;++x){pixels[std::size_t((y+16)*320+x+32)]=color;coverage[std::size_t(y*256+x)]=3;}
+            const int right=std::min(canvas.viewportWidth()-1,int(std::ceil(crossings[n+1]-0.5))-1);
+            for(int x=left;x<=right;++x){pixels[canvas.pixelIndex(x,y)]=color;coverage[canvas.viewIndex(x,y)]=3;}
         }
     }
 }
 void nearPolygon(const NearTrackDrawCommand& command,std::uint32_t color,
     std::vector<std::uint32_t>& pixels,std::vector<std::uint8_t>& coverage,
-    std::vector<std::uint8_t>& highlights) {
+    std::vector<std::uint8_t>& highlights,const RenderCanvas& canvas) {
     std::vector<double> crossings;crossings.reserve(command.edges.size());
-    for(int y=0;y<128;++y){
-        crossings.clear();const double scan=y+0.5;
+    for(int y=0;y<canvas.viewportHeight();++y){
+        crossings.clear();const double scan=y+0.5-canvas.topPadding();
         for(const auto& edge:command.edges)if(edge.present){
             const auto& a=edge.from;const auto& b=edge.to;
-            if((a.y>scan)!=(b.y>scan))crossings.push_back(a.x+(scan-a.y)*(double(b.x)-a.x)/(double(b.y)-a.y));
+            if((a.y>scan)!=(b.y>scan))crossings.push_back(canvas.padding+a.x+(scan-a.y)*(double(b.x)-a.x)/(double(b.y)-a.y));
         }
         std::sort(crossings.begin(),crossings.end());
         for(std::size_t n=0;n+1<crossings.size();n+=2){
             const int first=std::max(0,int(std::ceil(crossings[n]-0.5)));
-            const int last=std::min(255,int(std::ceil(crossings[n+1]-0.5))-1);
+            const int last=std::min(canvas.viewportWidth()-1,int(std::ceil(crossings[n+1]-0.5))-1);
             for(int x=first;x<=last;++x){
-                const auto index=std::size_t(y*256+x);pixels[std::size_t((y+16)*320+x+32)]=color;
+                const auto index=canvas.viewIndex(x,y);pixels[canvas.pixelIndex(x,y)]=color;
                 coverage[index]=command.surface==NearTrackSurface::opponent?4:command.surface==NearTrackSurface::road?1:2;highlights[index]=0;
             }
         }
@@ -136,19 +145,23 @@ void nearPolygon(const NearTrackDrawCommand& command,std::uint32_t color,
 RenderStatistics SoftwareReplayRenderer::drawFrame(const TrackMesh& mesh,const std::vector<TrackSideFace>& sides,
     const MountainHorizonFrame& mountains,const RenderProjectionCamera& camera,
     const RenderProjectionTables& tables,const std::array<std::uint32_t,16>& palette,
-    std::vector<std::uint32_t>& pixels,bool wireframe,const NearTrackPresentation* nearTrack) {
-    if(pixels.size()!=std::size_t(width*height))throw std::invalid_argument("Renderer requires a320x200 background");
-    inverseDepth_.assign(viewportWidth*viewportHeight,0);
-    coverage_.assign(viewportWidth*viewportHeight,0);
-    highlights_.assign(viewportWidth*viewportHeight,0);
+    std::vector<std::uint32_t>& pixels,bool wireframe,const NearTrackPresentation* nearTrack,int padding,bool extended) {
+    if(padding<0||padding>128)throw std::invalid_argument("Invalid render viewport padding");
+    const RenderCanvas canvas{padding,extended};
+    if(extended&&padding!=32)throw std::invalid_argument("Extended corners require the original full canvas");
+    if(pixels.size()!=std::size_t(canvas.width()*height))throw std::invalid_argument("Renderer background dimensions do not match its viewport");
+    inverseDepth_.assign(canvas.viewportWidth()*canvas.viewportHeight(),0);
+    coverage_.assign(canvas.viewportWidth()*canvas.viewportHeight(),0);
+    highlights_.assign(canvas.viewportWidth()*canvas.viewportHeight(),0);
     const auto mode=nearTrack?nearTrack->horizonMode:std::uint8_t{};
-    const auto h0=horizonPoint(-0x500,camera,mode),h1=horizonPoint(0x500,camera,mode);
-    for(int y=0;y<viewportHeight;++y)for(int x=0;x<viewportWidth;++x){
+    auto h0=horizonPoint(-0x500,camera,mode),h1=horizonPoint(0x500,camera,mode);
+    h0.x+=padding;h1.x+=padding;h0.y+=canvas.topPadding();h1.y+=canvas.topPadding();
+    for(int y=0;y<canvas.viewportHeight();++y)for(int x=0;x<canvas.viewportWidth();++x){
         // Original palette entries: sky7, ground13. The recovered mountain
         // polygons follow this horizon, before the depth-tested road and sides.
         const double side=(x-h0.x)*double(h1.y-h0.y)-(y-h0.y)*double(h1.x-h0.x);
         const bool sky=side>0;
-        pixels[std::size_t((y+viewportY)*width+x+viewportX)]=palette[sky?7:13];
+        pixels[canvas.pixelIndex(x,y)]=palette[sky?7:13];
     }
     struct Face {std::vector<ScreenVertex> vertices;std::uint32_t color{};std::uint8_t surface{};};
     std::vector<Face> faces;RenderStatistics stats{};
@@ -156,7 +169,8 @@ RenderStatistics SoftwareReplayRenderer::drawFrame(const TrackMesh& mesh,const s
     for(const auto& polygon:mountains.polygons){
         if(polygon.vertexCount<3||polygon.vertexCount>4||polygon.color>=palette.size())
             throw std::invalid_argument("Invalid mountain polygon");
-        mountainPolygon(polygon,palette[polygon.color],pixels,coverage_);
+        auto shifted=polygon;for(unsigned n=0;n<shifted.vertexCount;++n){shifted.vertices[n].x+=padding;shifted.vertices[n].y+=canvas.topPadding();}
+        mountainPolygon(shifted,palette[polygon.color],pixels,coverage_,canvas);
         ++stats.mountainPolygons;
     }
     const auto projectPatch=[&](const Polygon& points,std::uint32_t color,std::uint8_t surface){
@@ -164,7 +178,7 @@ RenderStatistics SoftwareReplayRenderer::drawFrame(const TrackMesh& mesh,const s
         Face screen;screen.color=color;screen.surface=surface;
         for(const auto& point:clipped){
             const auto relative=renderCameraRelative(point,camera);const auto projected=projectRenderWorldPoint(point,camera,tables);
-            screen.vertices.push_back({double(projected.x),double(projected.y),1/std::max(nearPlane,relative.forward)});
+            screen.vertices.push_back({double(projected.x+padding),double(projected.y+canvas.topPadding()),1/std::max(nearPlane,relative.forward)});
         }
         faces.push_back(std::move(screen));return true;
     };
@@ -199,7 +213,7 @@ RenderStatistics SoftwareReplayRenderer::drawFrame(const TrackMesh& mesh,const s
         projectFace(points,palette[face.fillColor],2);
     }
     for(const auto& face:faces)for(std::size_t n=1;n+1<face.vertices.size();++n)
-        triangle(face.vertices[0],face.vertices[n],face.vertices[n+1],face.color,pixels,inverseDepth_,coverage_,face.surface,stats);
+        triangle(face.vertices[0],face.vertices[n],face.vertices[n+1],face.color,pixels,inverseDepth_,coverage_,face.surface,stats,canvas);
     // The original far strip has filled panels, without generic black outlines.
     // Marked transverse edges are white. The near renderer's alternating yellow
     // and brown longitudinal lines require its visibility queue, not distance
@@ -214,26 +228,26 @@ RenderStatistics SoftwareReplayRenderer::drawFrame(const TrackMesh& mesh,const s
             if(firstZ<nearPlane)first=intersection;else last=intersection;
         }
         const auto endpoint=[&](const RenderWorldPoint& point){const auto p=projectRenderWorldPoint(point,camera,tables);
-            return ScreenVertex{double(p.x),double(p.y),1/std::max(nearPlane,renderCameraRelative(point,camera).forward)};};
-        line(endpoint(first),endpoint(last),palette[15],pixels,inverseDepth_);
+            return ScreenVertex{double(p.x+padding),double(p.y+canvas.topPadding()),1/std::max(nearPlane,renderCameraRelative(point,camera).forward)};};
+        line(endpoint(first),endpoint(last),palette[15],pixels,inverseDepth_,canvas);
     }
     if(wireframe)for(const auto& face:faces){
         for(std::size_t n=0;n<face.vertices.size();++n)
-            line(face.vertices[n],face.vertices[(n+1)%face.vertices.size()],palette[3],pixels,inverseDepth_);
+            line(face.vertices[n],face.vertices[(n+1)%face.vertices.size()],palette[3],pixels,inverseDepth_,canvas);
         for(std::size_t n=2;n+1<face.vertices.size();++n)
-            line(face.vertices[0],face.vertices[n],palette[3],pixels,inverseDepth_);
+            line(face.vertices[0],face.vertices[n],palette[3],pixels,inverseDepth_,canvas);
     }
     if(nearTrack){
         stats.nearQueueEntries=nearTrack->queueEntries;
         const auto drawEdge=[&](const NearTrackEdge& edge,std::uint32_t color,bool highlight){
             if(!edge.present)return;
-            line({double(edge.from.x),double(edge.from.y),0},{double(edge.to.x),double(edge.to.y),0},
-                color,pixels,inverseDepth_,false,highlight?&highlights_:nullptr);
+            line({double(edge.from.x+padding),double(edge.from.y+canvas.topPadding()),0},{double(edge.to.x+padding),double(edge.to.y+canvas.topPadding()),0},
+                color,pixels,inverseDepth_,canvas,false,highlight?&highlights_:nullptr);
         };
         for(const auto& command:nearTrack->commands){
             if(command.color>=palette.size())throw std::invalid_argument("Near command palette index outside range");
             if(command.kind==NearTrackCommandKind::fill){
-                nearPolygon(command,palette[command.color],pixels,coverage_,highlights_);++stats.nearFillCommands;
+                nearPolygon(command,palette[command.color],pixels,coverage_,highlights_,canvas);++stats.nearFillCommands;
                 stats.opponentPolygons+=command.surface==NearTrackSurface::opponent;
                 if(wireframe)for(const auto& edge:command.edges)drawEdge(edge,palette[3],false);
             }else{

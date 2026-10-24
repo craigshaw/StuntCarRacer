@@ -19,18 +19,18 @@ Polar polar(const RenderProjectionTables& t,std::uint16_t x,std::uint16_t z){
 }
 void rotate(NearTrackVertex& p,const RenderProjectionCamera& c){const auto x=w(int(multiplyMatrixWord(w(p.x),c.cosRoll))+multiplyMatrixWord(w(p.y),c.sinRoll));const auto y=w(int(multiplyMatrixWord(w(p.y),c.cosRoll))-multiplyMatrixWord(w(p.x),c.sinRoll));p.x=shr(sw(x),2)+128;p.y=shr(sw(y),2)+64;}
 int ratioStep(int small,int large,int distance){if(large>=small)return large==small?distance:int(((std::uint64_t(unsigned(small))<<16)/unsigned(large))*unsigned(distance)>>16);return distance>=large?small:int(((std::uint64_t(unsigned(distance))<<16)/unsigned(large))*unsigned(small)>>16);}
-unsigned horizonStorage(NearTrackPoint a,NearTrackPoint c){
-    const auto ordinary=makeNearTrackEdge(a,c);if(ordinary.clipFlags&15)return ordinary.storageBytes;if(a.y<c.y)std::swap(a,c);
+unsigned horizonStorage(NearTrackPoint a,NearTrackPoint c,int padding,int topPadding){
+    const auto ordinary=makeNearTrackEdge(a,c,padding,topPadding);if(ordinary.clipFlags&15)return ordinary.storageBytes;if(a.y<c.y)std::swap(a,c);
     const auto clipY=[](NearTrackPoint& p,const NearTrackPoint& q,int y){const int dx=sw(unsigned(q.x-p.x)),dy=sw(unsigned(q.y-p.y));const int step=ratioStep(std::abs(dx),std::abs(dy),std::abs(y-p.y));p.x=sw(unsigned(p.x+(dx<0?-step:step)));p.y=y;};
-    if(a.y<0)clipY(a,c,0);else if(a.y>=128)clipY(a,c,128);if(c.y<0)clipY(c,a,0);else if(c.y>=128)clipY(c,a,128);
+    if(a.y<-topPadding)clipY(a,c,-topPadding);else if(a.y>=128)clipY(a,c,128);if(c.y<-topPadding)clipY(c,a,-topPadding);else if(c.y>=128)clipY(c,a,128);
     const auto clipX=[](NearTrackPoint& p,const NearTrackPoint& q,int x){const int dx=sw(unsigned(q.x-p.x)),dy=sw(unsigned(q.y-p.y));const int step=ratioStep(std::abs(dy),std::abs(dx),std::abs(x-p.x));p.y=sw(unsigned(p.y+(dy<0?-step:step)));p.x=x;};
-    if(a.x<0)clipX(a,c,0);else if(a.x>=256)clipX(a,c,256);if(c.x<0)clipX(c,a,0);else if(c.x>=256)clipX(c,a,256);
+    if(a.x<-padding)clipX(a,c,-padding);else if(a.x>=256+padding)clipX(a,c,256+padding);if(c.x<-padding)clipX(c,a,-padding);else if(c.x>=256+padding)clipX(c,a,256+padding);
     return 10+2*unsigned(std::abs(a.y-c.y));
 }
 NearTrackPoint point(const NearTrackVertex& p){return {sw(unsigned(p.x)),sw(unsigned(p.y))};}
 NearTrackEdge line(OpponentFarTrackFrame& out,const NearTrackVertex& a,const NearTrackVertex& c,unsigned offset,unsigned index){
     NearTrackEdge e{};e.clipFlags=0x80;e.originQueueOffset=std::uint16_t(offset);e.originEdge=std::uint8_t(index);
-    if((a.height|c.height)&0x8000||out.queue.lineBytes>=0x2328)return e;e=makeNearTrackEdge(point(a),point(c));e.originQueueOffset=std::uint16_t(offset);e.originEdge=std::uint8_t(index);out.queue.lineBytes=std::uint16_t(out.queue.lineBytes+e.storageBytes);return e;
+    if((a.height|c.height)&0x8000||out.queue.lineBytes>=0x2328)return e;e=makeNearTrackEdge(point(a),point(c),out.queue.horizontalPadding,out.queue.topPadding);e.originQueueOffset=std::uint16_t(offset);e.originEdge=std::uint8_t(index);out.queue.lineBytes=std::uint16_t(out.queue.lineBytes+e.storageBytes);return e;
 }
 void quad(std::vector<NearTrackDrawCommand>& out,const NearTrackQueueState& q,unsigned end,unsigned first,NearTrackSurface surface,unsigned color,std::array<const NearTrackEdge*,4> edges){
     unsigned common=15;for(const auto* e:edges){if(!e->present)return;common&=e->clipFlags;}if(common)return;
@@ -56,9 +56,9 @@ OpponentFarTrackFrame buildOpponentFarTrack(const OpponentFarTrackData& data,con
         }
         cursor=(cursor+1)%std::ptrdiff_t(data.mesh.sections.size());index+=4;
         if(sb(index)>=sb(data.projectionLimits.at(section.segment)))break;
-        const auto a=index/2-2,c=index/2-1;if(w(s.upper[a].x)<256||w(s.upper[c].x)<256)continue;
-        if(!(s.lower[a].height&0x8000)){if(w(s.lower[a].x)<256)continue;break;}
-        if(!(s.lower[c].height&0x8000)&&w(s.lower[c].x)<256)continue;break;
+        const auto a=index/2-2,c=index/2-1;if(nearTrackInsideX(s.upper[a].x,s.horizontalPadding)||nearTrackInsideX(s.upper[c].x,s.horizontalPadding))continue;
+        if(!(s.lower[a].height&0x8000)){if(nearTrackInsideX(s.lower[a].x,s.horizontalPadding))continue;break;}
+        if(!(s.lower[c].height&0x8000)&&nearTrackInsideX(s.lower[c].x,s.horizontalPadding))continue;break;
     }while(index<120);
     out.vertexEnd=b(index);bool opponentFound=false;
     for(unsigned at=4;at<index&&out.queue.offset<0x5e0;at+=4){const unsigned end=out.queue.offset,current=at/2,prior=current-2;auto& e=out.queue.entries.at(end/32);
@@ -87,15 +87,16 @@ std::uint16_t allocateOpponentBackgroundLines(std::uint16_t bytes,const Mountain
         const auto x=w(int(multiplyMatrixWord(w(side),camera.cosRoll))+multiplyMatrixWord(down,camera.sinRoll));
         const auto y=w(int(multiplyMatrixWord(down,camera.cosRoll))-multiplyMatrixWord(w(side),camera.sinRoll));
         return NearTrackPoint{shr(sw(x),2)+128,shr(sw(y),2)+64};};
+    const int padding=history?history->horizontalPadding:0,topPadding=history?history->topPadding:0;
     const auto first=horizonPoint(-0x500),last=horizonPoint(0x500);
     if(history){history->upper[2].x=first.x;history->upper[2].y=first.y;history->upper[3].x=last.x;history->upper[3].y=last.y;}
-    bytes=std::uint16_t(bytes+horizonStorage(first,last));
-    const auto mountains=projectMountainHorizon(data,yaw,camera);
+    bytes=std::uint16_t(bytes+horizonStorage(first,last,padding,topPadding));
+    const auto mountains=projectMountainHorizon(data,yaw,camera,padding);
     for(const auto& instance:mountains.instances){
         if(history)for(unsigned n=0;n<instance.vertices.size();++n){auto& p=n<60?history->upper.at(n):history->lower.at(n-60);p.x=instance.vertices[n].x;p.y=instance.vertices[n].y;}
         for(const auto& edge:data.shapes.at(instance.shapeIndex).edges){
             if(bytes>=0x2328)continue;const auto& a=instance.vertices.at(edge[0]);const auto& c=instance.vertices.at(edge[1]);
-            bytes=std::uint16_t(bytes+makeNearTrackEdge({a.x,a.y},{c.x,c.y}).storageBytes);
+            bytes=std::uint16_t(bytes+makeNearTrackEdge({a.x,a.y},{c.x,c.y},padding,topPadding).storageBytes);
         }
     }return bytes;
 }

@@ -16,6 +16,7 @@ NearTrackFrame buildNearTrackFrame(const TrackProgressData& data,
     const auto advance=[&](){geometry.progress.currentSegment=std::uint8_t((unsigned(geometry.progress.currentSegment)+1)%data.track.segmentCount);};
     if(geometry.progress.progressOffset&0x8000){advance();geometry.progress.progressOffset&=0xff;}
     NearTrackFrame result;
+    result.queue.horizontalPadding=geometry.horizontalPadding;result.queue.topPadding=geometry.topPadding;
     result.queue.opponentSegment=inputs.opponentSegment;
     result.queue.opponentSubSegment=inputs.opponentSubSegment;
     result.queue.minimumBoundaryDistance=inputs.minimumBoundaryDistance;

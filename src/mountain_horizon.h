@@ -48,5 +48,5 @@ MountainHorizonData decodeMountainHorizonData(const std::uint8_t* payload,std::s
 // rather than the quadrant-reduced road camera yawResidual. Points are local
 // to the256x128 viewport; rasterization/clipping belongs to the caller.
 MountainHorizonFrame projectMountainHorizon(const MountainHorizonData&,
-    std::uint16_t yaw,const RenderProjectionCamera&);
+    std::uint16_t yaw,const RenderProjectionCamera&,int horizontalPadding=0);
 } // namespace scr

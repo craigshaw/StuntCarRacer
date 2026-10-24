@@ -160,6 +160,7 @@ void scenes(const std::filesystem::path& pack,const std::filesystem::path& outpu
         ReplayScene viewed,headless;viewed.loadNativeState(*source.memory,source.payload,folder/"viewed");headless.loadNativeState(*source.memory,source.payload,folder/"headless");
         const auto probe=std::make_unique<scr::test::replay::NativeReplay>(*source.memory);
         const auto assets=decodeReplayRenderAssets(source.payload.data(),source.payload.size(),source.memory->data(),source.memory->size());
+        const auto wheelAssets=decodeNativeWheelSprites(source.memory->data(),source.memory->size());
         const auto mountains=decodeMountainHorizonData(source.payload.data(),source.payload.size());RenderProjectionTables tables;
         for(unsigned i=0;i<2048;++i){tables.angleTable[i]=scr_test::readWord(*source.memory,0x1cc46+2*i);tables.magnitudeTable[i]=scr_test::readWord(*source.memory,0x1dc46+2*i);}
         std::array<std::uint8_t,100> flags{};for(unsigned i=0;i<(*source.memory)[0x1ca1a];++i)flags[i]=(*source.memory)[scr_test::readLong(*source.memory,0x7aa1a+4*i)];
@@ -184,8 +185,21 @@ void scenes(const std::filesystem::path& pack,const std::filesystem::path& outpu
                 require(pixelsHash(viewed.renderView(double(current),alternate))==alt,"Alternate view is not deterministic");
                 alternate.showCockpit=false;const auto hidden=pixelsHash(viewed.renderView(double(current),alternate));counts.cockpitChanges+=hidden!=alt;
                 require(pixelsHash(viewed.renderView(double(current),alternate))==hidden,"Hidden cockpit view is not deterministic");
+                ReplayViewSettings extended;extended.view=NativeView::Extended;
+                const auto originalPixels=viewed.render(current);
+                const auto extendedPixels=viewed.renderView(double(current),extended);
+                require(extendedPixels.size()==320*200,"Extended canvas has the wrong dimensions");
+                for(unsigned y=168;y<200;++y)for(unsigned x=32;x<288;++x)
+                    require(extendedPixels[y*320+x]==originalPixels[y*320+x],"Extended view changed the original instrument pixels");
+                std::vector<std::uint32_t> carMask(320*200,replayTransparent);
+                composeReplayCockpit(assets,frame.cockpit,carMask);
+                composeNativeWheelSprites(wheelAssets,frame.wheelSprites,frame.wheelTimeline[0],carMask);
+                for(unsigned y=23;y<200;++y)for(unsigned x=0;x<320;++x)if(carMask[y*320+x]!=replayTransparent)
+                    require(extendedPixels[y*320+x]==originalPixels[y*320+x],"Extended view changed the complete car assembly");
+                require(pixelsHash(viewed.renderView(double(current),extended))==pixelsHash(extendedPixels),"Extended view is not deterministic");
+                require(viewed.renderView(0.5,extended).size()==320*200,"Extended interpolated query failed");
                 require(pixelsHash(viewed.render(current))==exact,"Alternate view leaked into default image");
-                require(timelineHash(viewed)==before,"Rendering changed a retained frame or track snapshot");++counts.snapshotChecks;counts.queries+=9;
+                require(timelineHash(viewed)==before,"Rendering changed a retained frame or track snapshot");++counts.snapshotChecks;counts.queries+=12;
                 if(!competition){
                     auto geometry=frame.nearSeed;const auto& data=frame.movingTrack?frame.movingTrack->progress:probe->progressData;
                     auto dense=buildNearTrackFrame(data,flags,frame.nearInputs,geometry);dense.presentation.horizonMode=frame.nearTrack.horizonMode;
@@ -199,7 +213,10 @@ void scenes(const std::filesystem::path& pack,const std::filesystem::path& outpu
                     ++counts.comparisonCases;counts.changedComparisons+=difference!=0;counts.changedPixels+=difference;
                     if(difference>maximumDifference){maximumDifference=difference;bitmap(folder/"before-native-mesh.bmp",old);bitmap(folder/"after-native-painter.bmp",corrected);bitmap(folder/"native-difference.bmp",diff);}
                 }
-                if(tick==128||tick==383){viewed.saveBitmap(folder/("frame-"+std::to_string(tick)+".bmp"));}
+                if(tick==128||tick==383){
+                    viewed.saveBitmap(folder/("frame-"+std::to_string(tick)+".bmp"));
+                    viewed.renderView(double(current),extended);viewed.saveBitmap(folder/("extended-"+std::to_string(tick)+".bmp"));viewed.render(current);
+                }
             }
             ++counts.ticks;
         }

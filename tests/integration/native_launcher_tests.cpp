@@ -98,6 +98,14 @@ void snapshot(const std::filesystem::path& root,NativeLauncher& model,int width,
         model.change(1);view.sync(model);require(SendMessageW(detail,CB_GETCOUNT,0,0)==2,"Fit did not expose the separate filter choices");
         SendMessageW(detail,CB_SETCURSEL,1,0);view.command(LauncherScaleDetail,model);require(model.preferences().filtering==NativeFiltering::Bilinear,"Launcher filter choice was not applied");
         model.change(1);model.change(1);view.sync(model);require(SendMessageW(detail,CB_GETCURSEL,0,0)==3,"Switching modes lost the chosen integer scale");
+        const auto raceView=GetDlgItem(window,LauncherView);
+        require(SendMessageW(raceView,CB_GETCOUNT,0,0)==2,"Aspect menu exposed an unfinished 16:9 mode");
+        wchar_t aspectLabel[64]{};SendMessageW(raceView,CB_GETLBTEXT,0,reinterpret_cast<LPARAM>(aspectLabel));
+        require(std::wstring(aspectLabel)==L"4:3 (Original)","Original aspect label differs");
+        SendMessageW(raceView,CB_GETLBTEXT,1,reinterpret_cast<LPARAM>(aspectLabel));
+        require(std::wstring(aspectLabel)==L"4:3 (Extended)","Extended aspect label differs");
+        SendMessageW(raceView,CB_SETCURSEL,1,0);view.command(LauncherView,model);
+        require(model.preferences().view==NativeView::Extended,"Launcher did not select Extended");
         model.resetPreferences();if(width<800){model.change(1);model.change(5);}view.sync(model);
     }
     view.focusInitial(model);
@@ -105,7 +113,7 @@ void snapshot(const std::filesystem::path& root,NativeLauncher& model,int width,
     const auto dc=CreateCompatibleDC(nullptr);BITMAPINFO info{};info.bmiHeader.biSize=sizeof(BITMAPINFOHEADER);info.bmiHeader.biWidth=width;info.bmiHeader.biHeight=-height;info.bmiHeader.biPlanes=1;info.bmiHeader.biBitCount=32;
     void* pixels{};const auto bitmap=CreateDIBSection(dc,&info,DIB_RGB_COLORS,&pixels,nullptr,0);const auto previous=SelectObject(dc,bitmap);
     view.paint(dc,width,height,model);
-    for(unsigned id=LauncherAdf;id<=LauncherScaleDetail;++id){const auto child=GetDlgItem(window,int(id));RECT rect{};GetWindowRect(child,&rect);MapWindowPoints(nullptr,window,reinterpret_cast<POINT*>(&rect),2);
+    for(unsigned id=LauncherAdf;id<=LauncherView;++id){const auto child=GetDlgItem(window,int(id));RECT rect{};GetWindowRect(child,&rect);MapWindowPoints(nullptr,window,reinterpret_cast<POINT*>(&rect),2);
         const auto saved=SaveDC(dc);SetViewportOrgEx(dc,rect.left,rect.top,nullptr);SendMessageW(child,WM_PRINT,reinterpret_cast<WPARAM>(dc),PRF_CLIENT);RestoreDC(dc,saved);}
     GdiFlush();UINT count{},size{};Gdiplus::GetImageEncodersSize(&count,&size);std::vector<std::uint8_t> encoders(size);auto codec=reinterpret_cast<Gdiplus::ImageCodecInfo*>(encoders.data());Gdiplus::GetImageEncoders(count,size,codec);
     for(UINT n=0;n<count;++n)if(std::wstring(codec[n].MimeType)==L"image/png"){Gdiplus::Bitmap image(bitmap,nullptr);require(image.Save((root/name).c_str(),&codec[n].Clsid,nullptr)==Gdiplus::Ok,"Cannot save launcher preview");}

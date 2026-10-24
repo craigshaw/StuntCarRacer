@@ -3,11 +3,16 @@
 #include <cstdint>
 
 namespace scr::viewer {
+enum class NativeView { Original, Extended };
+// Both modes retain the complete original 320x200 artwork and coordinates.
+constexpr int extendedHorizontalPadding=32,extendedTopPadding=16;
+constexpr int viewWidth(NativeView){return 320;}
 // Presentation angles use the original wrapping 16-bit turn. These offsets
 // apply to a private render pose, never to the driver's simulation camera.
 struct ReplayViewSettings {
     std::int16_t yawOffset{},pitchOffset{},rollOffset{};
     bool showCockpit{true};
+    NativeView view{NativeView::Original};
     bool hasCameraOffset()const noexcept{return yawOffset||pitchOffset||rollOffset;}
 };
 ReplayVisualState makeReplayView(const ReplayVisualState&,const ReplayViewSettings&,const TrigTable&);

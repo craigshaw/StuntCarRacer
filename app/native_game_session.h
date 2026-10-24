@@ -49,7 +49,7 @@ public:
     bool hasSuspendedSeason()const noexcept{return !suspendedSeason_.empty();}
     const std::optional<NativeCareerInfo>& activeCareer()const noexcept{return activeCareer_;}
     void setNavigation(NativeMenuNavigation);
-    const std::vector<std::uint32_t>& render(bool interpolate=false,bool paused=false);
+    const std::vector<std::uint32_t>& render(bool interpolate=false,bool paused=false,NativeView view=NativeView::Original);
     NativeMenuPage page()const noexcept{
         if(careerPanel_!=CareerPanel::None)return NativeMenuPage::Opening;
         if(finishPending_)return NativeMenuPage::Race;
@@ -142,6 +142,7 @@ private:
     std::vector<std::uint32_t> pixels_;
     NativeFireWait endFireWait_;
     bool quitPending_{};
+    NativeView presentationView_{NativeView::Original};
     NativeMenuNavigation navigation_{NativeMenuNavigation::Original};
     NativeMenuInputClock navigationClock_;
     std::array<unsigned,8> nameLengths_{};

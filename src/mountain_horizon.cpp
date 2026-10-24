@@ -80,14 +80,15 @@ MountainHorizonData decodeMountainHorizonData(const std::uint8_t* bytes,std::siz
     return result;
 }
 MountainHorizonFrame projectMountainHorizon(const MountainHorizonData& data,
-    std::uint16_t yaw,const RenderProjectionCamera& camera) {
+    std::uint16_t yaw,const RenderProjectionCamera& camera,int padding) {
     MountainHorizonFrame result{};
-    const auto left=std::uint8_t((yaw>>8)-28);
+    const int extra=(padding+7)/8;
+    const auto left=std::uint8_t((yaw>>8)-28-extra);
     const auto horizon=word(-shift(signedWord(camera.viewportCenterY),3));
     for(std::size_t i=data.placements.size();i>0;--i){
         const auto& placement=data.placements[i-1];
-        const auto delta=std::uint8_t(placement.horizontalAngle-left);if(delta>=44)continue;
-        const auto bearing=word((int(delta)-28)*256);
+        const auto delta=std::uint8_t(placement.horizontalAngle-left);if(delta>=44+2*extra)continue;
+        const auto bearing=word((int(delta)-28-extra)*256);
         const auto offset=word(shift(signedWord(word(int(bearing)-(yaw&0xfe))),3));
         const auto& shape=data.shapes.at(placement.shapeIndex);
         MountainInstance instance{std::uint8_t(i-1),placement.shapeIndex,{}};

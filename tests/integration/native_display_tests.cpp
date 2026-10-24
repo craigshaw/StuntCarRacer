@@ -34,6 +34,17 @@ void storage(const std::filesystem::path& output){
         if(!saveDisplayPreferences(file,preferences))throw std::runtime_error("Display preference test write failed: Windows error "+std::to_string(GetLastError()));
         require(loadDisplayPreferences(file)==preferences,"Display preference roundtrip differs");
     }
+    NativeDisplayPreferences wide;wide.view=NativeView::Extended;
+    require(saveDisplayPreferences(file,wide)&&loadDisplayPreferences(file)==wide,"Extended preference did not roundtrip");
+    const std::string modernFields="fullscreen=1\nscaling=fit\ninterpolate=1\ncontrols=modern\nnavigation=responsive\nfiltering=nearest\ninteger-scale=2\n";
+    {std::ofstream out(file);out<<"SCR display 4\n"<<modernFields;}
+    require(loadDisplayPreferences(file).view==NativeView::Original&&loadDisplayPreferences(file).integerScale==2,"Version 4 aspect migration lost the original view or scale");
+    {std::ofstream out(file);out<<"SCR display 5\n"<<modernFields<<"view=widescreen\n";}
+    require(loadDisplayPreferences(file).view==NativeView::Extended&&loadDisplayPreferences(file).fullscreen,"Old prototype view did not migrate to Extended");
+    for(const auto suffix:{"aspect=unknown\n","","aspect=extended\nextra=1\n"}){
+        {std::ofstream out(file);out<<"SCR display 6\n"<<modernFields<<suffix;}
+        require(loadDisplayPreferences(file)==NativeDisplayPreferences{},"Malformed aspect preferences were applied");
+    }
     {std::ofstream out(file);out<<"SCR display 1\nfullscreen=1\nscaling=smooth\ninterpolate=1\n";}
     require(loadDisplayPreferences(file)==NativeDisplayPreferences{true,true,NativeScaling::Fit,DriveControlPreset::Original,NativeMenuNavigation::Responsive,NativeFiltering::Bilinear},"Legacy preferences lost display choices or enabled Modern");
     {std::ofstream out(file);out<<"SCR display 2\nfullscreen=1\nscaling=sharp\ninterpolate=0\ncontrols=modern\n";}
@@ -81,6 +92,8 @@ void navigation(){
     tap(settings,16);require(settings.preferences().controls==DriveControlPreset::Modern,"Confirm cannot toggle control presets");
     tap(settings,2);tap(settings,8);require(settings.preferences().navigation==NativeMenuNavigation::Original,"Menu navigation setting did not select Original");
     tap(settings,8);require(settings.preferences().navigation==NativeMenuNavigation::Responsive,"Menu navigation setting did not restore Responsive");
+    tap(settings,2);tap(settings,8);require(settings.preferences().view==NativeView::Extended,"Aspect ratio did not select Extended");
+    tap(settings,4);require(settings.preferences().view==NativeView::Original,"Aspect ratio did not restore Original");
     tap(settings,2);settings.navigate(0);require(settings.navigate(16)&&settings.blocksGame(),"Apply did not request saving while blocking gameplay");
     settings.applied();require(!settings.blocksGame(),"Applied direct settings did not return to game");
     const auto saved=settings.preferences();settings.pause();tap(settings,2);tap(settings,16);
@@ -88,7 +101,7 @@ void navigation(){
     require(settings.page()==NativeDisplayPage::Pause&&settings.preferences()==saved,"Cancel did not restore preferences and paused state");settings.back();
     settings.openSettings();tap(settings,2);tap(settings,2);tap(settings,2);tap(settings,2);tap(settings,8);
     require(settings.preferences().controls==DriveControlPreset::Original,"Controls did not preview on reopening settings");
-    tap(settings,2);tap(settings,2);tap(settings,2);tap(settings,16);
+    tap(settings,2);tap(settings,2);tap(settings,2);tap(settings,2);tap(settings,16);
     require(!settings.blocksGame()&&settings.preferences()==saved,"Cancel row did not restore the saved control preset");
     settings.openSettings();tap(settings,8);settings.suspendRace();settings.applied();
     require(settings.page()==NativeDisplayPage::Pause,"Focus loss allowed settings to resume a race");
@@ -126,11 +139,16 @@ double filterMilliseconds{};
 unsigned scaling(WindowsGameDisplay& display){
     std::vector<std::uint32_t> source(64000);for(unsigned y=0;y<200;++y)for(unsigned x=0;x<320;++x)source[y*320+x]=((x/8+y/8)&1)?0xff2020:0x2040ff;
     const auto original=source;unsigned cases=0;
+    NativeDisplayPreferences extended;extended.view=NativeView::Extended;extended.scaling=NativeScaling::Fit;
+    const auto extendedFit=displayRectangle(1920,1080,extended);
+    require(extendedFit.width==1440&&extendedFit.height==1080,"Extended Fit did not preserve 4:3");
+    extended.view=NativeView::Original;const auto originalFit=displayRectangle(1920,1080,extended);
+    require(originalFit.width==extendedFit.width&&originalFit.height==extendedFit.height,"Changing aspect mode changed the cockpit scale");
     NativeDisplayPreferences prefs;
-    auto rectangle=displayRectangle(1920,1080,prefs);require(rectangle.width==1600&&rectangle.height==1000&&rectangle.x==160&&rectangle.y==40,"1080p Integer Auto is not centred 5x");
-    prefs.integerScale=3;rectangle=displayRectangle(1920,1080,prefs);require(rectangle.width==960&&rectangle.height==600&&rectangle.x==480&&rectangle.y==240,"Fixed 3x geometry differs");
-    prefs.integerScale=32;rectangle=displayRectangle(1920,1080,prefs);require(rectangle.width==1600&&rectangle.height==1000,"Oversized fixed scale was not limited to fit");
-    prefs.scaling=NativeScaling::Fit;rectangle=displayRectangle(1920,1080,prefs);require(rectangle.width==1728&&rectangle.height==1080&&rectangle.x==96,"Fit did not preserve 16:10");
+    auto rectangle=displayRectangle(1920,1080,prefs);require(rectangle.width==1280&&rectangle.height==960&&rectangle.x==320&&rectangle.y==60,"1080p Integer Auto is not centred aspect-corrected 4x");
+    prefs.integerScale=3;rectangle=displayRectangle(1920,1080,prefs);require(rectangle.width==960&&rectangle.height==720&&rectangle.x==480&&rectangle.y==180,"Fixed 3x geometry differs");
+    prefs.integerScale=32;rectangle=displayRectangle(1920,1080,prefs);require(rectangle.width==1280&&rectangle.height==960,"Oversized fixed scale was not limited to fit");
+    prefs.scaling=NativeScaling::Fit;rectangle=displayRectangle(1920,1080,prefs);require(rectangle.width==1440&&rectangle.height==1080&&rectangle.x==240,"Fit did not preserve 4:3");
     prefs.scaling=NativeScaling::Stretch;rectangle=displayRectangle(1920,1080,prefs);require(rectangle.width==1920&&rectangle.height==1080&&rectangle.x==0&&rectangle.y==0,"Stretch did not fill both axes");
     for(const auto size:std::vector<std::pair<int,int>>{{800,500},{1920,1080},{319,199},{1280,1024}})for(auto mode:{NativeScaling::Integer,NativeScaling::Fit,NativeScaling::Stretch})
         for(auto filtering:{NativeFiltering::NearestNeighbour,NativeFiltering::Bilinear})for(unsigned integer:{0u,1u,3u,maximumIntegerScale}){
@@ -145,7 +163,7 @@ unsigned scaling(WindowsGameDisplay& display){
             if(!inside)require(!colour,"Scaling painted outside letterboxing");
             else if(smooth)blended+=colour!=0xff2020&&colour!=0x2040ff;
             else require(colour==0xff2020||colour==0x2040ff,"Sharp scaling introduced filtered colours");
-            if(mode==NativeScaling::Integer&&size.first==800&&inside){const int multiple=rectangle.width/320;const int sx=(x-rectangle.x)/multiple,sy=(y-rectangle.y)/multiple;require(colour==source[sy*320+sx],"Integer scaling changed source pixel replication");}
+            if(mode==NativeScaling::Integer&&size.first==800&&inside){const int multiple=rectangle.width/320;const int sx=(x-rectangle.x)/multiple,sy=((2*(y-rectangle.y)+1)*200)/(2*rectangle.height);require(colour==source[sy*320+sx],"Integer scaling changed aspect-corrected nearest-neighbour sampling");}
         }
         if(smooth)require(blended>0,"Smooth scaling did not filter pixel edges");
         require(source==original,"Display scaling modified game pixels");++cases;
@@ -179,11 +197,11 @@ void fullscreen(WindowsGameDisplay& display){
     }
     NativeDisplayPreferences automatic;display.apply(window,automatic);display.beginSettings(window);
     auto fixed=automatic;fixed.integerScale=1;display.apply(window,fixed);
-    RECT client{};GetClientRect(window,&client);require(client.right==320&&client.bottom==200,"Fixed 1x did not resize the window client to source dimensions");
+    RECT client{};GetClientRect(window,&client);require(client.right==320&&client.bottom==240,"Fixed 1x did not resize the window client to source dimensions");
     display.apply(window,automatic);display.endSettings(window,false);
     RECT actual{};GetWindowRect(window,&actual);require(EqualRect(&actual,&before),"Cancel did not restore the original window dimensions and position");
     display.beginSettings(window);fixed.integerScale=2;display.apply(window,fixed);display.endSettings(window,true);
-    GetClientRect(window,&client);require(client.right==640&&client.bottom==400,"Applying 2x did not retain a 640 by 400 game area");
+    GetClientRect(window,&client);require(client.right==640&&client.bottom==480,"Applying 2x did not retain a 640 by 480 game area");
     SetWindowPos(window,nullptr,120,100,800,500,SWP_NOZORDER|SWP_NOACTIVATE);
     RECT manual{};GetWindowRect(window,&manual);
     auto fullFixed=fixed;fullFixed.fullscreen=true;display.apply(window,fullFixed);display.apply(window,fixed);GetWindowRect(window,&actual);
@@ -193,7 +211,7 @@ void fullscreen(WindowsGameDisplay& display){
     GetWindowRect(window,&actual);require(EqualRect(&actual,&manual)&&!display.isFullscreen(),"Cancel fullscreen preview lost the original fixed-scale window");
     fixed.integerScale=maximumIntegerScale;display.apply(window,fixed);GetClientRect(window,&client);GetWindowRect(window,&actual);
     MONITORINFO monitor{sizeof(MONITORINFO)};GetMonitorInfoW(MonitorFromWindow(window,MONITOR_DEFAULTTONEAREST),&monitor);
-    require(client.right%320==0&&client.bottom%200==0&&client.right/320==client.bottom/200,"Oversized window scale stopped using whole source pixels");
+    require(client.right%320==0&&client.bottom%240==0&&client.right/320==client.bottom/240,"Oversized window scale stopped using whole source pixels");
     require(actual.left>=monitor.rcWork.left&&actual.top>=monitor.rcWork.top&&actual.right<=monitor.rcWork.right&&actual.bottom<=monitor.rcWork.bottom,"Oversized fixed window escaped the work area");
     DestroyWindow(window);
 }

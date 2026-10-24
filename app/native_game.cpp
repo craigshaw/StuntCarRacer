@@ -295,7 +295,7 @@ private:
     void paint(HWND window){
         // Keep the last completed image visible while rendering. Clearing the
         // window before game_->render exposed black frames to the compositor.
-        const std::vector<std::uint32_t>* pixels=game_?&game_->render(settings_.preferences().interpolate,settings_.blocksGame()):nullptr;
+        const std::vector<std::uint32_t>* pixels=game_?&game_->render(settings_.preferences().interpolate,settings_.blocksGame(),settings_.preferences().view):nullptr;
         PAINTSTRUCT painting{};auto target=BeginPaint(window,&painting);RECT client{};GetClientRect(window,&client);
         if(client.right<=0||client.bottom<=0){EndPaint(window,&painting);return;}
         auto dc=CreateCompatibleDC(target);
@@ -323,7 +323,7 @@ private:
         case WM_ERASEBKGND:return 1;
         case WM_GETMINMAXINFO:{
             POINT minimum{740,640};
-            if(game_){RECT client{0,0,320,200};AdjustWindowRectExForDpi(&client,DWORD(GetWindowLongPtrW(window,GWL_STYLE)),FALSE,DWORD(GetWindowLongPtrW(window,GWL_EXSTYLE)),GetDpiForWindow(window));minimum={client.right-client.left,client.bottom-client.top};}
+            if(game_){RECT client{0,0,320,originalDisplayHeight};AdjustWindowRectExForDpi(&client,DWORD(GetWindowLongPtrW(window,GWL_STYLE)),FALSE,DWORD(GetWindowLongPtrW(window,GWL_EXSTYLE)),GetDpiForWindow(window));minimum={client.right-client.left,client.bottom-client.top};}
             reinterpret_cast<MINMAXINFO*>(data)->ptMinTrackSize=minimum;return 0;
         }
         case WM_DPICHANGED:{const auto suggested=reinterpret_cast<const RECT*>(data);SetWindowPos(window,nullptr,suggested->left,suggested->top,suggested->right-suggested->left,suggested->bottom-suggested->top,SWP_NOZORDER|SWP_NOACTIVATE);if(game_)display_.apply(window,settings_.preferences(),true);return 0;}

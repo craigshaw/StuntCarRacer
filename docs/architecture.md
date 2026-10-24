@@ -109,9 +109,17 @@ are developer APIs, without a player camera selector. The world uses one recover
 far/near painter in Practice and competitive races; opponent insertion depends
 on race mode.
 
-The source image is **320×200**, with a **256×128** world viewport. Host fitting,
-bilinear scaling and settings UI happen after game rendering. Enlarging a window
-does not change the projection or field of view.
+Both aspect modes retain the complete **320×200** bitmap and present it at
+the original **4:3** display proportions. Original renders its **256×128**
+world viewport. Extended renders behind the original foreground across
+**320×144**, preserving the existing projection scale and centre. A mask
+reveals only outside-connected black upper-corner regions; the complete frame,
+engine, wheels, exhausts and instruments retain their original pixels and
+coordinates. Private near/far geometry and clipping extend left/right by 32
+and above by 16 original pixels. No generated artwork is used.
+Host aspect correction, fitting, filtering and settings UI happen after
+rendering; window shape alone does not change projection. See the
+[Extended view contract](components/native-extended-view.md). 16:9 is deferred.
 
 ## Fidelity contract
 

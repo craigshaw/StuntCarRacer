@@ -42,6 +42,7 @@ def main():
     parser.add_argument('--pack', type=Path, default=DEFAULT_PACK)
     parser.add_argument('--adf', type=Path)
     parser.add_argument('--skip-build', action='store_true')
+    parser.add_argument('--jobs', type=int, default=4, help='Native build worker count')
     args = parser.parse_args()
     pack = args.pack.resolve()
     if args.adf:
@@ -66,7 +67,7 @@ def main():
         commands = [
             configure_command(oracle=True),
             ['cmake', '--build', build_dir, '--config', 'Release', '--target',
-             *targets, '--parallel', '4']]
+             *targets, '--parallel', str(max(1, args.jobs)), '--', '/nr:false']]
         with (output / 'build.log').open('w') as log:
             for command in commands:
                 subprocess.run([str(item) for item in command], cwd=ROOT,

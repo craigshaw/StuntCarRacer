@@ -31,6 +31,7 @@ private:
     struct Sample {unsigned first,second,weight;};
     std::vector<Sample> columns_,rows_;
     std::vector<std::uint32_t> horizontal_,filtered_,filterSource_;
-    void filter(const std::vector<std::uint32_t>&,int width,int height);
+    unsigned filterWidth_{};
+    void filter(const std::vector<std::uint32_t>&,int width,int height,unsigned sourceWidth);
 };
 } // namespace scr::viewer

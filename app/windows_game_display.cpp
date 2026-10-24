@@ -34,19 +34,20 @@ void WindowsGameDisplay::monitorChanged(HWND window){
 }
 void WindowsGameDisplay::apply(HWND window,const NativeDisplayPreferences& preferences,bool forceWindowScale){
     const bool resized=forceWindowScale||!windowedPreferencesApplied_||
-        preferences.scaling!=windowedPreferences_.scaling||preferences.integerScale!=windowedPreferences_.integerScale;
+        preferences.scaling!=windowedPreferences_.scaling||preferences.integerScale!=windowedPreferences_.integerScale||preferences.view!=windowedPreferences_.view;
     fullscreen(window,preferences.fullscreen);
     if(forceWindowScale&&fullscreen_)monitorChanged(window);
     if(resized&&!fullscreen_&&preferences.scaling==NativeScaling::Integer&&preferences.integerScale){
         MONITORINFO monitor{sizeof(MONITORINFO)};
         if(!GetMonitorInfoW(MonitorFromWindow(window,MONITOR_DEFAULTTONEAREST),&monitor))throw std::runtime_error("Cannot find window work area");
-        RECT extent{0,0,320,200};
+        const int sourceWidth=viewWidth(preferences.view);
+        RECT extent{0,0,sourceWidth,originalDisplayHeight};
         AdjustWindowRectExForDpi(&extent,DWORD(GetWindowLongPtrW(window,GWL_STYLE)),FALSE,DWORD(GetWindowLongPtrW(window,GWL_EXSTYLE)),GetDpiForWindow(window));
-        const int borderWidth=extent.right-extent.left-320,borderHeight=extent.bottom-extent.top-200;
+        const int borderWidth=extent.right-extent.left-sourceWidth,borderHeight=extent.bottom-extent.top-originalDisplayHeight;
         const auto& work=monitor.rcWork;
-        const unsigned maximum=unsigned(std::max<LONG>(1,std::min((work.right-work.left-borderWidth)/320,(work.bottom-work.top-borderHeight)/200)));
+        const unsigned maximum=unsigned(std::max<LONG>(1,std::min((work.right-work.left-borderWidth)/sourceWidth,(work.bottom-work.top-borderHeight)/originalDisplayHeight)));
         const int scale=int(std::min(preferences.integerScale,maximum));
-        const int width=320*scale+borderWidth,height=200*scale+borderHeight;
+        const int width=sourceWidth*scale+borderWidth,height=originalDisplayHeight*scale+borderHeight;
         if(IsZoomed(window))ShowWindow(window,SW_RESTORE);
         RECT current{};GetWindowRect(window,&current);
         const int x=std::clamp(int(current.left),int(work.left),std::max(int(work.left),int(work.right)-width));
@@ -64,8 +65,8 @@ void WindowsGameDisplay::endSettings(HWND window,bool applied){
     placement_=settingsWindowedPlacement_;
     if(!settingsFullscreen_&&!SetWindowPlacement(window,&settingsPlacement_))throw std::runtime_error("Cannot restore settings window placement");
 }
-void WindowsGameDisplay::filter(const std::vector<std::uint32_t>& pixels,int width,int height){
-    const bool resized=columns_.size()!=std::size_t(width)||rows_.size()!=std::size_t(height);
+void WindowsGameDisplay::filter(const std::vector<std::uint32_t>& pixels,int width,int height,unsigned sourceWidth){
+    const bool resized=filterWidth_!=sourceWidth||columns_.size()!=std::size_t(width)||rows_.size()!=std::size_t(height);
     if(!resized&&filterSource_==pixels)return;
     if(resized){
         const auto axis=[](unsigned source,unsigned target){
@@ -76,7 +77,7 @@ void WindowsGameDisplay::filter(const std::vector<std::uint32_t>& pixels,int wid
             }
             return samples;
         };
-        columns_=axis(320,unsigned(width));rows_=axis(200,unsigned(height));
+        filterWidth_=sourceWidth;columns_=axis(sourceWidth,unsigned(width));rows_=axis(200,unsigned(height));
         horizontal_.resize(std::size_t(width)*200);filtered_.resize(std::size_t(width)*height);
     }
     // Separable, fixed-point bilinear filtering. Packed channel arithmetic
@@ -87,25 +88,26 @@ void WindowsGameDisplay::filter(const std::vector<std::uint32_t>& pixels,int wid
         return ((((a&0xff00ff)*inverse+(b&0xff00ff)*weight)>>8)&0xff00ff)|
             ((((a&0x00ff00)*inverse+(b&0x00ff00)*weight)>>8)&0x00ff00);
     };
-    for(unsigned y=0;y<200;++y)for(int x=0;x<width;++x){const auto& sample=columns_[x];horizontal_[y*width+x]=blend(pixels[y*320+sample.first],pixels[y*320+sample.second],sample.weight);}
+    for(unsigned y=0;y<200;++y)for(int x=0;x<width;++x){const auto& sample=columns_[x];horizontal_[y*width+x]=blend(pixels[y*sourceWidth+sample.first],pixels[y*sourceWidth+sample.second],sample.weight);}
     for(int y=0;y<height;++y){const auto& sample=rows_[y];const auto* first=horizontal_.data()+sample.first*width;const auto* second=horizontal_.data()+sample.second*width;
         auto* target=filtered_.data()+y*width;for(int x=0;x<width;++x)target[x]=blend(first[x],second[x],sample.weight);
     }
     filterSource_=pixels;
 }
 void WindowsGameDisplay::paint(HDC dc,int width,int height,const std::vector<std::uint32_t>& pixels,const NativeDisplayPreferences& preferences){
-    if(pixels.size()!=64000)throw std::invalid_argument("Native display requires a 320 by 200 image");
+    if(pixels.size()!=320*200)throw std::invalid_argument("Invalid native display canvas");
+    const int sourceWidth=int(pixels.size()/200);
     RECT client{0,0,width,height};FillRect(dc,&client,static_cast<HBRUSH>(GetStockObject(BLACK_BRUSH)));
-    const auto fit=displayRectangle(width,height,preferences);
+    const auto fit=displayRectangle(width,height,preferences,sourceWidth);
     if(fit.width<=0||fit.height<=0)return;
     const bool smooth=preferences.scaling!=NativeScaling::Integer&&preferences.filtering==NativeFiltering::Bilinear;
-    if(smooth)filter(pixels,fit.width,fit.height);
+    if(smooth)filter(pixels,fit.width,fit.height,unsigned(sourceWidth));
     {
-        BITMAPINFO info{};info.bmiHeader.biSize=sizeof(BITMAPINFOHEADER);info.bmiHeader.biWidth=320;
+        BITMAPINFO info{};info.bmiHeader.biSize=sizeof(BITMAPINFOHEADER);info.bmiHeader.biWidth=sourceWidth;
         info.bmiHeader.biHeight=-200;info.bmiHeader.biPlanes=1;info.bmiHeader.biBitCount=32;info.bmiHeader.biCompression=BI_RGB;
         if(smooth){info.bmiHeader.biWidth=fit.width;info.bmiHeader.biHeight=-fit.height;}
         SetStretchBltMode(dc,COLORONCOLOR);
-        const auto drawn=StretchDIBits(dc,fit.x,fit.y,fit.width,fit.height,0,0,smooth?fit.width:320,smooth?fit.height:200,
+        const auto drawn=StretchDIBits(dc,fit.x,fit.y,fit.width,fit.height,0,0,smooth?fit.width:sourceWidth,smooth?fit.height:200,
             smooth?filtered_.data():pixels.data(),&info,DIB_RGB_COLORS,SRCCOPY);
         if(drawn==GDI_ERROR||!drawn)throw std::runtime_error("Cannot scale native game image");
     }
@@ -130,8 +132,8 @@ void WindowsGameDisplay::overlay(HDC dc,int width,int height,const NativeDisplay
     const auto px=[&](int n){return int(std::lround(n*scale));};
     const bool menu=settings.page()==NativeDisplayPage::Settings;
     const bool confirmation=settings.page()==NativeDisplayPage::QuitConfirmation;
-    const int help=menu?370:confirmation?262:64+int(settings.optionCount())*36+18;
-    const int panelWidth=px(560),panelHeight=px(menu?502:confirmation?334:help+94),left=(width-panelWidth)/2,top=(height-panelHeight)/2;
+    const int help=menu?406:confirmation?262:64+int(settings.optionCount())*36+18;
+    const int panelWidth=px(560),panelHeight=px(menu?538:confirmation?334:help+94),left=(width-panelWidth)/2,top=(height-panelHeight)/2;
     const auto fill=[&](RECT r,COLORREF colour){const auto brush=CreateSolidBrush(colour);FillRect(dc,&r,brush);DeleteObject(brush);};
     RECT panel{left,top,left+panelWidth,top+panelHeight};fill(panel,RGB(19,25,35));
     const auto border=CreateSolidBrush(RGB(78,103,130));FrameRect(dc,&panel,border);DeleteObject(border);
@@ -150,20 +152,20 @@ void WindowsGameDisplay::overlay(HDC dc,int width,int height,const NativeDisplay
         DrawTextW(dc,message,-1,&warning,DT_LEFT|DT_TOP|DT_WORDBREAK|DT_NOPREFIX);
     }
     const auto& prefs=settings.preferences();
-    const wchar_t* labels[]{L"Display mode",L"Image sizing",prefs.scaling==NativeScaling::Integer?L"Integer scale":L"Filtering",L"60 FPS smoothing",L"Driving controls",L"Menu navigation",L"Apply and back",L"Cancel"};
+    const wchar_t* labels[]{L"Display mode",L"Image sizing",prefs.scaling==NativeScaling::Integer?L"Integer scale":L"Filtering",L"60 FPS smoothing",L"Driving controls",L"Menu navigation",L"Aspect ratio",L"Apply and back",L"Cancel"};
     auto detail=prefs.scaling==NativeScaling::Integer?integerScaleName(prefs.integerScale):std::wstring(filteringName(prefs.filtering));
     if(prefs.scaling==NativeScaling::Integer){
-        const auto actual=unsigned(displayRectangle(width,height,prefs).width/320);
+        const auto actual=unsigned(displayRectangle(width,height,prefs).width/viewWidth(prefs.view));
         if(!prefs.integerScale)detail+=L" ("+integerScaleName(actual)+L")";
         else if(actual!=prefs.integerScale)detail+=L" (using "+integerScaleName(actual)+L")";
     }
     const wchar_t* values[]{prefs.fullscreen?L"Borderless fullscreen":L"Windowed",scalingName(prefs.scaling),detail.c_str(),prefs.interpolate?L"On":L"Off",
-        prefs.controls==DriveControlPreset::Original?L"Original":L"Modern",prefs.navigation==NativeMenuNavigation::Responsive?L"Responsive":L"Original"};
+        prefs.controls==DriveControlPreset::Original?L"Original":L"Modern",prefs.navigation==NativeMenuNavigation::Responsive?L"Responsive":L"Original",prefs.view==NativeView::Extended?L"4:3 (Extended)":L"4:3 (Original)"};
     for(unsigned n=0;n<settings.optionCount();++n){
         const int y=(confirmation?166:64)+int(n)*36;
         if(n==settings.selected())fill({left+px(16),top+px(y-3),left+panelWidth-px(16),top+px(y+30)},RGB(35,65,91));
         text(28,y,menu?labels[n]:confirmation?confirmActions[n]:actions[n],RGB(237,242,247));
-        if(menu&&n<6)text(250,y,values[n],RGB(148,213,243));
+        if(menu&&n<7)text(250,y,values[n],RGB(148,213,243));
     }
     text(24,help,menu?L"Arrows / D-pad: select and change":L"Arrows / D-pad: select",RGB(167,180,197));
     text(24,help+25,confirmation?L"Enter / A: confirm    Esc / B: cancel":L"Enter / A: confirm    Esc / B: back",RGB(167,180,197));

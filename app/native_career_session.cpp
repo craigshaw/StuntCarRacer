@@ -154,7 +154,7 @@ void NativeGameSession::saveCheckpoint(bool terminal){
     if(terminal&&menu_->competitive()){
         race_.copyLiveExit(*c.memory);NativeMenuFlow future(*c.memory,c.menu);future.setNavigation(navigation_);future.returnFromRace();c.menu=future.continuation();
         c.finishPending=race_.frames().back().action==unsigned(RaceTransitionAction::raceEnd);
-        if(c.finishPending)c.finishPixels=race_.renderLiveMessage(0x3c,4);
+        if(c.finishPending){race_.renderLive(0,false,false,NativeView::Original);c.finishPixels=race_.renderLiveMessage(0x3c,4);}
         c.previewPrepared=false;
     }else if(c.menu.page==NativeMenuPage::Race)return; // retain the pre-race fixture
     else if(c.menu.page==NativeMenuPage::Preview&&c.menu.competitive){c.menu.page=NativeMenuPage::Matchup;(*c.memory)[0x57c62]=0x11;}

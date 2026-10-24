@@ -26,7 +26,7 @@ public:
     RenderStatistics drawFrame(const TrackMesh&,const std::vector<TrackSideFace>&,
         const MountainHorizonFrame&,const RenderProjectionCamera&,
         const RenderProjectionTables&,const std::array<std::uint32_t,16>& palette,
-        std::vector<std::uint32_t>& pixels,bool wireframe=false,const NearTrackPresentation* nearTrack=nullptr);
+        std::vector<std::uint32_t>& pixels,bool wireframe=false,const NearTrackPresentation* nearTrack=nullptr,int horizontalPadding=0,bool extendedCorners=false);
 private:
     std::vector<float> inverseDepth_;
     std::vector<std::uint8_t> coverage_;

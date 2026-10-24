@@ -19,6 +19,15 @@ void frameSize(const std::vector<std::uint32_t>& pixels) {
 void chipExtent(const std::uint8_t* r,std::size_t size) {
     if(!r||size!=0x80000)throw std::invalid_argument("Expected512KiB initialized Chip RAM image");
 }
+std::uint8_t extendedFrameIndex(const IndexedImage& image,unsigned at) {
+    // Close the one-pixel inward step where each outer post meets its brace.
+    // The source bitmap remains untouched for Original and its damage drawing.
+    if((at==83*320+16&&image.pixels[at+1]==9)||
+       (at==83*320+303&&image.pixels[at-1]==9)) {
+        if(image.pixels[at]==0)return 9;
+    }
+    return image.pixels[at];
+}
 }
 ReplayRenderAssets decodeReplayRenderAssets(const std::uint8_t* payload,std::size_t payloadSize,
         const std::uint8_t* chipRam,std::size_t chipSize) {
@@ -27,6 +36,7 @@ ReplayRenderAssets decodeReplayRenderAssets(const std::uint8_t* payload,std::siz
     ReplayRenderAssets assets;
     const auto decoded=decodePlanarRle(payload+background-base,payloadSize-(background-base),320,200,4);
     assets.background=decodePlanarImage(decoded.planes.data(),decoded.planes.size(),320,200,4);
+    assets.exteriorMask=makeReplayExteriorMask(assets.background);
     assets.backgroundCompressedBytes=decoded.consumed;
     for(unsigned i=0;i<16;++i)assets.palette[i]=originalPaletteRgb(word(payload,payloadSize,palette-base+2*i));
     // Original startup patches six font bytes (0x1feed,0x1fef7/8,
@@ -93,6 +103,28 @@ void makeReplayBackground(const ReplayRenderAssets& assets,std::vector<std::uint
     pixels.resize(320*200);
     for(unsigned i=0;i<pixels.size();++i)pixels[i]=assets.palette.at(assets.background.pixels[i]);
 }
+std::vector<std::uint8_t> makeReplayExteriorMask(const IndexedImage& image){
+    if(image.width!=320||image.height!=200||image.pixels.size()!=320*200)throw std::invalid_argument("Invalid cockpit mask source");
+    std::vector<std::uint8_t> mask(320*200,0);std::vector<unsigned> pending;
+    const auto admit=[&](int x,int y){
+        if(x<0||x>=320||y<0||y>=144||(y>=8&&x>=32&&x<288))return;
+        const unsigned at=unsigned(y*320+x);if(mask[at]||extendedFrameIndex(image,at)!=0)return;
+        mask[at]=1;pending.push_back(at);
+    };
+    admit(0,0);admit(319,0);
+    while(!pending.empty()){
+        const unsigned at=pending.back();pending.pop_back();const int x=int(at%320),y=int(at/320);
+        admit(x-1,y);admit(x+1,y);admit(x,y-1);admit(x,y+1);
+    }
+    return mask;
+}
+void composeReplayFrame(const ReplayRenderAssets& assets,std::vector<std::uint32_t>& pixels){
+    frameSize(pixels);if(assets.exteriorMask.size()!=320*200)throw std::invalid_argument("Invalid cockpit exterior mask");
+    for(unsigned y=0;y<200;++y)for(unsigned x=0;x<320;++x){
+        if(x>=32&&x<288&&y>=16&&y<144)continue;
+        const unsigned at=y*320+x;if(!assets.exteriorMask[at])pixels[at]=assets.palette[extendedFrameIndex(assets.background,at)];
+    }
+}
 void compositeMaskedObject(const ReplayRenderAssets& assets,unsigned id,
         const ReplayObjectPlacement& o,std::vector<std::uint32_t>& pixels) {
     frameSize(pixels);const auto& object=assets.objects.at(id);
@@ -115,13 +147,17 @@ void compositeMaskedObject(const ReplayRenderAssets& assets,unsigned id,
     }
 }
 void composeReplayCockpit(const ReplayRenderAssets& assets,const CockpitFrame& frame,
-        std::vector<std::uint32_t>& pixels) {
+        std::vector<std::uint32_t>& pixels,bool extendedCorners) {
     frameSize(pixels);
+    if(extendedCorners&&assets.exteriorMask.size()!=320*200)throw std::invalid_argument("Invalid cockpit exterior mask");
     if(frame.wheelRotation>2)throw std::invalid_argument("Wheel rotation frame outside original0..2 range");
     for(unsigned id:{13u,14u,unsigned(frame.wheelRotation),5u-frame.wheelRotation,10u,11u,12u})
         compositeMaskedObject(assets,id,frame.objects[id],pixels);
     composeReplayFlames(assets,frame,pixels);
-    for(unsigned y=0;y<8;++y)for(unsigned x=0;x<256;++x)pixels[y*320+32+x]=assets.palette[frame.damageStrip[y*256+x]];
+    for(unsigned y=0;y<8;++y)for(unsigned x=0;x<256;++x) {
+        const unsigned at=y*320+32+x;
+        if(!extendedCorners||!assets.exteriorMask[at])pixels[at]=assets.palette[frame.damageStrip[y*256+x]];
+    }
 }
 void composeReplayFlames(const ReplayRenderAssets& assets,const CockpitFrame& frame,
         std::vector<std::uint32_t>& pixels) {

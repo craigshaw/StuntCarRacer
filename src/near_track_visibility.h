@@ -28,10 +28,11 @@ struct NearTrackQueueState {
     std::uint16_t lineBytes{};
     std::uint8_t opponentSegment{},opponentSubSegment{},previousOffset{};
     std::uint16_t minimumBoundaryDistance{};
+    int horizontalPadding{},topPadding{};
 };
 // Exact clipping metadata needed by queue admission and viewport closure.
 // Edge pixels and scanline coverage remain the native renderer's concern.
-NearTrackEdge makeNearTrackEdge(NearTrackPoint from,NearTrackPoint to);
+NearTrackEdge makeNearTrackEdge(NearTrackPoint from,NearTrackPoint to,int horizontalPadding=0,int topPadding=0);
 void seedNearTrackCutEdges(const NearTrackGeometryState&,const std::array<NearTrackCutEdge,4>&,NearTrackQueueState&);
 // segmentRenderFlags is the generated cache header's high byte, not steering
 // flags. The callback materializes an upper-indexed ground vertex at raw512.

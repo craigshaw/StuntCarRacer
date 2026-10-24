@@ -29,9 +29,9 @@ source images.
 The native game's host now supplies a separate display overlay and borderless
 fullscreen, with persisted image sizing, filtering, integer scale and motion
 preferences. Integer uses nearest-neighbour samples at Auto or fixed 1×–32×.
-Fit preserves the source aspect; Stretch fills both target axes. Both expose
+Fit preserves the 4:3 display aspect; Stretch fills both target axes. Both expose
 independent nearest-neighbour or separable bilinear filtering, with clamped
-edges and cached coordinates. Version 4 preferences migrate versions 1–3:
+edges and cached coordinates. Version 6 preferences migrate versions 1–5:
 integer becomes Integer Auto, sharp becomes Fit/Nearest neighbour and smooth
 becomes Fit/Bilinear. Invalid fields reject the complete preference file.
 Windowed fixed scales resize the client in physical pixels, capped to the
@@ -56,12 +56,14 @@ without a background panel. Its one-second average counts presented
 game frames, independently of simulation ticks. The counter starts hidden and
 does not change preferences, game pixels or saved state; name entry retains F.
 
-The current game image remains 320 by 200 and its world viewport remains 256 by
-128. Integer and Fit preserve that image's aspect; Stretch changes display
-proportions while retaining the same view. Actual widescreen rendering still needs a
-wider projection/culling domain and a decision about cockpit/HUD layout.
-Likewise, a complete free camera needs independent camera placement and broader
-visibility handling. The new interfaces keep those changes in presentation.
+Original and [Extended](native-extended-view.md) retain 320 by 200, presented
+at the original 4:3 display proportions. Original uses its 256 by 128 world
+viewport. Extended draws across 320 by 144, then composites the original frame
+with only its outside-connected upper black corners transparent. The complete
+cockpit and car remain in their original positions. Integer and Fit use the
+4:3 display aspect; Stretch changes display proportions while retaining its view.
+A complete free camera still needs independent placement and broader visibility
+handling. These options remain separate from simulation.
 
 The native line and polygon rasterizer still has its own coverage rules.
 The recovered painter fixes geometry ordering and materials; that does not

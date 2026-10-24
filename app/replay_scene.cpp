@@ -307,8 +307,9 @@ bool ReplayScene::stepLive(unsigned controls,bool quit,DriveControlPreset preset
     if(!canInterpolateReplay(frames_[0].restarts,frames_[1].restarts,frames_[0].action,frames_[1].action))frames_[0]=frames_[1];
     cachedFrame_=~0u;return true;
 }
-const std::vector<std::uint32_t>& ReplayScene::renderLive(double fraction,bool wireframe,bool interpolate){
-    fraction=std::clamp(fraction,0.0,1.0);lastLiveFraction_=fraction;lastLiveInterpolate_=interpolate;
+const std::vector<std::uint32_t>& ReplayScene::renderLive(double fraction,bool wireframe,bool interpolate,NativeView view){
+    fraction=std::clamp(fraction,0.0,1.0);lastLiveFraction_=fraction;lastLiveInterpolate_=interpolate;lastLiveView_=view;
+    if(view==NativeView::Extended){ReplayViewSettings settings;settings.view=view;return renderView(interpolate?fraction:1,settings,wireframe);}
     if(interpolate)return renderInterpolated(fraction,wireframe);
     const auto& frame=frames_[1];draw(frame,frame.nearTrack,wireframe,frame.movingTrack.get(),&frame,fraction);
     cachedFrame_=~0u;return pixels_;
@@ -316,15 +317,16 @@ const std::vector<std::uint32_t>& ReplayScene::renderLive(double fraction,bool w
 const std::vector<std::uint32_t>& ReplayScene::renderLiveMessage(unsigned index,unsigned mode){
     // Repaint the final snapshot before overlaying the original panel, so a
     // pause message never becomes part of a later interpolated race image.
-    cachedFrame_=~0u;renderLive(lastLiveFraction_,false,lastLiveInterpolate_);
+    cachedFrame_=~0u;renderLive(lastLiveFraction_,false,lastLiveInterpolate_,lastLiveView_);
     const auto& memory=simulation_->native.ram;
     const auto cockpit=captureCockpitFrame(memory.data(),memory.size());
     compositeMaskedObject(assets_,51,cockpit.objects[51],pixels_);
     drawNativeGameMessage(memory,pixels_,assets_.palette,index,mode,memory[0x1bb88]!=0);
     cachedFrame_=~0u;return pixels_;
 }
-std::vector<std::uint8_t> ReplayScene::captureLiveIndices(bool endMessage){
+std::vector<std::uint8_t> ReplayScene::captureLiveIndices(bool endMessage,NativeView view){
     const auto saved=assets_.palette;
+    const auto savedView=lastLiveView_;lastLiveView_=view;
     // Original fades use the four bitmap planes. The independent hardware
     // sprites have their own OCS palette and Sprite DMA is off for race fades.
     bitmapOnly_=true;
@@ -333,14 +335,15 @@ std::vector<std::uint8_t> ReplayScene::captureLiveIndices(bool endMessage){
         // same RGB. Palette fades can move those entries independently.
         for(unsigned i=0;i<assets_.palette.size();++i)assets_.palette[i]=i;
         cachedFrame_=~0u;
-        const auto& frame=endMessage?renderLiveMessage(0x3c,4):render(1);
+        ReplayViewSettings settings;settings.view=view;
+        const auto& frame=endMessage?renderLiveMessage(0x3c,4):view==NativeView::Extended?renderView(1,settings):render(1);
         std::vector<std::uint8_t> indices;indices.reserve(frame.size());
         for(auto pixel:frame){
             if(pixel>=16)throw std::logic_error("Native race renderer emitted a non-palette pixel");
             indices.push_back(std::uint8_t(pixel));
         }
-        assets_.palette=saved;bitmapOnly_=false;cachedFrame_=~0u;return indices;
-    }catch(...){assets_.palette=saved;bitmapOnly_=false;cachedFrame_=~0u;throw;}
+        assets_.palette=saved;lastLiveView_=savedView;bitmapOnly_=false;cachedFrame_=~0u;return indices;
+    }catch(...){assets_.palette=saved;lastLiveView_=savedView;bitmapOnly_=false;cachedFrame_=~0u;throw;}
 }
 unsigned ReplayScene::verifyLiveReplay(const std::filesystem::path& inputs,const std::filesystem::path& referencePath,const std::filesystem::path& tracePath){
     namespace replay=scr::state::replay;const auto input=replay::loadInputs(inputs.string().c_str());
@@ -387,10 +390,10 @@ const std::vector<std::uint32_t>& ReplayScene::renderInterpolated(double positio
     return pixels_;
 }
 NearTrackPresentation ReplayScene::buildViewCommands(const ReplayVisualState& visual,const ReplaySceneFrame& from,
-    const std::optional<OpponentCarInputs>& opponent)const{
+    const std::optional<OpponentCarInputs>& opponent,int padding,int topPadding)const{
     // All view queries rebuild from private presentation history. Track lookup
     // updates this local copy, independently of the driver's physics state.
-    auto inputs=from.nearInputs;auto progress=from.progressInputs;auto seed=from.nearSeed;
+    auto inputs=from.nearInputs;auto progress=from.progressInputs;auto seed=from.nearSeed;seed.horizontalPadding=padding;seed.topPadding=topPadding;
     const auto& presentation=from.movingTrack?from.movingTrack->progress:presentationTrack_;
     inputs.progress.worldPosition=visual.pose.worldPosition;
     progress.pitch=visual.pose.pitch;progress.yaw=visual.pose.yaw;progress.averageWheelVelocity=visual.pose.averageWheelVelocity;
@@ -402,14 +405,14 @@ NearTrackPresentation ReplayScene::buildViewCommands(const ReplayVisualState& vi
         seed,mountains_,visual.pose.yaw,visual.camera,opponent).presentation;
 }
 const std::vector<std::uint32_t>& ReplayScene::renderView(double position,const ReplayViewSettings& settings,bool wireframe){
-    if(!settings.hasCameraOffset()&&settings.showCockpit)return renderInterpolated(position,wireframe);
+    if(settings.view==NativeView::Original&&!settings.hasCameraOffset()&&settings.showCockpit)return renderInterpolated(position,wireframe);
     if(!std::isfinite(position)||frames_.empty())throw std::invalid_argument("Invalid presentation view position");
     position=std::clamp(position,0.0,double(frames_.size()-1));const auto index=unsigned(position);
     const auto& from=frames_[index];double fraction=position-index;
     if(index+1>=frames_.size()||!canInterpolateReplay(from.restarts,frames_[index+1].restarts,from.action,frames_[index+1].action))fraction=0;
     auto visual=fraction>1e-9?interpolateReplayVisuals(from,frames_[index+1],fraction,trig_):static_cast<const ReplayVisualState&>(from);
     visual=makeReplayView(visual,settings,trig_);cachedFrame_=~0u;
-    if(!settings.hasCameraOffset()&&fraction<1e-9){
+    if(settings.view==NativeView::Original&&!settings.hasCameraOffset()&&fraction<1e-9){
         draw(visual,from.nearTrack,wireframe,from.movingTrack.get(),&from,0,settings.showCockpit);return pixels_;
     }
     std::optional<OpponentCarInputs> opponent;
@@ -417,17 +420,19 @@ const std::vector<std::uint32_t>& ReplayScene::renderView(double position,const 
         const auto& to=fraction>1e-9?frames_[index+1]:from;
         if(to.opponentEnabled)opponent=interpolateOpponent(from.opponent,to.opponent,visual.camera,fraction);
     }
-    const auto commands=buildViewCommands(visual,from,opponent);
-    draw(visual,commands,wireframe,from.movingTrack.get(),&from,fraction,settings.showCockpit);
+    const auto commands=buildViewCommands(visual,from,opponent,settings.view==NativeView::Extended?extendedHorizontalPadding:0,settings.view==NativeView::Extended?extendedTopPadding:0);
+    draw(visual,commands,wireframe,from.movingTrack.get(),&from,fraction,settings.showCockpit,settings.view);
     return pixels_;
 }
-void ReplayScene::draw(const ReplayVisualState& frame,const NearTrackPresentation& nearTrack,bool wireframe,const ReplayTrackSnapshot* movingTrack,const ReplaySceneFrame* discrete,double wheelFraction,bool showCockpit){
+void ReplayScene::draw(const ReplayVisualState& frame,const NearTrackPresentation& nearTrack,bool wireframe,const ReplayTrackSnapshot* movingTrack,const ReplaySceneFrame* discrete,double wheelFraction,bool showCockpit,NativeView view){
+    const bool extended=view==NativeView::Extended;
     if(showCockpit)makeReplayBackground(assets_,pixels_);else pixels_.assign(320*200,0);
-    const auto mountains=projectMountainHorizon(mountains_,frame.pose.yaw,frame.camera);
-    statistics_=renderer_.drawFrame(movingTrack?movingTrack->mesh:mesh_,movingTrack?movingTrack->sides:sides_,mountains,frame.camera,projection_,assets_.palette,pixels_,wireframe,&nearTrack);
+    const auto mountains=projectMountainHorizon(mountains_,frame.pose.yaw,frame.camera,extended?extendedHorizontalPadding:0);
+    statistics_=renderer_.drawFrame(movingTrack?movingTrack->mesh:mesh_,movingTrack?movingTrack->sides:sides_,mountains,frame.camera,projection_,assets_.palette,pixels_,wireframe,&nearTrack,extended?extendedHorizontalPadding:0,extended);
+    if(extended&&showCockpit)composeReplayFrame(assets_,pixels_);
     if(discrete)composeNativeDrivingParticles(assets_,particleData_,discrete->particleDraws,discrete->particleFrameCounter,pixels_);
     if(discrete&&showCockpit)composeNativeChains(assets_,discrete->chainDraws,pixels_);
-    if(showCockpit)composeReplayCockpit(assets_,frame.cockpit,pixels_);
+    if(showCockpit)composeReplayCockpit(assets_,frame.cockpit,pixels_,extended);
     if(discrete&&showCockpit){
         for(unsigned n=0;n<discrete->instrumentPixels.size();++n)pixels_[320*cockpitInstrumentTop+n]=assets_.palette[discrete->instrumentPixels[n]];
         const unsigned vblank=std::min(6u,unsigned(std::floor(wheelFraction*6+1e-9)));
@@ -437,10 +442,11 @@ void ReplayScene::draw(const ReplayVisualState& frame,const NearTrackPresentatio
 }
 void ReplayScene::saveBitmap(const std::filesystem::path& path) const {
     if(pixels_.size()!=320*200)throw std::runtime_error("Render a frame before exporting");
+    const auto width=std::uint32_t(pixels_.size()/200);
     std::ofstream out(path,std::ios::binary);if(!out)throw std::runtime_error("Cannot create rendered bitmap");
-    constexpr std::uint32_t size=54+320*200*4;out.put('B');out.put('M');littleLong(out,size);littleLong(out,0);littleLong(out,54);
-    littleLong(out,40);littleLong(out,320);littleLong(out,std::uint32_t(-200));littleWord(out,1);littleWord(out,32);littleLong(out,0);
-    littleLong(out,320*200*4);littleLong(out,2835);littleLong(out,2835);littleLong(out,0);littleLong(out,0);
+    const std::uint32_t size=54+width*200*4;out.put('B');out.put('M');littleLong(out,size);littleLong(out,0);littleLong(out,54);
+    littleLong(out,40);littleLong(out,width);littleLong(out,std::uint32_t(-200));littleWord(out,1);littleWord(out,32);littleLong(out,0);
+    littleLong(out,width*200*4);littleLong(out,2835);littleLong(out,2835);littleLong(out,0);littleLong(out,0);
     for(auto pixel:pixels_)littleLong(out,pixel);if(!out)throw std::runtime_error("Rendered bitmap write failed");
 }
 } // namespace scr::viewer

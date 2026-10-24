@@ -16,6 +16,7 @@ struct ReplayMaskedObject {
 };
 struct ReplayRenderAssets {
     IndexedImage background;
+    std::vector<std::uint8_t> exteriorMask;
     std::array<std::uint32_t,16> palette{}; // Packed0x00RRGGBB.
     std::array<ReplayMaskedObject,52> objects;
     std::array<std::uint8_t,96*8> font{};
@@ -39,12 +40,18 @@ void advanceReplayFlames(std::uint8_t boostActive,std::uint8_t& flameFrame);
 void composeReplayFlames(const ReplayRenderAssets&,const CockpitFrame&,
     std::vector<std::uint32_t>& pixels);
 void makeReplayBackground(const ReplayRenderAssets&,std::vector<std::uint32_t>& pixels);
+// Outside-connected black corners are transparent in Extended, including the
+// top strip. Its two post/brace seam pixels stay opaque in the derived frame.
+std::vector<std::uint8_t> makeReplayExteriorMask(const IndexedImage&);
+void composeReplayFrame(const ReplayRenderAssets&,std::vector<std::uint32_t>&);
+constexpr std::uint32_t replayTransparent=0x01000000;
 void compositeMaskedObject(const ReplayRenderAssets&,unsigned objectId,
     const ReplayObjectPlacement&,std::vector<std::uint32_t>& pixels);
 // Call after drawing the road into the viewport. Uses original foreground draw
 // order, dynamic wheel coordinates, boost flames, and recovered damage pixels.
+// Extended keeps the exterior mask clear even where it overlaps the top strip.
 void composeReplayCockpit(const ReplayRenderAssets&,const CockpitFrame&,
-    std::vector<std::uint32_t>& pixels);
+    std::vector<std::uint32_t>& pixels,bool extendedCorners=false);
 // Native text using original96-glyph7x8 font. No host font substitution.
 void drawReplayText(const ReplayRenderAssets&,std::vector<std::uint32_t>& pixels,
     int x,int y,std::string_view text,std::uint8_t colourIndex);

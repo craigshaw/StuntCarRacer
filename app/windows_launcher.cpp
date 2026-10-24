@@ -12,9 +12,9 @@
 namespace scr::viewer {
 namespace {
 constexpr COLORREF background=RGB(16,21,28),panel=RGB(28,35,44),ink=RGB(241,242,235),muted=RGB(172,184,197),line=RGB(53,65,79),amber=RGB(239,186,75);
-bool isCombo(unsigned id){return (id>=LauncherDisplay&&id<=LauncherNavigation)||id==LauncherScaleDetail;}
-unsigned preferenceRow(unsigned id){return id==LauncherScaleDetail?5:id-LauncherDisplay;}
-constexpr unsigned focusOrder[]{0,1,2,3,10,4,5,6,7,8,9};
+bool isCombo(unsigned id){return (id>=LauncherDisplay&&id<=LauncherNavigation)||id==LauncherScaleDetail||id==LauncherView;}
+unsigned preferenceRow(unsigned id){return id==LauncherScaleDetail?5:id==LauncherView?6:id-LauncherDisplay;}
+constexpr unsigned focusOrder[]{0,1,2,3,10,4,5,6,11,7,8,9};
 void fill(HDC dc,RECT rect,COLORREF colour){const auto brush=CreateSolidBrush(colour);FillRect(dc,&rect,brush);DeleteObject(brush);}
 void text(HDC dc,HFONT font,RECT rect,const std::wstring& value,COLORREF colour,unsigned flags=DT_LEFT|DT_VCENTER|DT_SINGLELINE){
     const auto previous=SelectObject(dc,font);SetTextColor(dc,colour);SetBkMode(dc,TRANSPARENT);
@@ -46,6 +46,7 @@ LRESULT CALLBACK controlProcedure(HWND child,UINT message,WPARAM key,LPARAM data
     return DefSubclassProc(child,message,key,data);
 }
 unsigned valueAt(const NativeDisplayPreferences& value,unsigned row){
+    if(row==6)return unsigned(value.view);
     if(row==5)return value.scaling==NativeScaling::Integer?value.integerScale:unsigned(value.filtering);
     return row==0?unsigned(value.fullscreen):row==1?unsigned(value.scaling):row==2?unsigned(value.interpolate):
         row==3?unsigned(value.controls==DriveControlPreset::Modern):unsigned(value.navigation==NativeMenuNavigation::Original);
@@ -84,9 +85,11 @@ void WindowsLauncher::create(HWND parent){
         {scalingName(NativeScaling::Integer),scalingName(NativeScaling::Fit),scalingName(NativeScaling::Stretch)},
         {L"Off",L"On",nullptr},{L"Original",L"Modern",nullptr},{L"Responsive",L"Original",nullptr}};
     for(unsigned row=0;row<5;++row)for(const auto choice:choices[row])if(choice)SendMessageW(controls_[row+2],CB_ADDSTRING,0,reinterpret_cast<LPARAM>(choice));
+    for(const auto label:{L"4:3 (Original)",L"4:3 (Extended)"})SendMessageW(controls_[11],CB_ADDSTRING,0,reinterpret_cast<LPARAM>(label));
     SetWindowTextW(controls_[1],L"Details");SetWindowTextW(controls_[7],L"Restore original defaults");
     SetWindowTextW(controls_[8],L"Quit");SetWindowTextW(controls_[9],L"Play");
     SetWindowPos(controls_[10],controls_[3],0,0,0,0,SWP_NOMOVE|SWP_NOSIZE|SWP_NOACTIVATE);
+    SetWindowPos(controls_[11],controls_[6],0,0,0,0,SWP_NOMOVE|SWP_NOSIZE|SWP_NOACTIVATE);
     layout(parent);
 }
 void WindowsLauncher::visible(bool enabled){visible_=enabled;for(const auto control:controls_)if(control)ShowWindow(control,enabled?SW_SHOW:SW_HIDE);}
@@ -99,19 +102,19 @@ void WindowsLauncher::rebuildFonts(){
 }
 void WindowsLauncher::layout(HWND window){
     if(!parent_)return;RECT client{};GetClientRect(window,&client);width_=client.right;height_=client.bottom;
-    const auto dpi=GetDpiForWindow(window);const double next=std::max(0.65,std::min({double(dpi)/96,double(width_)/820,double(height_)/740}));
+    const auto dpi=GetDpiForWindow(window);const double next=std::max(0.65,std::min({double(dpi)/96,double(width_)/820,double(height_)/800}));
     if(fonts_[0]==nullptr||std::abs(next-scale_)>0.01){scale_=next;rebuildFonts();}
     const auto px=[&](int value){return int(std::lround(value*scale_));};
     margin_=px(40);header_=px(145);assetY_=header_;assetHeight_=px(82);footerY_=height_-px(82);
     settingsY_=assetY_+assetHeight_+px(details_?106:39);
-    rowHeight_=std::max(px(43),(footerY_-px(98)-settingsY_)/6);
+    rowHeight_=std::max(px(43),(footerY_-px(98)-settingsY_)/7);
     const int right=width_-margin_,comboWidth=px(245),buttonHeight=px(40);
     MoveWindow(controls_[0],right-px(148),assetY_+px(21),px(130),buttonHeight,TRUE);
     MoveWindow(controls_[1],margin_,assetY_+assetHeight_+px(5),px(110),px(28),TRUE);
-    for(unsigned n=0;n<6;++n){const auto row=displayRowOrder[n];const auto control=controls_[row==5?10:row+2];
+    for(unsigned n=0;n<7;++n){const auto row=displayRowOrder[n];const auto control=controls_[row==5?10:row==6?11:row+2];
         MoveWindow(control,right-comboWidth,settingsY_+int(n)*rowHeight_+px(8),comboWidth,px(210),TRUE);
         SendMessageW(control,CB_SETITEMHEIGHT,WPARAM(-1),px(33));SendMessageW(control,CB_SETITEMHEIGHT,0,px(32));}
-    MoveWindow(controls_[7],margin_,settingsY_+6*rowHeight_+px(5),px(200),px(28),TRUE);
+    MoveWindow(controls_[7],margin_,settingsY_+7*rowHeight_+px(5),px(200),px(28),TRUE);
     MoveWindow(controls_[8],right-px(224),footerY_+px(21),px(82),buttonHeight,TRUE);
     MoveWindow(controls_[9],right-px(130),footerY_+px(21),px(130),buttonHeight,TRUE);
     InvalidateRect(window,nullptr,FALSE);
@@ -120,6 +123,7 @@ void WindowsLauncher::sync(const NativeLauncher& model){
     if(!parent_)return;
     SetWindowTextW(controls_[0],model.ready()?L"Change ADF…":L"Choose ADF…");EnableWindow(controls_[9],model.ready());
     for(unsigned row=0;row<5;++row)SendMessageW(controls_[row+2],CB_SETCURSEL,valueAt(model.preferences(),row),0);
+    SendMessageW(controls_[11],CB_SETCURSEL,unsigned(model.preferences().view),0);
     const auto detail=controls_[10];const bool integer=model.preferences().scaling==NativeScaling::Integer;
     const int count=integer?int(maximumIntegerScale+1):2;
     if(SendMessageW(detail,CB_GETCOUNT,0,0)!=count){
@@ -159,22 +163,22 @@ void WindowsLauncher::paint(HDC dc,int width,int height,const NativeLauncher& mo
     }
     const auto& prefs=model.preferences();
     const bool integer=prefs.scaling==NativeScaling::Integer;
-    const wchar_t* labels[]{L"Display mode",L"Image sizing",integer?L"Integer scale":L"Filtering",L"60 FPS smoothing",L"Driving controls",L"Menu navigation"};
-    const wchar_t* scalingHelp=integer?L"Crisp, whole-pixel enlargement with borders.":prefs.scaling==NativeScaling::Fit?L"Largest image that fits, preserving its proportions.":L"Fill the display, stretching the image's proportions.";
+    const wchar_t* labels[]{L"Display mode",L"Image sizing",integer?L"Integer scale":L"Filtering",L"60 FPS smoothing",L"Driving controls",L"Menu navigation",L"Aspect ratio"};
+    const wchar_t* scalingHelp=integer?L"Crisp enlargement with original 4:3 proportions and borders.":prefs.scaling==NativeScaling::Fit?L"Largest image that fits, preserving its proportions.":L"Fill the display, stretching the image's proportions.";
     int targetWidth=width,targetHeight=height;
     if(prefs.fullscreen){MONITORINFO monitor{sizeof(MONITORINFO)};if(GetMonitorInfoW(MonitorFromWindow(parent_,MONITOR_DEFAULTTONEAREST),&monitor)){targetWidth=monitor.rcMonitor.right-monitor.rcMonitor.left;targetHeight=monitor.rcMonitor.bottom-monitor.rcMonitor.top;}}
     const auto fit=displayRectangle(targetWidth,targetHeight,prefs);
-    const auto integerHelp=prefs.integerScale?L"Windowed games resize; oversized scales are reduced to fit.":L"Largest whole-pixel scale that fits. Currently "+std::to_wstring(fit.width/320)+L"×.";
+    const auto integerHelp=prefs.integerScale?L"Windowed games resize; oversized scales are reduced to fit.":L"Largest fitting scale at original 4:3 proportions. Currently "+std::to_wstring(fit.width/viewWidth(prefs.view))+L"×.";
     const wchar_t* detailHelp=integer?integerHelp.c_str():prefs.filtering==NativeFiltering::Bilinear?L"Blend pixel edges for a softer image.":L"Keep pixel edges crisp and unfiltered.";
     const wchar_t* help[]{L"Fullscreen takes effect when you press Play.",scalingHelp,detailHelp,prefs.interpolate?L"Smooth animation at 60 FPS.":L"Original, stepped animation. Game speed stays the same.",
         prefs.controls==DriveControlPreset::Original?L"Original throttle stays on until you brake.":L"Hold gas to accelerate; release to coast. Controller RT / LT.",
-        prefs.navigation==NativeMenuNavigation::Responsive?L"Immediate response. Esc / B goes back.":L"Original menu timing and navigation."};
-    for(unsigned n=0;n<6;++n){const int y=settingsY_+int(n)*rowHeight_;
+        prefs.navigation==NativeMenuNavigation::Responsive?L"Immediate response. Esc / B goes back.":L"Original menu timing and navigation.",L"Original artwork; Extended reveals scenery outside the upper arch."};
+    for(unsigned n=0;n<7;++n){const int y=settingsY_+int(n)*rowHeight_;
         if(n)fill(dc,{margin_,y,right,y+1},line);
         text(dc,fonts_[1],{margin_,y+px(5),right-px(265),y+px(29)},labels[n],ink);
         text(dc,fonts_[2],{margin_,y+px(29),right-px(265),y+rowHeight_},help[n],muted,DT_LEFT|DT_TOP|DT_WORDBREAK);
     }
-    if(!model.error().empty())text(dc,fonts_[2],{margin_,std::max(footerY_-px(52),settingsY_+6*rowHeight_+px(38)),right,footerY_-px(5)},model.error(),RGB(255,177,156),DT_LEFT|DT_TOP|DT_WORDBREAK|DT_END_ELLIPSIS);
+    if(!model.error().empty())text(dc,fonts_[2],{margin_,std::max(footerY_-px(52),settingsY_+7*rowHeight_+px(38)),right,footerY_-px(5)},model.error(),RGB(255,177,156),DT_LEFT|DT_TOP|DT_WORDBREAK|DT_END_ELLIPSIS);
     fill(dc,{0,footerY_,width,height},panel);fill(dc,{0,footerY_,width,footerY_+1},line);
     text(dc,fonts_[2],{margin_,footerY_+px(17),right-px(250),footerY_+px(42)},L"Choices are saved when you press Play.",muted);
     text(dc,fonts_[2],{margin_,footerY_+px(40),right-px(250),footerY_+px(66)},L"Arrows / D-pad: navigate   Enter / A: confirm",muted);

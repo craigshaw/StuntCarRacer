@@ -12,6 +12,7 @@ struct OpponentCarInputs {
     RenderProjectionCamera camera;
     std::uint16_t distance{},roadOffset{},lineBytes{};
     std::uint8_t aheadFlag{},curveSmoothing{},scaledPerspective{};
+    int horizontalPadding{},topPadding{};
 };
 struct OpponentCarFrame {
     std::array<std::uint16_t,4> clampedHeights{};
@@ -23,6 +24,7 @@ struct OpponentCarFrame {
     std::vector<NearTrackDrawCommand> commands;
     std::uint16_t lineBytes{};
     bool admitted{};
+    int horizontalPadding{},topPadding{};
 };
 // Original0x67aa6 guards and0x599e2 wheel-based procedural car construction.
 // Geometry is recovered code; all angular tables remain local-pack assets.

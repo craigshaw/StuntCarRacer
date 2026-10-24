@@ -50,7 +50,7 @@ Steps steps(NearTrackPoint a,NearTrackPoint b){
 NearTrackPoint translated(const Steps& s,int x,int y,unsigned bias){return {add(add(x,s.tx),bias&1?1:0),add(add(y,s.ty),bias&2?1:0)};}
 NearTrackEdge allocateEdge(OpponentCarFrame& f,NearTrackPoint a,NearTrackPoint b){
     if(f.lineBytes>=0x2328){NearTrackEdge e{};e.clipFlags=0x80;return e;}
-    auto e=makeNearTrackEdge(a,b);e.originQueueOffset=0xffff;f.lineBytes=std::uint16_t(f.lineBytes+e.storageBytes);return e;
+    auto e=makeNearTrackEdge(a,b,f.horizontalPadding,f.topPadding);e.originQueueOffset=0xffff;f.lineBytes=std::uint16_t(f.lineBytes+e.storageBytes);return e;
 }
 void quad(OpponentCarFrame& f,const Steps& s,int x,int y,unsigned offset){
     f.vertices[0]=translated(s,add(x,-s.sx),add(y,-s.sy),2);
@@ -67,7 +67,7 @@ void command(OpponentCarFrame& f,unsigned color,std::array<unsigned,4> offsets){
 }
 } // namespace
 OpponentCarFrame buildOpponentCarFrame(const OpponentCarInputs& in,const RenderProjectionTables& tables){
-    OpponentCarFrame f{};f.lineBytes=in.lineBytes;if((in.aheadFlag&0x80)||in.distance<10||sw(in.distance)>=0xc80)return f;f.admitted=true;
+    OpponentCarFrame f{};f.horizontalPadding=in.horizontalPadding;f.topPadding=in.topPadding;f.lineBytes=in.lineBytes;if((in.aheadFlag&0x80)||in.distance<10||sw(in.distance)>=0xc80)return f;f.admitted=true;
     const auto clamp=[&](unsigned i,int bound){f.clampedHeights[i]=w(std::min(sw(in.footprint[i]),sw(w(bound+0x50))));};
     clamp(0,in.bounds[0]);clamp(2,in.bounds[1]);const int slope=asr(add(in.bounds[1],-int(in.bounds[0])),1);
     clamp(1,add(in.bounds[2],-slope));clamp(3,add(in.bounds[2],slope));

@@ -20,7 +20,11 @@ struct NearTrackGeometryState {
     std::uint8_t displayUpdate{},gridSweepDirection{},lapApproachSegment{},preview{},segmentHalfFlags{};
     std::uint8_t heightDifference{},trackOffsetBase{},processingIndex{},lastProcessed{},reverseDecision{};
     std::uint16_t perspectiveDepth{};
+    int topPadding{};
+    int horizontalPadding{}; // Private presentation bounds; never stored in simulation RAM.
 };
+inline bool nearTrackInsideY(int y,int padding){return std::uint16_t(y+padding)<128+padding;}
+inline bool nearTrackInsideX(int x,int padding){return std::uint16_t(x+padding)<256+2*padding;}
 // Original0x6521c: configure one segment, decode its dense heights, project
 // upper vertices and admit lower edges. State carries the original adjacent
 // segment coordinates and processed-side history. No runtime CPU dependency.

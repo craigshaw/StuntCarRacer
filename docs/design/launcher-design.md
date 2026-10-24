@@ -37,25 +37,29 @@ development option retains that facility.
 
 Launcher and in-game Settings share one set of saved preferences. Launcher
 changes are saved when Play is pressed. The in-game menu retains its existing
-Apply/Cancel behaviour. The six visible rows are display mode,
+Apply/Cancel behaviour. The seven visible rows are display mode,
 image sizing, Integer scale or Filtering, 60 FPS smoothing (Off/On), the Original/Modern driving preset and
-[Responsive/Original menu navigation](menu-navigation-design.md).
+[Responsive/Original menu navigation](menu-navigation-design.md), and
+[4:3 Original/Extended aspect modes](../components/native-extended-view.md).
 
 60 FPS smoothing controls presentation interpolation; Off retains the original
 stepped animation. The host still presents at 60 Hz in either mode, and game
 timing is unchanged. Image sizing offers Integer, Fit and Stretch. Integer shows
 an Auto/1×–32× scale selector; Fit and Stretch show a separate Nearest neighbour/
 Bilinear filter selector. Integer Auto is the default. Fixed scales resize the
-windowed game area and centre the fullscreen image, reducing oversized choices
+windowed game area in 320×240 display-size steps and centre the fullscreen image, reducing oversized choices
 to the largest whole scale that fits. Fit preserves proportions; Stretch fills
 both axes. Neither changes the rendered world or field of view. Filter and fixed
 scale selections are retained independently across sizing changes.
+Aspect ratio separately selects 4:3 (Original) or 4:3 (Extended). Both preserve
+the original artwork and cockpit geometry. Extended reveals world scenery in
+the unused black upper corners outside the arch. 16:9 is not offered yet.
 In-game Settings uses the same labels and saved values.
 
 Closing the launcher discards settings edits not saved through Play, without a
 confirmation prompt. Successfully imported assets remain available. Restore
 original defaults resets the pending choices to windowed, Integer Auto with nearest-neighbour filtering,
-60 FPS smoothing Off, Original driving controls and Original menu navigation;
+60 FPS smoothing Off, Original driving controls, Original menu navigation and Original race view;
 assets and saved games are unaffected. New/migrated preferences default to
 Responsive navigation.
 

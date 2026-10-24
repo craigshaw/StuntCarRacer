@@ -17,7 +17,7 @@ const NearTrackVertex& vertex(const NearTrackGeometryState& s,unsigned index){
     if(index>=0xf0||(index&1))throw std::out_of_range("Near vertex byte index outside buffers");
     return index>=0x78?s.lower[(index-0x78)/2]:s.upper[index/2];
 }
-unsigned outcode(NearTrackPoint p){return (p.x<0?8:p.x>=256?4:0)|(p.y<0?2:p.y>=128?1:0);}
+unsigned outcode(NearTrackPoint p,int padding,int topPadding){return (p.x<-padding?8:p.x>=256+padding?4:0)|(p.y<-topPadding?2:p.y>=128?1:0);}
 int ratioStep(int dx,int dy,int distance){
     if(dx<0||dy<=0||distance<0)throw std::out_of_range("Near clipping ratio outside original magnitude domain");
     if(dy>=dx)return dy==dx?distance:int(((std::uint64_t(unsigned(dx))<<16)/unsigned(dy))*unsigned(distance)>>16);
@@ -40,7 +40,7 @@ void storeEdge(NearTrackQueueState& q,unsigned offset,NearTrackEdge edge){
     q.entries[offset/32].edges[(offset&31)/4]=edge;
 }
 void storeLine(NearTrackQueueState& q,unsigned offset,const NearTrackGeometryState& s,unsigned a,unsigned b){
-    if(valid(vertex(s,a))&&valid(vertex(s,b)))storeEdge(q,offset,makeNearTrackEdge(point(vertex(s,a)),point(vertex(s,b))));
+    if(valid(vertex(s,a))&&valid(vertex(s,b)))storeEdge(q,offset,makeNearTrackEdge(point(vertex(s,a)),point(vertex(s,b)),q.horizontalPadding,q.topPadding));
     else storeEdge(q,offset,absent());
 }
 void manageBounds(NearTrackQueueState& q){
@@ -49,47 +49,48 @@ void manageBounds(NearTrackQueueState& q){
     q.opponentOffset=std::uint16_t(offset&~31);
 }
 void adjustBounds(NearTrackGeometryState& s,unsigned index){
-    for(unsigned side=0;side<2;++side){auto& v=vertex(s,index+side*2);int x=sw(unsigned(v.x-128));if(x<0)x=sw(unsigned(-x));x=sw(unsigned(x-160));if(x>=0)v.y=sw(unsigned(v.y+(unsigned(x)>>3)));}
+    for(unsigned side=0;side<2;++side){auto& v=vertex(s,index+side*2);int x=sw(unsigned(v.x-128));if(x<0)x=sw(unsigned(-x));x=sw(unsigned(x-160-s.horizontalPadding));if(x>=0)v.y=sw(unsigned(v.y+(unsigned(x)>>3)));}
 }
 std::uint8_t previousOffset(const NearTrackGeometryState& s,const NearTrackQueueState& q){return s.progress.currentSegment==q.opponentSegment?std::uint8_t(q.opponentSubSegment<<2):255;}
 NearTrackPoint endpoint(const NearTrackEdge& e,unsigned flags){return flags&0x40?e.clippedFrom:e.clippedTo;}
-int perimeter(NearTrackPoint p){if(!p.y)return p.x;if(p.x==256)return 256+p.y;if(p.y==128)return 640-p.x;return 768-p.y;}
+int perimeter(NearTrackPoint p,int padding,int topPadding){const int width=256+2*padding,height=128+topPadding;p.x+=padding;p.y+=topPadding;if(!p.y)return p.x;if(p.x==width)return width+p.y;if(p.y==height)return 2*width+height-p.x;return 2*(width+height)-p.y;}
 bool closeBoundary(std::vector<NearTrackEdge>& edges,NearTrackPoint start,NearTrackPoint target,
-    unsigned renderingFlag,const NearTrackDrawInputs& in,std::uint16_t* lineBytes){
-    const int delta=perimeter(target)-perimeter(start);
-    const bool required=delta<0?-delta<384:delta>=384;
+    unsigned renderingFlag,const NearTrackDrawInputs& in,std::uint16_t* lineBytes,int padding,int topPadding){
+    const int left=-padding,right=256+padding,top=-topPadding,middle=(128-topPadding)/2,halfPerimeter=384+2*padding+topPadding;
+    const int delta=perimeter(target,padding,topPadding)-perimeter(start,padding,topPadding);
+    const bool required=delta<0?-delta<halfPerimeter:delta>=halfPerimeter;
     bool swap=false;
     if(required){
         if(!renderingFlag)swap=in.offRoadSideFlags!=0;
         else{
             swap=true;const int lateral=std::abs(sw(in.offsetFromRoadCenter));
             if(in.offRoadSideFlags&&(renderingFlag^in.offRoadSideFlags)==0&&lateral>=197&&lateral<576){
-                if(renderingFlag&0x80){if((!start.y||(start.x==256&&start.y<64))&&target.y>start.y)swap=false;}
-                else if((!target.y||(!target.x&&target.y<64))&&start.y>target.y)swap=false;
+                if(renderingFlag&0x80){if((start.y==top||(start.x==right&&start.y<middle))&&target.y>start.y)swap=false;}
+                else if((target.y==top||(target.x==left&&target.y<middle))&&start.y>target.y)swap=false;
             }
         }
     }
     if(swap)std::swap(start,target);
-    int savedX=start.x,side=start.x==256?0:start.x==0?2:start.y==128?1:start.y==0?3:-1;
+    int savedX=start.x,side=start.x==right?0:start.x==left?2:start.y==128?1:start.y==top?3:-1;
     if(side<0)return false;
     const auto append=[&](NearTrackPoint a,NearTrackPoint c){
         // Original clipLineAndMakeEdge0x6814a admits a line at the arena's
         // exact end; its guard is strict>, unlike drawClippedLine's>= guard.
         if(lineBytes&&*lineBytes>0x2328)return false;
-        auto e=makeNearTrackEdge(a,c);e.originQueueOffset=0xffff;e.originEdge=0xff;
+        auto e=makeNearTrackEdge(a,c,padding,topPadding);e.originQueueOffset=0xffff;e.originEdge=0xff;
         if(lineBytes)*lineBytes=std::uint16_t(*lineBytes+e.storageBytes);edges.push_back(e);return true;
     };
     for(unsigned n=0;n<12;++n){
         if(side==0){
-            const int end=target.x==256&&start.y<=target.y?target.y:128;
-            if(!append({256,start.y},{256,end}))return false;
-            if(target.x==256&&start.y<=target.y)return true;start.y=128;
-        }else if(side==1){if(target.y==128&&savedX>=target.x)return true;savedX=0;}
+            const int end=target.x==right&&start.y<=target.y?target.y:128;
+            if(!append({right,start.y},{right,end}))return false;
+            if(target.x==right&&start.y<=target.y)return true;start.y=128;
+        }else if(side==1){if(target.y==128&&savedX>=target.x)return true;savedX=left;}
         else if(side==2){
-            const int end=target.x==0&&start.y>=target.y?target.y:0;
-            if(!append({0,start.y},{0,end}))return false;
-            if(target.x==0&&start.y>=target.y)return true;start.y=0;
-        }else{if(target.y==0&&savedX<=target.x)return true;savedX=256;}
+            const int end=target.x==left&&start.y>=target.y?target.y:top;
+            if(!append({left,start.y},{left,end}))return false;
+            if(target.x==left&&start.y>=target.y)return true;start.y=top;
+        }else{if(target.y==top&&savedX<=target.x)return true;savedX=right;}
         side=(side+1)%4;
     }
     return false;
@@ -130,7 +131,7 @@ FillResult fill(std::vector<NearTrackDrawCommand>& output,const NearTrackQueueSt
         // edge exists. Original extraction then reads the initial edge just
         // written at that base, rather than an absent edge sentinel.
         const auto target=endpoint(back.empty()?front.front():back.back(),backFlags);
-        if(!closeBoundary(front,start,target,surface==NearTrackSurface::rightSide?0x80:surface==NearTrackSurface::leftSide?2:0,in,lineBytes))return {barrierOffset};
+        if(!closeBoundary(front,start,target,surface==NearTrackSurface::rightSide?0x80:surface==NearTrackSurface::leftSide?2:0,in,lineBytes,q.horizontalPadding,q.topPadding))return {barrierOffset};
     }else{
         const auto& edge=q.entries.at(cursor/32).edges[vertical];clip&=edge.clipFlags;if(!edge.present)return {barrierOffset};front.push_back(edge);
     }
@@ -150,24 +151,24 @@ void barrierEdges(std::vector<NearTrackDrawCommand>& out,const NearTrackQueueSta
 }
 } // namespace
 
-NearTrackEdge makeNearTrackEdge(NearTrackPoint from,NearTrackPoint to){
+NearTrackEdge makeNearTrackEdge(NearTrackPoint from,NearTrackPoint to,int padding,int topPadding){
     from={sw(unsigned(from.x)),sw(unsigned(from.y))};to={sw(unsigned(to.x)),sw(unsigned(to.y))};
     NearTrackEdge e{};e.from=from;e.to=to;e.present=true;
     auto a=from,b=to;if(a.y<b.y){std::swap(a,b);e.clipFlags=0x40;}
-    unsigned common=outcode(a)&outcode(b);
+    unsigned common=outcode(a,padding,topPadding)&outcode(b,padding,topPadding);
     if(!common){
-        if(a.y<0)clipY(a,b,0);else if(a.y>=128)clipY(a,b,128);
-        if(b.y<0)clipY(b,a,0);else if(b.y>=128)clipY(b,a,128);
-        common=outcode(a)&outcode(b);
+        if(a.y<-topPadding)clipY(a,b,-topPadding);else if(a.y>=128)clipY(a,b,128);
+        if(b.y<-topPadding)clipY(b,a,-topPadding);else if(b.y>=128)clipY(b,a,128);
+        common=outcode(a,padding,topPadding)&outcode(b,padding,topPadding);
     }
     if(common)e.clipFlags=std::uint8_t(e.clipFlags|0x80|common);
-    const int rasterY0=std::clamp(a.y,0,128),rasterY1=std::clamp(b.y,0,128);
+    const int rasterY0=std::clamp(a.y,-topPadding,128),rasterY1=std::clamp(b.y,-topPadding,128);
     e.storageBytes=std::uint16_t(10+2*std::abs(rasterY0-rasterY1));
-    e.clippedFrom={std::clamp(a.x,0,256),std::clamp(a.y,0,128)};
-    e.clippedTo={std::clamp(b.x,0,256),std::clamp(b.y,0,128)};return e;
+    e.clippedFrom={std::clamp(a.x,-padding,256+padding),std::clamp(a.y,-topPadding,128)};
+    e.clippedTo={std::clamp(b.x,-padding,256+padding),std::clamp(b.y,-topPadding,128)};return e;
 }
 void seedNearTrackCutEdges(const NearTrackGeometryState& s,const std::array<NearTrackCutEdge,4>& cuts,NearTrackQueueState& q){
-    for(unsigned n=0;n<4;++n){const auto& e=cuts[n];if(e.valid)storeEdge(q,32+4*n,makeNearTrackEdge(point(vertex(s,e.fromIndex)),point(vertex(s,e.toIndex))));else storeEdge(q,32+4*n,absent());}
+    for(unsigned n=0;n<4;++n){const auto& e=cuts[n];if(e.valid)storeEdge(q,32+4*n,makeNearTrackEdge(point(vertex(s,e.fromIndex)),point(vertex(s,e.toIndex)),q.horizontalPadding,q.topPadding));else storeEdge(q,32+4*n,absent());}
 }
 void processNearTrackVisibility(NearTrackGeometryState& s,std::uint8_t renderFlags,NearTrackQueueState& q,
     const std::function<void(std::uint8_t)>& materialize){

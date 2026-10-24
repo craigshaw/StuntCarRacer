@@ -9,6 +9,8 @@ namespace scr::viewer {
 enum class NativeScaling { Integer, Fit, Stretch };
 enum class NativeFiltering { NearestNeighbour, Bilinear };
 constexpr unsigned maximumIntegerScale=32;
+// 320x200 bitmap pixels are displayed with the original 4:3 proportions.
+constexpr int originalDisplayHeight=240;
 struct NativeDisplayPreferences {
     bool fullscreen{},interpolate{};
     NativeScaling scaling{NativeScaling::Integer};
@@ -16,8 +18,9 @@ struct NativeDisplayPreferences {
     NativeMenuNavigation navigation{NativeMenuNavigation::Responsive};
     NativeFiltering filtering{NativeFiltering::NearestNeighbour};
     unsigned integerScale{}; // Zero selects the largest fitting integer scale.
+    NativeView view{NativeView::Original};
     bool operator==(const NativeDisplayPreferences& other)const noexcept {
-        return fullscreen==other.fullscreen&&interpolate==other.interpolate&&scaling==other.scaling&&controls==other.controls&&navigation==other.navigation&&filtering==other.filtering&&integerScale==other.integerScale;
+        return fullscreen==other.fullscreen&&interpolate==other.interpolate&&scaling==other.scaling&&controls==other.controls&&navigation==other.navigation&&filtering==other.filtering&&integerScale==other.integerScale&&view==other.view;
     }
 };
 NativeDisplayPreferences loadDisplayPreferences(const std::filesystem::path&);
@@ -25,9 +28,9 @@ bool saveDisplayPreferences(const std::filesystem::path&,const NativeDisplayPref
 const wchar_t* scalingName(NativeScaling)noexcept;
 const wchar_t* filteringName(NativeFiltering)noexcept;
 std::wstring integerScaleName(unsigned);
-PresentationRectangle displayRectangle(int width,int height,const NativeDisplayPreferences&);
+PresentationRectangle displayRectangle(int width,int height,const NativeDisplayPreferences&,int sourceWidth=0);
 // Existing preference row identities stay stable; the dependent row is last.
-constexpr unsigned displayRowOrder[]{0,1,5,2,3,4};
+constexpr unsigned displayRowOrder[]{0,1,5,2,3,4,6};
 void changeDisplayPreference(NativeDisplayPreferences&,unsigned row,int direction=1);
 // Bits shared by keyboard and controller navigation: up/down/left/right/A/B.
 unsigned displayPadNavigation(const DrivePad&)noexcept;

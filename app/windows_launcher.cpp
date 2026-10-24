@@ -116,10 +116,14 @@ void WindowsLauncher::paint(HDC dc,int width,int height,const NativeLauncher& mo
     if(artwork_->image){
         Gdiplus::Graphics graphics(dc);graphics.SetClip(Gdiplus::Rect(0,0,width,header_));
         graphics.SetInterpolationMode(Gdiplus::InterpolationModeHighQualityBicubic);
-        const int w=int(width*1.04),h=int(double(w)*artwork_->image->GetHeight()/artwork_->image->GetWidth());
+        const auto imageWidth=artwork_->image->GetWidth(),imageHeight=artwork_->image->GetHeight();
+        const int padding=px(12);
+        const double fit=std::min(double(std::max(1,width-2*margin_))/imageWidth,
+            double(std::max(1,header_-2*padding))/imageHeight);
+        const int w=std::max(1,int(std::lround(imageWidth*fit))),h=std::max(1,int(std::lround(imageHeight*fit)));
         Gdiplus::ColorMatrix matrix{{{1,0,0,0,0},{0,1,0,0,0},{0,0,1,0,0},{0,0,0,0.24f,0},{0,0,0,0,1}}};
         Gdiplus::ImageAttributes attributes;attributes.SetColorMatrix(&matrix);
-        graphics.DrawImage(artwork_->image.get(),Gdiplus::Rect(width-w,-int(h*0.16),w,h),0,0,int(artwork_->image->GetWidth()),int(artwork_->image->GetHeight()),Gdiplus::UnitPixel,&attributes);
+        graphics.DrawImage(artwork_->image.get(),Gdiplus::Rect(width-margin_-w,(header_-h)/2,w,h),0,0,int(imageWidth),int(imageHeight),Gdiplus::UnitPixel,&attributes);
         Gdiplus::LinearGradientBrush fade(Gdiplus::Point(0,0),Gdiplus::Point(0,header_),Gdiplus::Color(35,16,21,28),Gdiplus::Color(255,16,21,28));
         graphics.FillRectangle(&fade,0,0,width,header_);
     }

@@ -89,6 +89,8 @@ presentation after Play.
 
 There is no Native port / Amiga original subtitle. The supplied original logo
 forms a low-opacity background behind the title and fades into the dialog.
+Scale the complete image to fit the padded header at the right, preserving its
+aspect ratio without cropping at normal or compact window sizes.
 It is a local build resource, kept out of source control with other original assets.
 
 ## Delivery and verification

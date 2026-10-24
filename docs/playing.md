@@ -12,7 +12,8 @@ The executable opens a native launcher before constructing the game session.
 Choose ADF imports the supported original disk, preserving it and retaining an
 asset pack for later launches. Missing or damaged data keeps Play unavailable;
 failed replacements retain existing valid data. Details shows the supported
-source hash and local pack path. The original logo is a subdued header background.
+source hash and local pack path. The original logo is a subdued header background,
+scaled proportionally to fit within the header.
 Mouse, Tab, arrows and controller navigation operate the launcher; Windows' file
 picker uses its normal keyboard/mouse controls.
 

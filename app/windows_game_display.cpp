@@ -90,10 +90,10 @@ void WindowsGameDisplay::overlay(HDC dc,int width,int height,const NativeDisplay
     const auto old=SelectObject(dc,font);SetBkMode(dc,TRANSPARENT);
     const auto text=[&](int x,int y,const wchar_t* value,COLORREF colour){SetTextColor(dc,colour);TextOutW(dc,left+px(x),top+px(y),value,int(wcslen(value)));};
     text(24,18,menu?L"Settings":L"Paused",RGB(245,247,250));
-    const wchar_t* labels[]{L"Display mode",L"Scaling",L"Motion",L"Driving controls",L"Menu navigation",L"Apply and back",L"Cancel"};
+    const wchar_t* labels[]{L"Display mode",L"Scaling",L"60 FPS smoothing",L"Driving controls",L"Menu navigation",L"Apply and back",L"Cancel"};
     const wchar_t* pause[]{L"Resume",L"Settings"};
     const auto& prefs=settings.preferences();
-    const wchar_t* values[]{prefs.fullscreen?L"Borderless fullscreen":L"Windowed",scalingName(prefs.scaling),prefs.interpolate?L"Smooth interpolation":L"Original updates",
+    const wchar_t* values[]{prefs.fullscreen?L"Borderless fullscreen":L"Windowed",scalingName(prefs.scaling),prefs.interpolate?L"On":L"Off",
         prefs.controls==DriveControlPreset::Original?L"Original":L"Modern",prefs.navigation==NativeMenuNavigation::Responsive?L"Responsive":L"Original"};
     for(unsigned n=0;n<(menu?7u:2u);++n){
         const int y=64+int(n)*36;

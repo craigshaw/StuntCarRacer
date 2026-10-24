@@ -17,7 +17,10 @@ scaled proportionally to fit within the header.
 Mouse, Tab, arrows and controller navigation operate the launcher; Windows' file
 picker uses its normal keyboard/mouse controls.
 
-The launcher offers display mode, scaling, motion, driving controls and menu navigation. Changes
+The launcher offers display mode, scaling, 60 FPS smoothing (Off/On), driving
+controls and menu navigation. Smoothing On interpolates animation at 60 FPS;
+Off retains the original stepped animation. Both
+keep the same game speed and 60 Hz host presentation. Changes
 are saved when Play is pressed; closing discards pending setting edits while
 retaining completed asset imports. Restore original defaults resets only those
 five choices, including Original menu navigation. Failed saves and game initialization remain in the launcher with
@@ -228,8 +231,8 @@ explicitly. M mutes. I toggles and saves interpolation outside text entry.
 F10 opens Settings from any screen. Controller Start opens it directly
 from the original menus. Use arrows or the stick/D-pad to select rows; Left/Right
 changes values, and Return/A changes a selected value or activates Apply and Back.
-The options are Windowed/Borderless Fullscreen, Integer/Fit Sharp/Fit Smooth scaling,
-Original Updates/Smooth Interpolation, Original/Modern driving controls, and
+The options are Windowed/Borderless Fullscreen, Integer/Fit (Nearest neighbour)/
+Fit (Bilinear) scaling, 60 FPS smoothing Off/On, Original/Modern driving controls, and
 Responsive/Original menu navigation. Menu navigation is independent of the
 driving preset; applying it keeps the current session and screen. Changes
 preview immediately. Apply and Back saves them; Cancel, Escape, B, F10 or Start restores the choices from before
@@ -238,8 +241,9 @@ adjusting settings during a race also requires an explicit resume.
 
 F11 toggles borderless fullscreen on the window's monitor and restores the prior
 window placement when leaving. Integer scaling uses uniform nearest-neighbour
-enlargement; Fit Sharp uses nearest-neighbour at the largest fitting size;
-Fit Smooth uses bilinear filtering. All retain the source aspect and black borders.
+enlargement; Fit (Nearest neighbour) uses unfiltered pixels at the largest fitting
+size; Fit (Bilinear) blends pixel edges for a softer image. All retain the source
+aspect and black borders.
 The original 320-by-200 game image and field of view are unchanged. Display UI is
 composited after scaling, independently of the original game pixels.
 

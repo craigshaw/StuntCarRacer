@@ -69,9 +69,15 @@ void recording(const std::filesystem::path& pack,const std::filesystem::path& ro
     require(*normalMemory==*recordedMemory,"Recording changed persistent simulation memory");
     normal.resetLive();require(normal.liveRecording().empty()&&normal.liveTicks()==0,"Reset enabled recording");
 }
-WindowsLauncher* activeView{};NativeLauncher* activeModel{};
+WindowsLauncher* activeView{};NativeLauncher* activeModel{};bool drawingStatePreserved=true;
 LRESULT CALLBACK procedure(HWND window,UINT kind,WPARAM key,LPARAM data){
-    if(kind==WM_DRAWITEM&&activeView){activeView->drawButton(*reinterpret_cast<DRAWITEMSTRUCT*>(data));return TRUE;}
+    if(kind==WM_DRAWITEM&&activeView){
+        const auto& item=*reinterpret_cast<DRAWITEMSTRUCT*>(data);
+        const auto mode=GetBkMode(item.hDC);const auto colour=GetTextColor(item.hDC);const auto background=GetBkColor(item.hDC);
+        activeView->drawButton(item);
+        drawingStatePreserved&=GetBkMode(item.hDC)==mode&&GetTextColor(item.hDC)==colour&&GetBkColor(item.hDC)==background;
+        return TRUE;
+    }
     return DefWindowProcW(window,kind,key,data);
 }
 void snapshot(const std::filesystem::path& root,NativeLauncher& model,int width,int height,const wchar_t* name){
@@ -95,6 +101,7 @@ void snapshot(const std::filesystem::path& root,NativeLauncher& model,int width,
     GdiFlush();UINT count{},size{};Gdiplus::GetImageEncodersSize(&count,&size);std::vector<std::uint8_t> encoders(size);auto codec=reinterpret_cast<Gdiplus::ImageCodecInfo*>(encoders.data());Gdiplus::GetImageEncoders(count,size,codec);
     for(UINT n=0;n<count;++n)if(std::wstring(codec[n].MimeType)==L"image/png"){Gdiplus::Bitmap image(bitmap,nullptr);require(image.Save((root/name).c_str(),&codec[n].Clsid,nullptr)==Gdiplus::Ok,"Cannot save launcher preview");}
     SelectObject(dc,previous);DeleteObject(bitmap);DeleteDC(dc);DestroyWindow(window);activeView=nullptr;activeModel=nullptr;
+    require(drawingStatePreserved,"Owner drawing changed the native control's drawing context");
 }
 }
 int main(int argc,char** argv)try{

@@ -64,7 +64,7 @@ bool saveDisplayPreferences(const std::filesystem::path& path,const NativeDispla
     return true;
 }
 const wchar_t* scalingName(NativeScaling scaling)noexcept{
-    switch(scaling){case NativeScaling::FitSharp:return L"Fit sharp";case NativeScaling::FitSmooth:return L"Fit smooth";default:return L"Integer";}
+    switch(scaling){case NativeScaling::FitSharp:return L"Fit (Nearest neighbour)";case NativeScaling::FitSmooth:return L"Fit (Bilinear)";default:return L"Integer";}
 }
 unsigned displayPadNavigation(const DrivePad& pad)noexcept{
     if(!pad.connected)return 0;

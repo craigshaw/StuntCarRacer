@@ -18,6 +18,12 @@ void text(HDC dc,HFONT font,RECT rect,const std::wstring& value,COLORREF colour,
     DrawTextW(dc,value.c_str(),int(value.size()),&rect,flags|DT_NOPREFIX);SelectObject(dc,previous);
 }
 LRESULT CALLBACK controlProcedure(HWND child,UINT message,WPARAM key,LPARAM data,UINT_PTR,DWORD_PTR){
+    if(message==WM_SETFOCUS||message==WM_KILLFOCUS){
+        const auto result=DefSubclassProc(child,message,key,data);
+        // Native focus changes can draw directly, outside WM_PAINT. Repaint
+        // the complete custom surface so the previous outline is cleared.
+        InvalidateRect(child,nullptr,FALSE);return result;
+    }
     if((message==WM_PAINT||message==WM_PRINT||message==WM_PRINTCLIENT)&&GetDlgCtrlID(child)>=LauncherDisplay&&GetDlgCtrlID(child)<=LauncherNavigation){
         const auto result=DefSubclassProc(child,message,key,data);const auto dc=message==WM_PAINT?GetDC(child):reinterpret_cast<HDC>(key);RECT rect{};GetClientRect(child,&rect);
         // Keep the native combobox's accessibility and popup, while matching
@@ -70,8 +76,9 @@ void WindowsLauncher::create(HWND parent){
         if(!controls_[n])throw std::runtime_error("Cannot create launcher controls.");
         SetWindowSubclass(controls_[n],controlProcedure,1,0);
     }
-    const wchar_t* choices[][3]{{L"Windowed",L"Borderless fullscreen",nullptr},{L"Integer",L"Fit sharp",L"Fit smooth"},
-        {L"Original updates",L"Smooth interpolation",nullptr},{L"Original",L"Modern",nullptr},{L"Responsive",L"Original",nullptr}};
+    const wchar_t* choices[][3]{{L"Windowed",L"Borderless fullscreen",nullptr},
+        {scalingName(NativeScaling::Integer),scalingName(NativeScaling::FitSharp),scalingName(NativeScaling::FitSmooth)},
+        {L"Off",L"On",nullptr},{L"Original",L"Modern",nullptr},{L"Responsive",L"Original",nullptr}};
     for(unsigned row=0;row<5;++row)for(const auto choice:choices[row])if(choice)SendMessageW(controls_[row+2],CB_ADDSTRING,0,reinterpret_cast<LPARAM>(choice));
     SetWindowTextW(controls_[1],L"Details");SetWindowTextW(controls_[7],L"Restore original defaults");
     SetWindowTextW(controls_[8],L"Quit");SetWindowTextW(controls_[9],L"Play");
@@ -136,10 +143,10 @@ void WindowsLauncher::paint(HDC dc,int width,int height,const NativeLauncher& mo
         text(dc,fonts_[2],{margin_,assetY_+assetHeight_+px(33),right,settingsY_-px(20)},
             L"Supported ADF SHA-256: 548fd106cd62f2d80159d48ddd5293d8b22b6b17f80c17a84a61d75f5c8a9e06\nGame data: "+model.paths().pack.wstring(),muted,DT_LEFT|DT_TOP|DT_WORDBREAK);
     }
-    const wchar_t* labels[]{L"Display mode",L"Scaling",L"Motion",L"Driving controls",L"Menu navigation"};
+    const wchar_t* labels[]{L"Display mode",L"Scaling",L"60 FPS smoothing",L"Driving controls",L"Menu navigation"};
     const auto& prefs=model.preferences();
-    const wchar_t* scalingHelp=prefs.scaling==NativeScaling::Integer?L"Whole-pixel enlargement with crisp original edges.":prefs.scaling==NativeScaling::FitSharp?L"Fit the display, keeping crisp pixel edges.":L"Fit the display with softer, filtered edges.";
-    const wchar_t* help[]{L"Fullscreen takes effect when you press Play.",scalingHelp,prefs.interpolate?L"Smoother motion with a small presentation delay.":L"Original, stepped motion.",
+    const wchar_t* scalingHelp=prefs.scaling==NativeScaling::Integer?L"Whole-pixel enlargement with crisp original edges.":prefs.scaling==NativeScaling::FitSharp?L"Fit the display with crisp, unfiltered pixel edges.":L"Fit the display with softer, blended pixel edges.";
+    const wchar_t* help[]{L"Fullscreen takes effect when you press Play.",scalingHelp,prefs.interpolate?L"Smooth animation at 60 FPS.":L"Original, stepped animation. Game speed stays the same.",
         prefs.controls==DriveControlPreset::Original?L"Original throttle stays on until you brake.":L"Hold gas to accelerate; release to coast. Controller RT / LT.",
         prefs.navigation==NativeMenuNavigation::Responsive?L"Immediate response. Esc / B goes back.":L"Original menu timing and navigation."};
     for(unsigned n=0;n<5;++n){const int y=settingsY_+int(n)*rowHeight_;
@@ -154,6 +161,7 @@ void WindowsLauncher::paint(HDC dc,int width,int height,const NativeLauncher& mo
 }
 void WindowsLauncher::drawButton(const DRAWITEMSTRUCT& item){
     const auto dc=item.hDC;const bool combo=item.CtlID>=LauncherDisplay&&item.CtlID<=LauncherNavigation;
+    const auto saved=SaveDC(dc);
     const bool selected=(item.itemState&ODS_SELECTED)!=0,disabled=(item.itemState&ODS_DISABLED)!=0;
     const bool focus=(item.itemState&ODS_FOCUS)!=0;
     const bool primary=item.CtlID==LauncherPlay;
@@ -167,6 +175,7 @@ void WindowsLauncher::drawButton(const DRAWITEMSTRUCT& item){
     RECT rect=item.rcItem;rect.left+=int(10*scale_);rect.right-=int(10*scale_);
     text(dc,quiet?fonts_[2]:fonts_[3],rect,label,primary?RGB(28,25,19):disabled?muted:ink,DT_VCENTER|DT_SINGLELINE|(combo||quiet?DT_LEFT:DT_CENTER));
     if(focus&&quiet){const auto brush=CreateSolidBrush(amber);FrameRect(dc,&item.rcItem,brush);DeleteObject(brush);}
+    RestoreDC(dc,saved);
 }
 HBRUSH WindowsLauncher::controlColour(HDC dc){SetTextColor(dc,ink);SetBkColor(dc,background);return inputBrush_;}
 LauncherAction WindowsLauncher::command(unsigned id,NativeLauncher& model){

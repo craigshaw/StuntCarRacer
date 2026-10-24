@@ -13,7 +13,7 @@ Project terminology lives in the [glossary](../../GLOSSARY.md).
   Subsequent launches do not require the ADF to remain present.
 - The first version accepts only the currently verified source disk and explains
   unsupported disks clearly. Additional variants require separate verification.
-- Configuration covers the existing display mode, scaling, motion interpolation
+- Configuration covers the existing display mode, scaling, 60 FPS smoothing
   and control presets. The faithful baseline remains available.
 - Visual design uses a contemporary layout with restrained Amiga-era colours and
   typography, readable text and clear controls.
@@ -38,13 +38,19 @@ development option retains that facility.
 Launcher and in-game Settings share one set of saved preferences. Launcher
 changes are saved when Play is pressed. The in-game menu retains its existing
 Apply/Cancel behaviour. The five configurable choices are display mode,
-scaling, interpolation, the Original/Modern driving preset and
+scaling, 60 FPS smoothing (Off/On), the Original/Modern driving preset and
 [Responsive/Original menu navigation](menu-navigation-design.md).
+
+60 FPS smoothing controls presentation interpolation; Off retains the original
+stepped animation. The host still presents at 60 Hz in either mode, and game
+timing is unchanged. Scaling choices are Integer, Fit (Nearest neighbour) and
+Fit (Bilinear), naming the filters used by the two aspect-preserving fit modes.
+In-game Settings uses the same labels and saved values.
 
 Closing the launcher discards settings edits not saved through Play, without a
 confirmation prompt. Successfully imported assets remain available. Restore
 original defaults resets the pending choices to windowed, integer scaling,
-original updates, Original driving controls and Original menu navigation;
+60 FPS smoothing Off, Original driving controls and Original menu navigation;
 assets and saved games are unaffected. New/migrated preferences default to
 Responsive navigation.
 
@@ -81,6 +87,8 @@ available. The original ADF is always preserved.
 Use one screen: game-data status near the top, the five grouped settings below,
 and Play and Quit at the bottom. Once imported, show Game data ready, the source
 filename and Change ADF. Keep technical diagnostics under Details.
+Keyboard and controller focus highlights follow the active control; repaint
+both focus gain and loss so no outline remains on a previously visited control.
 
 The launcher is a contemporary native desktop surface with restrained Amiga-era
 colour and typography. Its layout and status messages work before any source

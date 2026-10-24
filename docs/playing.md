@@ -23,7 +23,7 @@ Off retains the original stepped animation. Both
 keep the same game speed and 60 Hz host presentation. Changes
 are saved when Play is pressed; closing discards pending setting edits while
 retaining completed asset imports. Restore original defaults resets only those
-five choices, including Original menu navigation. Failed saves and game initialization remain in the launcher with
+choices, including Integer Auto and Original menu navigation. Failed saves and game initialization remain in the launcher with
 an explanation and retry. The launcher stays windowed; Play applies the selected
 display mode and enters the original mode chooser in the same window. In-game
 Settings remains available, and closing the game exits the application.
@@ -236,8 +236,8 @@ Pause and Settings. During name entry, F types normally instead of toggling it.
 F10 opens Settings from any screen. Controller Start opens it directly
 from the original menus. Use arrows or the stick/D-pad to select rows; Left/Right
 changes values, and Return/A changes a selected value or activates Apply and Back.
-The options are Windowed/Borderless Fullscreen, Integer/Fit (Nearest neighbour)/
-Fit (Bilinear) scaling, 60 FPS smoothing Off/On, Original/Modern driving controls, and
+The options are Windowed/Borderless Fullscreen, Integer/Fit/Stretch image sizing,
+Integer scale or Filtering, 60 FPS smoothing Off/On, Original/Modern driving controls, and
 Responsive/Original menu navigation. Menu navigation is independent of the
 driving preset; applying it keeps the current session and screen. Changes
 preview immediately. Apply and Back saves them; Cancel, Escape, B, F10 or Start restores the choices from before
@@ -245,11 +245,25 @@ entry. Settings entered from the pause panel return there. Focus loss while
 adjusting settings during a race also requires an explicit resume.
 
 F11 toggles borderless fullscreen on the window's monitor and restores the prior
-window placement when leaving. Integer scaling uses uniform nearest-neighbour
-enlargement; Fit (Nearest neighbour) uses unfiltered pixels at the largest fitting
-size; Fit (Bilinear) blends pixel edges for a softer image. All retain the source
-aspect and black borders.
-The original 320-by-200 game image and field of view are unchanged. Display UI is
+window placement when leaving. Image sizing and filtering are separate:
+
+- **Integer** uses crisp whole-pixel enlargement. **Auto**, the default, selects
+  the largest whole-number scale that fits. Fixed **1×–32×** scales centre the
+  image in fullscreen; selecting one in windowed mode resizes the game area
+  (for example, 3× gives 960×600). Oversized choices use the largest fitting
+  whole scale. Manually shrinking a window can also limit the selected scale.
+- **Fit** preserves the 320×200 image's proportions and fills whichever screen
+  dimension limits it. A 1920×1080 display shows 1728×1080 with side borders.
+- **Stretch** fills the entire window or monitor, changing image proportions.
+  It shows the same game view and retains all HUD and menu content.
+- **Filtering**, shown for Fit and Stretch, offers **Nearest neighbour** for
+  unfiltered pixel edges or **Bilinear** for softer, blended edges. Integer
+  always uses nearest-neighbour pixels. The last filter and integer scale are
+  remembered separately when switching image sizing.
+
+Settings preview immediately; Cancel restores the previous choices and window
+placement, including after changing a fixed scale or fullscreen. Apply retains
+the preview and saves it. The original game resolution and field of view are unchanged. Display UI is
 composited after scaling, independently of the original game pixels.
 
 Preferences are stored atomically; the development helper uses

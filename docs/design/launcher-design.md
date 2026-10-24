@@ -37,19 +37,24 @@ development option retains that facility.
 
 Launcher and in-game Settings share one set of saved preferences. Launcher
 changes are saved when Play is pressed. The in-game menu retains its existing
-Apply/Cancel behaviour. The five configurable choices are display mode,
-scaling, 60 FPS smoothing (Off/On), the Original/Modern driving preset and
+Apply/Cancel behaviour. The six visible rows are display mode,
+image sizing, Integer scale or Filtering, 60 FPS smoothing (Off/On), the Original/Modern driving preset and
 [Responsive/Original menu navigation](menu-navigation-design.md).
 
 60 FPS smoothing controls presentation interpolation; Off retains the original
 stepped animation. The host still presents at 60 Hz in either mode, and game
-timing is unchanged. Scaling choices are Integer, Fit (Nearest neighbour) and
-Fit (Bilinear), naming the filters used by the two aspect-preserving fit modes.
+timing is unchanged. Image sizing offers Integer, Fit and Stretch. Integer shows
+an Auto/1×–32× scale selector; Fit and Stretch show a separate Nearest neighbour/
+Bilinear filter selector. Integer Auto is the default. Fixed scales resize the
+windowed game area and centre the fullscreen image, reducing oversized choices
+to the largest whole scale that fits. Fit preserves proportions; Stretch fills
+both axes. Neither changes the rendered world or field of view. Filter and fixed
+scale selections are retained independently across sizing changes.
 In-game Settings uses the same labels and saved values.
 
 Closing the launcher discards settings edits not saved through Play, without a
 confirmation prompt. Successfully imported assets remain available. Restore
-original defaults resets the pending choices to windowed, integer scaling,
+original defaults resets the pending choices to windowed, Integer Auto with nearest-neighbour filtering,
 60 FPS smoothing Off, Original driving controls and Original menu navigation;
 assets and saved games are unaffected. New/migrated preferences default to
 Responsive navigation.
@@ -84,7 +89,7 @@ available. The original ADF is always preserved.
 
 ## Launcher layout
 
-Use one screen: game-data status near the top, the five grouped settings below,
+Use one screen: game-data status near the top, the six grouped settings below,
 and Play and Quit at the bottom. Once imported, show Game data ready, the source
 filename and Change ADF. Keep technical diagnostics under Details.
 Keyboard and controller focus highlights follow the active control; repaint

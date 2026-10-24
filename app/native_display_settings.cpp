@@ -2,6 +2,8 @@
 #define WIN32_LEAN_AND_MEAN
 #include <windows.h>
 #include "native_display_settings.h"
+#include <algorithm>
+#include <charconv>
 #include <fstream>
 #include <sstream>
 #include <stdexcept>
@@ -18,11 +20,14 @@ NativeDisplayPreferences loadDisplayPreferences(const std::filesystem::path& pat
     if(error||size>1024)return preferences;
     std::ifstream input(path);std::string header,full,scale,motion,extra;
     if(!std::getline(input,header)||!std::getline(input,full)||!std::getline(input,scale)||!std::getline(input,motion))return {};
-    if((header!="SCR display 1"&&header!="SCR display 2"&&header!="SCR display 3")||(full!="fullscreen=0"&&full!="fullscreen=1")||
+    const bool current=header=="SCR display 4";
+    if((header!="SCR display 1"&&header!="SCR display 2"&&header!="SCR display 3"&&!current)||(full!="fullscreen=0"&&full!="fullscreen=1")||
        (motion!="interpolate=0"&&motion!="interpolate=1"))return {};
     if(scale=="scaling=integer")preferences.scaling=NativeScaling::Integer;
-    else if(scale=="scaling=sharp")preferences.scaling=NativeScaling::FitSharp;
-    else if(scale=="scaling=smooth")preferences.scaling=NativeScaling::FitSmooth;
+    else if(current&&scale=="scaling=fit")preferences.scaling=NativeScaling::Fit;
+    else if(current&&scale=="scaling=stretch")preferences.scaling=NativeScaling::Stretch;
+    else if(!current&&scale=="scaling=sharp")preferences.scaling=NativeScaling::Fit;
+    else if(!current&&scale=="scaling=smooth"){preferences.scaling=NativeScaling::Fit;preferences.filtering=NativeFiltering::Bilinear;}
     else return {};
     // Version 1 predates control presets. Keep its display choices and use
     // the faithful controls until the player explicitly selects Modern.
@@ -31,10 +36,21 @@ NativeDisplayPreferences loadDisplayPreferences(const std::filesystem::path& pat
         if(controls=="controls=modern")preferences.controls=DriveControlPreset::Modern;
         else if(controls!="controls=original")return {};
     }
-    if(header=="SCR display 3"){
+    if(header=="SCR display 3"||current){
         std::string navigation;if(!std::getline(input,navigation))return {};
         if(navigation=="navigation=original")preferences.navigation=NativeMenuNavigation::Original;
         else if(navigation!="navigation=responsive")return {};
+    }
+    if(current){
+        std::string filtering,integer;
+        if(!std::getline(input,filtering)||!std::getline(input,integer))return {};
+        if(filtering=="filtering=bilinear")preferences.filtering=NativeFiltering::Bilinear;
+        else if(filtering!="filtering=nearest")return {};
+        const std::string prefix="integer-scale=";
+        if(integer.compare(0,prefix.size(),prefix)!=0)return {};
+        const auto first=integer.data()+prefix.size(),last=integer.data()+integer.size();
+        const auto parsed=std::from_chars(first,last,preferences.integerScale);
+        if(parsed.ec!=std::errc{}||parsed.ptr!=last||preferences.integerScale>maximumIntegerScale)return {};
     }
     while(std::getline(input,extra))if(!extra.empty())return {};
     preferences.fullscreen=full=="fullscreen=1";preferences.interpolate=motion=="interpolate=1";return preferences;
@@ -43,16 +59,20 @@ bool saveDisplayPreferences(const std::filesystem::path& path,const NativeDispla
     validatePath(path);
     std::error_code error;if(path.has_parent_path())std::filesystem::create_directories(path.parent_path(),error);
     if(error)return false;
-    std::ostringstream output;output<<"SCR display 3\nfullscreen="<<preferences.fullscreen<<"\nscaling=";
+    if(preferences.integerScale>maximumIntegerScale)return false;
+    std::ostringstream output;output<<"SCR display 4\nfullscreen="<<preferences.fullscreen<<"\nscaling=";
     switch(preferences.scaling){case NativeScaling::Integer:output<<"integer";break;
-        case NativeScaling::FitSharp:output<<"sharp";break;case NativeScaling::FitSmooth:output<<"smooth";break;default:return false;}
+        case NativeScaling::Fit:output<<"fit";break;case NativeScaling::Stretch:output<<"stretch";break;default:return false;}
     output<<"\ninterpolate="<<preferences.interpolate<<"\ncontrols=";
     switch(preferences.controls){case DriveControlPreset::Original:output<<"original";break;
         case DriveControlPreset::Modern:output<<"modern";break;default:return false;}
     output<<"\nnavigation=";
     switch(preferences.navigation){case NativeMenuNavigation::Original:output<<"original";break;
         case NativeMenuNavigation::Responsive:output<<"responsive";break;default:return false;}
-    output<<'\n';const auto bytes=output.str();
+    output<<"\nfiltering=";
+    switch(preferences.filtering){case NativeFiltering::NearestNeighbour:output<<"nearest";break;
+        case NativeFiltering::Bilinear:output<<"bilinear";break;default:return false;}
+    output<<"\ninteger-scale="<<preferences.integerScale<<'\n';const auto bytes=output.str();
     const std::filesystem::path pending=path.wstring()+L".tmp";
     const auto handle=CreateFileW(pending.c_str(),GENERIC_WRITE,0,nullptr,CREATE_ALWAYS,FILE_ATTRIBUTE_NORMAL,nullptr);
     if(handle==INVALID_HANDLE_VALUE)return false;
@@ -64,7 +84,29 @@ bool saveDisplayPreferences(const std::filesystem::path& path,const NativeDispla
     return true;
 }
 const wchar_t* scalingName(NativeScaling scaling)noexcept{
-    switch(scaling){case NativeScaling::FitSharp:return L"Fit (Nearest neighbour)";case NativeScaling::FitSmooth:return L"Fit (Bilinear)";default:return L"Integer";}
+    switch(scaling){case NativeScaling::Fit:return L"Fit";case NativeScaling::Stretch:return L"Stretch";default:return L"Integer";}
+}
+const wchar_t* filteringName(NativeFiltering filtering)noexcept{return filtering==NativeFiltering::Bilinear?L"Bilinear":L"Nearest neighbour";}
+std::wstring integerScaleName(unsigned scale){return scale?std::to_wstring(scale)+L"×":L"Auto";}
+PresentationRectangle displayRectangle(int width,int height,const NativeDisplayPreferences& preferences){
+    if(width<=0||height<=0)return {};
+    if(preferences.scaling==NativeScaling::Stretch)return {0,0,width,height};
+    if(preferences.scaling==NativeScaling::Fit)return fitPresentationImage(320,200,width,height,false);
+    const auto maximum=std::min(width/320,height/200);
+    if(maximum<1)return fitPresentationImage(320,200,width,height,false);
+    const auto scale=preferences.integerScale?std::min(unsigned(maximum),preferences.integerScale):unsigned(maximum);
+    const int w=320*int(scale),h=200*int(scale);return {(width-w)/2,(height-h)/2,w,h};
+}
+void changeDisplayPreference(NativeDisplayPreferences& preferences,unsigned row,int direction){
+    if(row==0)preferences.fullscreen=!preferences.fullscreen;
+    else if(row==1)preferences.scaling=NativeScaling((unsigned(preferences.scaling)+(direction<0?2:1))%3);
+    else if(row==2)preferences.interpolate=!preferences.interpolate;
+    else if(row==3)preferences.controls=preferences.controls==DriveControlPreset::Original?DriveControlPreset::Modern:DriveControlPreset::Original;
+    else if(row==4)preferences.navigation=preferences.navigation==NativeMenuNavigation::Responsive?NativeMenuNavigation::Original:NativeMenuNavigation::Responsive;
+    else if(row==5){
+        if(preferences.scaling==NativeScaling::Integer)preferences.integerScale=(preferences.integerScale+(direction<0?maximumIntegerScale:1))%(maximumIntegerScale+1);
+        else preferences.filtering=preferences.filtering==NativeFiltering::NearestNeighbour?NativeFiltering::Bilinear:NativeFiltering::NearestNeighbour;
+    }
 }
 unsigned displayPadNavigation(const DrivePad& pad)noexcept{
     if(!pad.connected)return 0;
@@ -92,19 +134,14 @@ bool NativeDisplaySettings::navigate(unsigned controls){
     if(waitForRelease_){previous_=controls;if(controls==0)waitForRelease_=false;return false;}
     const auto pressed=controls&~previous_;previous_=controls;if(!blocksGame())return false;
     if(pressed&32){back();return false;}
-    const unsigned count=page_==NativeDisplayPage::Pause?2:7;
+    const unsigned count=page_==NativeDisplayPage::Pause?2:8;
     if(pressed&1)selected_=(selected_+count-1)%count;
     else if(pressed&2)selected_=(selected_+1)%count;
     if(page_==NativeDisplayPage::Pause){
         if(pressed&16){if(selected_==0)back();else openSettings(controls);}return false;
     }
-    if(selected_<5&&(pressed&(4|8|16))){
-        if(selected_==0)toggleFullscreen();
-        else if(selected_==2)toggleInterpolation();
-        else if(selected_==3)preferences_.controls=preferences_.controls==DriveControlPreset::Original?DriveControlPreset::Modern:DriveControlPreset::Original;
-        else if(selected_==4)preferences_.navigation=preferences_.navigation==NativeMenuNavigation::Original?NativeMenuNavigation::Responsive:NativeMenuNavigation::Original;
-        else preferences_.scaling=NativeScaling((unsigned(preferences_.scaling)+((pressed&4)?2:1))%3);
-    }else if(pressed&16){if(selected_==5)return true;if(selected_==6)back();}
+    if(selected_<6&&(pressed&(4|8|16)))changeDisplayPreference(preferences_,displayRowOrder[selected_],(pressed&4)?-1:1);
+    else if(pressed&16){if(selected_==6)return true;if(selected_==7)back();}
     return false;
 }
 } // namespace scr::viewer

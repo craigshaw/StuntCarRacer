@@ -12,9 +12,12 @@ public:
     WindowsGameDisplay(const WindowsGameDisplay&)=delete;
     WindowsGameDisplay& operator=(const WindowsGameDisplay&)=delete;
     void fullscreen(HWND,bool);
+    void apply(HWND,const NativeDisplayPreferences&,bool forceWindowScale=false);
+    void beginSettings(HWND);
+    void endSettings(HWND,bool applied);
     void monitorChanged(HWND);
     bool isFullscreen()const noexcept{return fullscreen_;}
-    void paint(HDC,int width,int height,const std::vector<std::uint32_t>&,NativeScaling);
+    void paint(HDC,int width,int height,const std::vector<std::uint32_t>&,const NativeDisplayPreferences&);
     void overlay(HDC,int width,int height,const NativeDisplaySettings&,const std::wstring& error);
     void fpsOverlay(HDC,int width,int height,double framesPerSecond);
 private:
@@ -22,6 +25,9 @@ private:
     bool fullscreen_{};
     LONG_PTR windowStyle_{};
     WINDOWPLACEMENT placement_{sizeof(WINDOWPLACEMENT)};
+    NativeDisplayPreferences windowedPreferences_{};
+    bool windowedPreferencesApplied_{},settingsFullscreen_{};
+    WINDOWPLACEMENT settingsPlacement_{sizeof(WINDOWPLACEMENT)},settingsWindowedPlacement_{sizeof(WINDOWPLACEMENT)};
     struct Sample {unsigned first,second,weight;};
     std::vector<Sample> columns_,rows_;
     std::vector<std::uint32_t> horizontal_,filtered_,filterSource_;

@@ -7,7 +7,7 @@
 namespace scr::viewer {
 // Stable native control IDs also form the host integration-test seam.
 enum LauncherControl : unsigned { LauncherAdf=1001,LauncherDetails,LauncherDisplay,LauncherScaling,
-    LauncherMotion,LauncherControls,LauncherNavigation,LauncherReset,LauncherQuit,LauncherPlay };
+    LauncherMotion,LauncherControls,LauncherNavigation,LauncherReset,LauncherQuit,LauncherPlay,LauncherScaleDetail };
 enum class LauncherAction { None, ChooseAdf, Play, Quit };
 class WindowsLauncher {
 public:
@@ -29,7 +29,7 @@ private:
     struct Artwork;
     std::unique_ptr<Artwork> artwork_;
     HWND parent_{};
-    std::array<HWND,10> controls_{};
+    std::array<HWND,11> controls_{};
     std::array<HFONT,4> fonts_{};
     HBRUSH inputBrush_{};
     bool details_{},visible_{true};

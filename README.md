@@ -61,7 +61,8 @@ Normal launches store assets, preferences and saves under
 `working/settings/display.ini` and `working/saves/stunt-car-racer.scr-save` for
 multiplayer manual saves, with careers and shared Hall in `working/player-data/`.
 Settings provide control presets, borderless
-fullscreen, integer/sharp/smooth scaling and optional motion interpolation.
+fullscreen, Integer/Fit/Stretch sizing, separate filtering and optional 60 FPS
+smoothing. Integer Auto is the default; fixed 1×–32× scales are also available.
 Physics stays at **120 ms per update**, wheel/engine interrupts at **50 Hz**, and
 host presentation targets **60 FPS**.
 

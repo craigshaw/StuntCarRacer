@@ -37,15 +37,11 @@ bool NativeLauncher::importDisk(const std::filesystem::path& disk){
     catch(const std::exception& failure){error_=launcherErrorText(failure);return false;}
 }
 void NativeLauncher::change(unsigned row,int direction){
-    if(row>4)return;
+    if(row>5)return;
     edited_|=1u<<row;
-    if(row==0)pending_.fullscreen=!pending_.fullscreen;
-    else if(row==1)pending_.scaling=NativeScaling((unsigned(pending_.scaling)+(direction<0?2:1))%3);
-    else if(row==2)pending_.interpolate=!pending_.interpolate;
-    else if(row==3)pending_.controls=pending_.controls==DriveControlPreset::Original?DriveControlPreset::Modern:DriveControlPreset::Original;
-    else pending_.navigation=pending_.navigation==NativeMenuNavigation::Responsive?NativeMenuNavigation::Original:NativeMenuNavigation::Responsive;
+    changeDisplayPreference(pending_,row,direction);
 }
-void NativeLauncher::resetPreferences(){pending_={};pending_.navigation=NativeMenuNavigation::Original;edited_=31;}
+void NativeLauncher::resetPreferences(){pending_={};pending_.navigation=NativeMenuNavigation::Original;edited_=63;}
 bool NativeLauncher::saveForPlay(){
     if(!ready_)return false;
     auto persisted=pending_;

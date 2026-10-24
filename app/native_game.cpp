@@ -111,7 +111,7 @@ private:
     WindowsGameDisplay display_;
     WindowsLauncher launcherView_;
     std::wstring settingsError_;
-    bool muted_{},focused_{true},suppressInput_{},freshGame_{},showFps_{};
+    bool muted_{},focused_{true},suppressInput_{},freshGame_{},showFps_{},displayEditing_{};
     HANDLE timer_{};
     HANDLE instanceLock_{};
     std::wstring instanceName_;
@@ -134,14 +134,14 @@ private:
             auto started=std::make_unique<NativeGameSession>(paths.pack,paths.recordings,NativeGameStart::OriginalOpening,paths.save);
             started->enableCareers(paths.dataRoot);
             started->setNavigation(launcher_.preferences().navigation);
-            settings_=NativeDisplaySettings(launcher_.preferences());display_.fullscreen(window,settings_.preferences().fullscreen);
-            game_=std::move(started);launcherView_.visible(false);SetFocus(window);clearGameInput();
+            settings_=NativeDisplaySettings(launcher_.preferences());
+            game_=std::move(started);launcherView_.visible(false);display_.apply(window,settings_.preferences());SetFocus(window);clearGameInput();
             for(const unsigned key:{unsigned(VK_RETURN),unsigned(VK_SPACE),unsigned(VK_ESCAPE),unsigned(VK_UP),unsigned(VK_DOWN),unsigned(VK_LEFT),unsigned(VK_RIGHT),unsigned('W'),unsigned('A'),unsigned('S'),unsigned('D')})
                 blockedKeys_[key]=(GetAsyncKeyState(int(key))&0x8000)!=0;
             frames_=0;fps_=0;fpsStart_=std::chrono::steady_clock::now();
             freshGame_=true;InvalidateRect(window,nullptr,FALSE);
         }catch(const std::exception& failure){
-            display_.fullscreen(window,false);launcher_.refreshAssets();launcher_.failedStart(failure);launcherView_.visible(true);launcherView_.sync(launcher_);launcherView_.focusInitial(launcher_);
+            game_.reset();display_.fullscreen(window,false);launcher_.refreshAssets();launcher_.failedStart(failure);launcherView_.visible(true);launcherView_.layout(window);launcherView_.sync(launcher_);launcherView_.focusInitial(launcher_);
         }
     }
     NativeGameInput input()const{
@@ -245,16 +245,26 @@ private:
         suppressInput_=!responsiveMenu();
         if(audio_)audio_->setPlaying(false);
     }
-    void syncDisplay(HWND window){if(game_)display_.fullscreen(window,settings_.preferences().fullscreen);InvalidateRect(window,nullptr,FALSE);}
+    void syncDisplay(HWND window,bool applied=false){
+        if(game_){
+            const bool editing=settings_.page()==NativeDisplayPage::Settings;
+            if(editing&&!displayEditing_)display_.beginSettings(window);
+            display_.apply(window,settings_.preferences());
+            if(!editing&&displayEditing_)display_.endSettings(window,applied);
+            displayEditing_=editing;
+        }
+        InvalidateRect(window,nullptr,FALSE);
+    }
     bool saveSettings(){
         const bool saved=saveDisplayPreferences(settingsFile_,settings_.preferences());
         settingsError_=saved?L"":L"Settings could not be saved. Apply to retry.";return saved;
     }
     void navigateOverlay(HWND window){
         const auto before=settings_.page();
-        if(settings_.navigate(navigation())&&saveSettings())settings_.applied();
+        const bool applied=settings_.navigate(navigation())&&saveSettings();
+        if(applied)settings_.applied();
         if(settings_.page()!=before)clearGameInput();
-        syncDisplay(window);
+        syncDisplay(window,applied);
     }
     void paint(HWND window){
         // Keep the last completed image visible while rendering. Clearing the
@@ -270,7 +280,7 @@ private:
         }
         const auto previous=SelectObject(dc,surface);
         if(pixels){
-            display_.paint(dc,client.right,client.bottom,*pixels,settings_.preferences().scaling);
+            display_.paint(dc,client.right,client.bottom,*pixels,settings_.preferences());
             display_.overlay(dc,client.right,client.bottom,settings_,settingsError_);
             if(showFps_)display_.fpsOverlay(dc,client.right,client.bottom,fps_);
         }
@@ -285,8 +295,12 @@ private:
     LRESULT message(HWND window,UINT kind,WPARAM key,LPARAM data){
         switch(kind){
         case WM_ERASEBKGND:return 1;
-        case WM_GETMINMAXINFO:reinterpret_cast<MINMAXINFO*>(data)->ptMinTrackSize=game_?POINT{340,240}:POINT{740,640};return 0;
-        case WM_DPICHANGED:{const auto suggested=reinterpret_cast<const RECT*>(data);SetWindowPos(window,nullptr,suggested->left,suggested->top,suggested->right-suggested->left,suggested->bottom-suggested->top,SWP_NOZORDER|SWP_NOACTIVATE);return 0;}
+        case WM_GETMINMAXINFO:{
+            POINT minimum{740,640};
+            if(game_){RECT client{0,0,320,200};AdjustWindowRectExForDpi(&client,DWORD(GetWindowLongPtrW(window,GWL_STYLE)),FALSE,DWORD(GetWindowLongPtrW(window,GWL_EXSTYLE)),GetDpiForWindow(window));minimum={client.right-client.left,client.bottom-client.top};}
+            reinterpret_cast<MINMAXINFO*>(data)->ptMinTrackSize=minimum;return 0;
+        }
+        case WM_DPICHANGED:{const auto suggested=reinterpret_cast<const RECT*>(data);SetWindowPos(window,nullptr,suggested->left,suggested->top,suggested->right-suggested->left,suggested->bottom-suggested->top,SWP_NOZORDER|SWP_NOACTIVATE);if(game_)display_.apply(window,settings_.preferences(),true);return 0;}
         case WM_COMMAND:
             if(!game_&&(HIWORD(key)==BN_CLICKED||HIWORD(key)==CBN_SELCHANGE))launcherAction(window,launcherView_.command(LOWORD(key),launcher_));return 0;
         case WM_DRAWITEM:if(!game_){launcherView_.drawButton(*reinterpret_cast<DRAWITEMSTRUCT*>(data));return TRUE;}break;
@@ -350,11 +364,11 @@ private:
             if(const auto raw=nativeAmigaRawKey(unsigned(key),(unsigned(data)>>16)&255,(data&0x01000000)!=0))rawKeys_.push_back({*raw,false});
             update(window,0);return 0;
         case WM_SIZE:if(!game_)launcherView_.layout(window);InvalidateRect(window,nullptr,FALSE);return 0;
-        case WM_DISPLAYCHANGE:display_.monitorChanged(window);InvalidateRect(window,nullptr,FALSE);return 0;
+        case WM_DISPLAYCHANGE:display_.monitorChanged(window);if(game_)display_.apply(window,settings_.preferences(),true);InvalidateRect(window,nullptr,FALSE);return 0;
         case WM_PAINT:paint(window);return 0;
         case WM_CLOSE:
             if(!game_||game_->requestClose())DestroyWindow(window);
-            else{while(settings_.blocksGame())settings_.back();clearGameInput();InvalidateRect(window,nullptr,FALSE);}return 0;
+            else{while(settings_.blocksGame())settings_.back();clearGameInput();syncDisplay(window);}return 0;
         case WM_DESTROY:PostQuitMessage(0);return 0;
         default:return DefWindowProcW(window,kind,key,data);
         }

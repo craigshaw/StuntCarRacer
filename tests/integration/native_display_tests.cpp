@@ -28,15 +28,18 @@ void tap(NativeDisplaySettings& settings,unsigned controls){settings.navigate(0)
 void storage(const std::filesystem::path& output){
     const auto file=output/"preferences.ini";
     for(bool fullscreen:{false,true})for(bool smooth:{false,true})for(unsigned scale=0;scale<3;++scale)
-        for(auto preset:{DriveControlPreset::Original,DriveControlPreset::Modern})for(auto navigation:{NativeMenuNavigation::Original,NativeMenuNavigation::Responsive}){
-        NativeDisplayPreferences preferences{fullscreen,smooth,NativeScaling(scale),preset,navigation};
+        for(auto preset:{DriveControlPreset::Original,DriveControlPreset::Modern})for(auto navigation:{NativeMenuNavigation::Original,NativeMenuNavigation::Responsive})
+        for(auto filtering:{NativeFiltering::NearestNeighbour,NativeFiltering::Bilinear})for(unsigned integer:{0u,1u,3u,maximumIntegerScale}){
+        NativeDisplayPreferences preferences{fullscreen,smooth,NativeScaling(scale),preset,navigation,filtering,integer};
         if(!saveDisplayPreferences(file,preferences))throw std::runtime_error("Display preference test write failed: Windows error "+std::to_string(GetLastError()));
         require(loadDisplayPreferences(file)==preferences,"Display preference roundtrip differs");
     }
     {std::ofstream out(file);out<<"SCR display 1\nfullscreen=1\nscaling=smooth\ninterpolate=1\n";}
-    require(loadDisplayPreferences(file)==NativeDisplayPreferences{true,true,NativeScaling::FitSmooth,DriveControlPreset::Original},"Legacy preferences lost display choices or enabled Modern");
+    require(loadDisplayPreferences(file)==NativeDisplayPreferences{true,true,NativeScaling::Fit,DriveControlPreset::Original,NativeMenuNavigation::Responsive,NativeFiltering::Bilinear},"Legacy preferences lost display choices or enabled Modern");
     {std::ofstream out(file);out<<"SCR display 2\nfullscreen=1\nscaling=sharp\ninterpolate=0\ncontrols=modern\n";}
-    require(loadDisplayPreferences(file)==NativeDisplayPreferences{true,false,NativeScaling::FitSharp,DriveControlPreset::Modern,NativeMenuNavigation::Responsive},"Version 2 migration lost choices or did not adopt responsive navigation");
+    require(loadDisplayPreferences(file)==NativeDisplayPreferences{true,false,NativeScaling::Fit,DriveControlPreset::Modern,NativeMenuNavigation::Responsive},"Version 2 migration lost choices or did not adopt responsive navigation");
+    {std::ofstream out(file);out<<"SCR display 3\nfullscreen=0\nscaling=integer\ninterpolate=1\ncontrols=modern\nnavigation=original\n";}
+    require(loadDisplayPreferences(file)==NativeDisplayPreferences{false,true,NativeScaling::Integer,DriveControlPreset::Modern,NativeMenuNavigation::Original},"Version 3 did not retain Integer Auto and navigation");
     for(const std::string content:std::vector<std::string>{"", "SCR display 2\nfullscreen=0\nscaling=integer\ninterpolate=0\n",
         "SCR display 1\nfullscreen=2\nscaling=integer\ninterpolate=0\n", "SCR display 1\nfullscreen=0\nscaling=unknown\ninterpolate=0\n",
         "SCR display 1\nfullscreen=0\nscaling=integer\n", "SCR display 1\nfullscreen=0\nscaling=integer\ninterpolate=0\nfullscreen=1\n",
@@ -47,7 +50,12 @@ void storage(const std::filesystem::path& output){
         {std::ofstream out(file);out<<content;}
         require(loadDisplayPreferences(file)==NativeDisplayPreferences{},"Invalid preferences were applied");
     }
-    const NativeDisplayPreferences previous{true,true,NativeScaling::FitSmooth,DriveControlPreset::Modern};
+    for(const std::string suffix:{"filtering=unknown\ninteger-scale=0\n","filtering=nearest\ninteger-scale=33\n","filtering=nearest\ninteger-scale=-1\n",
+        "filtering=nearest\ninteger-scale=3junk\n","filtering=nearest\ninteger-scale=\n","filtering=nearest\n"}){
+        {std::ofstream out(file);out<<"SCR display 4\nfullscreen=1\nscaling=stretch\ninterpolate=1\ncontrols=modern\nnavigation=original\n"<<suffix;}
+        require(loadDisplayPreferences(file)==NativeDisplayPreferences{},"Invalid filtering or integer scale was applied");
+    }
+    const NativeDisplayPreferences previous{true,true,NativeScaling::Stretch,DriveControlPreset::Modern,NativeMenuNavigation::Original,NativeFiltering::Bilinear,3};
     if(!saveDisplayPreferences(file,previous))throw std::runtime_error("Cannot seed atomic preferences: Windows error "+std::to_string(GetLastError()));
     const auto pending=output/"preferences.ini.tmp";std::filesystem::create_directory(pending);
     require(!saveDisplayPreferences(file,{})&&loadDisplayPreferences(file)==previous,"Failed preference write replaced the last good file");
@@ -60,9 +68,13 @@ void navigation(){
     settings.openSettings(displayPadNavigation(pad));require(!settings.navigate(displayPadNavigation(pad))&&!settings.preferences().fullscreen,"Held controller A activated newly opened settings");
     settings.navigate(0);tap(settings,displayPadNavigation(pad));require(settings.preferences().fullscreen,"Controller A cannot change a setting");
     pad.buttons=0x0002;tap(settings,displayPadNavigation(pad));require(settings.selected()==1,"Controller down did not select scaling");
-    pad.buttons=0x0008;tap(settings,displayPadNavigation(pad));require(settings.preferences().scaling==NativeScaling::FitSharp,"Controller right did not change scaling");
-    settings.navigate(8);require(settings.preferences().scaling==NativeScaling::FitSmooth,"New right press was ignored");
-    settings.navigate(8);require(settings.preferences().scaling==NativeScaling::FitSmooth,"Held direction repeated settings changes");settings.navigate(0);
+    pad.buttons=0x0008;tap(settings,displayPadNavigation(pad));require(settings.preferences().scaling==NativeScaling::Fit,"Controller right did not change scaling");
+    settings.navigate(8);require(settings.preferences().scaling==NativeScaling::Stretch,"New right press was ignored");
+    settings.navigate(8);require(settings.preferences().scaling==NativeScaling::Stretch,"Held direction repeated settings changes");settings.navigate(0);
+    tap(settings,2);tap(settings,8);require(settings.preferences().filtering==NativeFiltering::Bilinear,"Filtering did not preview independently");
+    tap(settings,1);tap(settings,8);tap(settings,2);tap(settings,8);
+    require(settings.preferences().scaling==NativeScaling::Integer&&settings.preferences().integerScale==1&&settings.preferences().filtering==NativeFiltering::Bilinear,"Integer scale or retained filter differs");
+    tap(settings,4);require(settings.preferences().integerScale==0,"Left did not restore Integer Auto");
     tap(settings,2);tap(settings,8);require(settings.preferences().interpolate,"Motion setting did not preview");
     tap(settings,2);tap(settings,8);require(settings.preferences().controls==DriveControlPreset::Modern,"Controls setting did not select Modern");
     tap(settings,4);require(settings.preferences().controls==DriveControlPreset::Original,"Controls setting did not restore Original");
@@ -74,7 +86,7 @@ void navigation(){
     const auto saved=settings.preferences();settings.pause();tap(settings,2);tap(settings,16);
     require(settings.page()==NativeDisplayPage::Settings,"Pause menu did not open settings");tap(settings,8);settings.back();
     require(settings.page()==NativeDisplayPage::Pause&&settings.preferences()==saved,"Cancel did not restore preferences and paused state");settings.back();
-    settings.openSettings();tap(settings,2);tap(settings,2);tap(settings,2);tap(settings,8);
+    settings.openSettings();tap(settings,2);tap(settings,2);tap(settings,2);tap(settings,2);tap(settings,8);
     require(settings.preferences().controls==DriveControlPreset::Original,"Controls did not preview on reopening settings");
     tap(settings,2);tap(settings,2);tap(settings,2);tap(settings,16);
     require(!settings.blocksGame()&&settings.preferences()==saved,"Cancel row did not restore the saved control preset");
@@ -91,22 +103,31 @@ double filterMilliseconds{};
 unsigned scaling(WindowsGameDisplay& display){
     std::vector<std::uint32_t> source(64000);for(unsigned y=0;y<200;++y)for(unsigned x=0;x<320;++x)source[y*320+x]=((x/8+y/8)&1)?0xff2020:0x2040ff;
     const auto original=source;unsigned cases=0;
-    for(const auto size:std::vector<std::pair<int,int>>{{800,500},{1920,1080},{319,199},{1280,1024}})for(auto mode:{NativeScaling::Integer,NativeScaling::FitSharp,NativeScaling::FitSmooth}){
-        Surface surface(size.first,size.second);display.paint(surface.dc,size.first,size.second,source,mode);GdiFlush();
-        const auto rectangle=fitPresentationImage(320,200,size.first,size.second,mode==NativeScaling::Integer);
+    NativeDisplayPreferences prefs;
+    auto rectangle=displayRectangle(1920,1080,prefs);require(rectangle.width==1600&&rectangle.height==1000&&rectangle.x==160&&rectangle.y==40,"1080p Integer Auto is not centred 5x");
+    prefs.integerScale=3;rectangle=displayRectangle(1920,1080,prefs);require(rectangle.width==960&&rectangle.height==600&&rectangle.x==480&&rectangle.y==240,"Fixed 3x geometry differs");
+    prefs.integerScale=32;rectangle=displayRectangle(1920,1080,prefs);require(rectangle.width==1600&&rectangle.height==1000,"Oversized fixed scale was not limited to fit");
+    prefs.scaling=NativeScaling::Fit;rectangle=displayRectangle(1920,1080,prefs);require(rectangle.width==1728&&rectangle.height==1080&&rectangle.x==96,"Fit did not preserve 16:10");
+    prefs.scaling=NativeScaling::Stretch;rectangle=displayRectangle(1920,1080,prefs);require(rectangle.width==1920&&rectangle.height==1080&&rectangle.x==0&&rectangle.y==0,"Stretch did not fill both axes");
+    for(const auto size:std::vector<std::pair<int,int>>{{800,500},{1920,1080},{319,199},{1280,1024}})for(auto mode:{NativeScaling::Integer,NativeScaling::Fit,NativeScaling::Stretch})
+        for(auto filtering:{NativeFiltering::NearestNeighbour,NativeFiltering::Bilinear})for(unsigned integer:{0u,1u,3u,maximumIntegerScale}){
+        prefs={};prefs.scaling=mode;prefs.filtering=filtering;prefs.integerScale=integer;
+        const bool smooth=mode!=NativeScaling::Integer&&filtering==NativeFiltering::Bilinear;
+        Surface surface(size.first,size.second);display.paint(surface.dc,size.first,size.second,source,prefs);GdiFlush();
+        const auto rectangle=displayRectangle(size.first,size.second,prefs);
         unsigned blended=0;
         for(int y=0;y<size.second;++y)for(int x=0;x<size.first;++x){
             const auto colour=surface.pixels[y*size.first+x]&0xffffff;
             const bool inside=x>=rectangle.x&&x<rectangle.x+rectangle.width&&y>=rectangle.y&&y<rectangle.y+rectangle.height;
             if(!inside)require(!colour,"Scaling painted outside letterboxing");
-            else if(mode==NativeScaling::FitSmooth)blended+=colour!=0xff2020&&colour!=0x2040ff;
+            else if(smooth)blended+=colour!=0xff2020&&colour!=0x2040ff;
             else require(colour==0xff2020||colour==0x2040ff,"Sharp scaling introduced filtered colours");
-            if(mode==NativeScaling::Integer&&size.first==800&&inside){const int sx=(x-rectangle.x)/2,sy=(y-rectangle.y)/2;require(colour==source[sy*320+sx],"Integer scaling changed source pixel replication");}
+            if(mode==NativeScaling::Integer&&size.first==800&&inside){const int multiple=rectangle.width/320;const int sx=(x-rectangle.x)/multiple,sy=(y-rectangle.y)/multiple;require(colour==source[sy*320+sx],"Integer scaling changed source pixel replication");}
         }
-        if(mode==NativeScaling::FitSmooth)require(blended>0,"Smooth scaling did not filter pixel edges");
+        if(smooth)require(blended>0,"Smooth scaling did not filter pixel edges");
         require(source==original,"Display scaling modified game pixels");++cases;
     }
-    Surface surface(800,500);display.paint(surface.dc,800,500,source,NativeScaling::Integer);GdiFlush();
+    Surface surface(800,500);display.paint(surface.dc,800,500,source,{});GdiFlush();
     const std::vector<std::uint32_t> baseline(surface.pixels,surface.pixels+800*500);
     display.fpsOverlay(surface.dc,800,500,59.9);GdiFlush();
     unsigned fpsPixels=0;
@@ -114,12 +135,13 @@ unsigned scaling(WindowsGameDisplay& display){
         require(x<200&&y<63,"FPS overlay escaped the top-left corner");++fpsPixels;
     }
     require(fpsPixels>0&&source==original,"FPS overlay did not compose independently of game pixels");
-    display.paint(surface.dc,800,500,source,NativeScaling::Integer);GdiFlush();
+    display.paint(surface.dc,800,500,source,{});GdiFlush();
     require(std::equal(baseline.begin(),baseline.end(),surface.pixels),"Hiding FPS left pixels on the game surface");
     NativeDisplaySettings settings;settings.openSettings();display.overlay(surface.dc,800,500,settings,L"");GdiFlush();
     require(!std::equal(baseline.begin(),baseline.end(),surface.pixels)&&source==original,"Overlay did not compose separately from game pixels");
     Surface hd(1920,1080);const auto began=std::chrono::steady_clock::now();
-    for(unsigned n=0;n<32;++n){source[320*100+160]^=1;display.paint(hd.dc,1920,1080,source,NativeScaling::FitSmooth);GdiFlush();}
+    prefs={};prefs.scaling=NativeScaling::Fit;prefs.filtering=NativeFiltering::Bilinear;
+    for(unsigned n=0;n<32;++n){source[320*100+160]^=1;display.paint(hd.dc,1920,1080,source,prefs);GdiFlush();}
     filterMilliseconds=std::chrono::duration<double,std::milli>(std::chrono::steady_clock::now()-began).count()/32;
     return cases;
 }
@@ -132,6 +154,24 @@ void fullscreen(WindowsGameDisplay& display){
         require(EqualRect(&actual,&monitor.rcMonitor)&&!(GetWindowLongPtrW(window,GWL_STYLE)&WS_OVERLAPPEDWINDOW),"Borderless fullscreen did not cover its monitor");
         display.fullscreen(window,false);GetWindowRect(window,&actual);require(EqualRect(&actual,&before),"Leaving fullscreen did not restore the window rectangle");
     }
+    NativeDisplayPreferences automatic;display.apply(window,automatic);display.beginSettings(window);
+    auto fixed=automatic;fixed.integerScale=1;display.apply(window,fixed);
+    RECT client{};GetClientRect(window,&client);require(client.right==320&&client.bottom==200,"Fixed 1x did not resize the window client to source dimensions");
+    display.apply(window,automatic);display.endSettings(window,false);
+    RECT actual{};GetWindowRect(window,&actual);require(EqualRect(&actual,&before),"Cancel did not restore the original window dimensions and position");
+    display.beginSettings(window);fixed.integerScale=2;display.apply(window,fixed);display.endSettings(window,true);
+    GetClientRect(window,&client);require(client.right==640&&client.bottom==400,"Applying 2x did not retain a 640 by 400 game area");
+    SetWindowPos(window,nullptr,120,100,800,500,SWP_NOZORDER|SWP_NOACTIVATE);
+    RECT manual{};GetWindowRect(window,&manual);
+    auto fullFixed=fixed;fullFixed.fullscreen=true;display.apply(window,fullFixed);display.apply(window,fixed);GetWindowRect(window,&actual);
+    require(EqualRect(&actual,&manual),"Fullscreen toggle lost a manually resized fixed-scale window");
+    display.beginSettings(window);auto fullscreenPreview=automatic;fullscreenPreview.fullscreen=true;display.apply(window,fullscreenPreview);
+    display.apply(window,fixed);display.endSettings(window,false);GetClientRect(window,&client);
+    GetWindowRect(window,&actual);require(EqualRect(&actual,&manual)&&!display.isFullscreen(),"Cancel fullscreen preview lost the original fixed-scale window");
+    fixed.integerScale=maximumIntegerScale;display.apply(window,fixed);GetClientRect(window,&client);GetWindowRect(window,&actual);
+    MONITORINFO monitor{sizeof(MONITORINFO)};GetMonitorInfoW(MonitorFromWindow(window,MONITOR_DEFAULTTONEAREST),&monitor);
+    require(client.right%320==0&&client.bottom%200==0&&client.right/320==client.bottom/200,"Oversized window scale stopped using whole source pixels");
+    require(actual.left>=monitor.rcWork.left&&actual.top>=monitor.rcWork.top&&actual.right<=monitor.rcWork.right&&actual.bottom<=monitor.rcWork.bottom,"Oversized fixed window escaped the work area");
     DestroyWindow(window);
 }
 void settle(NativeGameSession& game){for(unsigned n=0;game.transitioning()&&n<16;++n)game.update(1,{});require(!game.transitioning(),"Race setup fade did not finish");}
@@ -146,7 +186,8 @@ void timing(const std::filesystem::path& pack,const std::filesystem::path& outpu
             settings.openSettings();
             for(unsigned n=0;n<120;++n){
                 if(!settings.blocksGame())viewed.update(1.0/60,{});
-                display.paint(surface.dc,800,500,viewed.render(true,true),NativeScaling(n%3));display.overlay(surface.dc,800,500,settings,L"");
+                auto presentation=settings.preferences();presentation.scaling=NativeScaling(n%3);presentation.filtering=NativeFiltering(n%2);presentation.integerScale=n%4;
+                display.paint(surface.dc,800,500,viewed.render(true,true),presentation);display.overlay(surface.dc,800,500,settings,L"");
                 display.fpsOverlay(surface.dc,800,500,60.0);
             }
             require(viewed.race().liveTicks()==before,"Settings advanced physics ticks");settings.back();
@@ -167,6 +208,6 @@ int main(int argc,char** argv)try{
     if(argc!=3)throw std::invalid_argument("native_display_tests asset-pack output-directory");
     const std::filesystem::path output=argv[2];std::filesystem::create_directories(output);
     storage(output);navigation();WindowsGameDisplay display;const auto cases=scaling(display);fullscreen(display);timing(argv[1],output,display);
-    std::cout<<"{\"status\":\"passed\",\"preference_roundtrips\":48,\"corrupt_preferences\":11,\"legacy_preferences_migrated\":true,\"control_preset_navigation\":true,\"atomic_failure_checked\":true,\"controller_navigation\":true,\"scaling_cases\":"<<cases
+    std::cout<<"{\"status\":\"passed\",\"preference_roundtrips\":384,\"corrupt_preferences\":17,\"legacy_preferences_migrated\":true,\"control_preset_navigation\":true,\"atomic_failure_checked\":true,\"controller_navigation\":true,\"scaling_cases\":"<<cases
         <<",\"fullscreen_roundtrips\":4,\"paused_presentations\":120,\"changing_1080p_filter_ms\":"<<filterMilliseconds<<",\"original_tick_phase_preserved\":true,\"final_simulation_memory_identical\":true}\n";return 0;
 }catch(const std::exception& error){std::cerr<<error.what()<<'\n';return 1;}

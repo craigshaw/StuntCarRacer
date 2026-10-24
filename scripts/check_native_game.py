@@ -205,7 +205,7 @@ def main():
     if storage.get('slots') != 30 or storage.get('atomic_failure_checked') is not True:
         raise RuntimeError('Native save-file storage regression failed')
     display = run_json([display_test, pack, output / 'display'], output / 'display-results.json')
-    if (display.get('preference_roundtrips') != 48 or display.get('scaling_cases') != 12
+    if (display.get('preference_roundtrips') != 384 or display.get('scaling_cases') != 96
             or display.get('legacy_preferences_migrated') is not True or display.get('control_preset_navigation') is not True
             or display.get('fullscreen_roundtrips') != 4 or display.get('paused_presentations') != 120
             or display.get('original_tick_phase_preserved') is not True

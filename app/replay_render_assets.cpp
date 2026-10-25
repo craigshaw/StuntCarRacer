@@ -29,6 +29,17 @@ std::uint8_t extendedFrameIndex(const IndexedImage& image,unsigned at) {
     }
     return image.pixels[at];
 }
+std::uint32_t blendFrame(std::uint32_t frame,std::uint32_t world,unsigned opacity,unsigned scale=16){
+    std::uint32_t result=0;
+    for(unsigned shift:{0u,8u,16u})result|=((opacity*((frame>>shift)&255)+(scale-opacity)*((world>>shift)&255)+scale/2)/scale)<<shift;
+    return result;
+}
+void roofDamage(const ReplayRenderAssets& assets,const CockpitFrame& frame,std::vector<std::uint32_t>& pixels,bool extended){
+    for(unsigned y=0;y<8;++y)for(unsigned x=0;x<256;++x){
+        const unsigned at=y*320+32+x;
+        if(!extended||!assets.exteriorMask[at])pixels[at]=assets.palette[frame.damageStrip[y*256+x]];
+    }
+}
 }
 ReplayRenderAssets decodeReplayRenderAssets(const std::uint8_t* payload,std::size_t payloadSize,
         const std::uint8_t* chipRam,std::size_t chipSize) {
@@ -174,6 +185,41 @@ void composeReplayWidescreenFrame(const ReplayRenderAssets& assets,std::vector<s
     for(unsigned at=0;at<pixels.size();++at)if(frame[at]!=replayFrameTransparent)
         pixels[at]=assets.palette[frame[at]];
 }
+unsigned replayUpperFrameOpacity(unsigned y)noexcept{
+    if(y<=80)return 4;if(y>=100)return 16;
+    return 4+(12*(y-80)+10)/20;
+}
+unsigned replaySideFrameOpacity(unsigned x,unsigned width)noexcept{
+    const int column=int(std::min(x,width-1-x))-int((width-320)/2);
+    return unsigned(52+2*std::clamp(column,0,14));
+}
+std::uint32_t replayPresentationColor(const std::array<std::uint32_t,16>& palette,std::uint16_t index,unsigned x,unsigned y,unsigned width){
+    if(index<16)return palette[index];
+    if(index<0x100||index>=0x300)throw std::invalid_argument("Invalid presentation palette pair");
+    const unsigned opacity=replayUpperFrameOpacity(y)*5;
+    return blendFrame(palette[(index>>4)&15],palette[index&15],index>=0x200?std::min(opacity,replaySideFrameOpacity(x,width)):opacity,80);
+}
+void compositeReplayUpperFrame(const ReplayRenderAssets& assets,const std::vector<std::uint32_t>& cage,std::vector<std::uint32_t>& world,bool indexed){
+    if((world.size()!=replayWidescreenWidth*200&&world.size()!=replayUltrawideWidth*200)||cage.size()!=world.size())
+        throw std::invalid_argument("Invalid translucent cage canvas");
+    const unsigned width=unsigned(world.size()/200);
+    const auto& frame=width==replayUltrawideWidth?assets.ultrawideFrame:assets.widescreenFrame;
+    if(frame.size()!=world.size())throw std::invalid_argument("Invalid side-frame geometry");
+    for(unsigned y=0;y<200;++y){const unsigned upperOpacity=replayUpperFrameOpacity(y)*5;
+        for(unsigned x=0;x<width;++x){const unsigned at=y*width+x;const auto pixel=cage[at];
+            if(pixel==replayTransparent)continue;
+            // The original indexed geometry distinguishes the braces from
+            // blue body panels. The fade ends before the inner tyre guards.
+            const bool side=frame[at]!=replayFrameTransparent&&frame[at]!=7&&frame[at]!=8&&replaySideFrameOpacity(x,width)<80;
+            const unsigned opacity=side?std::min(upperOpacity,replaySideFrameOpacity(x,width)):upperOpacity;
+            if(opacity==80)world[at]=pixel;
+            else if(indexed){
+                if(pixel>=16||world[at]>=16)throw std::invalid_argument("Upper cage capture requires original palette indices");
+                world[at]=(side?0x200:0x100)|(pixel<<4)|world[at];
+            }else world[at]=blendFrame(pixel,world[at],opacity,80);
+        }
+    }
+}
 void compositeReplayCentred(const std::vector<std::uint32_t>& original,std::vector<std::uint32_t>& wide){
     frameSize(original);
     if(wide.size()!=replayWidescreenWidth*200&&wide.size()!=replayUltrawideWidth*200)throw std::invalid_argument("Invalid centred foreground canvas");
@@ -203,17 +249,21 @@ void compositeMaskedObject(const ReplayRenderAssets& assets,unsigned id,
     }
 }
 void composeReplayCockpit(const ReplayRenderAssets& assets,const CockpitFrame& frame,
-        std::vector<std::uint32_t>& pixels,bool extendedCorners) {
+        std::vector<std::uint32_t>& pixels,bool extendedCorners,bool includeCage) {
     frameSize(pixels);
     if(extendedCorners&&assets.exteriorMask.size()!=320*200)throw std::invalid_argument("Invalid cockpit exterior mask");
     if(frame.wheelRotation>2)throw std::invalid_argument("Wheel rotation frame outside original0..2 range");
-    for(unsigned id:{13u,14u,unsigned(frame.wheelRotation),5u-frame.wheelRotation,10u,11u,12u})
+    if(includeCage)for(unsigned id:{13u,14u})compositeMaskedObject(assets,id,frame.objects[id],pixels);
+    for(unsigned id:{unsigned(frame.wheelRotation),5u-frame.wheelRotation,10u,11u,12u})
         compositeMaskedObject(assets,id,frame.objects[id],pixels);
     composeReplayFlames(assets,frame,pixels);
-    for(unsigned y=0;y<8;++y)for(unsigned x=0;x<256;++x) {
-        const unsigned at=y*320+32+x;
-        if(!extendedCorners||!assets.exteriorMask[at])pixels[at]=assets.palette[frame.damageStrip[y*256+x]];
-    }
+    if(includeCage)roofDamage(assets,frame,pixels,extendedCorners);
+}
+void composeReplayCage(const ReplayRenderAssets& assets,const CockpitFrame& frame,std::vector<std::uint32_t>& pixels,bool extendedCorners){
+    frameSize(pixels);
+    if(extendedCorners&&assets.exteriorMask.size()!=320*200)throw std::invalid_argument("Invalid cockpit exterior mask");
+    for(unsigned id:{13u,14u})compositeMaskedObject(assets,id,frame.objects[id],pixels);
+    roofDamage(assets,frame,pixels,extendedCorners);
 }
 void composeReplayFlames(const ReplayRenderAssets& assets,const CockpitFrame& frame,
         std::vector<std::uint32_t>& pixels) {

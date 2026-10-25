@@ -69,6 +69,8 @@ lifting chains. Integer Auto is the default; fixed 1×–32× scales are also av
 **16:9** and **32:9** in the launcher and Settings. Extended reveals scenery in the black
 upper corners outside the original arch. Both wide modes add a wider world around the
 same-size car and main arch, extending only the side braces and blue interior.
+Both wide modes render the upper cage and outer side braces translucently,
+retaining solid inner posts and blue side panels around the original tyres.
 The original engine, wheels, exhausts and instruments keep their pixels and
 scale. Menus and saved career finish images retain their original 4:3 format.
 Physics stays at **120 ms per update**, wheel/engine interrupts at **50 Hz**, and

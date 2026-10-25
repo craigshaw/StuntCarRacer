@@ -55,15 +55,42 @@ bounds use [-88,344] × [-16,184] in the original viewport coordinate domain.
 original background. The outer 14 columns of each side brace are reworked to
 join its extension along one straight axis. The original highlight determines
 the angle; column 14 supplies a constant, slimmer 33-row material profile.
-All main arch and car pixels remain intact. The foreground stores palette
-indices and an explicit transparent value of 255, so palette fades work and
-black artwork remains opaque. No generated image file is loaded at runtime.
+All main arch and car shapes remain intact. The foreground stores palette
+indices and an explicit transparent value of 255. Inner lower black artwork
+remains opaque; the upper frame and outer braces receive the translucency below.
+No generated image file is loaded at runtime.
 
-`ReplayScene::draw` restores that static foreground after rendering the world.
+`ReplayScene::draw` composes that frame after rendering the world.
 It draws particles, chains, software car objects, flames, instruments,
 hardware wheels and messages onto a separate original-size 320×200 layer,
 then composites it at (56,0). Native object positions, animation phases and
 clipping stay unchanged. Pause/end panels use the same centred composition.
+
+Both wide modes use a translucent upper cage, matching the earlier upper-frame
+study. Opacity is 25% through source row 80, then rises smoothly to 100% by row
+100. This ends above the earliest legal wheel crop at row 101. The original
+inner posts, blue side panels, engine, wheels and instruments stay opaque.
+Only the cage's actual pixels blend; the open windscreen receives no tint.
+
+Outer diagonal braces use 65% opacity. It rises smoothly to 100% across original
+columns 0–14 (mirrored on the right), leaving the inner tyre guards solid.
+The upper transition takes precedence where it is more transparent. Original
+indexed geometry identifies brace material; palette 7/8 side panels keep full
+opacity. Frame geometry, pixel scale and the car assembly are unchanged.
+
+The original frame, corner objects and roof damage strip form one private cage
+layer. It is blended once over the rendered world, preserving damage marks
+without compounding opacity. Particles, chains and the original car layers then
+use their normal opaque compositors. Original and Extended 4:3 keep their
+existing composition and pixel output.
+
+Temporary race fade captures use 16-bit entries: ordinary palette indices
+0–15, or `tag | (frameIndex << 4) | worldIndex` for translucent frame samples.
+The tag is `0x100` for upper-only opacity and `0x200` for the side-brace fade.
+`replayPresentationColor` resolves both sources against the current fading
+palette and the sample's row/column-dependent opacity. This preserves exact live
+blends, duplicate palette identities and the black fade endpoint. The codes
+never enter saved career images, which continue to capture Original.
 
 32:9 uses an 864×200 canvas with the original car/arch at (272,0). The same
 highlight fit and material profile extend its side braces and blue interior;
@@ -122,6 +149,13 @@ cleanup, palette capture and full terminal memory equality against a twin.
 The same assembly variants and eight-track queries also cover 16:9, including
 the full car and main arch, lower-corner scenery, end/pause panels and fades.
 They also cover 32:9, its additional outer scenery and unchanged central frame.
+The wide checks protect all original car pixels and the opaque lower frame;
+translucent cage pixels are checked separately for blend/fade equivalence, intact blue
+panels, unchanged open scenery, opacity rounding and the fully opaque boundary.
+Complete scenes check the captured upper-frame palette pairs against live RGB.
+Game-session checks render entry and exit fades in both wide modes.
+Side-brace checks also cover mirror symmetry, the 65% blend and the solid joins
+before the original tyre guards.
 
 `native_track_visibility_tests` reproduces the Stepping Stones Practice drop
 at three ticks, requiring the red/white wall to reach every outer-right column

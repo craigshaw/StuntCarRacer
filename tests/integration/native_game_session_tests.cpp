@@ -68,6 +68,31 @@ void hall(NativeGameSession& game,const std::filesystem::path& screenshot={}){
     require(game.memory()[0x5d724]==0x41&&hash(game.render())==main,"Hall of Fame did not restore the main menu");
     require(std::equal(records.begin(),records.end(),game.memory().begin()+0x7a61a),"Hall of Fame modified stored records");
 }
+void wideTransitions(const std::filesystem::path& pack){
+    for(auto view:{NativeView::Widescreen,NativeView::Ultrawide}){
+        NativeGameSession game(pack,{},NativeGameStart::EstablishedMenu);
+        confirm(game);choose(game,3);confirm(game);choose(game,0);confirm(game);game.update(1,{});settle(game);
+        require(game.page()==NativeMenuPage::Preview,"Wide fade fixture did not reach Practice preview");
+        game.render(false,false,view); // Select the race presentation before entry capture.
+        game.update(0,{});game.update(0,{{16,0},0,false});
+        unsigned wideFadeFrames=0,changedFrames=0;
+        std::vector<std::uint32_t> previous;
+        for(unsigned n=0;game.transitioning()&&n<600;++n){
+            const auto image=game.render(false,false,view);
+            if(image.size()==viewWidth(view)*200){
+                ++wideFadeFrames;changedFrames+=!previous.empty()&&image!=previous;previous=image;
+            }else require(image.size()==320*200,"Race entry fade has an invalid canvas");
+            game.update(1.0/60,{});
+        }
+        require(!game.transitioning()&&game.page()==NativeMenuPage::Race&&wideFadeFrames>1&&changedFrames>0,"Wide race entry did not render its tinted palette fade");
+        for(unsigned n=0;n<600&&game.page()==NativeMenuPage::Race;++n){
+            game.update(.12,{{},0,true});game.render(false,false,view);
+            if(game.raceEnded()){game.update(0,{});game.update(1,{{16,0},0,false});}
+        }
+        settle(game);
+        require(game.page()==NativeMenuPage::Track&&game.render().size()==320*200,"Wide race exit did not restore the original menu presentation");
+    }
+}
 void throttlePresets(const std::filesystem::path& pack,const std::filesystem::path& directory){
     for(auto preset:{DriveControlPreset::Original,DriveControlPreset::Modern}){
         const bool modern=preset==DriveControlPreset::Modern;
@@ -212,7 +237,7 @@ int main(int argc,char** argv)try{
         hall(game);
         turning=true;++routes;
     }
-    throttlePresets(argv[1],directory);
+    wideTransitions(argv[1]);throttlePresets(argv[1],directory);
     std::cout<<"{\"status\":\"passed\",\"practice_routes\":"<<routes<<",\"repeated_races\":"<<routes
         <<",\"ticks\":"<<ticks<<",\"preview_rotation\":"<<(turning?"true":"false")
         <<",\"hall_of_fame_routes\":"<<routes*2<<",\"hall_of_fame_fire_wait_checked\":true"

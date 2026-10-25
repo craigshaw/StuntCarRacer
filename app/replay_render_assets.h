@@ -52,6 +52,14 @@ std::vector<std::uint8_t> makeReplayExteriorMask(const IndexedImage&);
 void composeReplayFrame(const ReplayRenderAssets&,std::vector<std::uint32_t>&);
 std::vector<std::uint8_t> makeReplayWidescreenFrame(const ReplayRenderAssets&,unsigned width=replayWidescreenWidth);
 void composeReplayWidescreenFrame(const ReplayRenderAssets&,std::vector<std::uint32_t>&);
+// Upper cage opacity is 4/16 through row 80, then reaches 16/16 at row 100,
+// above the highest original wheel crop. Pair codes preserve both palette
+// sources in temporary race-fade captures; they never enter saved images.
+unsigned replayUpperFrameOpacity(unsigned y)noexcept;
+// Side braces use 52/80 (65%) opacity, reaching 80/80 at original column 14.
+unsigned replaySideFrameOpacity(unsigned x,unsigned width)noexcept;
+std::uint32_t replayPresentationColor(const std::array<std::uint32_t,16>& palette,std::uint16_t index,unsigned x,unsigned y,unsigned width);
+void compositeReplayUpperFrame(const ReplayRenderAssets&,const std::vector<std::uint32_t>& cage,std::vector<std::uint32_t>& world,bool indexed=false);
 void compositeReplayCentred(const std::vector<std::uint32_t>& original,std::vector<std::uint32_t>& wide);
 constexpr std::uint32_t replayTransparent=0x01000000;
 void compositeMaskedObject(const ReplayRenderAssets&,unsigned objectId,
@@ -60,6 +68,8 @@ void compositeMaskedObject(const ReplayRenderAssets&,unsigned objectId,
 // order, dynamic wheel coordinates, boost flames, and recovered damage pixels.
 // Extended keeps the exterior mask clear even where it overlaps the top strip.
 void composeReplayCockpit(const ReplayRenderAssets&,const CockpitFrame&,
+    std::vector<std::uint32_t>& pixels,bool extendedCorners=false,bool includeCage=true);
+void composeReplayCage(const ReplayRenderAssets&,const CockpitFrame&,
     std::vector<std::uint32_t>& pixels,bool extendedCorners=false);
 // Native text using original96-glyph7x8 font. No host font substitution.
 void drawReplayText(const ReplayRenderAssets&,std::vector<std::uint32_t>& pixels,

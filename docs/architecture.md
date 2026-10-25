@@ -117,6 +117,9 @@ and main arch at offset (56,0). Only the side braces and blue interior are
 extended; the outer 14 columns of each brace are straightened to meet those
 extensions. All car objects, hardware wheels, effects, instruments and message
 panels use their existing 320×200 compositors, then translate by 56 pixels.
+In wide views the upper cage is composited separately at 25% opacity, becoming
+fully opaque above the highest wheel crop. Outer braces use 65% opacity, fading
+back to solid at their inner joins. Tyre guards, blue panels and car pixels stay solid.
 The wider world fills every exposed corner, with unchanged projection scale
 and private near/far clipping bounds [-88,344] × [-16,184].
 Host aspect correction and a symmetric outer crop present that working canvas

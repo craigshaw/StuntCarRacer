@@ -2,6 +2,7 @@
 #include "replay_scene.h"
 #include <algorithm>
 #include <filesystem>
+#include <fstream>
 #include <iostream>
 #include <stdexcept>
 
@@ -30,11 +31,59 @@ void compareWidescreen(const std::vector<std::uint32_t>& original,const std::vec
     require(wide.size()==432*200||wide.size()==864*200,"Wide canvas dimensions differ");
     const unsigned width=unsigned(wide.size()/200),offset=(width-320)/2;
     std::vector<std::uint32_t> dynamic(320*200,replayTransparent);
-    composeReplayCockpit(assets,cockpit,dynamic,true);composeNativeWheelSprites(sprites,placements,animation,dynamic);
+    composeReplayCockpit(assets,cockpit,dynamic,true,false);composeNativeWheelSprites(sprites,placements,animation,dynamic);
     for(unsigned y=0;y<200;++y)for(unsigned x=0;x<320;++x){const unsigned at=y*320+x;
-        if(dynamic[at]!=replayTransparent||(x>=14&&x<306&&!worldPixel(x,y)&&!assets.exteriorMask[at]))
+        if(dynamic[at]!=replayTransparent||(y>=100&&x>=14&&x<306&&!worldPixel(x,y)&&!assets.exteriorMask[at]))
             require(wide[y*width+offset+x]==original[at],"Wide view changed the original car assembly, instrument or main arch artwork");
     }
+}
+std::vector<std::uint32_t> cageLayer(const ReplayRenderAssets& assets,const CockpitFrame& cockpit,unsigned width){
+    std::vector<std::uint32_t> cage(width*200,replayTransparent),top(320*200,replayTransparent);
+    composeReplayWidescreenFrame(assets,cage);composeReplayCage(assets,cockpit,top,true);compositeReplayCentred(top,cage);return cage;
+}
+void upperFrameTests(const ReplayRenderAssets& assets,const CockpitFrame& cockpit,const std::filesystem::path& output){
+    unsigned pairSamples=0,opaqueSamples=0;
+    auto indexed=assets;for(unsigned i=0;i<16;++i)indexed.palette[i]=i;
+    std::array<std::uint32_t,16> black{};
+    require(replayUpperFrameOpacity(0)==4&&replayUpperFrameOpacity(80)==4&&replayUpperFrameOpacity(100)==16,"Upper-frame opacity does not match the agreed range");
+    for(unsigned y=1;y<200;++y)require(replayUpperFrameOpacity(y)>=replayUpperFrameOpacity(y-1),"Upper frame becomes transparent again near the wheels");
+    for(unsigned width:{432u,864u}){
+        const auto rgbCage=cageLayer(assets,cockpit,width),indexedCage=cageLayer(indexed,cockpit,width);
+        const auto& frame=width==432?assets.widescreenFrame:assets.ultrawideFrame;
+        for(unsigned source:{0u,7u,9u,13u,15u}){
+            std::vector<std::uint32_t> rgb(width*200,assets.palette[source]),indices(width*200,source);
+            compositeReplayUpperFrame(assets,rgbCage,rgb);compositeReplayUpperFrame(indexed,indexedCage,indices,true);
+            for(unsigned at=0;at<rgb.size();++at){
+                const unsigned y=at/width;
+                require(rgb[at]==replayPresentationColor(assets.palette,std::uint16_t(indices[at]),at%width,y,width),"Upper-frame fade capture differs from the live blend");
+                require(replayPresentationColor(black,std::uint16_t(indices[at]),at%width,y,width)==0,"Upper frame remains visible at the black fade endpoint");
+                if(rgbCage[at]==replayTransparent)require(rgb[at]==assets.palette[source],"Translucency tinted the open windscreen or scenery");
+                else if(indices[at]<16){require(rgb[at]==rgbCage[at],"Opaque cage material changed");++opaqueSamples;}
+                else {require(indices[at]>=0x100&&indices[at]<0x300,"Cage lost one of its palette sources");++pairSamples;}
+                if(y>=100&&replaySideFrameOpacity(at%width,width)==80&&rgbCage[at]!=replayTransparent)
+                    require(rgb[at]==rgbCage[at]&&indices[at]<16,"Inner frame no longer conceals the tyre crops");
+                if(frame[at]==7||frame[at]==8)require(rgb[at]==assets.palette[frame[at]],"Upper-frame translucency changed a blue side panel");
+            }
+        }
+        std::vector<std::uint32_t> testCage(width*200,replayTransparent),white(width*200,0xffffff);
+        const unsigned side=160*width+(width-320)/2-30,inner=110*width+(width-320)/2+14;
+        testCage[0]=0;testCage[100*width]=0;testCage[side]=0;testCage[inner]=0;
+        compositeReplayUpperFrame(assets,testCage,white);
+        require(white[0]==0xbfbfbf&&white[100*width]==0,"Black cage blend has the wrong opacity or rounding");
+        require(white[side]==0x595959&&white[inner]==0,"Side brace opacity does not reach 65% or preserve the tyre guard");
+        for(unsigned x=0;x<width;++x)require(replaySideFrameOpacity(x,width)==replaySideFrameOpacity(width-1-x,width),"Side-frame opacity is asymmetric");
+    }
+    require(pairSamples>0&&opaqueSamples>0,"Upper-frame checks missed a material region");
+    std::ofstream report(output/"upper-frame-results.json");report<<"{\"palette_pair_samples\":"<<pairSamples<<",\"opaque_samples\":"<<opaqueSamples<<",\"upper_opacity\":0.25,\"inner_fully_opaque_row\":100,\"side_opacity\":0.65,\"side_solid_column\":14,\"blue_panels_unchanged\":true,\"fade_capture_exact\":true}\n";
+    require(bool(report),"Cannot export upper-frame verification results");
+}
+void upperCapture(ReplayScene& scene,const ReplayRenderAssets& assets,NativeView view){
+    const auto rgb=scene.renderLive(0,false,false,view);const auto indices=scene.captureLiveIndices(false,view);
+    const unsigned width=unsigned(rgb.size()/200);unsigned pairs=0;
+    for(unsigned at=0;at<rgb.size();++at)if(at<100*width||indices[at]>=0x100){
+        require(rgb[at]==replayPresentationColor(assets.palette,indices[at],at%width,at/width,width),"Complete-scene upper frame differs during race fades");pairs+=indices[at]>=0x100;
+    }
+    require(pairs>0,"Complete-scene check missed the translucent upper frame");
 }
 void maskTests(){
     scr::IndexedImage image;image.width=320;image.height=200;image.pixels.assign(320*200,10);
@@ -87,11 +136,11 @@ unsigned assemblyVariants(const ReplayRenderAssets& assets,const NativeWheelSpri
         composeNativeWheelSprites(sprites,placements,animation,original);composeNativeWheelSprites(sprites,placements,animation,extended);
         compareArtwork(original,extended,assets,frame,sprites,placements,animation);
         std::vector<std::uint32_t> wide(432*200,0x234567),foreground(320*200,replayTransparent);
-        composeReplayWidescreenFrame(assets,wide);composeReplayCockpit(assets,frame,foreground,true);
+        compositeReplayUpperFrame(assets,cageLayer(assets,frame,432),wide);composeReplayCockpit(assets,frame,foreground,true,false);
         composeNativeWheelSprites(sprites,placements,animation,foreground);compositeReplayCentred(foreground,wide);
         compareWidescreen(extended,wide,assets,frame,sprites,placements,animation);
         std::vector<std::uint32_t> ultra(864*200,0x234567);
-        composeReplayWidescreenFrame(assets,ultra);compositeReplayCentred(foreground,ultra);
+        compositeReplayUpperFrame(assets,cageLayer(assets,frame,864),ultra);compositeReplayCentred(foreground,ultra);
         compareWidescreen(extended,ultra,assets,frame,sprites,placements,animation);
         ++cases;
     }
@@ -113,7 +162,7 @@ int main(int argc,char** argv)try{
         for(unsigned y=0;y<200;++y)for(unsigned x=0;x<432;++x)
             require(assets.ultrawideFrame[y*864+216+x]==assets.widescreenFrame[y*432+x],"32:9 modified the established 16:9 frame artwork");
         scr::TrigTable trig{};for(unsigned i=0;i<trig.size();++i)trig[i]=std::uint16_t((unsigned((*seed.memory)[0x1ca42+2*i])<<8)|(*seed.memory)[0x1ca43+2*i]);
-        if(track==0){roofMaskTests(assets,viewed.frames().back().cockpit);variants=assemblyVariants(assets,sprites,viewed.frames().back());maskPixels=unsigned(std::count(assets.exteriorMask.begin(),assets.exteriorMask.end(),1));}
+        if(track==0){upperFrameTests(assets,viewed.frames().back().cockpit,output);roofMaskTests(assets,viewed.frames().back().cockpit);variants=assemblyVariants(assets,sprites,viewed.frames().back());maskPixels=unsigned(std::count(assets.exteriorMask.begin(),assets.exteriorMask.end(),1));}
         for(unsigned tick=0;tick<160&&!control.liveTerminal();++tick){
             const unsigned controls=1|(tick%40<8?16:0)|(tick>100&&tick%40<4?4:0);
             require(control.stepLive(controls)==viewed.stepLive(controls),"Extended changed race lifetime");
@@ -127,6 +176,7 @@ int main(int argc,char** argv)try{
                 const auto ultra=viewed.renderLive(0,false,false,NativeView::Ultrawide);
                 compareWidescreen(image,ultra,assets,exact.cockpit,sprites,exact.wheelSprites,exact.wheelTimeline[0]);
                 require(viewed.renderLive(0,false,false,NativeView::Ultrawide)==ultra,"Ultrawide is not deterministic");
+                if(tick==128){upperCapture(viewed,assets,NativeView::Widescreen);upperCapture(viewed,assets,NativeView::Ultrawide);}
                 for(unsigned y=0;y<200;++y)for(unsigned x=0;x<864;++x)if(x<216||x>=648)
                     if(assets.ultrawideFrame[y*864+x]==replayFrameTransparent&&ultra[y*864+x]!=assets.palette[0])++outerWorldPixels;
                 for(unsigned y=144;y<200;++y)for(unsigned x=0;x<432;++x)

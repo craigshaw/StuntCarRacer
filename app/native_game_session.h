@@ -152,7 +152,7 @@ private:
     enum class Transition {None,InitialMenu,OutPreview,InPreview,OutRace,RaceDelay,InRace,OutMenu,InMenu,OutCompetition,InCompetition,OutOpening,InOpening,OutHall,InHall,OutHallMenu,InHallMenu,OutSaveRoster,InSaveRoster,OutReplayFrame,InReplayFrame,OutRestartOpening,SaveDelay};
     Transition transition_{Transition::InitialMenu};
     NativePaletteFade fade_;
-    std::vector<std::uint8_t> transitionIndices_;
+    std::vector<std::uint16_t> transitionIndices_;
     double raceDelay_{};
     void advanceTransition(double,NativeGameUpdate&);
     void preparePreview();

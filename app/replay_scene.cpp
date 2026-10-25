@@ -329,7 +329,7 @@ const std::vector<std::uint32_t>& ReplayScene::renderLiveMessage(unsigned index,
     if(wide)compositeReplayCentred(panel,pixels_);
     cachedFrame_=~0u;return pixels_;
 }
-std::vector<std::uint8_t> ReplayScene::captureLiveIndices(bool endMessage,NativeView view){
+std::vector<std::uint16_t> ReplayScene::captureLiveIndices(bool endMessage,NativeView view){
     const auto saved=assets_.palette;
     const auto savedView=lastLiveView_;lastLiveView_=view;
     // Original fades use the four bitmap planes. The independent hardware
@@ -342,10 +342,10 @@ std::vector<std::uint8_t> ReplayScene::captureLiveIndices(bool endMessage,Native
         cachedFrame_=~0u;
         ReplayViewSettings settings;settings.view=view;
         const auto& frame=endMessage?renderLiveMessage(0x3c,4):view!=NativeView::Original?renderView(1,settings):render(1);
-        std::vector<std::uint8_t> indices;indices.reserve(frame.size());
+        std::vector<std::uint16_t> indices;indices.reserve(frame.size());
         for(auto pixel:frame){
-            if(pixel>=16)throw std::logic_error("Native race renderer emitted a non-palette pixel");
-            indices.push_back(std::uint8_t(pixel));
+            if(pixel>=16&&(!isWideView(view)||pixel<0x100||pixel>=0x300))throw std::logic_error("Native race renderer emitted a non-palette pixel");
+            indices.push_back(std::uint16_t(pixel));
         }
         assets_.palette=saved;lastLiveView_=savedView;bitmapOnly_=false;cachedFrame_=~0u;return indices;
     }catch(...){assets_.palette=saved;lastLiveView_=savedView;bitmapOnly_=false;cachedFrame_=~0u;throw;}
@@ -435,7 +435,13 @@ void ReplayScene::draw(const ReplayVisualState& frame,const NearTrackPresentatio
     if(showCockpit&&!wide)makeReplayBackground(assets_,pixels_);else pixels_.assign(viewWidth(view)*200,0);
     const auto mountains=projectMountainHorizon(mountains_,frame.pose.yaw,frame.camera,viewPadding(view));
     statistics_=renderer_.drawFrame(movingTrack?movingTrack->mesh:mesh_,movingTrack?movingTrack->sides:sides_,mountains,frame.camera,projection_,assets_.palette,pixels_,wireframe,&nearTrack,viewPadding(view),extended,wide?56:0);
-    if(extended&&showCockpit){if(wide)composeReplayWidescreenFrame(assets_,pixels_);else composeReplayFrame(assets_,pixels_);}
+    if(extended&&showCockpit){
+        if(wide){
+            cage_.assign(pixels_.size(),replayTransparent);composeReplayWidescreenFrame(assets_,cage_);
+            foreground_.assign(320*200,replayTransparent);composeReplayCage(assets_,frame.cockpit,foreground_,true);
+            compositeReplayCentred(foreground_,cage_);compositeReplayUpperFrame(assets_,cage_,pixels_,bitmapOnly_);
+        }else composeReplayFrame(assets_,pixels_);
+    }
     if(wide)foreground_.assign(320*200,replayTransparent);
     auto& foreground=wide?foreground_:pixels_;
     if(discrete){
@@ -446,7 +452,7 @@ void ReplayScene::draw(const ReplayVisualState& frame,const NearTrackPresentatio
         if(next)composeInterpolatedNativeChains(assets_,discrete->chainDraws,next->chainDraws,fraction,foreground);
         else composeNativeChains(assets_,discrete->chainDraws,foreground);
     }
-    if(showCockpit)composeReplayCockpit(assets_,frame.cockpit,foreground,extended);
+    if(showCockpit)composeReplayCockpit(assets_,frame.cockpit,foreground,extended,!wide);
     if(discrete&&showCockpit){
         const auto& instruments=runningLapHundredths_?discrete->hundredthsInstrumentPixels:discrete->instrumentPixels;
         for(unsigned n=0;n<instruments.size();++n)foreground[320*cockpitInstrumentTop+n]=assets_.palette[instruments[n]];

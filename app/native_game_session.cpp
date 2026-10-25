@@ -106,7 +106,7 @@ void NativeGameSession::leaveRace(){
 void NativeGameSession::advanceTransition(double elapsed,NativeGameUpdate& result){
     if(transition_==Transition::SaveDelay){
         raceDelay_-=elapsed;if(raceDelay_>0)return;
-        NativeMenuImage previous;std::copy(transitionIndices_.begin(),transitionIndices_.end(),previous.indices.begin());
+        NativeMenuImage previous;std::transform(transitionIndices_.begin(),transitionIndices_.end(),previous.indices.begin(),[](std::uint16_t index){return std::uint8_t(index);});
         previous.palette=fade_.rgbPalette();
         saveMenu_=std::make_unique<NativeSaveMenu>(*data_.memory,saveWriting_,&previous);
         saveMenu_->setNavigation(navigation_);
@@ -120,7 +120,7 @@ void NativeGameSession::advanceTransition(double elapsed,NativeGameUpdate& resul
     fade_.advance(elapsed);if(fade_.active())return;
     switch(transition_){
     case Transition::OutPreview:
-        preparePreview();transitionIndices_=preview_.indices();
+        preparePreview();transitionIndices_.assign(preview_.indices().begin(),preview_.indices().end());
         fade_.animateTo(readNativePalette(*data_.memory,0x2b974));transition_=Transition::InPreview;break;
     case Transition::OutRace:
         startRace();transitionIndices_=race_.captureLiveIndices(false,presentationView_);
@@ -303,7 +303,7 @@ NativeGameUpdate NativeGameSession::updateImpl(double elapsed,const NativeGameIn
     }else if(action==NativeMenuAction::RotatePreview){
         preview_.load(*data_.memory,(*data_.memory)[0x1bb57]);
     }else if(action==NativeMenuAction::StartPractice||action==NativeMenuAction::StartRace){
-        transitionIndices_=preview_.indices();fade_.fadeToColor(0);transition_=Transition::OutRace;
+        transitionIndices_.assign(preview_.indices().begin(),preview_.indices().end());fade_.fadeToColor(0);transition_=Transition::OutRace;
     }else if(action==NativeMenuAction::ShowCompetitionPage){
         transitionIndices_.assign(previous.indices.begin(),previous.indices.end());
         fade_.fadeToColor(0);transition_=Transition::OutCompetition;
@@ -453,7 +453,10 @@ const std::vector<std::uint32_t>& NativeGameSession::render(bool interpolate,boo
     if(finishPending_){pixels_=finishPixels_;return pixels_;}
     if(transitioning()){
         const auto palette=fade_.rgbPalette();pixels_.resize(transitionIndices_.size());
-        for(unsigned i=0;i<transitionIndices_.size();++i)pixels_[i]=palette[transitionIndices_[i]];
+        const unsigned width=unsigned(pixels_.size()/200);
+        for(unsigned i=0;i<transitionIndices_.size();++i){const auto index=transitionIndices_[i];
+            pixels_[i]=index<16?palette[index]:replayPresentationColor(palette,index,i%width,i/width,width);
+        }
         return pixels_;
     }
     if(page()==NativeMenuPage::Preview)return preview_.pixels();

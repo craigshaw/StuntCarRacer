@@ -78,7 +78,9 @@ public:
         const std::filesystem::path& nativeTrace);
     const std::vector<std::uint32_t>& renderLive(double fraction,bool wireframe=false,bool interpolate=true,NativeView view=NativeView::Original);
     const std::vector<std::uint32_t>& renderLiveMessage(unsigned index,unsigned mode);
-    std::vector<std::uint8_t> captureLiveIndices(bool endMessage=false,NativeView view=NativeView::Original);
+    // Original 0..15 indices; wide upper-cage samples additionally encode
+    // palette pairs for replayPresentationColor. Persistence uses Original.
+    std::vector<std::uint16_t> captureLiveIndices(bool endMessage=false,NativeView view=NativeView::Original);
     unsigned liveTicks() const noexcept;
     bool liveTerminal() const noexcept;
     const std::filesystem::path& liveRecording() const noexcept;
@@ -126,6 +128,7 @@ private:
     RenderStatistics statistics_{};
     std::vector<std::uint32_t> pixels_;
     std::vector<std::uint32_t> foreground_;
+    std::vector<std::uint32_t> cage_;
     unsigned cachedFrame_=~0u;
     double cachedFraction_{};
     bool cachedWireframe_{};

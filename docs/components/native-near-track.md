@@ -46,6 +46,13 @@ source declares 10,000. The original lateral-offset word is at `0x1bc5c`, two
 bytes after the enhanced source equate. The source verifier records the three
 affected operands explicitly, with no operand wildcards.
 
+These buffer limits describe Original. Expanded view queries keep the dense
+vertex layout but provide queue space for all three passes and scale the shared
+line budget to the exposed viewport. The far projection uses separate native
+vertex storage beyond the original scratch area; see
+[expanded view storage](native-extended-view.md). These buffers belong to the
+private query and do not enter simulation RAM or retained Original history.
+
 Longitudinal edge colors follow the original depth thresholds and alternating
 segment/section flag. Conditional white cross edges and brown side posts follow
 the original painter order. Lower vertices are materialized only when the

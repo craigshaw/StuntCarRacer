@@ -10,9 +10,12 @@ struct OpponentFarTrackData {
 struct OpponentFarTrackFrame {
     NearTrackGeometryState geometry;
     NearTrackQueueState queue;
-    std::array<std::array<std::uint8_t,2>,30> headers{}; // flags,segment
+    std::vector<std::array<std::uint8_t,2>> headers; // flags,segment
+    // Only the first original 60 vertices are retained in geometry/history.
+    // Expanded queries can project beyond that original scratch buffer.
+    std::vector<NearTrackVertex> upper,lower;
     std::uint16_t denseEnd{};
-    std::uint8_t vertexEnd{};
+    std::uint16_t vertexEnd{};
 };
 // Original65ec4 and67460, starting at the carry left by the three dense passes.
 // The returned queue includes dense entries and their shared line allocation.

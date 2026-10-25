@@ -22,7 +22,7 @@ struct NearTrackQueueEntry {
     std::uint8_t segment{},edgeColor{},processedFlags{},steeringFlags{};
 };
 struct NearTrackQueueState {
-    std::array<NearTrackQueueEntry,48> entries{};
+    std::vector<NearTrackQueueEntry> entries=std::vector<NearTrackQueueEntry>(48);
     std::array<bool,100> coveredSegments{};
     std::uint16_t offset{32},opponentOffset{0xffff};
     std::uint16_t lineBytes{};
@@ -30,6 +30,18 @@ struct NearTrackQueueState {
     std::uint16_t minimumBoundaryDistance{};
     int horizontalPadding{},topPadding{},bottomPadding{};
 };
+// Expanded views own native storage rather than the original byte-indexed
+// buffers. Keep the original limits exactly when no viewport padding is used.
+constexpr bool expandedTrackView(int padding,int top,int bottom){return padding||top||bottom;}
+constexpr unsigned trackPresentationLineLimit(int padding,int top,int bottom){
+    // Scanline storage grows with the exposed area. Leave headroom below the
+    // word counter's maximum for the final admitted line and horizon.
+    const auto scaled=std::uint64_t(0x2328)*unsigned(256+2*padding)*unsigned(128+top+bottom)/(256*128);
+    return scaled>60000?60000:unsigned(scaled);
+}
+inline unsigned trackPresentationQueueLimit(const NearTrackQueueState& q){
+    return expandedTrackView(q.horizontalPadding,q.topPadding,q.bottomPadding)?unsigned((q.entries.size()-1)*32):0x5e0;
+}
 // Exact clipping metadata needed by queue admission and viewport closure.
 // Edge pixels and scanline coverage remain the native renderer's concern.
 NearTrackEdge makeNearTrackEdge(NearTrackPoint from,NearTrackPoint to,int horizontalPadding=0,int topPadding=0,int bottomPadding=0);

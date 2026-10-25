@@ -49,7 +49,7 @@ Steps steps(NearTrackPoint a,NearTrackPoint b){
 }
 NearTrackPoint translated(const Steps& s,int x,int y,unsigned bias){return {add(add(x,s.tx),bias&1?1:0),add(add(y,s.ty),bias&2?1:0)};}
 NearTrackEdge allocateEdge(OpponentCarFrame& f,NearTrackPoint a,NearTrackPoint b){
-    if(f.lineBytes>=0x2328){NearTrackEdge e{};e.clipFlags=0x80;return e;}
+    if(f.lineBytes>=trackPresentationLineLimit(f.horizontalPadding,f.topPadding,f.bottomPadding)){NearTrackEdge e{};e.clipFlags=0x80;return e;}
     auto e=makeNearTrackEdge(a,b,f.horizontalPadding,f.topPadding,f.bottomPadding);e.originQueueOffset=0xffff;f.lineBytes=std::uint16_t(f.lineBytes+e.storageBytes);return e;
 }
 void quad(OpponentCarFrame& f,const Steps& s,int x,int y,unsigned offset){

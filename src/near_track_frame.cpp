@@ -17,6 +17,8 @@ NearTrackFrame buildNearTrackFrame(const TrackProgressData& data,
     if(geometry.progress.progressOffset&0x8000){advance();geometry.progress.progressOffset&=0xff;}
     NearTrackFrame result;
     result.queue.horizontalPadding=geometry.horizontalPadding;result.queue.topPadding=geometry.topPadding;result.queue.bottomPadding=geometry.bottomPadding;
+    if(expandedTrackView(geometry.horizontalPadding,geometry.topPadding,geometry.bottomPadding))
+        result.queue.entries.resize(92); // Three dense passes, plus boundary/sentinel slots.
     result.queue.opponentSegment=inputs.opponentSegment;
     result.queue.opponentSubSegment=inputs.opponentSubSegment;
     result.queue.minimumBoundaryDistance=inputs.minimumBoundaryDistance;

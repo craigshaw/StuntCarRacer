@@ -73,6 +73,15 @@ scenery. All world consumers use the wider private bounds [-304,560] × [-16,184
 including near/far edges, mountain admission, opponents and raster coverage.
 The simulation projection scale and all original-size compositors stay intact.
 
+Expanded views also use larger private road buffers. The original far scratch
+area admits only 29 new cross-sections, which can leave visible track cut off
+inside a wide canvas. Expanded projection can continue through one complete
+cache circuit, stopping earlier at the viewport edge or an authored shorter
+projection limit. Its queue grows with that cache; dense storage accommodates
+all three near passes. The shared line budget scales with viewport area and
+stays within its word counter. Original retains its 29-section, 48-slot and
+9,000-byte limits, and its original presentation history layout.
+
 ## Display and preferences
 
 The 320×200 bitmap is presented at 4:3 with the original non-square pixel
@@ -113,6 +122,12 @@ cleanup, palette capture and full terminal memory equality against a twin.
 The same assembly variants and eight-track queries also cover 16:9, including
 the full car and main arch, lower-corner scenery, end/pause panels and fades.
 They also cover 32:9, its additional outer scenery and unchanged central frame.
+
+`native_track_visibility_tests` reproduces the Stepping Stones Practice drop
+at three ticks, requiring the red/white wall to reach every outer-right column
+with and without interpolation. It checks expanded coordinate/queue capacity,
+allocation beyond the original line ceiling, bounded cache traversal, authored
+shorter cuts and retained Original limits. It exports the three fixed frames.
 
 The 32-scenario rendering audit covers both leagues, Practice and competition,
 with original-code comparisons and independent snapshot/RNG checks. Display

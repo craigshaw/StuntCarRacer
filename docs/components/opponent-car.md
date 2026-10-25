@@ -39,6 +39,13 @@ cache stream and per-segment projection limits come from the local asset pack.
 Original lower-edge silhouette admission, angular stopping rules, cache wrap,
 queue limit and opponent marker selection are preserved.
 
+Those fixed buffer limits apply to Original. Expanded views can project beyond
+the original 29-section scratch capacity, with private native vertices and a
+larger queue, while preserving shorter authored cuts. Their shared line budget
+scales with viewport area for road, background, boundary and car allocations;
+see [expanded views](native-extended-view.md). Projection arithmetic, materials
+and painter ordering remain shared with Original.
+
 The far and near queues, horizon, mountains and car share the original
 line-buffer budget. Road edges are allocated first, then the horizon's forced
 line and each selected mountain template's edges. The forced horizon path

@@ -41,6 +41,11 @@ history when no further edges fit. Those details affect later frames, so they
 remain part of presentation history even in Practice. Dense viewport closure
 also uses the final shared allocation while commands are painted.
 
+That allocation limit is retained for Original. Expanded view queries use a
+viewport-area-scaled budget shared by the same producers, along with larger
+private road projection and queue storage. The expanded buffers and their
+bounded traversal are described in [the view contract](native-extended-view.md).
+
 The returned `denseLineBytes`, `farLineBytes`, `backgroundLineBytes` and `lineBytes`
 describe consecutive allocation boundaries. `remainingOpponentOffset` and the
 car flags expose admission outcomes for verification. Dense queue metadata is

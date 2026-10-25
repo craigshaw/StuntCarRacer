@@ -35,7 +35,7 @@ unsigned lineBytes(const NearTrackEdge& e){
 NearTrackEdge absent(){NearTrackEdge e{};e.clipFlags=0x80;return e;}
 void storeEdge(NearTrackQueueState& q,unsigned offset,NearTrackEdge edge){
     if(offset>=q.entries.size()*32||offset%32>=28||(offset&3))throw std::out_of_range("Near queue edge offset outside slots");
-    if(edge.present){if(q.lineBytes>=0x2328)edge=absent();else q.lineBytes=std::uint16_t(q.lineBytes+lineBytes(edge));}
+    if(edge.present){if(q.lineBytes>=trackPresentationLineLimit(q.horizontalPadding,q.topPadding,q.bottomPadding))edge=absent();else q.lineBytes=std::uint16_t(q.lineBytes+lineBytes(edge));}
     edge.originQueueOffset=std::uint16_t(offset&~31u);edge.originEdge=std::uint8_t((offset&31)/4);
     q.entries[offset/32].edges[(offset&31)/4]=edge;
 }
@@ -76,7 +76,7 @@ bool closeBoundary(std::vector<NearTrackEdge>& edges,NearTrackPoint start,NearTr
     const auto append=[&](NearTrackPoint a,NearTrackPoint c){
         // Original clipLineAndMakeEdge0x6814a admits a line at the arena's
         // exact end; its guard is strict>, unlike drawClippedLine's>= guard.
-        if(lineBytes&&*lineBytes>0x2328)return false;
+        if(lineBytes&&*lineBytes>trackPresentationLineLimit(padding,topPadding,bottomPadding))return false;
         auto e=makeNearTrackEdge(a,c,padding,topPadding,bottomPadding);e.originQueueOffset=0xffff;e.originEdge=0xff;
         if(lineBytes)*lineBytes=std::uint16_t(*lineBytes+e.storageBytes);edges.push_back(e);return true;
     };
@@ -207,7 +207,7 @@ void appendNearTrackSegment(NearTrackGeometryState& s,NearTrackQueueState& q,boo
     const auto limit=s.progress.segment.limitDoubled;
     if(limit<4||limit>120||(limit&3))throw std::invalid_argument("Near queue requires complete cross-sections");
     if(s.progress.currentSegment>=q.coveredSegments.size())throw std::out_of_range("Near segment outside track");
-    if(q.offset>=0x5e0)return;
+    if(q.offset>=trackPresentationQueueLimit(q))return;
     q.previousOffset=previousOffset(s,q);s.processedIndices[0]=0;int index=first?s.renderingLoopIndex:4;
     if(first){q.offset=48;if(index){for(int n=index-4;n>=0;n-=4)s.flags[unsigned(n)/4]=0x80;s.progress.depth=std::uint8_t(s.progress.depth+(unsigned(index)>>2)-1);}}
     else if(!q.previousOffset)manageBounds(q);
@@ -229,7 +229,7 @@ void appendNearTrackSegment(NearTrackGeometryState& s,NearTrackQueueState& q,boo
             auto& header=q.entries.at(q.offset/32);header.segment=s.progress.currentSegment;header.edgeColor=trackRoadEdgeColor(s.progress.depth,alternate);
             header.processedFlags=flags;header.steeringFlags=s.progress.segment.steeringFlags;q.offset+=4;
             q.coveredSegments[s.progress.currentSegment]=true;s.processedIndices[0]=std::uint8_t(index);
-            if(q.offset>=0x5e0)return;
+            if(q.offset>=trackPresentationQueueLimit(q))return;
         }
         s.flags[unsigned(index)/4]=0x80;
         if(unsigned(index)>=q.previousOffset)manageBounds(q);

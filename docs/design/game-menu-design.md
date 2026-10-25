@@ -25,10 +25,11 @@ Enter/A across Quit selection cannot activate the following confirmation.
 
 - Resume returns to the exact underlying screen and clock phase.
 - Settings retains preview, Apply/Cancel and window-placement restoration.
-- Leave Race appears only during an unfinished race. It resumes the session
-  with a latched request through the existing race-exit path. Original exit
-  gates, cleanup, damage and scoring rules remain authoritative. Controller
-  Back/View retains its existing direct race-exit shortcut.
+- Leave Race appears only during an unfinished race. Its host command selects
+  the normal quit outcome immediately, before any further physics tick, even
+  during a crash, lift or recovery. Existing cleanup, damage and scoring rules
+  still apply. Controller Back/View retains the original gated keyboard-quit
+  path; it is separate from the Game menu command.
 - Quit to Desktop opens a confirmation with Cancel first and selected. Career
   confirmation describes saving and, for an unfinished competitive race,
   restarting at its matchup on Resume Season. Multiplayer warns that progress
@@ -44,6 +45,6 @@ is no Return to Careers or return-to-launcher action in this menu; career
 switching retains its original Back hierarchy.
 
 Focused verification covers shortcut routing, conditional actions, held inputs,
-confirmation cancellation, Settings return, paused rendering, original race-exit
-equivalence, and save failure/cancel/retry. See [development](../development.md)
+confirmation cancellation, Settings return, paused rendering, immediate exits
+from driving/crash/recovery states, and save failure/cancel/retry. See [development](../development.md)
 and [career persistence](career-persistence-design.md) for the retained contracts.

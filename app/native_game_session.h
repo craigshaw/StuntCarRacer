@@ -22,6 +22,8 @@ struct NativeGameInput {
     bool quit{};
     std::vector<NativeRawKeyEvent> rawKeys;
     DriveControlPreset drivePreset{DriveControlPreset::Original};
+    // Host Game menu command; independent of the original keyboard quit gates.
+    bool leaveRace{};
 };
 enum class NativeGameUnavailable { none,menuRoute,computerLink };
 enum class NativeGameStart { OriginalOpening,EstablishedMenu };

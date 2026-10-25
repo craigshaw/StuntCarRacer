@@ -50,6 +50,9 @@ RaceTransitionEffects finishRaceEnd(RaceTransitionState&) noexcept;
 // Common original exit [0x5d674,0x5d724), Practice or one local season player.
 // The fade is an explicit presentation event; seed-save byte overlap is kept.
 RaceTransitionEffects finishLocalRaceExit(const RaceTransitionInputs&,RaceTransitionState&);
+// Apply the local quit outcome. Native host commands may call this directly;
+// the original keyboard path retains its gates in continueRaceTransition.
+RaceTransitionEffects quitLocalRace(const RaceTransitionInputs&,RaceTransitionState&) noexcept;
 // Original [0x5d5ac,0x5d674), after buffer swap and pause have completed.
 RaceTransitionEffects continueRaceTransition(const RaceTransitionInputs&,RaceTransitionState&) noexcept;
 // Original 0x5d9dc..0x5daac. First press arms pause for the following tick;

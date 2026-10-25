@@ -247,6 +247,11 @@ NativeGameUpdate NativeGameSession::updateImpl(double elapsed,const NativeGameIn
         return result;
     }
     if(page()==NativeMenuPage::Race){
+        if(input.leaveRace){
+            race_.quitLive();
+            if(careerStore_){saveCheckpoint(true);(void)careerStore_->flush();}
+            leaveRace();return result;
+        }
         if(race_.liveTerminal()){
             // Original end-message waits for a new fire press. Escape follows
             // the separate immediate Practice exit path in the outer loop.

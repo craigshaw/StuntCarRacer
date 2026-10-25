@@ -65,6 +65,10 @@ RaceTransitionEffects continueRaceTransition(const RaceTransitionInputs& in,Race
     }
     if(!in.raceStartTimer&&(negative(in.offTrackFlags)||!in.wheelMovementActive))return e;
     if(!in.quitPressed)return e;
+    return quitLocalRace(in,s);
+}
+RaceTransitionEffects quitLocalRace(const RaceTransitionInputs& in,RaceTransitionState& s) noexcept {
+    RaceTransitionEffects e{};
     if(!in.raceComplete)s.outcomeFlags=0xc0;
     event(e,RaceTransitionEventKind::updateNetworkFlags);e.action=RaceTransitionAction::quit;return e;
 }

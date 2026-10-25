@@ -124,7 +124,7 @@ without discarding a saved season. Apply these routes independently of navigatio
 multiplayer retains its existing routes.
 
 While driving, Escape opens the native [Game menu](game-menu-design.md).
-Its Leave Race action retains the original exit gates and scoring consequences;
+Its Leave Race action exits immediately with the original scoring consequences;
 Quit to Desktop uses the checkpoint-aware application-close path. Do not add a
 Return to Careers command to this menu. Start/P also opens the Game menu, and
 F10 retains direct Settings access outside Quit confirmation.

@@ -239,6 +239,16 @@ void ReplayScene::loadNativeState(const std::array<std::uint8_t,0x80000>& memory
     initialiseMemory(memory,payload);nativePackPath_.clear();chipPath_.clear();payloadPath_.clear();
     beginLiveRecording(directory);
 }
+void ReplayScene::quitLive(){
+    if(!simulation_)throw std::logic_error("Race quit requires a live scene");
+    if(liveTerminal())return;
+    namespace t=scr::state::transitions;auto& native=simulation_->native;
+    auto state=t::readState(native.ram.data());
+    native.outerAction=quitLocalRace(t::readInputs(native.ram.data()),state).action;
+    t::writeState(native.ram.data(),state);
+    frames_.back().action=unsigned(native.outerAction);frames_.back().audio.action=unsigned(native.outerAction);
+    frames_.front()=frames_.back();cachedFrame_=~0u;
+}
 void ReplayScene::finishLiveExit(std::array<std::uint8_t,0x80000>& sessionMemory){
     if(!liveTerminal())throw std::logic_error("Race exit requires a terminal transition");
     namespace t=scr::state::transitions;

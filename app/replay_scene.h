@@ -67,6 +67,9 @@ public:
     // A native menu session supplies its own freshly initialized race memory.
     void loadNativeState(const std::array<std::uint8_t,0x80000>& memory,
         const std::vector<std::uint8_t>& payload,const std::filesystem::path& recordingsDirectory);
+    // Host Leave Race: select the normal quit outcome without another tick.
+    // Recorded keyboard quit input continues to use the original gated path.
+    void quitLive();
     // Complete the recovered local race exit after quit or the end-message wait.
     void finishLiveExit(std::array<std::uint8_t,0x80000>& sessionMemory);
     // Observation/copy boundaries for native persistence; no live mutation.

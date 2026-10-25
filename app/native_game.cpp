@@ -167,6 +167,7 @@ private:
     }
     NativeGameInput input()const{
         NativeGameInput value;
+        value.leaveRace=leaveRaceRequested_;
         value.drivePreset=settings_.preferences().controls;
         if(suppressInput_)return value;
         value.rawKeys=rawKeys_;
@@ -194,7 +195,7 @@ private:
         const bool fire=keys_[VK_RETURN]||keys_[VK_SPACE]||(p.connected&&(p.buttons&0x1000));
         value.menu.controls=std::uint8_t((up?1:0)|(down?2:0)|(left?4:0)|(right?8:0)|(fire?16:0));
         for(unsigned n=0;n<4;++n)if(keys_['1'+n]||keys_[VK_NUMPAD1+n])value.menu.numberedKeys|=std::uint8_t(1u<<n);
-        value.quit=leaveRaceRequested_||(p.connected&&(p.buttons&0x0020));return value;
+        value.quit=(p.connected&&(p.buttons&0x0020));return value;
     }
     void update(HWND window,double elapsed){
         if(!focused_||settings_.blocksGame())return;

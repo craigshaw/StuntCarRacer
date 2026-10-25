@@ -170,6 +170,25 @@ void practicePolicies(const std::filesystem::path& pack,const std::filesystem::p
         require(game->page()==NativeMenuPage::Matchup&&progress(game->memory())==state,"Policy Continue changed prepared season");
     }
 }
+void leaveRacePersistence(const std::filesystem::path& pack,const std::filesystem::path& root){
+    for(auto policy:{NativeMenuNavigation::Original,NativeMenuNavigation::Responsive})for(unsigned crash=0;crash<2;++crash){
+        const auto folder=root/(std::to_string(unsigned(policy))+"-"+std::to_string(crash));auto game=start(pack,folder);create(*game,"LEAVER");
+        choose(*game,2);tap(*game);require(game->page()==NativeMenuPage::Matchup,"Leave Race career fixture missed matchup");
+        tap(*game);tap(*game);require(game->page()==NativeMenuPage::Race,"Leave Race career fixture missed race");game->setNavigation(policy);
+        const auto crashed=[&](){const auto& frame=game->race().frames().back();return !frame.nearInputs.drawing.raceStartTimer&&(frame.nearInputs.progress.offTrackFlags&0x80);};
+        NativeGameInput driving;driving.driveControls=21;
+        for(unsigned n=0;crash&&!crashed()&&n<1200&&!game->raceEnded();++n)game->update(.12,driving);
+        require(!crash||crashed(),"Leave Race career fixture missed crash");
+        const auto ticks=game->race().liveTicks(),damage=unsigned(game->race().frames().back().damage);
+        game->render(true,false,NativeView::Ultrawide);NativeGameInput leave;leave.leaveRace=true;game->update(0,leave);
+        for(unsigned n=0;game->transitioning()&&n<20;++n)game->update(1,{});
+        require(game->page()==NativeMenuPage::Results&&game->race().liveTicks()==ticks,"Career Leave Race waited for recovery or skipped results");
+        require(game->memory()[0x1bbb4]==0xc0&&game->memory()[0x1bb55]==damage,"Career Leave Race lost the abandoned outcome or damage");
+        const auto state=progress(game->memory());const auto pixels=game->render();require(game->requestClose(),"Leave Race results did not flush");
+        game.reset();game=start(pack,folder);continueLast(*game,true);
+        require(game->page()==NativeMenuPage::Results&&progress(game->memory())==state&&game->render()==pixels,"Leave Race results were lost or scored again on Continue");
+    }
+}
 void paging(const std::filesystem::path& pack,const std::filesystem::path& root){
     auto game=start(pack,root);create(*game,"MANY");require(game->requestClose(),"List fixture did not flush");const auto first=game->activeCareer()->id;game.reset();
     {NativeCareerStore store(root);CareerBytes bytes;auto info=decodeCareerInfo(store.readCareer(first).data,&bytes);
@@ -258,6 +277,6 @@ void checkpointContexts(const std::filesystem::path& pack){
 }
 int main(int argc,char** argv)try{
     if(argc!=3)throw std::invalid_argument("native_autosave_tests pack output");const std::filesystem::path root=argv[2];
-    std::filesystem::create_directories(root);storage(root/"storage");checkpointContexts(argv[1]);careerFlow(argv[1],root/"flow");failures(argv[1],root/"failures");practicePolicies(argv[1],root/"policies");paging(argv[1],root/"paging");draftsAndRecovery(argv[1],root/"recovery");seasonEndings(argv[1],root/"endings");earnedRecords(argv[1],root/"records");
+    std::filesystem::create_directories(root);storage(root/"storage");checkpointContexts(argv[1]);careerFlow(argv[1],root/"flow");failures(argv[1],root/"failures");practicePolicies(argv[1],root/"policies");leaveRacePersistence(argv[1],root/"leave-race");paging(argv[1],root/"paging");draftsAndRecovery(argv[1],root/"recovery");seasonEndings(argv[1],root/"endings");earnedRecords(argv[1],root/"records");
     std::cout<<"{\"status\":\"passed\",\"checkpoint_contexts\":8,\"checkpoint_phases\":9,\"season_ending_contexts\":8,\"practice_policy_cases\":4,\"listed_careers\":36,\"record_mode_league_cases\":4,\"finish_before_acknowledgement\":true,\"finish_scoring_matches_uninterrupted\":true,\"interrupted_fixture\":true,\"duplicate_names\":true,\"delete\":true,\"recovery\":true,\"write_retry\":true,\"record_merge\":true,\"three_lap_records\":true,\"setup_draft\":true,\"conditional_entry_rows\":true,\"three_row_main_menu\":true,\"continue_opens_main_menu\":true,\"resume_season\":true,\"practice_preserves_suspended_season\":true,\"existing_native_careers\":true,\"career_switch_isolation\":true}\n";return 0;
 }catch(const std::exception& e){std::cerr<<e.what()<<'\n';return 1;}

@@ -32,7 +32,9 @@ shared. Original arithmetic, race logic and clocks are unchanged.
   preview Back returns to its prepared matchup. It never acknowledges a report.
 - While driving, the prior checkpoint represents the same pre-race matchup.
   Closing or crashing restarts that fixture through its preview, with its original
-  pre-race damage/RNG. Actual Leave Race retains original scoring/quit semantics.
+  pre-race damage/RNG. Game menu Leave Race selects the quit outcome immediately
+  without another physics tick, including during crash/recovery. Its resulting
+  damage, RNG and scoring still pass through the normal exit and checkpoint path.
 - At a competitive terminal message, `ReplayScene::copyLiveExit` stages exit on
   a private copy, and a separate menu instance scores that copy. The checkpoint
   retains the outstanding finish frame and resulting report. The running game

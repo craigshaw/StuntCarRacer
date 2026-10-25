@@ -2,6 +2,8 @@
 #define WIN32_LEAN_AND_MEAN
 #include "windows_game_display.h"
 #include "native_game_session.h"
+#include "race_transitions.h"
+#include "state/race_transitions_adapter.h"
 #include "replay_view.h"
 #include <algorithm>
 #include <chrono>
@@ -291,6 +293,59 @@ void fullscreen(WindowsGameDisplay& display){
 void settle(NativeGameSession& game){for(unsigned n=0;game.transitioning()&&n<16;++n)game.update(1,{});require(!game.transitioning(),"Race setup fade did not finish");}
 void fire(NativeGameSession& game){settle(game);game.update(1,{});game.update(1,{});game.update(0,{{16,0},0,false});game.update(1,{});settle(game);}
 void start(NativeGameSession& game){settle(game);fire(game);fire(game);fire(game);game.update(1,{});settle(game);require(game.page()==NativeMenuPage::Preview,"Display test did not reach preview");game.update(0,{});game.update(0,{{16,0},0,false});settle(game);require(game.page()==NativeMenuPage::Race,"Display test did not enter Practice");}
+void leaveRaceStates(const std::filesystem::path& pack){
+    for(auto navigation:{NativeMenuNavigation::Original,NativeMenuNavigation::Responsive})
+    for(auto view:{NativeView::Original,NativeView::Extended,NativeView::Widescreen,NativeView::Ultrawide})
+    for(unsigned situation=0;situation<4;++situation){
+        NativeGameSession game(pack,{},NativeGameStart::EstablishedMenu);start(game);game.setNavigation(navigation);
+        const auto matches=[&](){const auto& frame=game.race().frames().back();
+            const bool lifting=frame.nearInputs.drawing.raceStartTimer!=0,offTrack=(frame.nearInputs.progress.offTrackFlags&0x80)!=0;
+            if(situation==0)return lifting;
+            if(situation==1)return !lifting&&!offTrack&&frame.audio.wheelMovement!=0;
+            if(situation==2)return !lifting&&offTrack;
+            return frame.restarts!=0&&lifting;
+        };
+        for(unsigned tick=0;!matches()&&tick<1200&&!game.raceEnded();++tick){
+            NativeGameInput driving;driving.driveControls=situation==1?1:21;game.update(.12,driving);
+        }
+        if(!matches())throw std::runtime_error("Leave Race fixture missed situation "+std::to_string(situation));
+        const auto ticks=game.race().liveTicks(),restarts=game.race().frames().back().restarts;
+        const auto pose=game.race().frames().back().pose.worldPosition;
+        game.render(true,false,view);
+        NativeDisplaySettings settings;settings.openGameMenu(true);tap(settings,2);tap(settings,2);tap(settings,16);
+        require(settings.takeAction()==NativeDisplayAction::LeaveRace&&!settings.blocksGame(),"Leave Race menu action was lost");
+        game.releaseInput();NativeGameInput command;command.leaveRace=true;
+        const auto result=game.update(0,command);
+        require(game.transitioning()||result.raceExited,"Leave Race waited for physics or recovery");
+        require(game.race().liveTerminal()&&game.race().frames().back().action==unsigned(scr::RaceTransitionAction::quit),"Leave Race did not select the quit outcome");
+        require(game.race().liveTicks()==ticks&&game.race().frames().back().restarts==restarts&&game.race().frames().back().pose.worldPosition==pose,"Leave Race advanced the car before exiting");
+        settle(game);require(game.page()==NativeMenuPage::Track,"Leave Race did not restore track selection");
+        require(game.memory()[0x1bbb4]==0xc0&&game.memory()[0x57c5b]==0x80&&game.memory()[0x5d724]==0,"Leave Race skipped quit flags or cleanup");
+        std::array<std::uint8_t,4> savedSeed{};std::copy_n(game.memory().begin()+0x636b8,4,savedSeed.begin());
+        const auto again=game.update(0,{});
+        require(!again.raceExited&&game.page()==NativeMenuPage::Track&&game.race().liveTicks()==ticks&&std::equal(savedSeed.begin(),savedSeed.end(),game.memory().begin()+0x636b8),"Leave Race applied its cleanup twice");
+    }
+}
+void leaveRaceOutcomes(const std::filesystem::path& pack){
+    const auto seed=startNativeRace(pack,1);
+    for(unsigned flags=0;flags<32;++flags){
+        auto memory=std::make_unique<NativeMemory>(*seed.memory);
+        (*memory)[0x1bbdf]=flags&1?1:0;(*memory)[0x1bb7e]=flags&2?0x80:0;
+        (*memory)[0x1bb9c]=flags&4?0x80:0;(*memory)[0x1bbaf]=flags&8?0x80:0;
+        (*memory)[0x1bb41]=flags&16?0:0x80;(*memory)[0x1bb6c]=0;
+        (*memory)[0x1bbb4]=0x80;
+        ReplayScene scene;scene.loadNativeState(*memory,seed.payload,{});
+        const auto pose=scene.frames().back().pose.worldPosition;
+        scene.quitLive();scene.quitLive();
+        require(scene.liveTerminal()&&!scene.stepLive(31,true)&&scene.liveTicks()==0&&scene.frames().back().restarts==0&&scene.frames().back().pose.worldPosition==pose,"Host quit ran physics or recovery, or was not idempotent");
+        auto actual=std::make_unique<NativeMemory>();scene.copyLiveExit(*actual);
+        require((*actual)[0x1bbb4]==(flags&8?0x80:0xc0),"Host quit changed a completed outcome or failed to abandon an unfinished race");
+        namespace t=scr::state::transitions;
+        if(!(flags&8))(*memory)[0x1bbb4]=0xc0;
+        auto state=t::readState(memory->data());(void)scr::finishLocalRaceExit(t::readInputs(memory->data()),state);t::writeState(memory->data(),state);
+        require(*actual==*memory,"Host quit changed damage, RNG or state outside the normal quit/cleanup writes");
+    }
+}
 void timing(const std::filesystem::path& pack,const std::filesystem::path& output,WindowsGameDisplay& display){
     NativeGameSession viewed(pack,output/"viewed",NativeGameStart::EstablishedMenu),twin(pack,output/"twin",NativeGameStart::EstablishedMenu);start(viewed);start(twin);
     NativeDisplaySettings settings;Surface surface(800,500);
@@ -317,9 +372,8 @@ void timing(const std::filesystem::path& pack,const std::filesystem::path& outpu
     }
     settings.openGameMenu(true);tap(settings,2);tap(settings,2);tap(settings,16);
     const bool leave=settings.takeAction()==NativeDisplayAction::LeaveRace;require(leave&&!settings.blocksGame(),"Practice could not leave via the Game menu");
-    for(unsigned n=0;n<600&&viewed.page()==NativeMenuPage::Race&&!viewed.transitioning()&&!viewed.raceEnded();++n){viewed.update(0.12,{{},0,leave});twin.update(0.12,{{},0,true});}
-    if(viewed.raceEnded()){fire(viewed);fire(twin);}settle(viewed);settle(twin);
-    require(viewed.page()==NativeMenuPage::Track&&twin.page()==NativeMenuPage::Track,"Display test did not return through the original quit gate");
+    NativeGameInput command;command.leaveRace=leave;viewed.update(0,command);twin.update(0,command);settle(viewed);settle(twin);
+    require(viewed.page()==NativeMenuPage::Track&&twin.page()==NativeMenuPage::Track,"Display test did not return through Leave Race cleanup");
     require(viewed.memory()==twin.memory(),"Display settings altered final game RAM");
 }
 }
@@ -328,8 +382,9 @@ int main(int argc,char** argv)try{
     const std::filesystem::path output=argv[2];std::filesystem::create_directories(output);
     storage(output);navigation();gameMenu();WindowsGameDisplay display;const auto cases=scaling(display);
     widescreenDisplay(display,argv[1],output,NativeView::Widescreen);widescreenDisplay(display,argv[1],output,NativeView::Ultrawide);
-    fullscreen(display);timing(argv[1],output,display);
+    fullscreen(display);leaveRaceStates(argv[1]);leaveRaceOutcomes(argv[1]);timing(argv[1],output,display);
     std::cout<<"{\"status\":\"passed\",\"preference_roundtrips\":384,\"corrupt_preferences\":17,\"legacy_preferences_migrated\":true,\"control_preset_navigation\":true,\"game_menu\":true,\"quit_confirmation\":true,\"leave_race_equivalence\":true,\"atomic_failure_checked\":true,\"controller_navigation\":true,\"scaling_cases\":"<<cases
+        <<",\"leave_race_state_cases\":32,\"leave_race_outcome_cases\":32,\"leave_race_without_physics_tick\":true"
         <<",\"fullscreen_roundtrips\":4,\"paused_presentations\":120,\"changing_1080p_filter_ms\":"<<filterMilliseconds
         <<",\"changing_5120x1440_filter_ms\":"<<ultrawideFilterMilliseconds<<",\"wide_aspect_modes\":2,\"ultrawide_car_scale_preserved\":true,\"ultrawide_preference_roundtrip\":true,\"ultrawide_window_cancel\":true,\"original_tick_phase_preserved\":true,\"final_simulation_memory_identical\":true}\n";return 0;
 }catch(const std::exception& error){std::cerr<<error.what()<<'\n';return 1;}

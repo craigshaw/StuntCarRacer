@@ -193,9 +193,10 @@ on release, without applying the brake. Releasing before the next physics tick
 cancels Modern's pending gas press. Boost alone does not restart acceleration
 while coasting. Menus and text entry retain their controls.
 
-During an unfinished race, **Game menu → Leave Race** requests the original
-race-exit path; its gameplay gates and scoring rules still apply. Controller
-Back/View remains a direct shortcut to that exit. Escape opens the Game menu.
+During an unfinished race, **Game menu → Leave Race** exits immediately,
+including while crashing or being lifted back onto the track. Existing damage
+and scoring rules still apply. Controller Back/View retains the original exit
+shortcut, which can wait for recovery. Escape opens the Game menu.
 At the end message,
 release fire and press it again. The original exit cleanup saves RNG state and
 restores the player's persistent data. Practice returns directly to the same

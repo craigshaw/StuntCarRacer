@@ -54,7 +54,10 @@ controller and preference-file behaviour.
 The native Game menu opens with Esc in races/the mode chooser, P outside name
 editing, or controller Start. Nested menu Esc continues to reach the original
 Back handling. Resume and Settings are always offered; Leave Race appears only
-for an unfinished race and feeds the original latched quit request. Quit to
+for an unfinished race and selects its quit outcome before another physics tick,
+including during crashes and recovery. The host command survives held-input
+suppression after closing the overlay. Original recorded keyboard quits retain
+their recovered timing gates. Quit to
 Desktop opens a separate confirmation defaulting to Cancel, then uses
 `NativeGameSession::requestClose`. A pending save decision remains interactive;
 cancelled closing restores the Game menu. Host menu, Settings and confirmation

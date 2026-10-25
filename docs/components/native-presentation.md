@@ -37,14 +37,14 @@ source images.
 The native game's host now supplies a separate display overlay and borderless
 fullscreen, with persisted image sizing, filtering, integer scale and motion
 preferences. Integer uses nearest-neighbour samples at Auto or fixed 1×–32×.
-Fit preserves the selected 4:3 or 16:9 display aspect; Stretch fills both target axes. Both expose
+Fit preserves the selected 4:3, 16:9 or 32:9 display aspect; Stretch fills both target axes. Both expose
 independent nearest-neighbour or separable bilinear filtering, with clamped
-edges and cached coordinates. Version 7 preferences migrate versions 1–6:
+edges and cached coordinates. Version 8 preferences retain versions 1–7:
 integer becomes Integer Auto, sharp becomes Fit/Nearest neighbour and smooth
 becomes Fit/Bilinear. Invalid fields reject the complete preference file.
 Windowed fixed scales resize the client in physical pixels, capped to the
-monitor work area; fullscreen fixed scales centre the selected view. The 16:9
-working canvas overdraws its aperture slightly, cropping only new outer pixels
+monitor work area; fullscreen fixed scales centre the selected view. Both wide
+working canvases overdraw their apertures slightly, cropping only new outer pixels
 to retain the original car scale. Cancel
 restores the pre-edit window placement as well as preferences. The source image remains
 immutable. Overlay navigation suspends game/audio updates and retains the current
@@ -75,6 +75,9 @@ cockpit and car remain in their original positions. The 16:9 mode renders a
 braces and blue interior are extended; all dynamic car compositors keep their
 320 by 200 coordinates and translate by 56 pixels. Integer and Fit preserve
 the selected aspect; Stretch changes display proportions while retaining its view.
+The 32:9 mode uses the same frame derivation and compositors over 864 by 200,
+centred at offset 272. Its wider private clipping bounds reveal additional
+scenery; the original car and main arch retain their artwork and display scale.
 A complete free camera still needs independent placement and broader visibility
 handling. These options remain separate from simulation.
 

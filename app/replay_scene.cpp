@@ -321,7 +321,7 @@ const std::vector<std::uint32_t>& ReplayScene::renderLiveMessage(unsigned index,
     cachedFrame_=~0u;renderLive(lastLiveFraction_,false,lastLiveInterpolate_,lastLiveView_);
     const auto& memory=simulation_->native.ram;
     const auto cockpit=captureCockpitFrame(memory.data(),memory.size());
-    const bool wide=lastLiveView_==NativeView::Widescreen;
+    const bool wide=isWideView(lastLiveView_);
     if(wide)foreground_.assign(320*200,replayTransparent);
     auto& panel=wide?foreground_:pixels_;
     compositeMaskedObject(assets_,51,cockpit.objects[51],panel);
@@ -425,13 +425,13 @@ const std::vector<std::uint32_t>& ReplayScene::renderView(double position,const 
         const auto& to=fraction>1e-9?frames_[index+1]:from;
         if(to.opponentEnabled)opponent=interpolateOpponent(from.opponent,to.opponent,visual.camera,fraction);
     }
-    const auto commands=buildViewCommands(visual,from,opponent,viewPadding(settings.view),settings.view!=NativeView::Original?16:0,settings.view==NativeView::Widescreen?56:0);
+    const auto commands=buildViewCommands(visual,from,opponent,viewPadding(settings.view),settings.view!=NativeView::Original?16:0,isWideView(settings.view)?56:0);
     draw(visual,commands,wireframe,from.movingTrack.get(),&from,fraction,settings.showCockpit,settings.view,
         fraction>1e-9?&frames_[index+1]:nullptr);
     return pixels_;
 }
 void ReplayScene::draw(const ReplayVisualState& frame,const NearTrackPresentation& nearTrack,bool wireframe,const ReplayTrackSnapshot* movingTrack,const ReplaySceneFrame* discrete,double fraction,bool showCockpit,NativeView view,const ReplaySceneFrame* next){
-    const bool wide=view==NativeView::Widescreen,extended=view!=NativeView::Original;
+    const bool wide=isWideView(view),extended=view!=NativeView::Original;
     if(showCockpit&&!wide)makeReplayBackground(assets_,pixels_);else pixels_.assign(viewWidth(view)*200,0);
     const auto mountains=projectMountainHorizon(mountains_,frame.pose.yaw,frame.camera,viewPadding(view));
     statistics_=renderer_.drawFrame(movingTrack?movingTrack->mesh:mesh_,movingTrack?movingTrack->sides:sides_,mountains,frame.camera,projection_,assets_.palette,pixels_,wireframe,&nearTrack,viewPadding(view),extended,wide?56:0);
@@ -458,7 +458,7 @@ void ReplayScene::draw(const ReplayVisualState& frame,const NearTrackPresentatio
     if(wide)compositeReplayCentred(foreground,pixels_);
 }
 void ReplayScene::saveBitmap(const std::filesystem::path& path) const {
-    if(pixels_.size()!=320*200&&pixels_.size()!=replayWidescreenWidth*200)throw std::runtime_error("Render a frame before exporting");
+    if(!isReplayCanvasSize(pixels_.size()))throw std::runtime_error("Render a frame before exporting");
     const auto width=std::uint32_t(pixels_.size()/200);
     std::ofstream out(path,std::ios::binary);if(!out)throw std::runtime_error("Cannot create rendered bitmap");
     const std::uint32_t size=54+width*200*4;out.put('B');out.put('M');littleLong(out,size);littleLong(out,0);littleLong(out,54);

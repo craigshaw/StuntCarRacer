@@ -52,7 +52,7 @@ Start with the [project README](../README.md). For a new development thread, rea
   [race messages](components/native-race-messages.md), [dust and sparks](components/native-driving-particles.md),
   [wheel animation](components/wheel-animation.md), [audio](components/native-audio.md).
 - [Presentation API](components/native-presentation.md), [scene commands](components/native-scene-commands.md),
-  [Original, Extended and 16:9 views](components/native-extended-view.md),
+  [Original, Extended, 16:9 and 32:9 views](components/native-extended-view.md),
   [sidewalls and mountains](components/native-sides-and-mountains.md),
   [near-track visibility and edges](components/native-near-track.md),
   [bounded rendering audit](components/native-render-audit.md).

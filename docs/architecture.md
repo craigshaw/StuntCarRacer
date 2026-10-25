@@ -125,6 +125,12 @@ track previews and persisted finish images retain 4:3. No generated artwork
 is loaded. Window shape alone does not change projection. See the
 [view contract](components/native-extended-view.md).
 
+**32:9** extends that same procedural frame over an **864×200** canvas, with
+the original car/arch at offset (272,0) and near/far bounds [-304,560] × [-16,184].
+Its centred 432 columns retain the 16:9 frame exactly. No new or edited car
+artwork is needed; host cropping and pixel proportions keep the same scale at
+the same display height. Menus and persisted finish images still use 4:3.
+
 ## Fidelity contract
 
 Gameplay changes must preserve original arithmetic, operation order, wraparound,

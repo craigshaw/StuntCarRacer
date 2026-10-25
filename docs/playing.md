@@ -268,11 +268,12 @@ window placement when leaving. Image sizing and filtering are separate:
 - **Integer** uses crisp nearest-neighbour enlargement at the selected aspect ratio. **Auto**, the default, selects
   the largest whole-number display scale that fits. Fixed **1×–32×** scales centre the
   image in fullscreen; selecting one in windowed mode resizes the game area
-  (3× gives 960×720 for 4:3, or 1280×720 for 16:9). Oversized choices use the largest fitting
+  (3× gives 960×720 for 4:3, 1280×720 for 16:9, or 2560×720 for 32:9). Oversized choices use the largest fitting
   whole scale. Manually shrinking a window can also limit the selected scale.
 - **Fit** preserves the selected aspect ratio and fills whichever screen
   dimension limits it. At 1920×1080, 4:3 shows 1440×1080 with side borders;
   a 16:9 race fills the display.
+  At 5120×1440, a 32:9 race fills the display.
 - **Stretch** fills the entire window or monitor, changing image proportions.
   It shows the same game view and retains all HUD and menu content.
 - **Filtering**, shown for Fit and Stretch, offers **Nearest neighbour** for
@@ -293,11 +294,13 @@ composited after scaling, independently of the original game pixels.
 - **16:9** renders a wider world around the same-size original car and main
   arch. Its straight side braces and blue interior extend into the added space.
   The engine, tyres, exhausts and instruments keep their original artwork.
+- **32:9** extends the same world and procedural frame farther sideways,
+  retaining the centred car and main arch with no additional artwork edits.
 
-All three retain the original car's pixel proportions. At a fixed display
-height, 16:9 adds space to either side rather than shrinking the car. Integer
+All four retain the original car's pixel proportions. At a fixed display
+height, the wide modes add space to either side while retaining the car's scale. Integer
 sizing uses 240-pixel height steps: 4:3 widths are 320, 640, 960; 16:9 widths
-are 427, 853, 1280. Auto chooses the largest scale that fits the current window.
+are 427, 853, 1280; 32:9 widths are 853, 1707, 2560. Auto chooses the largest scale that fits the current window.
 Menus, track previews and saved career finish screens stay 4:3 in all modes.
 Changing aspect previews immediately; Cancel restores the previous choice.
 
@@ -306,7 +309,7 @@ Preferences are stored atomically; the development helper uses
 missing preferences use windowed, integer-scaled, original-update presentation
 and Original controls. Older display-only preferences retain their display
 choices and use Original controls; saving upgrades them to include the preset.
-Version 7 saves all three aspect modes. Version 6 retains its existing choice;
+Version 8 saves all four aspect modes. Versions 6 and 7 retain their existing choices;
 versions 1–4 retain Original; the old
 version-5 widescreen prototype selection migrates to Extended.
 Failed saves retain the last good file and show an error with an Apply retry.

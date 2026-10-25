@@ -1,11 +1,13 @@
-# Original, Extended and 16:9 cockpit views
+# Original, Extended, 16:9 and 32:9 cockpit views
 
 The launcher and in-game Settings offer **Aspect ratio → 4:3 (Original)**
-(default), **4:3 (Extended)** and **16:9**. Both 4:3 choices retain the original
+(default), **4:3 (Extended)**, **16:9** and **32:9**. Both 4:3 choices retain the original
 320×200 bitmap, cockpit geometry, engine, wheels, exhausts, instruments and effects.
 Extended exposes scenery in the otherwise unused black corners outside the
 upper arch. 16:9 uses the approved straight-brace frame around the same-size
 original car and main arch. It adds no tyre, engine or exhaust artwork.
+32:9 extends the same derived frame and world farther sideways without new
+artwork or further changes to the original car or arch.
 
 ## Fixed artwork over a larger world
 
@@ -63,6 +65,14 @@ hardware wheels and messages onto a separate original-size 320×200 layer,
 then composites it at (56,0). Native object positions, animation phases and
 clipping stay unchanged. Pause/end panels use the same centred composition.
 
+32:9 uses an 864×200 canvas with the original car/arch at (272,0). The same
+highlight fit and material profile extend its side braces and blue interior;
+the central 432 columns exactly match the existing 16:9 frame. Farther out,
+the diagonal braces naturally leave the bottom of the canvas, exposing more
+scenery. All world consumers use the wider private bounds [-304,560] × [-16,184],
+including near/far edges, mountain admission, opponents and raster coverage.
+The simulation projection scale and all original-size compositors stay intact.
+
 ## Display and preferences
 
 The 320×200 bitmap is presented at 4:3 with the original non-square pixel
@@ -78,9 +88,15 @@ are 427×240, 853×480 and 1280×720, with rounded widths at the first two scale
 Fit fills the largest rectangle at the selected aspect ratio. Stretch fills
 both target axes explicitly. Filtering and smoothing remain independent.
 
-Apply saves the selection; Cancel restores it and window placement. Version 7
-preferences store `aspect=original|extended|widescreen`. Version 6 retains its
-existing choice. Versions 1–4 select Original;
+32:9 uses the same 81/80 working-canvas overdraw and symmetric outer crop. At
+3×, its 2592×720 canvas presents through a 2560×720 aperture, cropping sixteen
+display pixels from each added outer edge. Its 1×/2×/3× client sizes are
+853×240, 1707×480 and 2560×720. The centred original car still spans 960×720 at
+3×, matching 4:3 and 16:9 at the same height.
+
+Apply saves the selection; Cancel restores it and window placement. Version 8
+preferences store `aspect=original|extended|widescreen|ultrawide`. Versions 6 and 7
+retain their existing choices. Versions 1–4 select Original;
 the superseded version-5 `view=widescreen` prototype migrates to Extended.
 Menus and track previews retain their original bitmap and 4:3 proportions.
 Race fades use the selected view and its canvas dimensions. Career finish
@@ -96,13 +112,14 @@ exact/interpolated queries, repeatability, switching back to Original, pause
 cleanup, palette capture and full terminal memory equality against a twin.
 The same assembly variants and eight-track queries also cover 16:9, including
 the full car and main arch, lower-corner scenery, end/pause panels and fades.
+They also cover 32:9, its additional outer scenery and unchanged central frame.
 
 The 32-scenario rendering audit covers both leagues, Practice and competition,
 with original-code comparisons and independent snapshot/RNG checks. Display
-tests cover all three aspect choices, nearest/bilinear scaling, fixed window
+tests cover all four aspect choices, nearest/bilinear scaling, fixed window
 sizes, preference migration and cancelling. Real Windows display captures
-verify unchanged car scale and clipping at the 16:9 aperture. A career fixture
-finishes with widescreen active and retains the original finish-image codec.
+verify unchanged car scale and clipping at both wide apertures. A career fixture
+finishes with 32:9 active and retains the original finish-image codec.
 Captures and source/executable-identified
 receipts belong under ignored analysis/ or CTest output. These are bounded
 checks, not a claim of exhaustive visibility or original world-pixel identity.

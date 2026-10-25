@@ -3,11 +3,12 @@
 #include <cstdint>
 
 namespace scr::viewer {
-enum class NativeView { Original, Extended, Widescreen };
+enum class NativeView { Original, Extended, Widescreen, Ultrawide };
 // Original artwork retains its scale, centred on the wider canvas.
 constexpr int extendedHorizontalPadding=32,extendedTopPadding=16;
-constexpr int viewWidth(NativeView view){return view==NativeView::Widescreen?replayWidescreenWidth:320;}
-constexpr int viewPadding(NativeView view){return view==NativeView::Widescreen?88:view==NativeView::Extended?32:0;}
+constexpr bool isWideView(NativeView view){return view==NativeView::Widescreen||view==NativeView::Ultrawide;}
+constexpr int viewWidth(NativeView view){return view==NativeView::Ultrawide?replayUltrawideWidth:view==NativeView::Widescreen?replayWidescreenWidth:320;}
+constexpr int viewPadding(NativeView view){return isWideView(view)?(viewWidth(view)-256)/2:view==NativeView::Extended?32:0;}
 // Presentation angles use the original wrapping 16-bit turn. These offsets
 // apply to a private render pose, never to the driver's simulation camera.
 struct ReplayViewSettings {

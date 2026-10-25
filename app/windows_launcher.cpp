@@ -85,7 +85,7 @@ void WindowsLauncher::create(HWND parent){
         {scalingName(NativeScaling::Integer),scalingName(NativeScaling::Fit),scalingName(NativeScaling::Stretch)},
         {L"Off",L"On",nullptr},{L"Original",L"Modern",nullptr},{L"Responsive",L"Original",nullptr}};
     for(unsigned row=0;row<5;++row)for(const auto choice:choices[row])if(choice)SendMessageW(controls_[row+2],CB_ADDSTRING,0,reinterpret_cast<LPARAM>(choice));
-    for(const auto label:{L"4:3 (Original)",L"4:3 (Extended)",L"16:9"})SendMessageW(controls_[11],CB_ADDSTRING,0,reinterpret_cast<LPARAM>(label));
+    for(const auto label:{L"4:3 (Original)",L"4:3 (Extended)",L"16:9",L"32:9"})SendMessageW(controls_[11],CB_ADDSTRING,0,reinterpret_cast<LPARAM>(label));
     SetWindowTextW(controls_[1],L"Details");SetWindowTextW(controls_[7],L"Restore original defaults");
     SetWindowTextW(controls_[8],L"Quit");SetWindowTextW(controls_[9],L"Play");
     SetWindowPos(controls_[10],controls_[3],0,0,0,0,SWP_NOMOVE|SWP_NOSIZE|SWP_NOACTIVATE);

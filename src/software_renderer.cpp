@@ -146,7 +146,7 @@ RenderStatistics SoftwareReplayRenderer::drawFrame(const TrackMesh& mesh,const s
     const MountainHorizonFrame& mountains,const RenderProjectionCamera& camera,
     const RenderProjectionTables& tables,const std::array<std::uint32_t,16>& palette,
     std::vector<std::uint32_t>& pixels,bool wireframe,const NearTrackPresentation* nearTrack,int padding,bool extended,int bottomPadding) {
-    if(padding<0||padding>128)throw std::invalid_argument("Invalid render viewport padding");
+    if(padding<0||padding>304)throw std::invalid_argument("Invalid render viewport padding");
     const RenderCanvas canvas{padding,extended,bottomPadding};
     if(bottomPadding<0||canvas.viewportHeight()+(extended?0:16)>height)throw std::invalid_argument("Invalid render viewport height");
     if(pixels.size()!=std::size_t(canvas.width()*height))throw std::invalid_argument("Renderer background dimensions do not match its viewport");

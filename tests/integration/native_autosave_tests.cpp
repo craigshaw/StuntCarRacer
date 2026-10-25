@@ -97,9 +97,10 @@ void careerFlow(const std::filesystem::path& pack,const std::filesystem::path& r
     require(game->page()==NativeMenuPage::Matchup,"Interrupted race did not resume at matchup");
     tap(*game);tap(*game);require(progress(game->memory())==raceStart,"Interrupted fixture repeated setup or lost pre-race state");
     require(game->render(false,false,NativeView::Widescreen).size()==432*200,"Career race did not use widescreen presentation");
-    for(unsigned n=0;n<2400&&!game->raceEnded();++n){if(n%100==0)game->render(false,false,NativeView::Widescreen);game->update(.12,{});}
+    require(game->render(false,false,NativeView::Ultrawide).size()==864*200,"Career race did not use ultrawide presentation");
+    for(unsigned n=0;n<2400&&!game->raceEnded();++n){if(n%100==0)game->render(false,false,NativeView::Ultrawide);game->update(.12,{});}
     require(game->raceEnded(),"Opponent did not finish fixture");const auto finishImage=game->render();
-    require(finishImage.size()==320*200,"Widescreen changed the persisted career finish image codec");
+    require(finishImage.size()==320*200,"Ultrawide changed the persisted career finish image codec");
     require(game->requestClose(),"Finish checkpoint did not flush");
     const auto pending=root/"pending-finish";CareerBytes finishCheckpoint;NativeCareerInfo finishInfo;
     {NativeCareerStore source(root),target(pending);finishInfo=decodeCareerInfo(source.readCareer(first).data,&finishCheckpoint);target.saveCareer(finishInfo,finishCheckpoint);target.setLastUsed(first);const auto hall=source.readHall();NativeHallBanks banks;std::copy(hall.data.begin(),hall.data.end(),banks.begin());target.saveHall(banks);require(target.flush(),"Cannot retain pending-finish comparison fixture");}

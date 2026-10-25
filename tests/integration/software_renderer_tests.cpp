@@ -86,6 +86,12 @@ int main(int argc,char** argv)try {
     renderer.drawFrame(flat,sides,{},camera,tables,palette,wide,false,&nearTrack,88,true,56);
     if(wide[175*432]!=palette[15]||wide[199*432+47]!=palette[15]||wide[199*432+48]==0x123456)
         throw std::runtime_error("Widescreen renderer omitted scenery in the exposed lower corners");
-    std::cout<<"{\"total_cases\":12,\"mismatches\":0,\"concave_notch_preserved\":true,\"winding_independent\":true,\"near_road_gap_absent\":true,\"near_culling_preserved\":true,\"offscreen_near_boundary_closed\":true,\"near_highlight_clipped\":true,\"near_painter_occlusion_preserved\":true,\"widescreen_lower_corners_rendered\":true,\"original_pixel_equality_claimed\":false}\n";
+    std::vector<std::uint32_t> ultra(864*200,0x123456);
+    nearTrack.commands.clear();nearTrack.commands.push_back(rectangle(-304,-16,-256,184,scr::NearTrackSurface::road,15));
+    nearTrack.commands.push_back(rectangle(512,-16,560,184,scr::NearTrackSurface::road,15));
+    renderer.drawFrame(flat,sides,{},camera,tables,palette,ultra,false,&nearTrack,304,true,56);
+    if(ultra[0]!=palette[15]||ultra[199*864+47]!=palette[15]||ultra[199*864+863]!=palette[15])
+        throw std::runtime_error("Ultrawide renderer clipped new outer scenery to the previous viewport");
+    std::cout<<"{\"total_cases\":13,\"mismatches\":0,\"concave_notch_preserved\":true,\"winding_independent\":true,\"near_road_gap_absent\":true,\"near_culling_preserved\":true,\"offscreen_near_boundary_closed\":true,\"near_highlight_clipped\":true,\"near_painter_occlusion_preserved\":true,\"widescreen_lower_corners_rendered\":true,\"ultrawide_outer_columns_rendered\":true,\"original_pixel_equality_claimed\":false}\n";
     return 0;
 }catch(const std::exception& error){std::cerr<<error.what()<<'\n';return 1;}

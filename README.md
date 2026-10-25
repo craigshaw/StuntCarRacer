@@ -65,9 +65,9 @@ Settings provide control presets, borderless
 fullscreen, Integer/Fit/Stretch sizing, separate filtering and optional 60 FPS
 smoothing for camera/cockpit movement, wheel placement, dust/spark motion and
 lifting chains. Integer Auto is the default; fixed 1×–32× scales are also available.
-**Aspect ratio** offers **4:3 (Original)** (default), **4:3 (Extended)** and
-**16:9** in the launcher and Settings. Extended reveals scenery in the black
-upper corners outside the original arch. 16:9 adds a wider world around the
+**Aspect ratio** offers **4:3 (Original)** (default), **4:3 (Extended)**,
+**16:9** and **32:9** in the launcher and Settings. Extended reveals scenery in the black
+upper corners outside the original arch. Both wide modes add a wider world around the
 same-size car and main arch, extending only the side braces and blue interior.
 The original engine, wheels, exhausts and instruments keep their pixels and
 scale. Menus and saved career finish images retain their original 4:3 format.
@@ -94,7 +94,7 @@ To run an existing build directly, from the project root:
 
 **Computer Link is deliberately deferred.** Alternate cameras, further graphical
 enhancements and distribution packaging are future work. Fullscreen fits the
-selected 4:3 or 16:9 view; image sizing and filtering remain independent.
+selected 4:3, 16:9 or 32:9 view; image sizing and filtering remain independent.
 The native rasterizer, audio output and host timing
 have [documented fidelity boundaries](docs/architecture.md#fidelity-contract).
 

@@ -96,15 +96,15 @@ void WindowsGameDisplay::filter(const std::vector<std::uint32_t>& pixels,int wid
     filterSource_=pixels;
 }
 void WindowsGameDisplay::paint(HDC dc,int width,int height,const std::vector<std::uint32_t>& pixels,const NativeDisplayPreferences& preferences){
-    if(pixels.size()!=320*200&&pixels.size()!=replayWidescreenWidth*200)throw std::invalid_argument("Invalid native display canvas");
+    if(!isReplayCanvasSize(pixels.size()))throw std::invalid_argument("Invalid native display canvas");
     const int sourceWidth=int(pixels.size()/200);
     RECT client{0,0,width,height};FillRect(dc,&client,static_cast<HBRUSH>(GetStockObject(BLACK_BRUSH)));
     const auto fit=displayRectangle(width,height,preferences,sourceWidth);
     if(fit.width<=0||fit.height<=0)return;
-    // The approved 432-column working frame slightly overdraws the exact 16:9
-    // aperture. Crop only its outer edges, preserving the original car scale.
+    // The wide working frames overdraw the exact 16:9/32:9 aperture by 81/80.
+    // Crop only their outer edges, preserving the original car scale.
     auto canvas=fit;
-    if(sourceWidth==replayWidescreenWidth){canvas.width=(fit.width*81+40)/80;canvas.x=fit.x+(fit.width-canvas.width)/2;}
+    if(sourceWidth!=320){canvas.width=(fit.width*81+40)/80;canvas.x=fit.x+(fit.width-canvas.width)/2;}
     const auto saved=SaveDC(dc);IntersectClipRect(dc,fit.x,fit.y,fit.x+fit.width,fit.y+fit.height);
     const bool smooth=preferences.scaling!=NativeScaling::Integer&&preferences.filtering==NativeFiltering::Bilinear;
     if(smooth)filter(pixels,canvas.width,canvas.height,unsigned(sourceWidth));

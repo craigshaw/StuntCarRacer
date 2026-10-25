@@ -69,7 +69,7 @@ int main(int argc,char** argv)try{
             check(smooth!=control.renderLive(0.5),"Smoothed presentation omitted running hundredths");
             shown.setRunningLapHundredths(false);check(shown.renderLive(0.5)==control.renderLive(0.5),"Smoothing changed the original HUD path");
             shown.setRunningLapHundredths(true);check(shown.renderLive(0.5)==smooth,"Smoothed HUD toggle reused a stale frame");
-            for(const auto view:{NativeView::Original,NativeView::Extended,NativeView::Widescreen}){
+            for(const auto view:{NativeView::Original,NativeView::Extended,NativeView::Widescreen,NativeView::Ultrawide}){
                 shown.renderLive(0,false,false,view);shown.saveBitmap(output/("hundredths-"+std::to_string(unsigned(view))+".bmp"));
                 const auto paused=shown.renderLiveMessage(0x4c,2);check(shown.renderLiveMessage(0x4c,2)==paused,"Paused timer changed between presentations");
             }

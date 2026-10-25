@@ -29,6 +29,14 @@ that ordered list with the displayed frame. Composition uses those immutable
 placements; interpolation or a repeated view never advances the animation.
 The module does not write gameplay RAM, consume RNG or change timing.
 
+Optional 60 FPS smoothing scrolls the earlier draw list towards the next chain
+position using integer pixel translations. Links clip at viewport y16 as they
+leave; the last visible list retracts completely above that edge before the
+next empty snapshot. A new hanging sequence appears only at its completed tick,
+and restart/terminal discontinuities cut interpolation. This is a separate
+presentation enhancement: the recovered advancement, exact endpoints and
+smoothing-off draw lists retain their original behaviour.
+
 ## Evidence and verification
 
 The source payload is 408,540 bytes, disk offset `0xdc00`, mapped at `0xe700`,

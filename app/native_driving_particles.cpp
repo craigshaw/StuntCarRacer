@@ -1,7 +1,33 @@
 #include "native_driving_particles.h"
+#include <cmath>
 #include <stdexcept>
 
 namespace scr::viewer {
+DrivingParticleDraws interpolateNativeDrivingParticles(const DrivingParticleDraws& from,
+        const DrivingParticleDraws& to,double fraction){
+    if(!std::isfinite(fraction))throw std::invalid_argument("Particle fraction must be finite");
+    if(fraction<=0)return from;if(fraction>=1)return to;
+    std::array<int,32> last{},continuing{};last.fill(-1);continuing.fill(-1);
+    for(unsigned n=0;n<from.size();++n){
+        if(from[n].index>=32)throw std::invalid_argument("Particle slot outside original pool");
+        last[from[n].index]=int(n);
+    }
+    for(unsigned n=0;n<to.size();++n){
+        if(to[n].index>=32)throw std::invalid_argument("Particle slot outside original pool");
+        if(!to[n].spawned)continuing[to[n].index]=int(n);
+    }
+    auto result=from;
+    for(unsigned n=0;n<result.size();++n){
+        auto& draw=result[n];const int next=continuing[draw.index];
+        // A slot can draw its departing particle and its replacement in one
+        // tick. Only the final draw owns the lifetime that can continue.
+        if(last[draw.index]!=int(n)||next<0||to[unsigned(next)].dust!=draw.dust)continue;
+        const auto& target=to[unsigned(next)];
+        draw.x=std::uint16_t(int(draw.x)+std::lround((int(target.x)-int(draw.x))*fraction));
+        draw.y=std::uint16_t(int(draw.y)+std::lround((int(target.y)-int(draw.y))*fraction));
+    }
+    return result;
+}
 NativeDrivingParticleData decodeNativeDrivingParticleData(const NativeMemory& memory){
     NativeDrivingParticleData data;
     for(unsigned n=0;n<data.offsets.size();++n)data.offsets[n]=std::uint16_t((unsigned(memory[0x60f9c+n*2])<<8)|memory[0x60f9d+n*2]);

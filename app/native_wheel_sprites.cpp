@@ -1,8 +1,26 @@
 #include "native_wheel_sprites.h"
+#include "replay_render_assets.h"
 #include <algorithm>
+#include <cmath>
 #include <stdexcept>
 
 namespace scr::viewer {
+NativeWheelSpriteFrame interpolateNativeWheelSprites(const NativeWheelSpriteFrame& from,
+        const NativeWheelSpriteFrame& to,const CockpitFrame& fromCockpit,const CockpitFrame& toCockpit,double fraction){
+    if(!std::isfinite(fraction))throw std::invalid_argument("Wheel fraction must be finite");
+    if(fraction<=0)return from;if(fraction>=1)return to;
+    auto result=from;
+    for(unsigned n=0;n<result.placements.size();++n){
+        // Only the active normal/raised group has its headers updated by the
+        // original wheel stage. Follow the software suspension's displacement
+        // rather than lerping towards a possibly stale inactive header.
+        const unsigned object=(n%6<3)?0:3;
+        const auto& a=fromCockpit.objects[object];const auto& b=toCockpit.objects[object];
+        result.placements[n].x+=int(std::lround((int(b.x)-int(a.x))*fraction));
+        result.placements[n].y+=int(std::lround((int(b.y)-int(a.y))*fraction));
+    }
+    return result;
+}
 namespace {
 void chipExtent(const std::uint8_t* r,std::size_t size) {
     if(!r||size!=0x80000)throw std::invalid_argument("Expected 512 KiB initialized Chip RAM image");

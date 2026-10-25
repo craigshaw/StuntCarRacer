@@ -1,4 +1,6 @@
 #include "native_cockpit_chains.h"
+#include <algorithm>
+#include <cmath>
 #include <stdexcept>
 
 namespace scr::viewer {
@@ -34,6 +36,33 @@ void composeNativeChains(const ReplayRenderAssets& assets,const NativeChainDraws
     for(const auto& draw:draws){
         if(draw.objectId<19||draw.objectId>22)throw std::invalid_argument("Chain object outside original19..22 range");
         compositeMaskedObject(assets,draw.objectId,draw.placement,pixels);
+    }
+}
+void composeInterpolatedNativeChains(const ReplayRenderAssets& assets,const NativeChainDraws& from,
+        const NativeChainDraws& to,double fraction,std::vector<std::uint32_t>& pixels){
+    if(!std::isfinite(fraction))throw std::invalid_argument("Chain fraction must be finite");
+    if(fraction<=0){composeNativeChains(assets,from,pixels);return;}
+    if(fraction>=1){composeNativeChains(assets,to,pixels);return;}
+    if(pixels.size()!=320*200)throw std::invalid_argument("Expected320x200 chain canvas");
+    if(from.empty())return; // A new hanging sequence appears only at its tick.
+    int distance=0;
+    if(!to.empty())distance=int(to.front().placement.y)-int(from.front().placement.y);
+    else{
+        int bottom=16;
+        for(const auto& draw:from)bottom=std::max(bottom,int(draw.placement.y)+int(draw.placement.height));
+        distance=16-bottom;
+    }
+    // A reset/lowering discontinuity is never a lift to interpolate through.
+    if(distance>0||distance<-128){composeNativeChains(assets,from,pixels);return;}
+    const int offset=int(std::lround(distance*fraction));
+    if(!offset){composeNativeChains(assets,from,pixels);return;}
+    std::vector<std::uint32_t> layer(320*200,replayTransparent);
+    composeNativeChains(assets,from,layer);
+    for(int y=16;y<200;++y){
+        const int source=y-offset;if(source>=200)break;
+        for(unsigned x=0;x<320;++x){const auto pixel=layer[unsigned(source)*320+x];
+            if(pixel!=replayTransparent)pixels[unsigned(y)*320+x]=pixel;
+        }
     }
 }
 } // namespace scr::viewer

@@ -13,6 +13,15 @@ horizontal offset and its 16-phase animation. The phase uses particle index
 plus the gameplay frame counter. Drawing clips to the physical viewport
 `x32..287, y16..143`, preserving the cockpit and damage strip.
 
+Optional 60 FPS smoothing interpolates positions of continuing particles between
+two completed draw lists. Draw events carry a `spawned` observation flag without
+changing the recovered update, RNG or RAM layout. A slot can draw its departing
+particle and a replacement in the same tick; only its final draw can join the
+next tick's existing-particle draw. New/recycled slots and dust/spark changes
+never join unrelated trajectories or appear before their tick. Unmatched retired
+draws and bitmap phases remain held until the next exact endpoint. Interpolation
+keeps the original draw order, clipping and artwork. Smoothing off remains exact.
+
 Sparks reproduce the original three colour-3 pixels and upper-right colour-15
 pixel. The original pixel helper retains its initial word pointer while moving
 to the second column. Consequently, when local x ends in 15, that column wraps

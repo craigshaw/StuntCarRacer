@@ -133,7 +133,7 @@ private:
     NearTrackPresentation buildViewCommands(const ReplayVisualState&,const ReplaySceneFrame&,
         const std::optional<OpponentCarInputs>&,int padding=0,int topPadding=0,int bottomPadding=0)const;
     void draw(const ReplayVisualState&,const NearTrackPresentation&,bool wireframe,
-        const ReplayTrackSnapshot* movingTrack=nullptr,const ReplaySceneFrame* discrete=nullptr,double wheelFraction=0,
-        bool showCockpit=true,NativeView view=NativeView::Original);
+        const ReplayTrackSnapshot* movingTrack=nullptr,const ReplaySceneFrame* discrete=nullptr,double fraction=0,
+        bool showCockpit=true,NativeView view=NativeView::Original,const ReplaySceneFrame* next=nullptr);
 };
 } // namespace scr::viewer

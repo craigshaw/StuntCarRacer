@@ -21,7 +21,11 @@ struct DrivingEffectsInputs {
 struct DebrisParticle { std::uint16_t x{},y{},velocityX{},velocityY{}; };
 // Original draw calls occur before movement and again for newly spawned
 // particles. Keep their ordered coordinates separate from final gameplay state.
-struct DrivingParticleDraw {std::uint16_t x{},y{};std::uint8_t index{};bool dust{};};
+struct DrivingParticleDraw {
+    std::uint16_t x{},y{};std::uint8_t index{};bool dust{};
+    // Observation only: distinguish a recycled slot from its previous lifetime.
+    bool spawned{};
+};
 using DrivingParticleDraws=std::vector<DrivingParticleDraw>;
 struct DrivingEffectsState {
     std::uint32_t randomSeed{};

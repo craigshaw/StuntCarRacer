@@ -10,12 +10,12 @@ std::uint8_t randomByte(DrivingEffectsState& s) {
     const auto result=std::uint8_t((s.randomSeed>>4)^((s.randomSeed>>16)>>1));
     s.randomSeed=(s.randomSeed<<8)|s.randomTail;s.randomTail=result;return result;
 }
-bool validateParticle(unsigned i,const DrivingEffectsInputs& in,DrivingEffectsState& s,DrivingParticleDraws* draws) {
+bool validateParticle(unsigned i,const DrivingEffectsInputs& in,DrivingEffectsState& s,DrivingParticleDraws* draws,bool spawned=false) {
     auto& p=s.debris[i];s.particleScratch=std::uint8_t(i*2);
     if(p.y>=128||p.y<1||p.x>=256||(!(in.offTrackFlags&0x80)&&p.x>=254)) {
         p.y=210;return false;
     }
-    if(draws)draws->push_back({p.x,p.y,std::uint8_t(i),(in.offTrackFlags&0x80)!=0});
+    if(draws)draws->push_back({p.x,p.y,std::uint8_t(i),(in.offTrackFlags&0x80)!=0,spawned});
     return true;
 }
 void updateParticles(unsigned count,const DrivingEffectsInputs& in,DrivingEffectsState& s,DrivingParticleDraws* draws) {
@@ -41,7 +41,7 @@ void updateParticles(unsigned count,const DrivingEffectsInputs& in,DrivingEffect
             p.y=std::uint16_t((std::uint16_t(randomByte(s))|0xfff8u)+127);
         }
         p.velocityX=std::uint16_t(floorDivide(signedWord(std::uint16_t(p.x-128)),8));
-        validateParticle(n-1,in,s,draws);
+        validateParticle(n-1,in,s,draws,true);
     }
 }
 void wreck(const DrivingEffectsInputs& in,DrivingEffectsState& s) {

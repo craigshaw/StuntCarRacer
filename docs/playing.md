@@ -324,12 +324,16 @@ The cockpit uses the original font, speed bar, boost digits, lap counter,
 running/completed time displays, distance and car icons. Their redraw cadence
 and completed-lap hold follow the original game calls. Wheel treads animate at
 50 Hz independently of camera interpolation, with the original forward/reverse
-phases and suspension positions. Pausing retains the presented wheel phase.
+phases. With 60 FPS smoothing On, hardware wheel detail follows the interpolated
+suspension, dust and sparks move smoothly between game updates, and lifting
+chains scroll out of view. Flame and dust bitmap shapes retain their original
+animation phases. Pausing retains the presented wheel phase.
 The hanging start and crash-recovery frames show the original blinking
 DROP START and PRESS FIRE prompts. Off-track ground contact draws the original
 animated dust bitmaps; edge impacts draw the recovered sparks. Their visibility,
-animation and ordered draw positions belong to completed gameplay snapshots,
-so interpolation and paused or repeated views never advance them or the RNG.
+animation and ordered draw positions belong to completed gameplay snapshots.
+Smoothing uses those snapshots without advancing effects or RNG; particle
+births, replacements and crash/restart transitions retain their game timing.
 
 ## Architecture and verification
 

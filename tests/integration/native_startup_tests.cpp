@@ -4,6 +4,7 @@
 #include "native_damage_holes.h"
 #include "driving_replay_fixture.h"
 #include <algorithm>
+#include <cstdlib>
 #include <fstream>
 #include <iostream>
 #include <iterator>
@@ -56,8 +57,23 @@ unsigned damageEntryRegression(const std::filesystem::path& pack){
     }
     return entries;
 }
-struct RaceEffectsCoverage {unsigned ticks{},dropStart{},pressFire{},dust{},sparks{};};
-struct BoostCoverage {unsigned ticks{},frames{},phases{},releaseFrames{},chainFrames{},liftingFrames{};};
+void reviewInterval(scr::viewer::ReplayScene& scene,const std::filesystem::path& folder,const char* name){
+    using namespace scr::viewer;
+    const auto& a=scene.frames().front();const auto& b=scene.frames().back();
+    require(canInterpolateReplay(a.restarts,b.restarts,a.action,b.action),"Review interval crossed a transition");
+    const auto exact=scene.render(1);
+    const auto output=folder/name;std::filesystem::create_directories(output);
+    for(const auto view:{NativeView::Original,NativeView::Extended,NativeView::Widescreen}){
+        const auto prefix=std::to_string(unsigned(view))+"-";
+        for(unsigned n=0;n<=8;++n){scene.renderLive(n/8.0,false,true,view);scene.saveBitmap(output/(prefix+std::to_string(n)+".bmp"));}
+        const auto midpoint=scene.renderLive(0.5,false,true,view);
+        scene.renderLive(0.875,false,true,view);scene.renderLive(0.125,false,true,view);
+        require(scene.renderLive(0.5,false,true,view)==midpoint,"Reverse effect queries changed their result");
+    }
+    require(scene.render(1)==exact,"Effect review changed the exact endpoint");
+}
+struct RaceEffectsCoverage {unsigned ticks{},dropStart{},pressFire{},dust{},sparks{},smoothDust{},smoothSparks{},smoothWheels{};};
+struct BoostCoverage {unsigned ticks{},frames{},phases{},releaseFrames{},chainFrames{},liftingFrames{},smoothChains{},chainExit{};};
 BoostCoverage boostRegression(const std::filesystem::path& pack,const std::filesystem::path& output){
     using namespace scr::viewer;
     const auto folder=output/"boost-effects";std::filesystem::create_directories(folder);
@@ -85,11 +101,20 @@ BoostCoverage boostRegression(const std::filesystem::path& pack,const std::files
                 ++coverage.liftingFrames;
             }
         }
+        const auto& from=scene.frames().front();
+        if(canInterpolateReplay(from.restarts,frame.restarts,from.action,frame.action)){
+            if(!from.chainDraws.empty()&&!frame.chainDraws.empty()&&from.chains.position!=frame.chains.position){
+                if(!coverage.smoothChains)reviewInterval(scene,folder,"chains-lifting");++coverage.smoothChains;
+            }
+            if(!from.chainDraws.empty()&&frame.chainDraws.empty()){
+                if(!coverage.chainExit)reviewInterval(scene,folder,"chains-exit");++coverage.chainExit;
+            }
+        }
         scene.renderLive(0.5);scene.render(0);scene.renderLive(0.25);scene.renderView(1,{});
         require(hash(scene.render(1))==exact,"View queries changed boost/chain animation");
     }
     controls.flush();
-    require(coverage.phases==7&&coverage.releaseFrames==15&&coverage.chainFrames&&coverage.liftingFrames,
+    require(coverage.phases==7&&coverage.releaseFrames==15&&coverage.chainFrames&&coverage.liftingFrames&&coverage.smoothChains&&coverage.chainExit,
         "Natural boost drive missed flame phases, release or chain lift");
     const auto recording=scene.liveRecording().string();
     const auto trace=recording.substr(0,recording.size()-std::string("-controls.csv").size())+"-native.csv";
@@ -100,14 +125,18 @@ RaceEffectsCoverage effectsRegression(const std::filesystem::path& pack,const st
     using namespace scr::viewer;
     const auto folder=output/"race-effects";std::filesystem::create_directories(folder);
     auto startup=startNativeRace(pack,0);write(folder/"native-initial.bin",startup.memory->data(),startup.memory->size());
-    ReplayScene scene;scene.loadNativeState(*startup.memory,startup.payload,folder/"recordings");
+    ReplayScene scene,control;scene.loadNativeState(*startup.memory,startup.payload,folder/"recordings");
+    control.loadNativeState(*startup.memory,startup.payload,{});
     RaceEffectsCoverage coverage;bool savedDrop=false,savedRecovery=false,savedDust=false,savedSparks=false;
     std::ofstream controls(folder/"controls.csv");controls<<"tick,controls\n";
     for(unsigned tick=0;tick<1600;++tick){
         // A fresh deterministic drive: accelerate, then steer off the track.
         // No car position, collision state, particle or RNG injection.
-        const unsigned mask=tick<150?1:9;controls<<tick<<','<<mask<<'\n';
+        const auto& current=scene.frames().back();
+        const bool recovering=current.message.visible()&&current.message.index==0x3c;
+        const unsigned mask=(tick<150?1:9)|(recovering?16:0);controls<<tick<<','<<mask<<'\n';
         require(scene.stepLive(mask),"Race effects drive unexpectedly ended");++coverage.ticks;
+        require(control.stepLive(mask),"Control race ended before the viewed race");
         const auto& frame=scene.frames().back();
         const bool drop=frame.message.visible()&&frame.message.index==0x2c;
         const bool recovery=frame.message.visible()&&frame.message.index==0x3c;
@@ -118,15 +147,39 @@ RaceEffectsCoverage effectsRegression(const std::filesystem::path& pack,const st
         if(recovery&&!savedRecovery){scene.saveBitmap(folder/"press-fire.bmp");savedRecovery=true;}
         if(dust&&!savedDust&&coverage.dust>=6){scene.saveBitmap(folder/"dust.bmp");savedDust=true;}
         if(sparks&&!savedSparks){scene.saveBitmap(folder/"sparks.bmp");savedSparks=true;}
+        const auto& from=scene.frames().front();
+        if(canInterpolateReplay(from.restarts,frame.restarts,from.action,frame.action)){
+            const auto particles=interpolateNativeDrivingParticles(from.particleDraws,frame.particleDraws,0.5);
+            bool movingDust=false,movingSpark=false;
+            for(unsigned n=0;n<particles.size();++n)if(particles[n].x!=from.particleDraws[n].x||particles[n].y!=from.particleDraws[n].y){
+                movingDust|=particles[n].dust;movingSpark|=!particles[n].dust;
+            }
+            if(movingDust){if(!coverage.smoothDust)reviewInterval(scene,folder,"dust-moving");++coverage.smoothDust;}
+            if(movingSpark){if(!coverage.smoothSparks)reviewInterval(scene,folder,"sparks-moving");++coverage.smoothSparks;}
+            bool wheels=false;
+            for(unsigned n=0;n<12;++n)wheels|=std::abs(from.wheelSprites.placements[n].y-frame.wheelSprites.placements[n].y)>=4;
+            if(wheels){if(!coverage.smoothWheels)reviewInterval(scene,folder,"wheels-moving");++coverage.smoothWheels;}
+        }
         scene.renderLive(0.5);scene.render(0);scene.renderLive(0.25);scene.renderView(1,{});
         require(hash(scene.render(1))==exact,"Interpolated or reverse views contaminated race effects");
-        if(coverage.pressFire>4&&coverage.dust>8&&coverage.sparks)break;
+        require(scene.render(1)==control.render(1),"Effect queries changed a later simulation frame");
+        if(coverage.pressFire>4&&coverage.dust>8&&coverage.smoothSparks&&coverage.smoothDust&&coverage.smoothWheels)break;
     }
     controls.flush();
     require(coverage.dropStart&&coverage.pressFire&&coverage.dust&&coverage.sparks,"Natural drive did not exercise start/recovery messages, dust and sparks");
+    if(!coverage.smoothDust||!coverage.smoothSparks||!coverage.smoothWheels)
+        throw std::runtime_error("Fresh drive missed interpolation: dust="+std::to_string(coverage.smoothDust)+
+            " sparks="+std::to_string(coverage.smoothSparks)+" wheels="+std::to_string(coverage.smoothWheels)+" spark frames="+std::to_string(coverage.sparks));
     const auto recording=scene.liveRecording().string();
     const auto trace=recording.substr(0,recording.size()-std::string("-controls.csv").size())+"-native.csv";
     std::filesystem::copy_file(trace,folder/"native.csv",std::filesystem::copy_options::overwrite_existing);
+    for(unsigned n=0;n<600&&!scene.liveTerminal();++n){
+        require(scene.stepLive(0,true)==control.stepLive(0,true),"Effect queries changed the quit transition");
+    }
+    require(scene.liveTerminal()&&control.liveTerminal(),"Effects isolation drive did not finish");
+    auto actual=std::make_unique<NativeMemory>(),expected=std::make_unique<NativeMemory>();
+    scene.copyLiveExit(*actual);control.copyLiveExit(*expected);
+    require(*actual==*expected,"Effect interpolation changed gameplay, RNG or exit memory");
     return coverage;
 }
 }
@@ -175,8 +228,10 @@ int main(int argc,char** argv)try{
              <<",\"corrupt_packs_rejected\":"<<rejected<<",\"maximum_speed_word\":"<<maximumSpeed
              <<",\"effects_ticks\":"<<effects.ticks<<",\"drop_start_frames\":"<<effects.dropStart<<",\"press_fire_frames\":"<<effects.pressFire
              <<",\"dust_frames\":"<<effects.dust<<",\"spark_frames\":"<<effects.sparks<<",\"effects_view_isolation\":true"
+             <<",\"smooth_dust_intervals\":"<<effects.smoothDust<<",\"smooth_spark_intervals\":"<<effects.smoothSparks<<",\"smooth_wheel_intervals\":"<<effects.smoothWheels
              <<",\"boost_effects_ticks\":"<<boost.ticks<<",\"boost_flame_frames\":"<<boost.frames<<",\"boost_flame_phase_mask\":"<<boost.phases
              <<",\"boost_release_frames\":"<<boost.releaseFrames<<",\"chain_frames\":"<<boost.chainFrames<<",\"chain_lifting_frames\":"<<boost.liftingFrames
+             <<",\"smooth_chain_intervals\":"<<boost.smoothChains<<",\"chain_exit_intervals\":"<<boost.chainExit<<",\"effect_simulation_memory_identical\":true"
              <<",\"multiplayer_damage_entries\":"<<damageEntries
              <<",\"capture_input\":false,\"rom_input\":false,\"cpu_emulation\":false,\"deterministic_reset\":true,\"left_right_steering_checked\":true}\n";return 0;
 }catch(const std::exception& e){std::cerr<<e.what()<<'\n';return 1;}

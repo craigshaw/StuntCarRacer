@@ -13,4 +13,8 @@ using NativeChainDraws=std::vector<NativeChainDraw>;
     NativeChainState&,const CockpitFrame&);
 void composeNativeChains(const ReplayRenderAssets&,const NativeChainDraws&,
     std::vector<std::uint32_t>& pixels);
+// Scroll the earlier original links towards the next snapshot, clipping their
+// upper exit at y16. A final lift retracts the remaining links before removal.
+void composeInterpolatedNativeChains(const ReplayRenderAssets&,const NativeChainDraws& from,
+    const NativeChainDraws& to,double fraction,std::vector<std::uint32_t>& pixels);
 } // namespace scr::viewer

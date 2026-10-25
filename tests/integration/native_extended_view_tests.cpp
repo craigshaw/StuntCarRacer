@@ -129,9 +129,10 @@ int main(int argc,char** argv)try{
                 const auto& from=viewed.frames().front();const auto& to=viewed.frames().back();
                 const bool interpolated=canInterpolateReplay(from.restarts,to.restarts,from.action,to.action);
                 const auto visual=interpolated?interpolateReplayVisuals(from,to,0.5,trig):static_cast<const ReplayVisualState&>(from);
-                compareArtwork(originalMidpoint,midpoint,assets,visual.cockpit,sprites,from.wheelSprites,from.wheelTimeline[interpolated?3:0]);
+                const auto placements=interpolated?interpolateNativeWheelSprites(from.wheelSprites,to.wheelSprites,from.cockpit,to.cockpit,0.5):from.wheelSprites;
+                compareArtwork(originalMidpoint,midpoint,assets,visual.cockpit,sprites,placements,from.wheelTimeline[interpolated?3:0]);
                 const auto wideMidpoint=viewed.renderView(0.5,widescreen);
-                compareWidescreen(midpoint,wideMidpoint,assets,visual.cockpit,sprites,from.wheelSprites,from.wheelTimeline[interpolated?3:0]);
+                compareWidescreen(midpoint,wideMidpoint,assets,visual.cockpit,sprites,placements,from.wheelTimeline[interpolated?3:0]);
                 require(viewed.renderView(0.5,widescreen)==wideMidpoint,"Widescreen interpolation is not deterministic");
                 const auto wideClean=viewed.renderLive(0.5,false,true,NativeView::Widescreen);
                 require(viewed.renderLiveMessage(0x4c,2).size()==432*200,"Widescreen pause panel changed dimensions");

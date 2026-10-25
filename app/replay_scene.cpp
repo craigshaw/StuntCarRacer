@@ -389,7 +389,7 @@ const std::vector<std::uint32_t>& ReplayScene::renderInterpolated(double positio
     std::optional<OpponentCarInputs> opponent;
     if(from.opponentEnabled&&to.opponentEnabled)opponent=interpolateOpponent(from.opponent,to.opponent,visual.camera,fraction);
     const auto commands=buildViewCommands(visual,from,opponent);
-    draw(visual,commands,wireframe,from.movingTrack.get(),&from,fraction);
+    draw(visual,commands,wireframe,from.movingTrack.get(),&from,fraction,true,NativeView::Original,&to);
     cachedFrame_=index;cachedFraction_=fraction;cachedWireframe_=wireframe;
     return pixels_;
 }
@@ -425,10 +425,11 @@ const std::vector<std::uint32_t>& ReplayScene::renderView(double position,const 
         if(to.opponentEnabled)opponent=interpolateOpponent(from.opponent,to.opponent,visual.camera,fraction);
     }
     const auto commands=buildViewCommands(visual,from,opponent,viewPadding(settings.view),settings.view!=NativeView::Original?16:0,settings.view==NativeView::Widescreen?56:0);
-    draw(visual,commands,wireframe,from.movingTrack.get(),&from,fraction,settings.showCockpit,settings.view);
+    draw(visual,commands,wireframe,from.movingTrack.get(),&from,fraction,settings.showCockpit,settings.view,
+        fraction>1e-9?&frames_[index+1]:nullptr);
     return pixels_;
 }
-void ReplayScene::draw(const ReplayVisualState& frame,const NearTrackPresentation& nearTrack,bool wireframe,const ReplayTrackSnapshot* movingTrack,const ReplaySceneFrame* discrete,double wheelFraction,bool showCockpit,NativeView view){
+void ReplayScene::draw(const ReplayVisualState& frame,const NearTrackPresentation& nearTrack,bool wireframe,const ReplayTrackSnapshot* movingTrack,const ReplaySceneFrame* discrete,double fraction,bool showCockpit,NativeView view,const ReplaySceneFrame* next){
     const bool wide=view==NativeView::Widescreen,extended=view!=NativeView::Original;
     if(showCockpit&&!wide)makeReplayBackground(assets_,pixels_);else pixels_.assign(viewWidth(view)*200,0);
     const auto mountains=projectMountainHorizon(mountains_,frame.pose.yaw,frame.camera,viewPadding(view));
@@ -436,13 +437,20 @@ void ReplayScene::draw(const ReplayVisualState& frame,const NearTrackPresentatio
     if(extended&&showCockpit){if(wide)composeReplayWidescreenFrame(assets_,pixels_);else composeReplayFrame(assets_,pixels_);}
     if(wide)foreground_.assign(320*200,replayTransparent);
     auto& foreground=wide?foreground_:pixels_;
-    if(discrete)composeNativeDrivingParticles(assets_,particleData_,discrete->particleDraws,discrete->particleFrameCounter,foreground);
-    if(discrete&&showCockpit)composeNativeChains(assets_,discrete->chainDraws,foreground);
+    if(discrete){
+        const auto particles=next?interpolateNativeDrivingParticles(discrete->particleDraws,next->particleDraws,fraction):discrete->particleDraws;
+        composeNativeDrivingParticles(assets_,particleData_,particles,discrete->particleFrameCounter,foreground);
+    }
+    if(discrete&&showCockpit){
+        if(next)composeInterpolatedNativeChains(assets_,discrete->chainDraws,next->chainDraws,fraction,foreground);
+        else composeNativeChains(assets_,discrete->chainDraws,foreground);
+    }
     if(showCockpit)composeReplayCockpit(assets_,frame.cockpit,foreground,extended);
     if(discrete&&showCockpit){
         for(unsigned n=0;n<discrete->instrumentPixels.size();++n)foreground[320*cockpitInstrumentTop+n]=assets_.palette[discrete->instrumentPixels[n]];
-        const unsigned vblank=std::min(6u,unsigned(std::floor(wheelFraction*6+1e-9)));
-        if(!bitmapOnly_)composeNativeWheelSprites(wheelAssets_,discrete->wheelSprites,discrete->wheelTimeline[vblank],foreground);
+        const unsigned vblank=std::min(6u,unsigned(std::floor(fraction*6+1e-9)));
+        const auto placements=next?interpolateNativeWheelSprites(discrete->wheelSprites,next->wheelSprites,discrete->cockpit,next->cockpit,fraction):discrete->wheelSprites;
+        if(!bitmapOnly_)composeNativeWheelSprites(wheelAssets_,placements,discrete->wheelTimeline[vblank],foreground);
         drawNativeRaceMessage(simulation_->initial,assets_,discrete->message,foreground);
     }
     if(wide)compositeReplayCentred(foreground,pixels_);

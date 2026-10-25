@@ -7,6 +7,14 @@ intervening display updates before the next 120 ms physics update. Native
 rendering retains these separate clocks; smooth camera interpolation does not
 change their rate.
 
+With optional 60 FPS smoothing, all twelve captured hardware-image placements
+follow the software suspension's displacement between completed frames. Using
+that displacement avoids stale headers in the inactive normal/raised group. Source
+rows, normal/raised image selection and the 50 Hz rotation timeline remain
+discrete; no wheel sprite is blended or rescaled. Smoothing off and exact frame
+queries retain their original placements. Restart/terminal boundaries cut the
+interval rather than interpolating through a repositioned car.
+
 `src/wheel_animation.cpp` recovers the original wheel-only VBlank prefix and
 its helpers. `app/native_wheel_sprites.cpp` decodes and composites the hardware
 images from the initialized local asset pack. Neither component executes

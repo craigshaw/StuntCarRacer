@@ -6,6 +6,14 @@ Faithful appearance is the default; universal world-pixel identity is not a
 release condition. Original-code command comparisons and visual inspection
 remain the basis for correcting visible defects.
 
+Optional 60 FPS smoothing blends camera/opponent poses and cockpit placement,
+including hardware wheel positions, continuing dust/spark trajectories and
+lifting chains. Wheel rotation retains its 50 Hz timeline. Particle births,
+recycled slots, dust/spark changes, flame image phases, damage and HUD events
+remain discrete. Queries use two completed snapshots, cut across restarts and
+terminal actions, and never advance gameplay or presentation animation state.
+The smoothing-off path and exact snapshot endpoints retain the original draws.
+
 `ReplayScene` now uses one recovered road command path for Practice and racing.
 The far painter and its shared horizon/mountain allocation run in both modes;
 only opponent insertion depends on race mode. This removes the early Practice

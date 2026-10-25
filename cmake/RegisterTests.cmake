@@ -27,6 +27,7 @@ endforeach()
 scr_test(software_renderer_tests "native;assets" "${SCR_TEST_PAYLOAD}" "${SCR_TEST_PAYLOAD}")
 
 if(WIN32)
+  scr_test(native_effects_interpolation_tests "native;unit" "")
   scr_test(native_save_store_tests "native;unit" "" "${test_output}/native_save_store_tests")
   foreach(target native_game_session_tests native_opening_session_tests native_startup_tests
       draw_bridge_driving_tests native_opponent_driving_tests native_opponent_session_tests

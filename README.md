@@ -63,7 +63,8 @@ Normal launches store assets, preferences and saves under
 multiplayer manual saves, with careers and shared Hall in `working/player-data/`.
 Settings provide control presets, borderless
 fullscreen, Integer/Fit/Stretch sizing, separate filtering and optional 60 FPS
-smoothing. Integer Auto is the default; fixed 1×–32× scales are also available.
+smoothing for camera/cockpit movement, wheel placement, dust/spark motion and
+lifting chains. Integer Auto is the default; fixed 1×–32× scales are also available.
 **Aspect ratio** offers **4:3 (Original)** (default), **4:3 (Extended)** and
 **16:9** in the launcher and Settings. Extended reveals scenery in the black
 upper corners outside the original arch. 16:9 adds a wider world around the

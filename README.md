@@ -89,7 +89,7 @@ To run an existing build directly, from the project root:
 - Two-to-eight-player local championships, results, damage and track bonuses.
 - Independent single-player careers, Continue, automatic checkpoints and shared Hall records.
 - Thirty manual multiplayer save slots and its original Replay flow.
-- Cockpit instruments, wheel animation, engine sound and effects, keyboard and XInput input.
+- Cockpit instruments and running lap hundredths, wheel animation, engine sound and effects, keyboard and XInput input.
 - ADF setup launcher, fullscreen, saved preferences and optional smooth presentation.
 
 **Computer Link is deliberately deferred.** Alternate cameras, further graphical

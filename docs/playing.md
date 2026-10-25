@@ -321,8 +321,11 @@ open, and held navigation, fire and trigger inputs must be released before
 gameplay accepts them again. Closing settings retains the pre-pause fraction of a physics tick.
 
 The cockpit uses the original font, speed bar, boost digits, lap counter,
-running/completed time displays, distance and car icons. Their redraw cadence
-and completed-lap hold follow the original game calls. Wheel treads animate at
+running/completed time displays, distance and car icons. The upper-right running
+lap timer shows minutes, seconds and hundredths (`m:ss.hh`), refreshed at each
+game update. It retains completed-lap times during the original hold and freezes
+at the finish; records use the same game clock. Other instrument redraws follow
+the original game calls. Wheel treads animate at
 50 Hz independently of camera interpolation, with the original forward/reverse
 phases. With 60 FPS smoothing On, hardware wheel detail follows the interpolated
 suspension, dust and sparks move smoothly between game updates, and lifting

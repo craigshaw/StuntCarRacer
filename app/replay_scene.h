@@ -36,6 +36,7 @@ struct ReplaySceneFrame : ReplayVisualState {
     OpponentCarInputs opponent;
     bool opponentEnabled{};
     CockpitInstrumentPixels instrumentPixels{};
+    CockpitInstrumentPixels hundredthsInstrumentPixels{};
     NativeWheelSpriteFrame wheelSprites;
     std::array<WheelAnimationState,7> wheelTimeline{};
     unsigned wheelVblanks{};
@@ -83,6 +84,8 @@ public:
     const std::filesystem::path& liveRecording() const noexcept;
     GameAudioSeed audioSeed()const;
     const std::vector<std::uint32_t>& render(unsigned frame,bool wireframe=false);
+    // Player HUD enhancement. Exact/original-code tools leave this disabled.
+    void setRunningLapHundredths(bool enabled){runningLapHundredths_=enabled;cachedFrame_=~0u;}
     const std::vector<std::uint32_t>& renderInterpolated(double position,bool wireframe=false);
     // Independent presentation query. Default settings retain the original
     // view; alternate angles/cockpit visibility leave saved frames unchanged.
@@ -130,6 +133,7 @@ private:
     bool lastLiveInterpolate_{true};
     NativeView lastLiveView_{NativeView::Original};
     bool bitmapOnly_{};
+    bool runningLapHundredths_{};
     NearTrackPresentation buildViewCommands(const ReplayVisualState&,const ReplaySceneFrame&,
         const std::optional<OpponentCarInputs>&,int padding=0,int topPadding=0,int bottomPadding=0)const;
     void draw(const ReplayVisualState&,const NearTrackPresentation&,bool wireframe,

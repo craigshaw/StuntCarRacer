@@ -172,6 +172,7 @@ void ReplayScene::finishFrame(Simulation& simulation,ReplaySceneFrame& frame){
     frame.chains=simulation.chains;frame.chainDraws=simulation.chainDraws;
     frame.cockpit.wheelRotation=simulation.wheelTimeline[0].phase;
     frame.instrumentPixels=simulation.instruments.capture();
+    frame.hundredthsInstrumentPixels=simulation.instruments.capture(true);
     frame.wheelSprites=captureNativeWheelSpriteFrame(wheelAssets_,state.ram.data(),state.ram.size());
     frame.wheelTimeline=simulation.wheelTimeline;frame.wheelVblanks=simulation.wheelVblanks;
     frame.forwardSpeed=a::word(state.ram.data(),0x1bd30);frame.lapCounter=state.ram[0x1bb20];frame.raceComplete=state.ram[0x1bbaf];
@@ -447,7 +448,8 @@ void ReplayScene::draw(const ReplayVisualState& frame,const NearTrackPresentatio
     }
     if(showCockpit)composeReplayCockpit(assets_,frame.cockpit,foreground,extended);
     if(discrete&&showCockpit){
-        for(unsigned n=0;n<discrete->instrumentPixels.size();++n)foreground[320*cockpitInstrumentTop+n]=assets_.palette[discrete->instrumentPixels[n]];
+        const auto& instruments=runningLapHundredths_?discrete->hundredthsInstrumentPixels:discrete->instrumentPixels;
+        for(unsigned n=0;n<instruments.size();++n)foreground[320*cockpitInstrumentTop+n]=assets_.palette[instruments[n]];
         const unsigned vblank=std::min(6u,unsigned(std::floor(fraction*6+1e-9)));
         const auto placements=next?interpolateNativeWheelSprites(discrete->wheelSprites,next->wheelSprites,discrete->cockpit,next->cockpit,fraction):discrete->wheelSprites;
         if(!bitmapOnly_)composeNativeWheelSprites(wheelAssets_,placements,discrete->wheelTimeline[vblank],foreground);

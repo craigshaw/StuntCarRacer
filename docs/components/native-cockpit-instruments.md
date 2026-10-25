@@ -89,6 +89,20 @@ strip beginning at row 168 contains every instrument, while retaining the
 original background around the individual text cells. Interpolation does not
 invent intermediate digits, fuel or lap-counter values.
 
+The player enables running-lap hundredths in the existing upper-right timer
+panel (`m:ss.hh`). `NativeCockpitPresentation::capture(true)` draws the full
+clock using the original timer leaf and font on a query-local memory copy.
+It refreshes from each completed game update, beginning at the first timing
+line crossing; the copied pre-start clock remains hidden. Completed-lap events
+supply their captured, corrected time while the scheduler holds that result,
+and a race finish freezes the displayed time. The lower best-time panel keeps
+its original event handling. No host-time clock or interpolated digits are used.
+
+`ReplaySceneFrame` retains both instrument strips. The player opts into the
+hundredths strip with `setRunningLapHundredths(true)`; exact/original-code tools
+default to the original event-driven strip. Repeated captures cannot alter the
+two retained buffers, text scratch, simulation clocks, records or RNG.
+
 ## Differential verification
 
 Configure the normal oracle build and run:

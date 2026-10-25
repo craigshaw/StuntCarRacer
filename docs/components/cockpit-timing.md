@@ -39,6 +39,12 @@ nonzero, and no completed-lap display is being held. That draw sets `D0=0`, so
 the hundredths digits are blank. The original scheduler adds packed `0x13`
 on each update; it does not use the enhanced source's throttled `0x14` route.
 
+The player additionally reveals running hundredths in the upper-right panel.
+This presentation layer reads the completed clock on every update and retains
+the captured completed-lap time during its hold. It does not add timing events,
+change the packed `0x13` increment or alter records. The original strip remains
+available to exact/original-code tools; see [cockpit instruments](native-cockpit-instruments.md).
+
 At a player's first line crossing, the lap counter changes to 1 and is drawn;
 the clock is cleared for the start of the first timed lap. At a later crossing,
 the original fractional line-crossing correction runs first. Records are

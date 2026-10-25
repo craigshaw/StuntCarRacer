@@ -3,6 +3,7 @@
 #include "state/native_race.h"
 #include <array>
 #include <memory>
+#include <optional>
 
 namespace scr::viewer {
 constexpr unsigned cockpitInstrumentTop=168;
@@ -13,9 +14,13 @@ class NativeCockpitPresentation {
 public:
     explicit NativeCockpitPresentation(const NativeMemory&,bool fresh=false);
     void update(state::replay::ReplayPresentationStage,const NativeMemory&,const RaceTimingEffects&);
-    CockpitInstrumentPixels capture()const;
+    // The player can reveal the running clock's reserved hundredths digits.
+    // Default capture retains the original event-driven HUD for comparisons.
+    CockpitInstrumentPixels capture(bool runningHundredths=false)const;
     void storeInitialState(NativeMemory&)const;
 private:
     std::unique_ptr<NativeMemory> memory_;
+    std::optional<PackedLapTime> lapTime_;
+    bool finished_{};
 };
 }

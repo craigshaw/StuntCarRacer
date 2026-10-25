@@ -95,6 +95,7 @@ void NativeGameSession::startRace(){
     previewPrepared_=false;
     restoreCockpit(*data_.memory);initializeNativeRace(*data_.memory);
     race_.loadNativeState(*data_.memory,data_.payload,recordings_);
+    race_.setRunningLapHundredths(true);
     driveClock_.reset();driveLatch_.clear();endFireWait_.reset();quitPending_=false;
 }
 void NativeGameSession::leaveRace(){

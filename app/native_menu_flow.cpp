@@ -25,24 +25,29 @@ void initializeNativeMenuSession(NativeMemory& m){
     copyBytes(m,0x625a2,0x636b8,4);m[0x636b9]=m[0x625a6];
 }
 
-bool applyNativeMenuInput(NativeMemory& m,const NativeMenuInput& input){
+bool applyNativeMenuInput(NativeMemory& m,const NativeMenuInput& input,unsigned disabledRows){
     const auto controls=std::uint8_t(input.controls&0x1f);
     m[0x1bb47]=controls;m[highlight]=controls&0x10;
-    if(m[highlight])return true;
+    const auto disabled=[&](unsigned row){return row<32&&(disabledRows&(1u<<row));};
+    if(m[highlight]){if(disabled(m[selection])){m[highlight]=0;return false;}return true;}
     // Raw original table at0x60c8d is used at0x5b9d2. The enhanced upstream
     // equate points elsewhere; that provisional label is not used here.
     const unsigned last=unsigned(m[maxIndex])+1;
     if(last>3)throw std::invalid_argument("Unsupported original menu row count");
     for(unsigned row=last+1;row>0;){
         --row;const unsigned key=m[0x60c8d+row];
-        if(key>=1&&key<=4&&(input.numberedKeys&(1u<<(key-1)))){
+        if(!disabled(row)&&key>=1&&key<=4&&(input.numberedKeys&(1u<<(key-1)))){
             m[selection]=std::uint8_t(row);return true;
         }
     }
     if(!(controls&3))return false;
     unsigned selected=m[selection];
-    if(controls&1){if(selected) --selected;}
-    else if(selected<=m[maxIndex])++selected;
+    if(controls&1){
+        while(selected){--selected;if(!disabled(selected))break;}
+    }else{
+        while(selected<last){++selected;if(!disabled(selected))break;}
+    }
+    if(disabled(selected))return false;
     m[selection]=std::uint8_t(selected);return true;
 }
 

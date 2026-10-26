@@ -5,6 +5,11 @@ local asset pack. It reads the image, palette, font, strings, strip offsets and
 track names from `NativeMemory`; no screenshot, host font, copied text table or
 captured emulator state is a runtime input.
 
+`NativeMenuRenderState::disabledRows` optionally marks unavailable native rows.
+They retain their unselected strip and use grey text (palette index 3), even if
+the caller supplies their index as selected. The mode chooser uses this for
+Computer Link; the default empty mask preserves original menu pixels.
+
 The supported original disk payload has SHA-256
 `508646f12af15115de73b06940c79e579f920bf47ce55f7cd8920eca60b7921c`.
 Runtime addresses below use its verified load base `0xe700`, not disk offsets.

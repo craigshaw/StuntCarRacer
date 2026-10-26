@@ -25,7 +25,7 @@ struct NativeGameInput {
     // Host Game menu command; independent of the original keyboard quit gates.
     bool leaveRace{};
 };
-enum class NativeGameUnavailable { none,menuRoute,computerLink };
+enum class NativeGameUnavailable { none,menuRoute };
 enum class NativeGameStart { OriginalOpening,EstablishedMenu };
 struct NativeGameUpdate {
     bool raceStarted{},raceExited{};

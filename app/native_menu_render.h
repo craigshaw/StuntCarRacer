@@ -9,6 +9,7 @@ namespace scr::viewer {
 struct NativeMenuRenderState {
     unsigned menuOffset{},count{3},selected{1},division{3},selectedDivision{3};
     bool menuStrings{},confirmed{};
+    unsigned disabledRows{};
 };
 struct NativeMenuImage {
     std::array<std::uint8_t,320*200> indices{};

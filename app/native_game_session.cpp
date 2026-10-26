@@ -424,9 +424,6 @@ void NativeGameSession::handleOpeningAction(NativeOpeningAction action,const Nat
             fade_.fadeToColor(readNativePalette(*data_.memory,0x23c32)[0]);transition_=Transition::OutOpening;
         }
         if(careerStore_&&creatingCareer_&&single)registerCareer();
-    }else if(action==NativeOpeningAction::UnsupportedComputerLink){
-        result.unavailable=NativeGameUnavailable::computerLink;
-        opening_->returnToMode();
     }
 }
 void NativeGameSession::updateOpening(const NativeGameInput& input,double elapsed,NativeGameUpdate& result){

@@ -79,6 +79,7 @@ NativeMenuRenderState NativeOpeningFlow::renderState()const{
     state.menuOffset=memory_[0x1bb8b];state.count=unsigned(memory_[maximum])+1;
     state.selected=memory_[selected];state.division=memory_[0x1c9ce];
     state.selectedDivision=memory_[0x5eb7c];state.menuStrings=true;state.confirmed=memory_[highlight]!=0;
+    if(page_==NativeOpeningPage::Mode)state.disabledRows=1u<<2;
     return state;
 }
 NativeOpeningAction NativeOpeningFlow::showRoster(){
@@ -99,8 +100,8 @@ NativeOpeningAction NativeOpeningFlow::nameCompleted(){
 NativeOpeningAction NativeOpeningFlow::confirm(){
     const auto choice=memory_[selected];
     if(page_==NativeOpeningPage::Mode){
+        if(choice>=2){memory_[highlight]=0;phase_=Phase::Input;return NativeOpeningAction::None;}
         modeSelection_=choice;completedPlayers_=0;
-        if(choice>=2){page_=NativeOpeningPage::ComputerLinkUnavailable;return NativeOpeningAction::UnsupportedComputerLink;}
         // Private native choice bit, retained in the object rather than game
         // RAM: single mode and multiplayer's first name both have count zero.
         multiplayer_=choice==1;
@@ -118,8 +119,7 @@ NativeOpeningAction NativeOpeningFlow::update(const NativeMenuInput& input,doubl
     const bool responsive=navigation_==NativeMenuNavigation::Responsive;
     if(responsive&&input.back)return back();
     const auto controls=std::uint8_t(input.controls&31);
-    if(page_==NativeOpeningPage::Complete||page_==NativeOpeningPage::Name||
-            page_==NativeOpeningPage::ComputerLinkUnavailable)return NativeOpeningAction::None;
+    if(page_==NativeOpeningPage::Complete||page_==NativeOpeningPage::Name)return NativeOpeningAction::None;
     if(page_==NativeOpeningPage::Roster||page_==NativeOpeningPage::LocalStandings){
         memory_[0x1bb47]=controls;
         if(responsive?!(controls&16):!fire_.update(controls,elapsed))return NativeOpeningAction::None;
@@ -140,7 +140,7 @@ NativeOpeningAction NativeOpeningFlow::update(const NativeMenuInput& input,doubl
         return NativeOpeningAction::None;
         }
     }
-    if(!applyNativeMenuInput(memory_,input))return NativeOpeningAction::None;
+    if(!applyNativeMenuInput(memory_,input,renderState().disabledRows))return NativeOpeningAction::None;
     if(responsive){
         if(page_==NativeOpeningPage::Mode)modeSelection_=memory_[selected];else addSelection_=memory_[selected];
         if(memory_[highlight])return confirm();

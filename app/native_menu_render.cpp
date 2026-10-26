@@ -96,8 +96,9 @@ NativeMenuImage makeNativeMenuImage(const NativeMemory& m,const NativeMenuRender
     cursor.colour=1;drawNativeMenuString(m,image,cursor,state.menuStrings?0x5eb7f:0x5a69a,0);
     for(unsigned option=0;option<=state.count;++option) {
         const unsigned row=m[0x64af4+option];
-        strip(m,image,row,option==state.selected?(state.confirmed?0:1):2);
-        cursor.column=5;cursor.row=row;cursor.yOffset=4;cursor.colour=0;
+        const bool disabled=(state.disabledRows&(1u<<option))!=0;
+        strip(m,image,row,!disabled&&option==state.selected?(state.confirmed?0:1):2);
+        cursor.column=5;cursor.row=row;cursor.yOffset=4;cursor.colour=disabled?3:0;
         character(m,image,cursor,'1'+option);character(m,image,cursor,'.');character(m,image,cursor,' ');
         const unsigned offset=m[0x5bcd0+state.menuOffset+option];
         drawNativeMenuString(m,image,cursor,state.menuStrings?0x5eb7f:0x5a69a,offset);

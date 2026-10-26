@@ -94,7 +94,7 @@ To run an existing build directly, from the project root:
 - Cockpit instruments and running lap hundredths, wheel animation, engine sound and effects, keyboard and XInput input.
 - ADF setup launcher, fullscreen, saved preferences and optional smooth presentation.
 
-**Computer Link is deliberately deferred.** Alternate cameras, further graphical
+**Computer Link is deliberately deferred** and appears disabled in the mode chooser. Alternate cameras, further graphical
 enhancements and distribution packaging are future work. Fullscreen fits the
 selected 4:3, 16:9 or 32:9 view; image sizing and filtering remain independent.
 The native rasterizer, audio output and host timing

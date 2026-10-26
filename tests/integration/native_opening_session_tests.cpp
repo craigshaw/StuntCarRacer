@@ -93,6 +93,34 @@ void drive(NativeGameSession& game,const std::filesystem::path& folder,bool comp
     std::filesystem::copy_file(trace,folder/"native.csv",std::filesystem::copy_options::overwrite_existing);
     ++routes;
 }
+void disabledComputerLink(const std::filesystem::path& pack,const std::filesystem::path& root){
+    for(auto navigation:{NativeMenuNavigation::Original,NativeMenuNavigation::Responsive}){
+        NativeGameSession game(pack,{});game.setNavigation(navigation);ready(game);
+        const auto state=game.menuState();require(state.count==2&&state.disabledRows==4,"Mode chooser did not retain a disabled Computer Link row");
+        const auto disabled=makeNativeMenuImage(game.memory(),state);auto enabledState=state;enabledState.disabledRows=0;
+        const auto enabled=makeNativeMenuImage(game.memory(),enabledState);unsigned greyPixels=0;
+        const unsigned row=game.memory()[0x64af4+2],top=row*8-4;
+        for(unsigned at=0;at<disabled.indices.size();++at)if(disabled.indices[at]!=enabled.indices[at]){
+            require(at/320>=top&&at/320<top+8&&enabled.indices[at]==0&&disabled.indices[at]==3,"Disabled row changed artwork outside its text");++greyPixels;
+        }
+        require(greyPixels>0&&disabled.palette[3]!=disabled.palette[0],"Computer Link text was not greyed out");
+        auto forced=state;forced.selected=2;forced.confirmed=true;const auto forcedImage=makeNativeMenuImage(game.memory(),forced);
+        for(unsigned y=row*8-9;y<row*8+8;++y)for(unsigned x=32;x<256;++x)
+            require(disabled.indices[y*320+x]==forcedImage.indices[y*320+x],"Disabled Computer Link acquired a selection highlight");
+        image(game,root/(navigation==NativeMenuNavigation::Original?"mode-disabled-original.bmp":"mode-disabled-responsive.bmp"));
+        const auto move=[&](unsigned controls,unsigned number=0){
+            ready(game);const auto result=game.update(0,{{std::uint8_t(controls),std::uint8_t(number)},0,false});ready(game);
+            require(result.unavailable==NativeGameUnavailable::none&&game.openingPage()==NativeOpeningPage::Mode,"Disabled Computer Link dispatched an unavailable action");
+        };
+        move(0,4);require(game.menuState().selected==0,"Number 3 selected Computer Link");
+        move(2);require(game.menuState().selected==1,"Down did not select Multiplayer");
+        for(unsigned repeat=0;repeat<4;++repeat)move(2);
+        require(game.menuState().selected==1,"Controller/keyboard Down reached Computer Link");
+        move(0,4);require(game.menuState().selected==1,"Number 3 displaced the current valid selection");
+        move(1);require(game.menuState().selected==0,"Up did not return to Single Player");
+        require(confirm(game).unavailable==NativeGameUnavailable::none&&game.enteringName(),"Disabling Computer Link broke Single Player confirmation");
+    }
+}
 }
 int main(int argc,char** argv)try{
     if(argc!=3)throw std::invalid_argument("native_opening_session_tests asset-pack output-directory");
@@ -142,16 +170,12 @@ int main(int argc,char** argv)try{
             require(game.page()==NativeMenuPage::Matchup&&game.memory()[0x5eb76]==count-1,"Local championship changed player setup");
         }
     }
-    {
-        NativeGameSession game(argv[1],root/"link-recordings");settle(game);choose(game,2);
-        require(confirm(game).unavailable==NativeGameUnavailable::computerLink,"Computer Link lacked its boundary");
-        require(game.openingPage()==NativeOpeningPage::Mode,"Unavailable link did not return to mode chooser");
-    }
+    disabledComputerLink(argv[1],root);
     std::cout<<"{\"status\":\"passed\",\"single_player_startups\":1,\"local_startups\":7,\"entered_names\":"<<names
         <<",\"named_race_routes\":"<<routes<<",\"ticks\":"<<ticks<<",\"snapshots\":"<<snapshots
         <<",\"hall_of_fame_routes\":"<<hallRoutes
         <<",\"blank_retry\":true,\"backspace\":true,\"case_and_host_keys\":true,\"maximum_length\":12"
-        <<",\"local_player_counts\":[2,3,4,5,6,7,8],\"explicit_transport_boundary\":true"
+        <<",\"local_player_counts\":[2,3,4,5,6,7,8],\"explicit_transport_boundary\":true,\"computer_link_disabled\":true,\"disabled_navigation_modes\":2"
         <<",\"capture_input\":false,\"cpu_emulation\":false}\n";
     return 0;
 }catch(const std::exception& error){std::cerr<<error.what()<<'\n';return 1;}

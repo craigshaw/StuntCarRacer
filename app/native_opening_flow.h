@@ -3,8 +3,8 @@
 #include <memory>
 
 namespace scr::viewer {
-enum class NativeOpeningPage { Mode,Name,AddPlayer,Roster,LocalStandings,ComputerLinkUnavailable,Complete };
-enum class NativeOpeningAction { None,Changed,BeginName,ShowRoster,Complete,UnsupportedComputerLink };
+enum class NativeOpeningPage { Mode,Name,AddPlayer,Roster,LocalStandings,Complete };
+enum class NativeOpeningAction { None,Changed,BeginName,ShowRoster,Complete };
 
 // Original startup templates and pre-mode local context. Asset decoding and
 // initializeGameData are already performed by startNativeGame; do not repeat
@@ -27,8 +27,7 @@ public:
     NativeOpeningAction beginMultiplayerName(){multiplayer_=true;completedPlayers_=0;memory_[0x5eb76]=0;page_=NativeOpeningPage::Name;return NativeOpeningAction::BeginName;}
     bool multiplayer()const noexcept{return multiplayer_;}
     void setNavigation(NativeMenuNavigation mode)noexcept{navigation_=mode;}
-    // The original failed/cancelled serial-link path returns to selectGameMode.
-    // The host exposes its unsupported boundary before calling this method.
+    // Return to the mode chooser; Computer Link is a disabled native row.
     void returnToMode();
     [[nodiscard]] NativeOpeningPage page()const noexcept{return page_;}
     [[nodiscard]] bool complete()const noexcept{return page_==NativeOpeningPage::Complete;}

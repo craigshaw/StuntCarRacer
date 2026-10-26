@@ -148,8 +148,12 @@ void delays(){
     flow.update({16,0},2e-7);require(native[0x1bbca]==16,"Opening did not admit fresh fire");
     flow.update({},paint-1e-7);require(flow.page()==NativeOpeningPage::Mode,"Opening confirmation delay was shortened");
     require(flow.update({},2e-7)==NativeOpeningAction::BeginName,"Opening confirmation delay did not finish");++timingCases;
-    native=baseline;NativeOpeningFlow link(native);require(choose(link,2)==NativeOpeningAction::UnsupportedComputerLink,"Serial route boundary missing");
-    link.returnToMode();require(link.page()==NativeOpeningPage::Mode&&!native[0x5eb76],"Failed serial route did not return to original mode chooser");
+    native=baseline;NativeOpeningFlow link(native);ready(link);link.update({0,4},0);ready(link);
+    require(link.page()==NativeOpeningPage::Mode&&link.renderState().selected==0&&link.renderState().disabledRows==4,"Disabled serial row accepted its numbered key");
+    link.update({2,0},0);ready(link);link.update({2,0},0);ready(link);
+    require(link.renderState().selected==1,"Disabled serial row accepted direction input");
+    native[0x1bbd6]=2;
+    require(link.update({16,0},0)==NativeOpeningAction::None&&!native[0x1bbca]&&link.page()==NativeOpeningPage::Mode,"Disabled serial row accepted confirmation");
 }
 }
 extern "C" {

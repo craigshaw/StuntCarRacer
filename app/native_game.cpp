@@ -216,9 +216,7 @@ private:
         }
         if(changes.unavailable!=NativeGameUnavailable::none){
             clearGameInput();
-            const auto text=changes.unavailable==NativeGameUnavailable::computerLink?
-                L"Computer Link has not been ported yet. Single Player and local Multiplayer are available.":
-                L"This route is unavailable in the current game mode.";
+            const auto text=L"This route is unavailable in the current game mode.";
             MessageBoxW(window,text,L"Stunt Car Racer — native port",MB_OK|MB_ICONINFORMATION);
         }
     }

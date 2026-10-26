@@ -61,7 +61,8 @@ local drivers, then shows their startup standings. Continue requires at least
 two names; the eighth name finishes entry automatically. This setup retains all
 names and supports Practice and complete local championships. Each driver takes
 a turn against the computer pace car on each of the division's two tracks.
-The **Computer Link** serial transport remains unavailable.
+**Computer Link** is greyed out and cannot be selected. Directional navigation
+skips it, and its number-key shortcut is inactive.
 
 Use Up/Down or the controller stick/D-pad to select, then Return/Space or the
 controller A button to confirm. Number keys 1–4 select a row; confirmation is a

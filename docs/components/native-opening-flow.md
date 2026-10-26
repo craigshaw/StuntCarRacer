@@ -27,8 +27,8 @@ division text suppressed, then displays the mode chooser:
    one-player multiplayer session cannot continue: it returns to that menu.
    The eighth completed name automatically ends entry. Local standings follow.
 3. Computer Link enters the serial-link protocol in the original. The native
-   host currently identifies that unsupported transport explicitly and returns
-   to the mode chooser; it does not manufacture a connected opponent.
+   chooser keeps its row visible in grey but disables selection and confirmation,
+   including its numbered shortcut. No unavailable-transport dialog is shown.
 
 After the roster's released/new-fire wait, startup saves the original random
 state and sets network protocol state `0xf3`. The local handshake path returns
@@ -52,6 +52,11 @@ to be released, runs the original two-unit delay, and admits another input.
 These use `nativeMenuDelaySeconds`, which is measured from the original PAL
 68000 busy-loop code. Palette fades use the independently recovered 50 Hz
 palette routine.
+
+In both navigation policies the chooser marks Computer Link in the native-only
+`disabledRows` mask. The renderer uses the unselected strip and grey text; menu
+input skips disabled rows and rejects their numeric keys and confirmation.
+Other menus and original-code rendering checks use the default empty mask.
 
 The single-player roster fades to the portrait palette's first colour,
 `0x0222`, loads and draws the portraits, then fades to their palette. After

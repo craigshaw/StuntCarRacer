@@ -15,7 +15,8 @@ void initializeNativeMenuSession(NativeMemory&);
 // One original processLocalMenuInput pass. The host supplies a normalized
 // controller mask; numeric keys are resolved through the original raw-key table.
 // Returns true if the original would repaint its options (even at a boundary).
-bool applyNativeMenuInput(NativeMemory&,const NativeMenuInput&);
+// Optional native-only row mask leaves disabled entries visible but inert.
+bool applyNativeMenuInput(NativeMemory&,const NativeMenuInput&,unsigned disabledRows=0);
 
 // PAL 68000 execution time of the original busy-loop delay, excluding caller
 // rendering and Amiga bus contention. This preserves its release/debounce order.

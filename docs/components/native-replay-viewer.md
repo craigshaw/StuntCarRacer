@@ -157,7 +157,7 @@ report using the built oracle:
 ```
 
 The original wheel rotation accumulator advances from vertical blank interrupts.
-The viewer now retains the recovered wheel interrupt state separately from
+The viewer retains the recovered wheel interrupt state separately from
 gameplay: masked software wheels use the phase at their game update, while
 hardware sprite treads advance at 50 Hz between updates. Their original palette,
 sprite selection, reverse sequence, suspension placement and display gates are
@@ -195,7 +195,7 @@ closure follow the original command selection. Coarse far faces are suppressed
 for all three visited segments, including ones culled by near visibility. See
 [the near-track evidence guide](native-near-track.md).
 
-Practice and competitive scenes now use the same recovered far/near painter;
+Practice and competitive scenes use the same recovered far/near painter;
 the original Practice guard suppresses only the opponent. The early coarse
 far-road triangles and depth buffer are no longer used for these game views.
 Native polygon and line raster coverage remain presentation choices. The

@@ -42,7 +42,7 @@ the overview return at original `0x5d31c`. Primary-font drawing in menu mode
 `0x41` subtracts 320 bytes from its planar destination (`0x59624..0x59640`),
 which shifts text upward by eight rows. Carrying that mode into the first race
 misplaced the static L/B labels, while later digit updates used the correct
-race mode. Both first and repeated menu-entered races are now checked against
+race mode. Both first and repeated menu-entered races are checked against
 the original startup drawing, on both screen buffers and all eight tracks.
 
 The speedometer preserves its initial leftmost pixel and modifies the interval

@@ -1,6 +1,6 @@
 # Native race messages
 
-`app/native_race_messages.*` restores the original in-race message admission
+`app/presentation/native_race_messages.*` restores the original in-race message admission
 gate around the already verified `drawNativeGameMessage` glyph renderer.
 Message inputs belong to the rendered tick. Retained and interpolated views
 read `NativeRaceMessageFrame`, rather than later gameplay RAM.

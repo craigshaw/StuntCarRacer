@@ -25,7 +25,7 @@ drive exports all three images and checks that view queries preserve them.
 The audit follows the supplied disk's local frame renderer `0x64e4c`, normal
 game loop and race-entry drawing. It found the absent flame advancement,
 [lifting chains](native-cockpit-chains.md), and
-[initial damage sections](native-damage-holes.md). These now have native paths.
+[initial damage sections](native-damage-holes.md). These have native paths.
 
 | Original visual path | Native owner |
 | --- | --- |

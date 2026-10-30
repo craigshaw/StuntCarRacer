@@ -206,7 +206,7 @@ terminal transition; further input rows are rejected. For example:
   --inputs .\tests\replays\transitions\quit-1.csv --native-only-verify
 ```
 
-Trace columns now also contain `lap_counter`, `crossing_armed`, `race_complete`,
+Trace columns also contain `lap_counter`, `crossing_armed`, `race_complete`,
 `outer_action`, `restarts` and `quit`. Actions are 0 continue, 1 restart,
 2 race end, 3 quit, and 4 pause wait. The native transition module recovers pause
 bookkeeping, but the full-loop runner currently requires an unpaused capture

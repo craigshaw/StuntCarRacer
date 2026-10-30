@@ -1,6 +1,6 @@
 # Native engine audio and effects
 
-The original sound routines now have native C++ counterparts. The game still
+The original sound routines have native C++ counterparts. The game still
 advances verified physics once every six PAL VBlanks, or 120 ms. Audio has its own
 50 Hz VBlank updates and sample-completion events. These audio updates operate
 on copied inputs and separate audio state; they never write gameplay RAM or
@@ -27,7 +27,7 @@ completion; the second event disables the channel and its interrupt. The port
 also preserves the original DMA-enable guard and signed counter comparisons.
 The audio-only VBlank contract starts after the original countdown and wheel
 graphics work; it does not replace the whole interrupt handler. The recovered
-[wheel-animation prefix](wheel-animation.md) now runs on its own presentation
+[wheel-animation prefix](wheel-animation.md) runs on its own presentation
 state alongside this audio tail, retaining the same 50 Hz rate.
 
 The original engine period word is at `0xf472`. The pinned enhanced source's
@@ -143,15 +143,15 @@ The synchronous restart's internal waits remain collapsed in the native game
 loop; exact original fade/wait timing is outside this audio integration.
 
 The authored replay window remains silent; the same packets can be rendered
-offline using `--audio-wav <path>` on the viewer. Standard verification now
+offline using `--audio-wav <path>` on the viewer. Recorded verification
 exports the complete race to `analysis/native-render/replay-audio.wav` and
 checks its stereo data, duration, headroom and 50 Hz cadence. Its 1,463 updates
 produce 8,426,880 stereo frames, 8,778 VBlanks and 100 effect starts. All original
-gameplay columns and the existing live/interpolation regressions still pass.
+gameplay columns matched; live/interpolation checks have separate coverage.
 
-There are 16 synthetic mixer regressions and eight integration checks, including
-isolated playback of all seven effects, buffer partition independence, pitch
-changes, restart continuity and input immutability. Real-device checks also
+Recorded scopes include 16 synthetic mixer regressions and eight integration
+checks, including isolated playback of all seven effects, buffer partition
+independence, pitch changes, restart continuity and input immutability. Real-device checks also
 cover buffer completion, pause, mute and reset:
 
 ```powershell

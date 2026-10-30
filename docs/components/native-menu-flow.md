@@ -1,11 +1,11 @@
-# Native original main menu and Practice flow
+# Native menus and Practice flow
 
-`app/native_menu_flow.*` expresses the original local menu flow as a small
+`app/menus/native_menu_flow.*` expresses the original local menu flow as a small
 native state machine. It reads track, raw-key, name and record data from the
 validated asset image. There is no emulated CPU or captured state in this code.
 The original game-mode chooser and driver-name entry are handled before this
-class by [NativeOpeningFlow](native-opening-flow.md) and the
-[native name editor](native-player-name.md). They preserve the original driver
+class by [NativeOpeningFlow](native-opening.md#flow) and the
+[native name editor](native-opening.md#name-input). They preserve the original driver
 slots and names before the main menu starts. An explicit established-menu test
 option still enters this class directly for independent race regressions.
 
@@ -16,18 +16,57 @@ both rendering and selection. Baseline/multiplayer instances retain four rows.
 Career Back routes apply in both timing policies and preserve a separate season
 checkpoint while the main menu or Practice is open.
 
+## Responsive navigation
+
+Responsive is the player default; Original remains selectable independently of
+driving controls. `app/menus/native_menu_navigation.h` filters host-time actions:
+a direction moves immediately, repeats after 300 ms and every 100 ms thereafter.
+Confirm/Back require a fresh press. Held directions must be released across a
+screen change, Settings, focus loss or controller recovery; other fresh actions
+remain available. Escape/controller B invokes Back; Backspace still edits text.
+
+`NativeGameSession` completes deliberate waits/fades through their existing
+handlers without advancing gameplay time. Back restores cached selections and
+retains existing Cancel entries. Prepared preview revisits do not prepare a race
+again, consume RNG, invoke save encoding or repeat competition progression.
+A deliberate new race/track choice retains its normal preparation effects.
+
+| Responsive Back context | Destination / boundary |
+| --- | --- |
+| Mode chooser | B has no parent; Escape opens the Game menu |
+| Baseline/multiplayer main menu | No parent; P/Start opens the Game menu |
+| Career main menu / career selection | Career selection / mode chooser, in both timing policies |
+| First name | Mode chooser, or career selection for a New Career draft |
+| Additional unfinished name | Add Player; removes only the pending slot |
+| Add Player | Edit the last completed name |
+| Opening roster/standings | Last setup step: first name, Add Player, or eighth name after automatic advance |
+| Practice division / track / preview | Main menu / division / track selection |
+| Championship preview | Prepared matchup |
+| Career matchup or report | Main menu with exact season suspension; see career persistence |
+| Baseline/multiplayer matchup or report | No Back; preserve forward progression |
+| Hall | Main menu |
+| Load/Save menu / slot list / save-name editor | Main menu / Load-Save menu / slot list |
+| Save/load completion | Dismiss the sequence; the operation remains committed |
+
+Editing a completed name does not change the player count; names survive setup
+Back. Unconfirmed save-name edits are discarded. Errors/warnings follow the
+unfinished operation's cancellation route; Back cannot undo a completed write,
+load, race outcome or award. Reports commit scores, bonuses and advancement once.
+Career continuation routes apply in both timing policies; other Original routes
+retain their recovered cancellation behaviour.
+
+Menu navigation is saved in the launcher and in-game Settings. Missing/migrated
+preferences select Responsive; Restore original defaults selects Original.
+Applying the policy preserves the current screen/session. Response is bounded by
+the next host input/presentation opportunity, not a 120 ms gameplay update;
+disk access or race construction is not guaranteed to finish in one frame.
+`native_navigation_tests` covers taps/repeats/holds, setup and save cancellation,
+selection restoration, policy switching and preparation/RNG isolation. Original
+rendering, numbered selection and text rules remain separately verified below.
+
 ## Evidence and addresses
 
-The recovered contracts and oracle comparisons below describe **Original**
-navigation, which remains separately selectable. The player defaults to
-**Responsive** navigation: `native_menu_navigation.h` filters fresh actions and
-host-time direction repeats; menu flows provide explicit Back routes and cached
-selections. `NativeGameSession` completes presentation transitions immediately
-through their existing handlers and reuses prepared previews on revisits.
-Championship reports retain their one-way commits. See the
-[navigation design](../design/menu-navigation-design.md) for the complete route
-table, settings and cancellation boundaries, and `native_navigation_tests` for
-native integration coverage of the enhancement.
+The recovered contracts and oracle comparisons below describe Original navigation.
 
 All addresses below are runtime addresses in the supplied disk's plaintext
 payload, loaded at `0xe700` from disk offset `0xdc00`, length 408,540. The payload
@@ -90,14 +129,13 @@ and the race quit binding do not navigate this screen. A new fire press returns
 through `displayMenuScreen` to the main menu, preserving the outer menu-loop
 state. The original main-menu default selects Practice or the racing season
 according to the current session. [Display](native-hall-of-fame.md) and
-[record-state](native-hall-records.md) checks cover the two record banks.
+[record-state](native-hall-of-fame.md#record-state) checks cover the two record banks.
 
 The preview waits for the original button-release mask to clear. Left increments
 the camera angle byte, right decrements it, and fire starts the race. Left takes
 priority over right and fire. Angles wrap as bytes. Escape is not an original
-preview Cancel binding. The host may use the explicit `cancelPreview()` recovery
-method when an unavailable native feature has to return control to the menu;
-that method is not represented as an original menu route.
+preview Cancel binding. The host's `cancelPreview()` implements Responsive Back;
+it is not represented as an original input route.
 
 After Practice the menu system returns directly to the same division's track
 selection, because the previous selection set `divisionSelectedFlag`. The
@@ -117,7 +155,7 @@ retained and all eight tracks are available in the native host.
 Local championships retain the original additional-player count, rotate every
 driver through both tracks, and show the individual results and track bonuses.
 Their [state routines](native-multiplayer-state.md) and
-[screen renderer](native-multiplayer-render.md) have separate original-code checks.
+[screen renderer](native-multiplayer-state.md#result-screens) have separate original-code checks.
 Single-player seasons retain their existing native route.
 
 ## Timing and verification limits

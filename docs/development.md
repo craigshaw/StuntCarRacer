@@ -1,47 +1,25 @@
 # Development and verification
 
-## Start a new thread here
+Read [architecture](architecture.md) for runtime ownership and fidelity limits,
+then use the [component index](README.md) to select the relevant contract.
+[AGENTS.md](../AGENTS.md) records contributor constraints. Commands below run
+from the repository root in PowerShell.
 
-Read [AGENTS.md](../AGENTS.md), the [README](../README.md) and
-[architecture](architecture.md). The initial local game is the faithful baseline;
-enhancements should be explicit presentation options. Computer Link is deliberately
-deferred. No enhancement work is implicitly scheduled by this handoff.
+## Environment
 
-Inspect `git status` and the relevant sources before editing. Work may be
-uncommitted; preserve it. Read the matching [component guides](README.md), then
-select verification appropriate to the change. Do not repeat disk extraction
-discovery or replace original behaviour with the enhanced upstream disassembly.
+The player uses C++17 and Windows system libraries, including XInput. The checked-in
+presets select x64 Visual Studio 2026 C++ Build Tools (`Visual Studio 18 2026`);
+install its C++ workload and a CMake version supporting that generator. The project
+and preset schema require CMake 3.21 or newer. Another generator can use an ignored
+`CMakeUserPresets.json` or an explicit configure command.
 
-## Development environment
-
-Commands below run from the project root in PowerShell.
-
-| Requirement | Prepared location / version |
-| --- | --- |
-| C++17 compiler | Visual Studio 2026 C++ Build Tools; CMake generator `Visual Studio 18 2026`, x64 |
-| CMake | 4.4.3 on PATH; project/preset minimum 3.21 |
-| Python | Optional for verification/helpers; local configuration, `.venv`, or PATH |
-| Python RE packages | Versions in `setup/requirements.txt` |
-| Local disk | Supported ADF, identity in [asset guide](components/native-startup.md) |
-
-PowerShell helpers read the ignored `setup/local-tools.json`, then environment
-variables and installed commands. This checkout's existing tool paths are saved
-there. Copy `setup/local-tools.example.json` on another machine and fill only the
-overrides needed; see [local tool configuration](../setup/README.md).
-`scripts/env.ps1` exposes `$AmigaPython`, `$WinUae` and `rea-wsl` without requiring
-the research environment to be installed. Native Windows UI/audio/input use system libraries, including XInput;
-the game executable imports ADFs itself and has no Python or emulator runtime
-dependency. Release builds statically link the Visual C++ runtime. The supplied
-launchers do use Python for import, build and checks.
-
-A clone supplies source only. Copy your own supported ADF locally, or an already
-imported matching pack. ROMs and captures are unnecessary for ordinary native
-startup. Original-code oracles and capture-based replay need additional local
-fixtures, described below.
+Python is optional for checks/helpers and is not a compiler or runtime dependency.
+The executable imports its own ADF and needs no ROM, emulator or capture. Release
+builds statically link the Visual C++ runtime. Optional research dependencies are
+pinned in `setup/requirements.txt`; see [local tools](../setup/README.md) for
+discovery and ignored `setup/local-tools.json` overrides.
 
 ## Build, test and stage
-
-From the project root:
 
 ```powershell
 cmake --preset windows-release
@@ -51,97 +29,55 @@ cmake --install build/windows --config Release
 & '.\dist\Stunt Car Racer.exe'
 ```
 
-The presets select the prepared x64 Visual Studio toolchain. Configure generates
-the project, Build compiles it, CTest runs existing test executables, and Install
-stages the player executable. Running the staged game performs no build or tests.
-The default install prefix is `dist/`; it contains `Stunt Car Racer.exe`,
-`LICENSE` and `THIRD_PARTY_NOTICES.md`.
-The disk's asset pack is imported by the player on first launch and is not
-bundled there. The approved launcher logo is the sole embedded-artwork exception;
-source-only builds use a text header when that local file is absent.
+Configure defines targets, Build compiles them, CTest runs existing executables,
+and Install stages the player. Running the staged executable does none of those
+steps; its launcher accepts the player's supported ADF on first use.
 
-Before distributing the staged folder, run `python scripts/check_release.py`.
-It checks the exact file list, current notices, x64 executable headers and PE
-resources; only version information, the Windows manifest and the exact approved
-launcher logo are allowed.
-The native game check runs this safeguard automatically after staging.
+| Preset | Build tree | Configuration / purpose |
+| --- | --- | --- |
+| `windows-release` | `build/windows/` | Native Release |
+| `windows-debug` | `build/windows/` | Native Debug; 8 MiB stack for unoptimized state copies |
+| `windows-oracle` | `build/windows-oracle/` | Release with test-only original-code comparisons |
 
-| Path | Purpose |
+Use the same preset for configure, build and CTest. An app-only build uses
+`cmake --build --preset windows-release --target native_game`. Custom configuration
+can omit tests/viewers with `-DBUILD_TESTING=OFF -DSCR_BUILD_DEV_TOOLS=OFF`.
+`SCR_BUILD_ORACLE` defaults to OFF and requires testing. The experimental cockpit
+study additionally requires `SCR_BUILD_ARTWORK_TOOLS=ON`; ordinary builds omit it.
+
+Install produces exactly `Stunt Car Racer.exe`, `LICENSE` and
+`THIRD_PARTY_NOTICES.md` under `dist/`. Assets, settings and saves are not bundled.
+The approved launcher logo is the sole embedded-artwork exception: a local
+`logo.png` must match `setup/branding.json`. Unknown artwork fails configuration;
+replacement requires provenance review and a pin update. Builds without it use
+a text header; `-DSCR_EMBED_LAUNCHER_LOGO=OFF` selects that header explicitly.
+Before distributing the folder, run:
+
+```powershell
+python scripts/check_release.py
+```
+
+This checks the file list, current notices, x64 executable and embedded resources.
+Only version information, the Windows manifest and the exact approved logo are
+accepted. The game wrapper also runs it after staging.
+
+## Repository layout
+
+| Path | Responsibility |
 | --- | --- |
-| `src/` | Typed algorithms grouped into `physics/`, `race/`, `track/`, `audio/`, `render/` and recovered-layout adapters in `state/` |
-| `app/` | Assets, audio, input, launcher, menus, persistence, presentation and race/session orchestration; host adapters in `platform/windows/` |
-| `tools/replay/` | Optional replay viewer and headless native replay entry points |
-| `scripts/`, `tools/research/` | Everyday checks/launchers and optional recovery, emulator and reference-analysis utilities |
-| `setup/local-tools.json` | Ignored per-machine tool paths; the checked-in example contains no machine paths |
-| `tests/unit/`, `tests/integration/`, `tests/oracle/` | Asset-free checks, native integration and test-only original-code comparisons |
-| `tests/support/`, `tests/replays/` | Test-only adapters/projections and authored replay inputs/provenance |
-| `CMakePresets.json`, `cmake/` | Shared toolchain settings, native/oracle target definitions and CTest registration |
-| `build/windows/` | Shared native compiler output for Release and Debug, CTest logs and per-configuration test outputs |
-| `build/windows-oracle/` | Separate original-code test build, including test-only Musashi |
-| `dist/` | Staged player executable and licence notices |
-| `analysis/` | Private inputs, recovered references, research evidence and detailed verification reports |
-| `working/` | Development settings, saves and emulator working copies |
+| `src/` | `physics/`, `race/`, `track/`, `audio/`, `render/`; recovered-layout adapters in `state/` |
+| `app/` | Assets, input/audio, launcher, menus, persistence, presentation and race/session orchestration; Windows adapters in `platform/windows/` |
+| `tests/` | `unit/`, `integration/`, test-only `oracle/` and `support/`, authored inputs in `replays/` |
+| `scripts/`, `tools/` | Everyday checks/launchers; replay viewers and optional research recipes |
+| `cmake/`, `CMakePresets.json` | Target definitions, test registration and shared build settings |
+| `build/`, `dist/` | Disposable compiler/CTest output; staged player and notices |
+| `analysis/` | Private media, recovered references and source/fixture/executable-identified evidence |
+| `working/` | Checkout-local settings, saves and emulator working copies |
 
-All generated/local directories are ignored. Historical executables and hash
-receipts remain under `analysis/`; their obsolete CMake projects and compiler
-intermediates have been removed. Current commands build only under `build/`.
-The gameplay algorithms retain their implementations. Shared state adapters
-belong to production source; test-only comparison ranges remain under
-`tests/support/`. Research evidence and its existing paths are unchanged.
-The [evidence map](research/evidence.md) identifies the retained data categories.
-
-Debug outputs and generated CTest artifacts are disposable. Rebuild Debug with
-its preset after cleaning it; CTest recreates its own output directories. Keep
-original inputs, captured fixtures, references, research exports and identified
-verification results. On this Windows checkout, retained `analysis/` data uses
-transparent Windows compression: file contents, hashes and paths are unchanged.
-
-Use `windows-debug` for Configure, Build and CTest to select Debug in the same
-native tree. MSVC Debug executables reserve an 8 MiB stack for unoptimized
-native memory/snapshot copies; Release retains its existing stack setting.
-For an app-only build, `cmake --build --preset windows-release
---target native_game` skips test/viewer targets. A custom configure can disable
-their definitions with `-DBUILD_TESTING=OFF -DSCR_BUILD_DEV_TOOLS=OFF`.
-`SCR_BUILD_ORACLE` defaults to OFF and requires `BUILD_TESTING=ON` when enabled.
-The experimental cockpit study additionally requires `SCR_BUILD_ARTWORK_TOOLS=ON`;
-ordinary development builds omit it.
-
-CTest includes synthetic input/audio/storage tests and native integration tests
-for startup, menus, races, saves, display and launcher behaviour. Tests needing
-private files are explicitly **Skipped** when those files are absent. Import a
-pack with the development tool below, then rerun CTest to include them. Override
-`SCR_TEST_ASSET_PACK`, `SCR_TEST_ADF` (optional) and `SCR_TEST_PAYLOAD` at configure
-time when local inputs live elsewhere. `SCR_TEST_CAPTURE` selects the optional
-captured audio fixture. `ctest --preset windows-release -L unit`
-runs the asset-free native subset. Python source-policy tests are registered
-when an interpreter is available; compiling the application does not require it.
-Native window and host-storage checks run serially; other tests can run in parallel.
-Rapid repeated persistence checks can expose intermittent Windows access-denied
-errors during atomic file replacement. These remain test failures with a Windows
-error diagnostic; this build cleanup does not change runtime write/retry behaviour.
-
-CTest writes logs under `build/<tree>/Testing/` and test artifacts under
-`build/<tree>/test-output/<configuration>/`, resetting each suite's own output
-before it runs. It does not import assets or refresh
-the detailed wrappers' source/fixture/executable receipts. Those wrappers remain
-the authority for retained differential evidence and run against the shared
-Release builds. Run one build/check wrapper at a time against a shared tree.
-Source relocations invalidate earlier build receipts; rerun the relevant wrapper
-before using `--skip-build`. Historical reports retain their recorded identities.
-
-Python unit tests also use the build's test-output directory, with unique
-temporary folders per test. Direct Python runs default to
-`build/windows/test-output/python/`; `SCR_TEST_OUTPUT_ROOT` overrides that base.
-CTest registers the asset-policy, replay-wrapper and lap-evidence Python suites.
-
-After preparing the original-code prerequisites, the equivalent oracle commands
-are `cmake --preset windows-oracle`, `cmake --build --preset windows-oracle`, and
-`ctest --preset windows-oracle`. This also registers capture-free original-code
-comparisons; deeper capture/replay checks still use the focused wrappers below.
-
-On a machine with another supported generator, use a local ignored
-`CMakeUserPresets.json` inheriting these presets, or configure CMake explicitly.
-The supplied Python wrappers target the checked-in Windows Release presets.
+Generated/local directories are ignored. Preserve original media, captures,
+reference provenance and identified verification reports; their locations are
+indexed in [retained evidence](research/evidence.md). Production includes no test
+headers and links no Musashi code.
 
 ## Development helpers and detailed receipts
 
@@ -153,94 +89,89 @@ git config core.hooksPath .githooks
 .\scripts\start-native-game.ps1 -SkipBuild
 ```
 
-`-SkipBuild` still runs checks and rejects a stale source/executable receipt.
-Omit it after source changes. Passing `-Adf <path>` to the launcher imports that
-disk; otherwise a missing pack is imported from the default root ADF filename.
-Packs must remain under ignored `analysis/`.
+`Drive Native.cmd` is a provisional build/check/launch helper. It uses checkout-local
+assets and `working/` data; ordinary launches use per-user Windows data.
+`-Adf <path>` imports through the helper; otherwise a missing pack uses the default
+root ADF filename. Development imports stay under `analysis/`.
 
-These checkout-local paths belong to development commands. A normal executable
-launch uses `%LOCALAPPDATA%/Stunt Car Racer/` and opens the setup/settings launcher
-even without an asset pack. `--asset-pack`, `--settings-file` and `--save-file`
-override individual paths; `--data-dir` isolates careers/Hall and single-instance
-ownership. The development helper defaults that directory to `working/player-data/`.
-`--recordings-dir` opts into development recordings.
-Drive Native.cmd remains a provisional helper, independent of the player app.
+Native `--asset-pack`, `--settings-file` and `--save-file` override individual paths;
+`--data-dir` isolates careers/Hall and instance ownership. The helper defaults
+that directory to `working/player-data/`. `--recordings-dir` explicitly enables
+recording. See [scripts](../scripts/README.md), [player data](playing.md#data-and-recovery)
+and [launcher ownership](components/native-launcher.md).
 
-The ignored `logo.png` is embedded only when its hash matches `setup/branding.json`.
-Unknown artwork fails configuration; replacing it requires an explicit provenance
-review and pin update. `-DSCR_EMBED_LAUNCHER_LOGO=OFF` selects the text header.
-The native game receipt records the local artwork's hash.
-
-`check_native_game.py` stages the checked executable in `dist/` after successful
-verification, verifies the copy's hash, and records both build and staged paths.
-Drive Native.cmd launches that staged executable with development data. Each
-suite using a build receipt keeps it beside its reports in `analysis/`, so
-shared compiler output cannot overwrite another suite's receipt. Source hashes
-include the presets and CMake modules. `--skip-build` continues to reject stale
-sources or changed executables; a bare CMake build does not create a wrapper receipt.
+`-SkipBuild` still checks source/executable identities and runs verification.
+Omit it after changes. Each wrapper retains its own build log, results and receipt
+beside its reports under `analysis/`; source identities include CMake files and
+presets. The game wrapper installs only after passing, verifies the staged copy's
+hash, and records the build/staged identities plus the artwork hash. A bare CMake
+build does not create a wrapper receipt. Run one wrapper at a time per shared tree.
 
 ## Choose verification by change
 
-Use `& $AmigaPython scripts/<command>` after sourcing `env.ps1`.
+Use `& $AmigaPython scripts/<command>` after loading `env.ps1`.
 
-| Changed area | Command | Main receipt directory |
+| Changed area | Command | Receipt directory |
 | --- | --- | --- |
-| Game flow, settings, startup integration, persistence | `check_native_game.py` | `analysis/native-game/` |
-| Same routes against original code, career/multiplayer rules and screens | `check_native_game.py --verify-original` | `analysis/native-game/` |
+| Game flow, settings, launcher, persistence | `check_native_game.py` | `analysis/native-game/` |
+| Same routes against original rules, screens and driving | `check_native_game.py --verify-original` | `analysis/native-game/` |
 | Fresh track/race state and steering | `check_native_startup.py --verify-original` | `analysis/native-startup/` |
 | Opening, raw keyboard/name editor, startup pixels | `check_native_opening.py` | `analysis/native-opening/` |
-| Cockpit pixels/events, wheel state, first/repeated races, three-lap fixture | `check_native_cockpit.py` | `analysis/native-cockpit/` |
-| Opponent AI, contact and car painter | `check_native_opponents.py` | `analysis/native-opponents/` |
-| World rendering, view isolation, both leagues/all tracks | `check_native_render_audit.py` | `analysis/render-audit/` |
-| Recorded replay, interpolation, input clock and offline audio | `check_native_rendering.py` | `analysis/native-render/` |
-| Fixed-point physics driver and supporting stages | `check_physics_update.py` | `analysis/physics-update/` |
-| Track decoder and initialization | `check_native_track_initialization.py` | `analysis/native-track-init/` |
+| Cockpit events, wheel state, first/repeated races, three-lap fixture | `check_native_cockpit.py` | `analysis/native-cockpit/` |
+| Opponent AI, contact and painter | `check_native_opponents.py` | `analysis/native-opponents/` |
+| Rendering, view isolation, both leagues/all tracks | `check_native_render_audit.py` | `analysis/render-audit/` |
+| Recorded replay, interpolation, input clock, offline audio | `check_native_rendering.py` | `analysis/native-render/` |
+| Physics driver and supporting stages | `check_physics_update.py` | `analysis/physics-update/` |
+| Track decoding and initialization | `check_native_track_initialization.py` | `analysis/native-track-init/` |
 
-Run the focused checks required by the actual change; there is no need to rebuild
-every historical leaf suite for a documentation or host-only edit. Physics and
-gameplay changes require relevant original-code differential checks. Presentation
-changes require evidence that view queries leave simulation state intact, plus
-visual inspection where appearance changes. Interactive display/device behaviour
-also needs an appropriate manual check.
+Choose checks for the changed contract. Gameplay changes require relevant
+original-code comparisons. Presentation changes require simulation/RNG isolation
+checks and visual inspection; interactive devices/windows also need manual checks.
+Documentation-only edits need link, command-reference and source-policy checks.
+The rendering audit accepts `--jobs 1` if parallel MSBuild workers are unavailable.
 
-The rendering audit accepts `--jobs 1` when parallel MSBuild workers are
-unavailable in a restricted environment; its comparison coverage is unchanged.
+CTest skips tests with missing private inputs. `ctest --preset windows-release -L unit`
+runs the asset-free native subset. Configure-time `SCR_TEST_ASSET_PACK`,
+`SCR_TEST_ADF`, `SCR_TEST_PAYLOAD` and `SCR_TEST_CAPTURE` select local fixtures.
+Python policy/replay/lap/release tests are registered when an interpreter exists.
+Window and host-storage checks run serially; rapid atomic-replacement tests can
+still expose intermittent Windows access-denied errors, which remain failures.
 
-Most wrappers write `check-results.json`, build logs and a source/executable
-receipt under their directory. Read the result and verify its source, input,
-asset and executable hashes before relying on a retained pass. A file existing
-or a build succeeding is not evidence that comparisons ran. A later ordinary
-game check can replace the combined report with one lacking original comparisons;
-inspect the report's contents, not just `status`. Startup retains its deeper
-original report separately as `original-check-results.json`.
+CTest logs live under the build's `Testing/`; per-suite artifacts use
+`test-output/<configuration>/`. Each suite resets only its own output. Direct
+Python runs default to `build/windows/test-output/python/`; `SCR_TEST_OUTPUT_ROOT`
+overrides that base. CTest does not import assets or refresh detailed wrapper receipts.
+
+A retained pass applies only to its recorded sources, fixtures and executable.
+Source moves invalidate earlier receipts. Inspect comparison contents as well as
+`status`: a later ordinary game check can replace the combined report without
+original comparisons. Game/startup wrappers also retain `original-check-results.json`.
+Build success or a report merely existing does not establish comparison coverage.
 
 ## Original-code and replay prerequisites
 
-The prepared checkout retains the matching payload, pinned reference material
-and captured fixtures under `analysis/`. Original-code wrappers use the payload
-at `analysis/reference/vesuri/offline-extracted-payload.bin` and pinned Musashi
-source under `analysis/reference/musashi/`. Verify or fetch the latter with:
+Original-code tests use the matching payload at
+`analysis/reference/vesuri/offline-extracted-payload.bin` and locally downloaded
+Musashi under `analysis/reference/musashi/`. Verify its pinned files with:
 
 ```powershell
 & $AmigaPython scripts/prepare_wheel_oracle.py
-# Only when the pinned files are missing:
+# Explicit download, only when pinned files are missing:
 & $AmigaPython scripts/prepare_wheel_oracle.py --download
 ```
 
-Musashi is pinned by `setup/musashi-source-lock.json`. Tools do not normally
-download it during a check. [Reverse-engineering setup](research/reverse-engineering.md)
-describes the verified payload mapping, retained reference prerequisites and
-capture extraction. The old capture-based wrappers are development tools, not
-requirements for playing the native game. Cockpit/replay checks additionally use
-the retained three-lap capture fixture and its authored control provenance.
+The lock is `setup/musashi-source-lock.json`; checks do not normally download it.
+After preparing prerequisites, configure/build/test with `windows-oracle`.
+[Research setup](research/reverse-engineering.md) covers payload mapping, external
+references and captures. Cockpit/replay wrappers also need their retained capture
+fixture and authored-control provenance; none is required to play the native game.
 
-Do not compare a fresh interactive drive against the default captured Practice
-seed. A valid differential replay needs the exact race-entry state and controls
-for that drive. Interactive recordings currently write controls and native traces,
-without exporting that seed. Session tests explicitly export seeds for their own
-recorded races; see [recordings](components/native-driving.md#recordings-and-verification).
+An interactive drive cannot be compared against an unrelated captured Practice
+seed. Differential replay needs the exact race-entry state and controls.
+Interactive recordings contain controls/traces but do not export that seed;
+session tests export their own seeds. See [recordings](components/native-driving.md#recordings-and-verification).
 
-## Repository hygiene and handoff
+## Repository hygiene
 
 ```powershell
 & $AmigaPython scripts/check_repository_assets.py --worktree
@@ -248,19 +179,9 @@ recorded races; see [recordings](components/native-driving.md#recordings-and-ver
 git diff --check
 ```
 
-The asset check inspects indexed blobs and, with `--worktree`, non-ignored source.
-CI currently runs the source asset policy and all Python synthetic tests. Native CTest
-unit tests can run without private inputs; the full game tests need the local
-pack. Never force-add original media, packs, saves,
-screenshots, extracted data, binary builds or RE databases. Keep derived files in
-`analysis/`, compiler/test output in `build/`, staged executables in `dist/`,
-and working emulator/save/settings files in `working/`.
-
-For a handoff, state what changed, which checks actually ran, any remaining
-limitations and whether work is committed/pushed. Update the relevant guide when
-its contract changes; keep the README and this entry path short. Do not turn
-them into a running session log. Every Git commit carries:
-
-```text
-Co-authored-by: Codex <codex@openai.com>
-```
+The asset checker reads indexed blobs, including forced additions; `--worktree`
+also checks non-ignored source. The hook must be enabled per checkout. CI runs
+source policy and synthetic Python tests without game data. Original media,
+packs, saves, screenshots, extracted data, built binaries and RE databases stay
+local. The logo exception applies to the release EXE, not to tracking its PNG.
+See [third-party notices](../THIRD_PARTY_NOTICES.md) for provenance and licence scope.

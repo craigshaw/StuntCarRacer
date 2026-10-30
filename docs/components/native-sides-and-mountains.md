@@ -50,15 +50,14 @@ clipping and pixel backends are intercepted and are outside this proof.
 
 The native renderer fills each mountain's closed boundary, preserving concave
 notches. Coverage regressions check an actual concave variant's notch, interior
-and winding invariance, plus a synthetic flat road crossing the camera. Road
-and side faces use native near clipping, triangles and depth buffering. Nearby
-quads are subdivided before angular projection, which would otherwise join
-their curved projected boundaries with a single chord and leave a road gap.
-The closest three segments now use the recovered near-track visibility queue
-and alternating yellow/brown edge highlights; see
-[the near-track evidence guide](native-near-track.md). Matching gameplay,
-projected geometry and ordered draw commands does not establish original pixel
-equality. Playback remains silent.
+and winding invariance, plus a synthetic flat road crossing the camera. The game
+and replay viewer use the [shared far/near command painter](native-scene-commands.md)
+for roads and sides. It suppresses the renderer's coarse depth-buffered faces;
+the closest three segments retain the [near-track visibility queue](native-near-track.md)
+and alternating yellow/brown edge highlights. Native line and polygon coverage
+rules remain a separate boundary: matching gameplay, projected geometry and
+ordered draw commands does not establish original pixel equality. Playback
+remains silent.
 
 Build the verification targets using the commands in
 [the viewer guide](native-replay-viewer.md), then run:
@@ -81,6 +80,6 @@ and hashes. REA Evidence IDs are `ev_0a2f382c…` (side producer), `ev_1acc2d58�
 (left panel), `ev_b1823203…` (right panel), and `ev_842b03dd…` (mountains).
 Complete records are in `analysis/rea/native-sides-mountains-evidence.json`;
 `analysis/rea/native-sides-mountains-snapshot.json` retains the closed session.
-The updated viewer check renders all 1,463 replay positions, verifies three
+The viewer check renders all 1,463 replay positions, verifies three
 complete laps, and exports eight QA frames with separate visible road, side and
 mountain coverage counts.

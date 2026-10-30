@@ -5,7 +5,7 @@ visibility rules, followed by the recovered ordered road, side and edge
 commands. Native C++ produces these commands before gameplay advances through
 collision effects, suspension sprites, timing and race transitions. Playback
 retains compact command lists and camera snapshots; it executes no 68000 code.
-The default game and viewer now combine this stage with the recovered far painter
+The default game and viewer combine this stage with the recovered far painter
 in both Practice and races; see [shared scene commands](native-scene-commands.md).
 
 Smooth playback rebuilds this near stage for intermediate camera poses using

@@ -4,8 +4,7 @@ The native player needs CMake and Visual Studio C++ Build Tools to build. Python
 WinUAE, Java, Ghidra and REA are optional development/research tools.
 
 Copy `local-tools.example.json` to `local-tools.json` and set only the overrides
-you need. The local file is ignored. This prepared checkout already has one;
-do not overwrite it when updating the source.
+you need. The local file is ignored; preserve an existing copy when updating source.
 
 | Key | Meaning / discovery when omitted |
 | --- | --- |

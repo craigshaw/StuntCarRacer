@@ -38,11 +38,6 @@ containers and justify load addresses before importing raw bytes. Ghidra's
 `68000:BE:32:default` accepts a 68040 superset; cross-check questionable
 instructions with Capstone MC68000 mode or WinUAE's 68000 execution.
 
-REA's matching user skill is
-`C:/Users/craig/.agents/skills/reverse-engineer-anything/SKILL.md`.
-The shared Windows Codex configuration registers both native and WSL servers.
-Existing app sessions may need reconnecting after configuration changes.
-
 ## Verified disk and memory mapping
 
 The supported ADF is 901,120 bytes. SHA-256:

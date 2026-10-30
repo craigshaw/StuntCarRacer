@@ -1,64 +1,53 @@
-# Documentation index
+# Documentation
 
-Start with the [project README](../README.md). For a new development thread, read
-[AGENTS.md](../AGENTS.md), [development](development.md) and
-[architecture](architecture.md), then open only the relevant component guides.
-
-## Design and language
-
-- [Launcher design](design/launcher-design.md): setup flow, agreed scope and UX decisions.
-- [Menu navigation design](design/menu-navigation-design.md): responsive navigation, Back routes and preservation of Original navigation.
-- [Game menu design](design/game-menu-design.md): Esc/Start/P, Leave Race and save-aware Quit to Desktop.
-- [Career persistence design](design/career-persistence-design.md): career selection, Continue, Resume Season, autosave and Hall of Fame.
-- [Glossary](../GLOSSARY.md): language for the native port and its setup experience.
-
-## Run, build and boundaries
-
-| Guide | Purpose |
+| Start here | Purpose |
 | --- | --- |
-| [Playing and display settings](playing.md) | Original routes, controls, saves and preferences |
-| [Development and verification](development.md) | CMake presets, CTest, staging, focused checks and receipts |
-| [Architecture](architecture.md) | Runtime ownership, clocks and fidelity contract |
-| [Assets and startup](components/native-startup.md) | Local pack, import, format and Git safeguards |
-| [Reverse engineering](research/reverse-engineering.md) | Toolchain, disk mapping, WinUAE and evidence |
-| [Evidence map](research/evidence.md) | Original inputs, captures, references and identified verification reports |
-| [Local tool configuration](../setup/README.md) | Optional per-machine paths and WSL settings |
-| [Script directory](../scripts/README.md) | Everyday build/check/launch commands and research tooling |
+| [Playing](playing.md) | Setup, controls, careers, multiplayer, settings and recovery |
+| [Development](development.md) | Build/test/install, tool/fixture setup and identified verification |
+| [Architecture](architecture.md) | Runtime ownership, independent clocks and fidelity boundaries |
+| [Glossary](../GLOSSARY.md) | Project terminology |
 
-## Game flow and persistence
+[AGENTS.md](../AGENTS.md) records contributor constraints. Open the component
+matching the change rather than reading every guide. Component test counts refer
+to recorded scenarios; current verification requires matching source, fixture
+and executable receipts under ignored `analysis/`.
 
-- Opening: [flow](components/native-opening-flow.md), [name entry](components/native-player-name.md),
-  [graphics](components/native-opening-render.md).
-- Menus: [flow](components/native-menu-flow.md), [pixels](components/native-menu-rendering.md),
-  [track preview](components/native-track-preview.md), [palette fades](components/native-palette-fade.md).
-- Competition: [opponent races](components/native-opponent-races.md),
-  [career state](components/native-career-state.md), [career screens](components/native-career-render.md),
-  [multiplayer state](components/native-multiplayer-state.md),
-  [multiplayer screens](components/native-multiplayer-render.md).
-- Records and saves: [career persistence](components/native-career-persistence.md), [Hall of Fame](components/native-hall-of-fame.md),
-  [record state](components/native-hall-records.md), [save encoding and Replay](components/native-save-state.md),
-  [save UI](components/native-save-menu.md), [host storage](components/native-save-store.md).
-- Fresh state: [asset initialization](components/native-asset-initialization.md),
-  [race initialization](components/native-race-initialization.md).
+## Game flow and storage
+
+| Area | Contracts |
+| --- | --- |
+| Setup/assets | [Launcher](components/native-launcher.md), [pack/import](components/native-startup.md), [asset initialization](components/native-asset-initialization.md), [race initialization](components/native-race-initialization.md) |
+| Opening | [Mode selection, name input and screens](components/native-opening.md) |
+| Menus | [Flow/navigation](components/native-menu-flow.md), [pixels](components/native-menu-rendering.md), [preview](components/native-track-preview.md), [palette fades](components/native-palette-fade.md) |
+| Careers | [Original rules/screens](components/native-career-state.md), [native continuation and persistence](components/native-career-persistence.md) |
+| Multiplayer | [Championship rules and screens](components/native-multiplayer-state.md) |
+| Hall of Fame | [Record state and rendering](components/native-hall-of-fame.md) |
+| Manual saves | [Codec/Replay](components/native-save-state.md), [save UI](components/native-save-menu.md), [host storage](components/native-save-store.md) |
 
 ## Simulation and presentation
 
-- [Headless replay contract](components/driving-replay.md) and [complete-lap evidence](components/replay-lap-validation.md).
-- [Opponent driving](components/opponent-driving.md), [opponent rendering](components/opponent-car.md),
-  [Draw Bridge](components/draw-bridge.md).
-- [Cockpit pixels](components/native-cockpit-instruments.md), [cockpit timing](components/cockpit-timing.md),
-  [flames and visual audit](components/native-cockpit-effects.md), [lifting chains](components/native-cockpit-chains.md),
-  [damage at race entry](components/native-damage-holes.md),
-  [race messages](components/native-race-messages.md), [dust and sparks](components/native-driving-particles.md),
-  [wheel animation](components/wheel-animation.md), [audio](components/native-audio.md).
-- [Presentation API](components/native-presentation.md), [scene commands](components/native-scene-commands.md),
-  [Original, Extended, 16:9 and 32:9 views](components/native-extended-view.md),
-  [sidewalls and mountains](components/native-sides-and-mountains.md),
-  [near-track visibility and edges](components/native-near-track.md),
-  [bounded rendering audit](components/native-render-audit.md).
-- Development viewers: [live driving](components/native-driving.md),
-  [recorded replay](components/native-replay-viewer.md). Their controls differ from the game host.
+- Driving: [headless replay](components/driving-replay.md), [complete-lap evidence](components/replay-lap-validation.md),
+  [opponent AI](components/opponent-driving.md), [opponent races](components/native-opponent-races.md),
+  [opponent rendering](components/opponent-car.md), [Draw Bridge](components/draw-bridge.md).
+- Cockpit: [instruments](components/native-cockpit-instruments.md), [timing](components/cockpit-timing.md),
+  [effects](components/native-cockpit-effects.md), [chains](components/native-cockpit-chains.md),
+  [damage](components/native-damage-holes.md), [messages](components/native-race-messages.md),
+  [particles](components/native-driving-particles.md), [wheels](components/wheel-animation.md),
+  [audio](components/native-audio.md).
+- Rendering: [presentation/Game menu](components/native-presentation.md), [scene commands](components/native-scene-commands.md),
+  [aspect views](components/native-extended-view.md), [sides/mountains](components/native-sides-and-mountains.md),
+  [near track](components/native-near-track.md), [bounded audit](components/native-render-audit.md).
+- Development viewers: [direct driving](components/native-driving.md), [recorded replay](components/native-replay-viewer.md).
+  Their controls differ from the player application.
 
-Component guides retain recovered addresses, test seams and evidence IDs. Test
-counts there describe specific recorded runs; use source/executable-identified
-receipts for current verification, rather than treating prose as a test result.
+## Architectural decisions
+
+- [0001 — Native career checkpoints and independent Hall](adr/0001-native-career-checkpoints.md).
+- [0002 — Application-owned asset import](adr/0002-native-application-owns-asset-import.md).
+- [0003 — Per-user player data](adr/0003-per-user-player-data.md).
+
+## Tools and research
+
+[Everyday commands](../scripts/README.md), [development tools](../tools/README.md),
+[optional local configuration](../setup/README.md), [research setup/mapping](research/reverse-engineering.md)
+and [retained evidence](research/evidence.md) cover reproduction without bundling private inputs.

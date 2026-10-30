@@ -7,7 +7,7 @@ drawn immediately after spawning. Final particle positions cannot substitute
 for these events. Off-track dust uses 16 particles (four in the original
 network mode); edge sparks use 32.
 
-`app/native_driving_particles.*` presents these events using initialized masked
+`app/presentation/native_driving_particles.*` presents these events using initialized masked
 objects 29–36. Original tables at `0x60f9c` and `0x60fac` select each object's
 horizontal offset and its 16-phase animation. The phase uses particle index
 plus the gameplay frame counter. Drawing clips to the physical viewport

@@ -123,7 +123,7 @@ physics, damage, sound requests, a restart and every bridge update.
 
 Live and retained replay images agree. A further 2,560 interpolation queries and
 370 reverse/repeated seek checks preserve the recorded simulation and bridge
-poses. The existing 1,463-update, three-lap regression still passes independently
-through `scripts/check_native_rendering.py`. These finite checks establish the
+poses. The 1,463-update, three-lap fixture is checked independently through
+`scripts/check_native_rendering.py`. These finite checks establish the
 recovered animation and integration; they do not claim whole-frame pixel
 identity for the in-race renderer or autonomous opponent coverage.

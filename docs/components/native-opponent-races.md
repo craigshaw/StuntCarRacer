@@ -1,6 +1,6 @@
 # Native local league races
 
-The original main-menu **Start the Racing Season** route now creates genuine
+The original main-menu **Start the Racing Season** route creates genuine
 local competitive races. Practice keeps its original track-selection route and
 has no injected computer opponent. The runtime reads schedules, traits, names,
 track configuration and artwork from the locally extracted asset image.
@@ -42,7 +42,7 @@ including the original RNG calls and results in the other divisions.
 This shortcut is separate from Space, raw key `0x40`,
 which remains a menu confirmation input in the native host.
 
-Fresh race placement now runs recovered `initializeTrackCoordinates` at
+Fresh race placement runs recovered `initializeTrackCoordinates` at
 `0x63a58`, constructing opponent road support before its original randomized
 wheel placement and the two startup warm-up frames. The original local race
 configuration, lap counter, start delay and outcome state supply the opponent
@@ -93,7 +93,7 @@ excluded from this leaf test; the existing palette oracle tests the fade code.
 
 The [career state checks](native-career-state.md) extend the original-code
 comparison across complete seasons, promotion, relegation, F1, damage and
-save/Replay continuation. The [career presentation checks](native-career-render.md)
+save/Replay continuation. The [career presentation checks](native-career-state.md#season-ending-screens)
 retain the old division/context for the completed season while the next roster
 uses the newly promoted or relegated order.
 

@@ -1,6 +1,6 @@
 # Native hanging-car chains
 
-`app/native_cockpit_chains.*` recovers the hanging-car chains drawn at race
+`app/presentation/native_cockpit_chains.*` recovers the hanging-car chains drawn at race
 start and after a restart. The original frame calls `0x662b4` at `0x65102`,
 after ground/edge particles and before cockpit top objects 13 and 14.
 Masked asset IDs 19 through 22 supply the two alternating chain links on each

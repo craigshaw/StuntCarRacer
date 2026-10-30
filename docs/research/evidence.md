@@ -1,7 +1,7 @@
 # Retained evidence map
 
-All paths below are relative to the repository root. The evidence stays at its
-existing paths; this guide is an index, not a migration or cleanup recipe.
+Paths are relative to the repository root. Preserve inputs and identified
+evidence together at these locations.
 
 | Category | Existing location | Retention rule |
 | --- | --- | --- |

@@ -1,90 +1,75 @@
-# Stunt Car Racer — native port
+# Stunt Car Racer
 
-A native C++17 Windows port of the Amiga game, with recovered gameplay, a software
-renderer and optional modern presentation. It starts from fresh native state and
-data imported from your own supported ADF. No Kickstart ROM, WinUAE, captured
-Practice state or CPU emulator is needed to play.
 
-Physics, AI, RNG and race rules retain original behaviour. Gameplay updates stay
-at 120 ms, wheel/engine state at 50 Hz, and host presentation targets 60 FPS.
-Rendering and input options preserve a selectable faithful baseline; see the
-[fidelity contract](docs/architecture.md#fidelity-contract).
+  A port of the original <strong>Stunt Car Racer</strong> for Windows. Bring your own Amiga disk image. No emulator required.
+
+## Features
+
+- **Original racing.** All eight tracks, including Draw Bridge, both leagues,
+  Practice and championships, retaining the original physics, AI and race rules.
+- **Careers and records.** Multiple single-player careers, autosave, Resume Season
+  and a shared Hall of Fame.
+- **Local multiplayer.** Championships for 2–8 drivers taking turns, with thirty
+  manual save slots.
+- **Widescreen and ultrawide.** Original and Extended 4:3, 16:9 and 32:9 views,
+  keeping the original car artwork at the same scale.
+- **Display options.** Optional 60 FPS smoothing, fullscreen, integer scaling
+  and nearest-neighbour or bilinear filtering.
+- **Keyboard and controller.** XInput support, Original and Modern driving
+  presets, responsive menus and in-game Settings.
+- **Original sights and sounds.** Cockpit instruments, animated wheels, engine
+  audio and sound effects.
+
+Computer Link is not supported.
 
 ## Play
 
-After building and staging below, open `dist/Stunt Car Racer.exe`:
+1. Open **Stunt Car Racer.exe** (source builds: `dist/`).
+2. Choose your own [supported Amiga ADF](docs/components/assets.md#import).
+   It is imported once; the original file stays unchanged.
+3. Choose your settings, press **Play**, then start a career or local championship.
 
-1. Choose your supported original ADF. One verified disk revision is supported;
-   [the asset guide](docs/components/assets.md#import) lists its identity.
-2. Select display and control settings, then press Play.
-3. Choose Single Player League to create/continue a career, or Multiplayer for
-   two to eight local drivers taking turns against the computer pace car.
+Drive with **arrows/WASD** and **Space** for boost, or an XInput controller.
+Original controls latch acceleration; Modern uses held gas. **Esc / controller
+Start** opens the Game menu while racing; **F10** opens Settings.
 
-The ADF stays unchanged and is not needed after import. Normal assets, settings
-and saves live under `%LOCALAPPDATA%/Stunt Car Racer/`.
-
-Drive with arrows/WASD and Space for boost, or an XInput controller. Original
-controls latch acceleration; Modern uses held gas and separate controller triggers.
-Escape/Start opens the Game menu while racing; F10 opens Settings. See
-[playing and settings](docs/playing.md) for controls, menu routes, saves and recovery.
-
-## Current scope
-
-- Original opening, menus, all eight tracks including Draw Bridge, and both leagues.
-- Practice, opponent races, championship progression and endings.
-- Independent single-player careers, autosave, Resume Season and shared Hall records.
-- Two-to-eight-player local championships and thirty manual multiplayer save slots.
-- Original cockpit instruments/effects, running lap hundredths, wheel animation and audio.
-- Original/Extended 4:3, 16:9 and 32:9 views, preserving the original car's scale.
-- Saved display/filter/control preferences, fullscreen and optional 60 FPS smoothing.
-- Responsive menu navigation with a separately selectable Original policy.
-
-Computer Link is deliberately deferred and disabled in the chooser. Alternate
-player cameras and further graphical enhancements remain outside the current scope.
+Assets, settings and saves live in `%LOCALAPPDATA%/Stunt Car Racer/`.
+See the [player guide](docs/playing.md) for full controls and save recovery.
 
 ## Build
 
-Install CMake and the Visual Studio C++ x64 tools described in
-[development](docs/development.md#environment), then run from the repository root:
+Requires **Windows x64**, **Git**, **CMake 4.2+** and **Visual Studio 2026 C++ Build
+Tools** with the C++ workload and Windows SDK. Python is optional for extra checks.
 
 ```powershell
+git clone https://github.com/craigshaw/StuntCarRacer.git
+cd StuntCarRacer
 cmake --preset windows-release
 cmake --build --preset windows-release
 ctest --preset windows-release
 cmake --install build/windows --config Release
-& '.\dist\Stunt Car Racer.exe'
 ```
 
-Release/Debug share `build/windows/`; original-code verification uses a separate
-tree. CTest skips checks whose private fixtures are absent. Python is optional
-for development checks, not a player dependency. Install stages the EXE and
-licence notices in `dist/` without game-data packs.
+Run `dist/Stunt Car Racer.exe`. Game data is imported on first launch; tests
+requiring private fixtures are skipped when those inputs are absent.
+[Development](docs/development.md) covers Debug builds, fixtures and verification.
 
-[Drive Native.cmd](Drive%20Native.cmd) remains a provisional build/check helper
-using checkout-local assets and saves. Ordinary executable launches use per-user data.
+## Contribute
 
-## Development and assets
+Read [architecture](docs/architecture.md), [contributor rules](AGENTS.md) and the
+[maintainer references](docs/README.md#maintainer-references). Keep presentation
+extensions independent of original gameplay. Run the
+[relevant checks](docs/development.md#choose-verification-by-change) before
+submitting; keep game assets and generated outputs out of Git.
 
-Start with [development and verification](docs/development.md),
-[architecture](docs/architecture.md) and the [documentation index](docs/README.md).
-[AGENTS.md](AGENTS.md) records contributor constraints; [scripts](scripts/README.md)
-and [development tools](tools/README.md) distinguish player, direct-race and replay paths.
-
-Only source, extraction recipes, hashes, documentation and authored test inputs
-belong in Git. ADFs, ROMs, packs, saves, captures, generated media, binaries and
-analysis databases stay local. The asset checker, optional pre-commit hook and
-source-only CI guard against common accidental additions. See
-[asset safeguards](docs/components/assets.md#source-control-safeguards)
-and [release checks](docs/development.md#build-test-and-stage).
+For bug reports, include the build revision, settings and steps to reproduce.
 
 ## Credits and licence
 
-Original game: **Geoff Crammond / MicroStyle (1989)**.
-Research used [Vesuri's disassembly](https://github.com/Vesuri/stuntcarracer);
+Original game by **Geoff Crammond / MicroStyle (1989)**. Research used
+[Vesuri's disassembly](https://github.com/Vesuri/stuntcarracer);
 optional original-code tests use [Musashi](https://github.com/kstenerud/Musashi).
 
-Original contributions to this port use the [MIT License](LICENSE).
-The original game and third-party material retain their own rights; see
-[third-party notices](THIRD_PARTY_NOTICES.md). No ADF, ROM or extracted game-data
-pack is included. The launcher logo is an explicit branding exception.
-This project is unofficial and unaffiliated with the original game's rights holders.
+Original contributions use the [MIT License](LICENSE). Game and third-party
+rights remain with their respective holders; see [third-party notices](THIRD_PARTY_NOTICES.md).
+This is an unofficial project, unaffiliated with the original game's rights holders.

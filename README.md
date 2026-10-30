@@ -15,7 +15,7 @@ Rendering and input options preserve a selectable faithful baseline; see the
 After building and staging below, open `dist/Stunt Car Racer.exe`:
 
 1. Choose your supported original ADF. One verified disk revision is supported;
-   [the asset guide](docs/components/native-startup.md) lists its identity.
+   [the asset guide](docs/components/assets.md#import) lists its identity.
 2. Select display and control settings, then press Play.
 3. Choose Single Player League to create/continue a career, or Multiplayer for
    two to eight local drivers taking turns against the computer pace car.
@@ -74,7 +74,7 @@ Only source, extraction recipes, hashes, documentation and authored test inputs
 belong in Git. ADFs, ROMs, packs, saves, captures, generated media, binaries and
 analysis databases stay local. The asset checker, optional pre-commit hook and
 source-only CI guard against common accidental additions. See
-[asset safeguards](docs/components/native-startup.md#source-control-safeguards)
+[asset safeguards](docs/components/assets.md#source-control-safeguards)
 and [release checks](docs/development.md#build-test-and-stage).
 
 ## Credits and licence

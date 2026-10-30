@@ -17,4 +17,4 @@ continuation, independently of the menu/Practice state, so a player can practise
 without changing a pending fixture, report or season RNG. A bounded optional
 season checkpoint inside the main-menu checkpoint preserves both across launches.
 
-See the [career persistence contract](../components/native-career-persistence.md).
+See the [session and persistence contract](../components/sessions.md).

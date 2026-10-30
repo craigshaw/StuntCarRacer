@@ -97,7 +97,7 @@ Native `--asset-pack`, `--settings-file` and `--save-file` override individual p
 `--data-dir` isolates careers/Hall and instance ownership. The helper defaults
 that directory to `working/player-data/`. `--recordings-dir` explicitly enables
 recording. See [scripts](../scripts/README.md), [player data](playing.md#data-and-recovery)
-and [launcher ownership](components/native-launcher.md).
+and [asset import](components/assets.md).
 
 `-SkipBuild` still checks source/executable identities and runs verification.
 Omit it after changes. Each wrapper retains its own build log, results and receipt
@@ -168,7 +168,7 @@ fixture and authored-control provenance; none is required to play the native gam
 An interactive drive cannot be compared against an unrelated captured Practice
 seed. Differential replay needs the exact race-entry state and controls.
 Interactive recordings contain controls/traces but do not export that seed;
-session tests export their own seeds. See [recordings](components/native-driving.md#recordings-and-verification).
+session tests export their own seeds. See [recordings](../tools/README.md#recordings-and-comparisons).
 
 ## Repository hygiene
 

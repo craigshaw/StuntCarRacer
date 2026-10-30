@@ -186,7 +186,7 @@ Extended reveals scenery in the black upper corners. Wide modes add world and
 extended side braces/blue interior around the same-size original car and arch.
 At equal display height the car retains its scale. Menus, previews and saved
 finish screens remain 4:3. Aspect changes preview immediately and Cancel restores
-the old choice. See [view details](components/native-extended-view.md).
+the old choice. See [view details](components/presentation.md#views).
 
 Gameplay stays at 120 ms, wheel/engine state at 50 Hz, and host presentation
 targets 60 FPS. Smoothing blends camera/suspension, wheel placement, particles
@@ -223,5 +223,4 @@ while supported older versions migrate. Failed Apply offers retry.
 
 See [development](development.md) for checkout-local paths, command-line overrides,
 recording and checks. The direct-race and captured replay viewers have different
-controls, documented in [driving](components/native-driving.md) and
-[replay playback](components/native-replay-viewer.md).
+controls, documented in [development tools](../tools/README.md#viewers).

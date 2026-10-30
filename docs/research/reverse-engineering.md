@@ -1,7 +1,7 @@
 # Reverse-engineering tools and evidence
 
 These tools support recovery and differential verification. The native game
-uses the [local asset pack](../components/native-startup.md), without an emulator, ROM or saved
+uses the [local asset pack](../components/assets.md), without an emulator, ROM or saved
 state. The [development guide](../development.md) covers normal builds and checks.
 
 ## Prepared tools

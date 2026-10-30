@@ -11,7 +11,7 @@ not relicense the original game or third-party material.
 | **[Musashi, Karl Stenerud](https://github.com/kstenerud/Musashi/tree/313ebf1bd9f4d0d93341eb5ce21fd8a119e9dbdd)** | Optional, locally downloaded test-only CPU oracle. Its upstream permission notices are retained in the downloaded files. It is not linked into or distributed with the player. The file hashes are pinned in `setup/musashi-source-lock.json`. |
 
 The supported disk identity and extraction offsets are recorded in
-[the asset guide](https://github.com/craigshaw/StuntCarRacer/blob/main/docs/components/native-startup.md).
+[the asset guide](https://github.com/craigshaw/StuntCarRacer/blob/main/docs/components/assets.md).
 Local reference hashes and evidence locations are described in
 [the research guide](https://github.com/craigshaw/StuntCarRacer/blob/main/docs/research/reverse-engineering.md).
 

@@ -33,33 +33,11 @@ for build trees, fixture requirements and staging.
 
 ## Startup and race lifetime
 
-1. The [launcher](components/native-launcher.md) opens before a game session.
-   Native import validates the ADF and replaces a retained pack with hash/offset
-   provenance. Play saves pending preferences before constructing the session;
-   import, settings-write and initialization errors remain recoverable there.
-2. `loadLocalAssetPack`, `startNativeGame` and `initializeNativeAssets` rebuild
-   graphics, fonts, sample banks and fresh game data from the validated pack.
-3. [Opening](components/native-opening.md) and menu flows own mode selection,
-   names, roster/standings, Practice and championship routes. Single Player first
-   selects a native career; legacy flows remain available to original-code tests.
-4. `NativeGameSession` prepares the track/preview, then `initializeNativeRace`
-   constructs fuel, damage, timing and placement. `RaceScene` advances gameplay.
-   Preview owns a track-state copy; race entry clears menu text mode before drawing.
-5. Race exit transfers persistent state to the same menu session. Restart, reset
-   and menu return are distinct transitions with their original RNG effects.
-
-[Native checkpoints](components/native-career-persistence.md) retain explicit
-continuation stages and both RNG stores without invoking the RNG-consuming legacy
-save encoder. Continue opens the career's main menu; Resume Season restores an
-independent suspended-season state. Practice cannot advance or replace it.
-A finished race stages exit/scoring on a private copy so restoring an outstanding
-finish/report does not repeat those effects. Eligible Hall records persist
-independently; multiplayer manual progress retains the original codec.
-
-A serial worker writes immutable persistence jobs with flushed atomic replacement
-and two recovery generations. Capture, observation, restoration and storage never
-advance simulation. A per-data-directory Windows mutex prevents conflicting player
-writers; `--data-dir` isolates development instances.
+The launcher imports assets and saves pending preferences before constructing
+`NativeGameSession`. Setup failures remain recoverable there. The session owns
+menus, race preparation and return; `RaceScene` advances the race and captures
+presentation frames. See [assets](components/assets.md) for initialization order
+and [sessions](components/sessions.md) for progression and persistence boundaries.
 
 ## Independent clocks and views
 
@@ -71,32 +49,15 @@ writers; `--data-dir` isolates development instances.
 | Host presentation | Targets 60 frames per second |
 
 Input is polled by the presentation loop and latched until gameplay consumes it.
-Both driving presets map to the same five digital bits. Original retains latched
-acceleration; Modern clears that latch before recovered control processing when
-gas is released, producing coasting without changing fixed-point physics, AI or
-RNG order. The preset still applies while post-settings input is suppressed.
+Both driving presets use the same five digital bits; Modern clears the original
+acceleration latch on gas release. Navigation policy is independent of driving.
+Stalls use bounded fixed-step catch-up. Pause and overlays preserve the fractional
+tick and require held input to be released before racing resumes.
 
-Original menu navigation preserves recovered waits/fades. Responsive navigation
-uses host-time fresh actions, direction repeat and explicit Back routes through
-the same transition handlers, without advancing gameplay. Navigation is independent
-of driving controls; [menu flow](components/native-menu-flow.md) defines its routes.
-
-Presentation stalls use bounded fixed-step catch-up. Pause, Settings, the Game
-menu and quit confirmation suspend game/audio advancement, preserve the fractional
-tick and require held inputs to be released before racing resumes.
-
-`RaceScene` retains immutable frame/bridge snapshots and presentation history.
-Optional interpolation blends completed poses with one gameplay tick of live
-presentation latency. `renderView(CameraViewSettings)` uses private copies;
-repeated or reverse queries cannot alter later physics, RNG, frames or saves.
-Relative camera offsets and cockpit visibility are development APIs.
-
-Original/Extended 4:3 and wide 16:9/32:9 presentation keep the original car's scale
-at a fixed display height. World clipping, aspect correction, frame extension and
-filtering remain independent of simulation; menus, previews and saved finish images
-remain 4:3. The [view contract](components/native-extended-view.md) owns geometry,
-masking, opacity and crop details; [presentation](components/native-presentation.md)
-owns interpolation and host overlays.
+Presentation consumes retained snapshots. Alternate views and interpolation use
+private state and cannot affect later gameplay, RNG or saves. The
+[presentation contract](components/presentation.md) covers history, views and audio;
+[simulation](components/simulation.md) records the less obvious state dependencies.
 
 ## Fidelity contract
 

@@ -1,6 +1,6 @@
-#include "opponent_far_track.h"
-#include "opponent_car.h"
-#include "native_startup.h"
+#include "render/opponent_far_track.h"
+#include "render/opponent_car.h"
+#include "assets/native_startup.h"
 #include "state/track_mesh_adapter.h"
 #include "near_track_visibility_fixture.h"
 #include "driving_replay_fixture.h"
@@ -14,7 +14,7 @@
 #include <tuple>
 
 namespace {
-namespace f=scr::test::nearVisibility;using Ram=scr::viewer::NativeMemory;
+namespace f=scr::test::nearVisibility;using Ram=scr::runtime::NativeMemory;
 Ram ram{};constexpr unsigned stack=0x7f000,sentinel=0x7e000;bool failed{},returned{},drawing{};unsigned pc{},instructions{};
 std::uint64_t cases{},totalInstructions{},edgesCompared{},commandsCompared{},farAdmissions{},farMarkers{},denseMissingMarkers{},backgroundAllocations{};
 using Key=std::array<int,5>;struct Command{unsigned kind{},color{};std::vector<Key> edges;};std::vector<Command> commands;using Event=std::tuple<unsigned,unsigned,unsigned>;std::vector<Event> events;
@@ -57,7 +57,7 @@ void compareDraw(const scr::OpponentFarTrackFrame& frame,scr::NearTrackDrawInput
 } // namespace
 extern "C" {unsigned m68k_read_memory_8(unsigned a){return read(a);}unsigned m68k_read_memory_16(unsigned a){return (read(a)<<8)|read(a+1);}unsigned m68k_read_memory_32(unsigned a){return (m68k_read_memory_16(a)<<16)|m68k_read_memory_16(a+2);}void m68k_write_memory_8(unsigned a,unsigned v){write(a,v);}void m68k_write_memory_16(unsigned a,unsigned v){write(a,v>>8);write(a+1,v);}void m68k_write_memory_32(unsigned a,unsigned v){m68k_write_memory_16(a,v>>16);m68k_write_memory_16(a+2,v);}}
 int main(int argc,char** argv){try{if(argc!=2)throw std::invalid_argument("Usage: opponent_far_track_oracle local.scr-assets");m68k_init();m68k_set_cpu_type(M68K_CPU_TYPE_68000);m68k_set_instr_hook_callback(hook);
-    for(unsigned track=0;track<8;++track){auto source=scr::viewer::startNativeRace(argv[1],track);const auto tables=scr::test::renderProjection::readTables(source.memory->data());const auto mountains=scr::decodeMountainHorizonData(source.payload.data(),source.payload.size());scr::OpponentFarTrackData data{};data.mesh=scr::viewer::decodeTrackMesh(*source.memory);std::copy_n(source.memory->begin()+0x65e70,100,data.projectionLimits.begin());
+    for(unsigned track=0;track<8;++track){auto source=scr::runtime::startNativeRace(argv[1],track);const auto tables=scr::test::renderProjection::readTables(source.memory->data());const auto mountains=scr::decodeMountainHorizonData(source.payload.data(),source.payload.size());scr::OpponentFarTrackData data{};data.mesh=scr::state::mesh::decodeTrackMesh(*source.memory);std::copy_n(source.memory->begin()+0x65e70,100,data.projectionLimits.begin());
         for(unsigned sample=0;sample<48;++sample){auto playback=std::make_unique<scr::test::replay::NativeReplay>(*source.memory);playback->restartStage(std::uint8_t((sample*7)%data.mesh.segmentCount));scr_test::writeWord(playback->ram,0x1bce6,std::uint16_t(scr_test::readWord(playback->ram,0x1bce6)+(sample%4)*0x4000));playback->progressStage();
             auto geometry=scr::test::nearGeometry::readState(playback->ram);scr::NearTrackFrameInputs in{};in.progress=scr::test::trackProgress::readState(playback->ram);in.camera=geometry.camera;in.displayUpdate=playback->ram[0x5d724];in.opponentSegment=std::uint8_t((in.progress.playerSegment+sample%7)%data.mesh.segmentCount);in.opponentSubSegment=std::uint8_t(sample%8);in.minimumBoundaryDistance=std::uint16_t(sample%3==0?0xff80:sample%3==1?0xfe00:0x100);
             std::array<std::uint8_t,100> flags{};for(unsigned n=0;n<data.mesh.segmentCount;++n)flags[n]=playback->ram[scr_test::readLong(playback->ram,0x7aa1a+4*n)];auto dense=scr::buildNearTrackFrame(playback->progressData,flags,in,geometry);const auto native=scr::buildOpponentFarTrack(data,tables,geometry,dense.queue);

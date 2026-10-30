@@ -1,5 +1,5 @@
 #include "wheel_animation_fixture.h"
-#include "native_wheel_sprites.h"
+#include "presentation/native_wheel_sprites.h"
 #include "m68k.h"
 #include <algorithm>
 #include <array>
@@ -139,9 +139,9 @@ void initializeSyntheticSprites() {
         f::putLong(ram.data(),address+68,0);
     }
 }
-void checkSpritePositions(const scr::viewer::NativeWheelSprites& sprites) {
+void checkSpritePositions(const scr::runtime::NativeWheelSprites& sprites) {
     ram[0x69f41]=0x80;
-    const auto predicted=scr::viewer::captureNativeWheelSpriteFrame(sprites,ram.data(),ram.size());expected=ram;
+    const auto predicted=scr::runtime::captureNativeWheelSpriteFrame(sprites,ram.data(),ram.size());expected=ram;
     for(unsigned i=0;i<12;++i) {
         const auto address=sprites.images[i].address;
         expected[address]=std::uint8_t(predicted.placements[i].y+f::word(ram.data(),0x69ec4));
@@ -149,19 +149,19 @@ void checkSpritePositions(const scr::viewer::NativeWheelSprites& sprites) {
     }
     run(0x69f04);compareRam();
     ram[0x69f41]=0;
-    const auto actual=scr::viewer::captureNativeWheelSpriteFrame(sprites,ram.data(),ram.size());
+    const auto actual=scr::runtime::captureNativeWheelSpriteFrame(sprites,ram.data(),ram.size());
     for(unsigned i=0;i<12;++i)if(predicted.placements[i].x!=actual.placements[i].x||
         predicted.placements[i].y!=actual.placements[i].y||predicted.placements[i].rows!=actual.placements[i].rows)
             throw std::runtime_error("Wheel original sprite-position prediction mismatch");
     ++cases;++positionCases;
 }
-void checkSpritePixels(const scr::viewer::NativeWheelSprites& sprites) {
-    auto frame=scr::viewer::captureNativeWheelSpriteFrame(sprites,ram.data(),ram.size());
+void checkSpritePixels(const scr::runtime::NativeWheelSprites& sprites) {
+    auto frame=scr::runtime::captureNativeWheelSpriteFrame(sprites,ram.data(),ram.size());
     for(unsigned variant=0;variant<144;++variant) {
         scr::WheelAnimationState state;state.spritePointers={{sprites.images[variant/12].address,sprites.images[variant%12].address}};
         std::vector<std::uint32_t> actual(320*200),reference(320*200);
         for(unsigned i=0;i<actual.size();++i)actual[i]=reference[i]=(i*0x17093u)&0xffffff;
-        scr::viewer::composeNativeWheelSprites(sprites,frame,state,actual);
+        scr::runtime::composeNativeWheelSprites(sprites,frame,state,actual);
         for(unsigned n=2;n>0;--n) {
             const auto pointer=state.spritePointers[n-1];const auto position=f::word(ram.data(),pointer),control=f::word(ram.data(),pointer+2);
             const unsigned start=(position>>8)|((control&4)<<6),end=(control>>8)|((control&2)<<7);
@@ -200,7 +200,7 @@ int main(int argc,char** argv)try {
         const auto capture=readFile(argv[arg+1]);if(capture.size()!=ram.size())throw std::runtime_error("Wheel seed size mismatch");
         std::copy(capture.begin(),capture.end(),ram.begin());checkOriginalCode(payload);
         check(f::vblankEntry);check(f::graphicsEntry);
-        const auto sprites=scr::viewer::decodeNativeWheelSprites(ram.data(),ram.size());
+        const auto sprites=scr::runtime::decodeNativeWheelSprites(ram.data(),ram.size());
         checkSpritePositions(sprites);checkSpritePixels(sprites);
     }
     // Synthetic pointers are numbers only. This routine never reads sprite
@@ -236,7 +236,7 @@ int main(int argc,char** argv)try {
         inputs.height={{std::uint16_t(101+tick%51),std::uint16_t(101+(tick+13)%51)}};
         f::writeInputs(ram.data(),inputs);check(f::vblankEntry);
     }
-    initializeSyntheticSprites();const auto sprites=scr::viewer::decodeNativeWheelSprites(ram.data(),ram.size());
+    initializeSyntheticSprites();const auto sprites=scr::runtime::decodeNativeWheelSprites(ram.data(),ram.size());
     for(unsigned variant=0;variant<4096;++variant) {
         for(unsigned id=37;id<49;++id) {
             f::putWord(ram.data(),0x6a16c+16*id+10,std::uint16_t(101+random32()%35));

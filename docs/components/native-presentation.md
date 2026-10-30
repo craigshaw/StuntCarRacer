@@ -14,13 +14,13 @@ remain discrete. Queries use two completed snapshots, cut across restarts and
 terminal actions, and never advance gameplay or presentation animation state.
 The smoothing-off path and exact snapshot endpoints retain the original draws.
 
-`ReplayScene` now uses one recovered road command path for Practice and racing.
+`RaceScene` now uses one recovered road command path for Practice and racing.
 The far painter and its shared horizon/mountain allocation run in both modes;
 only opponent insertion depends on race mode. This removes the early Practice
 fallback that used coarse road triangles and a depth buffer. The horizon also
 uses its original signed mode flag when choosing the vertical offset.
 
-`ReplayScene::renderView` takes independent `ReplayViewSettings`: relative
+`RaceScene::renderView` takes independent `CameraViewSettings`: relative
 presentation yaw, pitch and roll, and cockpit visibility. The default settings
 retain the existing exact/interpolated view, including its captured camera
 matrix phase. Alternate views rebuild from private geometry history. They do

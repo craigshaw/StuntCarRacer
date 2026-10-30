@@ -1,8 +1,8 @@
-#include "native_track_preview.h"
-#include "native_startup.h"
-#include "native_race_initialization.h"
-#include "track_initialization.h"
-#include "planar_image.h"
+#include "presentation/native_track_preview.h"
+#include "assets/native_startup.h"
+#include "race/native_race_initialization.h"
+#include "track/track_initialization.h"
+#include "render/planar_image.h"
 #include "m68k.h"
 #include <algorithm>
 #include <array>
@@ -14,7 +14,7 @@
 #include <string>
 
 namespace {
-using Memory=scr::viewer::NativeMemory;
+using Memory=scr::runtime::NativeMemory;
 Memory original{};
 std::array<std::uint8_t,4096> stack{};
 constexpr unsigned stackBase=0x8f000,stackTop=0x90000,sentinel=0xa0000;
@@ -96,7 +96,7 @@ void m68k_write_memory_32(unsigned a,unsigned v){m68k_write_memory_16(a,v>>16);m
 }
 int main(int argc,char** argv){try{
     if(argc<2||argc>3)throw std::invalid_argument("Usage: native_track_preview_tests local.scr-assets [image-directory]");
-    auto source=scr::viewer::startNativeGame(argv[1]);
+    auto source=scr::runtime::startNativeGame(argv[1]);
     m68k_init();m68k_set_cpu_type(M68K_CPU_TYPE_68000);m68k_set_instr_hook_callback(hook);
     unsigned cases=0,mismatchCases=0,rotationCases=0;std::uint64_t mismatches=0;
     for(unsigned track=0;track<8;++track)for(unsigned angle=0;angle<4;++angle){
@@ -105,8 +105,8 @@ int main(int argc,char** argv){try{
         // Original displayMenuScreen leaves these selected before Practice.
         putLong(original,0x6a588,longword(0x6a584)+32000);original[0x1bbd0]=0x80;
         auto native=std::make_unique<Memory>(original);
-        scr::viewer::initializeNativePlayerConfiguration(*native);scr::initializeNativeTrack(*native,track);
-        scr::viewer::NativeTrackPreview preview;preview.load(*native,std::uint8_t(angle));
+        scr::runtime::initializeNativePlayerConfiguration(*native);scr::initializeNativeTrack(*native,track);
+        scr::runtime::NativeTrackPreview preview;preview.load(*native,std::uint8_t(angle));
         run();
         const auto planar=scr::decodePlanarImage(original.data()+longword(0x6a588),32000,320,200,4);
         std::vector<std::uint32_t> expected(64000);
@@ -120,7 +120,7 @@ int main(int argc,char** argv){try{
             // The original retains renderer scratch between quarter turns.
             // Verify the native owned-copy approach preserves the same result.
             preview.input(0);
-            if(preview.input(std::uint8_t(turn<4?4:8))!=scr::viewer::NativeTrackPreviewAction::redraw)
+            if(preview.input(std::uint8_t(turn<4?4:8))!=scr::runtime::NativeTrackPreviewAction::redraw)
                 throw std::runtime_error("Released direction did not rotate the overview");
             original[0x1bb57]=preview.angle();run(0x604b4);
             const auto rotated=scr::decodePlanarImage(original.data()+longword(0x6a588),32000,320,200,4);
@@ -130,27 +130,27 @@ int main(int argc,char** argv){try{
         }
     }
     auto inputMemory=std::make_unique<Memory>(*source.memory);
-    scr::viewer::initializeNativePlayerConfiguration(*inputMemory);scr::initializeNativeTrack(*inputMemory,0);
+    scr::runtime::initializeNativePlayerConfiguration(*inputMemory);scr::initializeNativeTrack(*inputMemory,0);
     unsigned inputCases=0;
     for(unsigned initial:{0u,255u})for(unsigned held=0;held<32;++held){
-        scr::viewer::NativeTrackPreview preview;preview.load(*inputMemory,std::uint8_t(initial));
+        scr::runtime::NativeTrackPreview preview;preview.load(*inputMemory,std::uint8_t(initial));
         original=*inputMemory;original[0x1bb57]=std::uint8_t(initial);bool waiting=false;
         for(unsigned mask:{held,held,0u,held,held,0u,16u}){
             const auto actual=preview.input(std::uint8_t(mask));
             inputMode=true;inputInjected=inputWaiting=false;inputMask=mask;run(waiting?0x5d988:0x5d980);inputMode=false;
-            const auto expected=inputWaiting?scr::viewer::NativeTrackPreviewAction::none:
-                (m68k_get_reg(nullptr,M68K_REG_SR)&1)?scr::viewer::NativeTrackPreviewAction::redraw:scr::viewer::NativeTrackPreviewAction::startRace;
+            const auto expected=inputWaiting?scr::runtime::NativeTrackPreviewAction::none:
+                (m68k_get_reg(nullptr,M68K_REG_SR)&1)?scr::runtime::NativeTrackPreviewAction::redraw:scr::runtime::NativeTrackPreviewAction::startRace;
             if(actual!=expected||preview.angle()!=original[0x1bb57])throw std::runtime_error("Native preview input differs from original");
             ++inputCases;waiting=inputWaiting;
-            if(actual==scr::viewer::NativeTrackPreviewAction::startRace)preview.load(*inputMemory,preview.angle());
+            if(actual==scr::runtime::NativeTrackPreviewAction::startRace)preview.load(*inputMemory,preview.angle());
         }
     }
     auto bridge=std::make_unique<Memory>(*source.memory);(*bridge)[0x1ca33]=5;
-    scr::viewer::initializeNativePlayerConfiguration(*bridge);scr::initializeNativeTrack(*bridge,5);
+    scr::runtime::initializeNativePlayerConfiguration(*bridge);scr::initializeNativeTrack(*bridge,5);
     // Preview initialization always starts a fresh player configuration. An
     // already animated caller must not advance the overview's phase twice.
     (*bridge)[0x1bbb0]=0xd7;(*bridge)[0x1bb71]=0x80;
-    scr::viewer::NativeTrackPreview preview;preview.load(*bridge);
+    scr::runtime::NativeTrackPreview preview;preview.load(*bridge);
     const auto stationary=preview.indices();
     original=*bridge;putLong(original,0x6a588,longword(0x6a584)+32000);original[0x1bbd0]=0x80;
     requestedAngle=0;bridgeCalls=previewRenders=previewPolls=0;previewWaitMode=true;run();previewWaitMode=false;
@@ -159,7 +159,7 @@ int main(int argc,char** argv){try{
     const auto waiting=scr::decodePlanarImage(original.data()+longword(0x6a588),32000,320,200,4);
     for(unsigned n=0;n<64000;++n){++compared;if(waiting.pixels[n]!=stationary[n])
         throw std::runtime_error("Bridge overview double-advanced an initialized caller");}
-    for(unsigned n=0;n<1000;++n)if(preview.input(0)!=scr::viewer::NativeTrackPreviewAction::none||preview.indices()!=stationary)
+    for(unsigned n=0;n<1000;++n)if(preview.input(0)!=scr::runtime::NativeTrackPreviewAction::none||preview.indices()!=stationary)
         throw std::runtime_error("Native bridge overview changed while waiting");
     std::cout<<"{\"cases\":"<<cases<<",\"rotation_images\":"<<rotationCases<<",\"compared_pixels\":"<<compared<<",\"mismatch_cases\":"<<mismatchCases<<",\"mismatches\":"<<mismatches<<",\"input_cases\":"<<inputCases<<",\"drawbridge_views\":4,\"drawbridge_rotation_images\":8,\"drawbridge_wait_polls\":1000,\"drawbridge_wait_animation_calls\":"<<bridgeCalls<<",\"drawbridge_wait_render_calls\":"<<previewRenders<<",\"original_instructions\":"<<totalInstructions<<"}\n";
     if(mismatches)throw std::runtime_error("Native track preview differs from original");

@@ -1,4 +1,4 @@
-#include "native_game_session.h"
+#include "session/native_game_session.h"
 #include <filesystem>
 #include <fstream>
 #include <iostream>
@@ -6,7 +6,7 @@
 #include <stdexcept>
 
 namespace {
-using namespace scr::viewer;
+using namespace scr::runtime;
 void require(bool condition,const char* text){if(!condition)throw std::runtime_error(text);}
 void settle(NativeGameSession& game){
     for(unsigned n=0;game.transitioning()&&n<16;++n)game.update(1,{});
@@ -27,7 +27,7 @@ void image(const std::filesystem::path& path,const std::vector<std::uint32_t>& p
 }
 }
 int main(int argc,char** argv)try{
-    using namespace scr::viewer;
+    using namespace scr::runtime;
     if(argc!=3)throw std::invalid_argument("native_opponent_session_tests asset-pack output-directory");
     const std::filesystem::path directory=argv[2];std::filesystem::create_directories(directory);
     NativeGameSession game(argv[1],directory/"recordings",NativeGameStart::EstablishedMenu);settle(game);

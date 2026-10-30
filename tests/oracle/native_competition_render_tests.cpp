@@ -1,5 +1,5 @@
-#include "native_competition_render.h"
-#include "native_race_initialization.h"
+#include "presentation/native_competition_render.h"
+#include "race/native_race_initialization.h"
 #include "m68k.h"
 #include <algorithm>
 #include <array>
@@ -12,7 +12,7 @@
 #include <string>
 
 namespace {
-using Memory=scr::viewer::NativeMemory;
+using Memory=scr::runtime::NativeMemory;
 Memory ram{};
 std::array<std::uint8_t,4096> stack{};
 constexpr unsigned stackBase=0x8f000,stackTop=0x90000,sentinel=0xa0000,frame=0x6a594;
@@ -54,7 +54,7 @@ void run(unsigned entry,unsigned boundary){
     if(invalid||!stopped)throw std::runtime_error("Original competition render failed PC="+std::to_string(pc));
     totalInstructions+=instructions;
 }
-void compare(const scr::viewer::NativeMenuImage& image,unsigned page,unsigned variation,unsigned buffer=frame,unsigned paletteAddress=0x23c32){
+void compare(const scr::runtime::NativeMenuImage& image,unsigned page,unsigned variation,unsigned buffer=frame,unsigned paletteAddress=0x23c32){
     for(unsigned i=0;i<16;++i){
         const unsigned colour=(unsigned(ram[paletteAddress+2*i])<<8)|ram[paletteAddress+2*i+1];
         auto channel=[](unsigned v){v&=7;return (v*2+(v?1:0))*17;};
@@ -76,14 +76,14 @@ void compare(const scr::viewer::NativeMenuImage& image,unsigned page,unsigned va
             " expected="+std::to_string(expected)+" actual="+std::to_string(image.indices[y*320+x]));}
     }
 }
-void exportImage(const scr::viewer::NativeMenuImage& image,const std::string& name){
+void exportImage(const scr::runtime::NativeMenuImage& image,const std::string& name){
     if(outputDirectory.empty())return;
     std::ofstream out(outputDirectory/(name+".ppm"),std::ios::binary);out<<"P6\n320 200\n255\n";
     for(auto index:image.indices)for(unsigned shift:{16u,8u,0u})out.put(char(image.palette[index]>>shift));
     if(!out)throw std::runtime_error("Cannot export career screen");
 }
 void careerEndings(const Memory& baseline){
-    using namespace scr::viewer;
+    using namespace scr::runtime;
     unsigned variation=1000;
     for(unsigned context:{0u,11u})for(unsigned division=0;division<4;++division)
     for(unsigned place=0;place<3;++place)for(unsigned names=0;names<4;++names,++variation){
@@ -123,7 +123,7 @@ void careerEndings(const Memory& baseline){
     }
 }
 void forfeitEndings(const Memory& baseline){
-    using namespace scr::viewer;
+    using namespace scr::runtime;
     unsigned variation=2000;
     for(unsigned context:{0u,11u})for(unsigned division=0;division<4;++division)
     for(unsigned round:{0u,3u,5u})for(unsigned leading=0;leading<2;++leading,++variation){
@@ -157,8 +157,8 @@ int main(int argc,char** argv)try{
     const std::vector<std::uint8_t> payload{std::istreambuf_iterator<char>(file),std::istreambuf_iterator<char>()};
     if(payload.size()!=408540)throw std::invalid_argument("Wrong original payload size");
     auto base=std::make_unique<Memory>();std::copy(payload.begin(),payload.end(),base->begin()+0xe700);
-    scr::viewer::initializeNativeAssets(*base);(*base)[0x5eb79]=11;scr::viewer::initializeNativeGameData(*base);
-    scr::viewer::initializeNativeMenuSession(*base);
+    scr::runtime::initializeNativeAssets(*base);(*base)[0x5eb79]=11;scr::runtime::initializeNativeGameData(*base);
+    scr::runtime::initializeNativeMenuSession(*base);
     (*base)[0x1bbbc]=0x80;(*base)[0x5d724]=0x41;(*base)[0x1bb6d]=(*base)[0x1bb6e]=0;(*base)[0x64530]=0;(*base)[0x5eb76]=0;
     m68k_init();m68k_set_cpu_type(M68K_CPU_TYPE_68000);m68k_set_instr_hook_callback(hook);
     unsigned cases=0;
@@ -167,20 +167,20 @@ int main(int argc,char** argv)try{
         (*state)[0x1c9ce]=(*state)[0x1bb5f]=std::uint8_t(division);(*state)[0x1c9d0]=(variation&4)?11:0;
         (*state)[0x1ca35]=2;(*state)[0x1ca22]=0x80;(*state)[0x5eb78]=6;(*state)[0x5eb7b]=2;
         (*state)[0x1bbb1]=0;(*state)[0x1ca25]=9;(*state)[0x1ca26]=11;
-        scr::viewer::configureNativeSeasonMatch(*state);
+        scr::runtime::configureNativeSeasonMatch(*state);
         (*state)[0x1ca33]=(*state)[0x648c2+2*division];
         if(variation&8)for(unsigned i=1;i<=12;++i)(*state)[0x1ecaa+16*11+i]=(*state)[0x1ecaa+16*9+i];
         for(unsigned id=0;id<12;++id){(*state)[0x1c9f6+id]=5;(*state)[0x1c9de+id]=std::uint8_t(id%5);(*state)[0x1c9ea+id]=std::uint8_t(id%3);(*state)[0x1ca02+id]=std::uint8_t(id);}
         if((variation&11)==11)std::swap((*state)[0x1ca0e],(*state)[0x1ca0e+11]);
-        for(auto page:{scr::viewer::NativeMenuPage::Matchup,scr::viewer::NativeMenuPage::RoundResults,scr::viewer::NativeMenuPage::Standings}){
+        for(auto page:{scr::runtime::NativeMenuPage::Matchup,scr::runtime::NativeMenuPage::RoundResults,scr::runtime::NativeMenuPage::Standings}){
             ram=*state;run(0x64570,0x645ac);
-            const unsigned entry=page==scr::viewer::NativeMenuPage::Matchup?0x64664:page==scr::viewer::NativeMenuPage::RoundResults?0x6465c:0x646e8;
-            run(entry,0x64828);compare(scr::viewer::makeNativeCompetitionImage(*state,page,division),unsigned(page),variation);++cases;
+            const unsigned entry=page==scr::runtime::NativeMenuPage::Matchup?0x64664:page==scr::runtime::NativeMenuPage::RoundResults?0x6465c:0x646e8;
+            run(entry,0x64828);compare(scr::runtime::makeNativeCompetitionImage(*state,page,division),unsigned(page),variation);++cases;
         }
         for(unsigned flags:{0u,0x80u,0xc0u}){
             (*state)[0x1bbb4]=std::uint8_t(flags);(*state)[0x1bca2]=flags==0xc0?0x80:0;
             ram=*state;run(0x5930c,0x6488a);
-            compare(scr::viewer::makeNativeCompetitionImage(*state,scr::viewer::NativeMenuPage::Results,division),unsigned(scr::viewer::NativeMenuPage::Results),variation,frame+32000,0xe85a);++cases;
+            compare(scr::runtime::makeNativeCompetitionImage(*state,scr::runtime::NativeMenuPage::Results,division),unsigned(scr::runtime::NativeMenuPage::Results),variation,frame+32000,0xe85a);++cases;
         }
         for(unsigned flags:{0xc0u,0xc1u,0x81u,0x41u}){
             if(variation&8){
@@ -189,17 +189,17 @@ int main(int argc,char** argv)try{
                 (*state)[0x7a61a+slot+12]=0;(*state)[0x7a61a+slot+13]=0x47;(*state)[0x7a61a+slot+14]=0x38;
                 (*state)[0x7a71a+slot+12]=1;(*state)[0x7a71a+slot+13]=0x20;(*state)[0x7a71a+slot+14]=0x56;
             }
-            (*state)[0x1bbb1]=std::uint8_t(flags);scr::viewer::transferNativeLapRecords(*state,true);
+            (*state)[0x1bbb1]=std::uint8_t(flags);scr::runtime::transferNativeLapRecords(*state,true);
             ram=*state;run(0x64570,0x645ac);run(0x64664,0x64828);
-            compare(scr::viewer::makeNativeCompetitionImage(*state,scr::viewer::NativeMenuPage::Records,division),unsigned(scr::viewer::NativeMenuPage::Records),variation);++cases;
+            compare(scr::runtime::makeNativeCompetitionImage(*state,scr::runtime::NativeMenuPage::Records,division),unsigned(scr::runtime::NativeMenuPage::Records),variation);++cases;
         }
         ram=*state;run(0x58888,0x6488a);
-        compare(scr::viewer::makeNativeCompetitionImage(*state,scr::viewer::NativeMenuPage::Roster,division),unsigned(scr::viewer::NativeMenuPage::Roster),variation,frame+32000,0xe85a);++cases;
+        compare(scr::runtime::makeNativeCompetitionImage(*state,scr::runtime::NativeMenuPage::Roster,division),unsigned(scr::runtime::NativeMenuPage::Roster),variation,frame+32000,0xe85a);++cases;
         (*state)[0x593f6]=11;ram=*state;run(0x5933a,0x6488a);
-        compare(scr::viewer::makeNativeCompetitionImage(*state,scr::viewer::NativeMenuPage::SeasonAward,division),unsigned(scr::viewer::NativeMenuPage::SeasonAward),variation,frame+32000,0xe85a);++cases;
+        compare(scr::runtime::makeNativeCompetitionImage(*state,scr::runtime::NativeMenuPage::SeasonAward,division),unsigned(scr::runtime::NativeMenuPage::SeasonAward),variation,frame+32000,0xe85a);++cases;
         ram=*state;run(0x64570,0x645ac);run(0x646d6,0x64828);
-        scr::viewer::finishNativeSeason(*state);
-        compare(scr::viewer::makeNativeCompetitionImage(*state,scr::viewer::NativeMenuPage::SeasonEnd,division,(variation&4)?11:0),unsigned(scr::viewer::NativeMenuPage::SeasonEnd),variation);++cases;
+        scr::runtime::finishNativeSeason(*state);
+        compare(scr::runtime::makeNativeCompetitionImage(*state,scr::runtime::NativeMenuPage::SeasonEnd,division,(variation&4)?11:0),unsigned(scr::runtime::NativeMenuPage::SeasonEnd),variation);++cases;
     }
     careerEndings(*base);
     forfeitEndings(*base);

@@ -5,6 +5,8 @@ set(SCR_TEST_ADF "${PROJECT_SOURCE_DIR}/Stunt Car Racer (MicroStyle).adf"
   CACHE FILEPATH "Optional local ADF for launcher import tests")
 set(SCR_TEST_PAYLOAD "${PROJECT_SOURCE_DIR}/analysis/reference/vesuri/offline-extracted-payload.bin"
   CACHE FILEPATH "Local original payload for test-only comparisons")
+set(SCR_TEST_CAPTURE "${PROJECT_SOURCE_DIR}/analysis/captures/race/chip-000000.bin"
+  CACHE FILEPATH "Local captured sample state for audio integration tests")
 set(test_output "${PROJECT_BINARY_DIR}/test-output/$<CONFIG>")
 
 function(scr_test target label input)
@@ -21,12 +23,13 @@ function(scr_test target label input)
     LABELS "${label}" TIMEOUT 600 SKIP_REGULAR_EXPRESSION "SKIP: missing local test input")
 endfunction()
 
-foreach(target paula_mixer_tests replay_interpolation_tests live_drive_tests)
+foreach(target paula_mixer_tests presentation_interpolation_tests drive_input_tests)
   scr_test(${target} "native;unit" "")
 endforeach()
 scr_test(software_renderer_tests "native;assets" "${SCR_TEST_PAYLOAD}" "${SCR_TEST_PAYLOAD}")
 
 if(WIN32)
+  scr_test(native_audio_tests "native;assets;capture" "${SCR_TEST_CAPTURE}" "${SCR_TEST_CAPTURE}")
   scr_test(native_effects_interpolation_tests "native;unit" "")
   scr_test(native_save_store_tests "native;unit" "" "${test_output}/native_save_store_tests")
   foreach(target native_game_session_tests native_opening_session_tests native_startup_tests
@@ -57,7 +60,7 @@ if(SCR_BUILD_ORACLE)
         native_competition_render native_career_state)
       scr_test(${stage}_tests "oracle;assets" "${SCR_TEST_PAYLOAD}" "${SCR_TEST_PAYLOAD}")
     endforeach()
-    foreach(target native_track_preview_tests replay_scene_commands_tests)
+    foreach(target native_track_preview_tests scene_commands_tests)
       scr_test(${target} "oracle;assets" "${SCR_TEST_ASSET_PACK}" "${SCR_TEST_ASSET_PACK}")
     endforeach()
     scr_test(native_render_audit "oracle;assets" "${SCR_TEST_ASSET_PACK}"

@@ -1,6 +1,6 @@
 // Actual original RLE/masked-object byte execution. Test-only Musashi.
-#include "planar_image.h"
-#include "replay_render_assets.h"
+#include "render/planar_image.h"
+#include "presentation/race_render_assets.h"
 #include "m68k.h"
 #include <algorithm>
 #include <array>
@@ -65,7 +65,7 @@ int main(int argc,char** argv)try {
         if(!std::equal(payload.begin()+span.first-0xe700,payload.begin()+span.second-0xe700,capture.begin()+span.first))
             throw std::runtime_error("Original image code differs in capture");
     const auto decoded=scr::decodePlanarRle(payload.data()+0x11aa4,payload.size()-0x11aa4,320,200,4);
-    const auto assets=scr::viewer::decodeReplayRenderAssets(payload.data(),payload.size(),capture.data(),capture.size());
+    const auto assets=scr::runtime::decodeRaceRenderAssets(payload.data(),payload.size(),capture.data(),capture.size());
     m68k_init();m68k_set_cpu_type(M68K_CPU_TYPE_68000);m68k_set_instr_hook_callback(hook);
     std::copy(capture.begin(),capture.end(),ram.begin());
     start(0x593f8);m68k_set_reg(M68K_REG_A0,0x201a4);m68k_set_reg(M68K_REG_A1,frame);execute();
@@ -91,9 +91,9 @@ int main(int argc,char** argv)try {
                 const unsigned record=0x6a16c+id*16;
                 m68k_write_memory_16(record+10,wheelY);m68k_write_memory_16(record+6,158-wheelY);
             }
-            const auto state=scr::viewer::captureCockpitFrame(ram.data(),ram.size());
-            std::vector<std::uint32_t> nativePixels;scr::viewer::makeReplayBackground(assets,nativePixels);
-            scr::viewer::compositeMaskedObject(assets,id,state.objects[id],nativePixels);
+            const auto state=scr::runtime::captureCockpitFrame(ram.data(),ram.size());
+            std::vector<std::uint32_t> nativePixels;scr::runtime::makeRaceBackground(assets,nativePixels);
+            scr::runtime::compositeMaskedObject(assets,id,state.objects[id],nativePixels);
             start(0x69f42);m68k_set_reg(M68K_REG_D0,id);execute();totalInstructions+=instructions;
             const auto original=scr::decodePlanarImage(ram.data()+frame,32000,320,200,4);
             for(unsigned i=0;i<original.pixels.size();++i)

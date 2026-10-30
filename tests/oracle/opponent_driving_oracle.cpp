@@ -1,8 +1,8 @@
 #include "opponent_driving_fixture.h"
 #include "draw_bridge_fixture.h"
-#include "native_startup.h"
-#include "native_race_initialization.h"
-#include "track_initialization.h"
+#include "assets/native_startup.h"
+#include "race/native_race_initialization.h"
+#include "track/track_initialization.h"
 #include "m68k.h"
 #include <array>
 #include <fstream>
@@ -41,7 +41,7 @@ void m68k_write_memory_8(unsigned a,unsigned v){write(a,v);}void m68k_write_memo
 }
 int main(int argc,char** argv)try{
     if(argc!=2)throw std::runtime_error("Usage: opponent_driving_oracle asset-pack");m68k_init();m68k_set_cpu_type(M68K_CPU_TYPE_68000);m68k_set_instr_hook_callback(hook);
-    for(unsigned track=0;track<8;++track){currentTrack=track;auto game=scr::viewer::startNativeGame(argv[1]);native=*game.memory;scr::initializeNativeTrack(native,track);scr::viewer::initializeNativePlayerConfiguration(native);put(0x1ca29,track);put(0x1bb1d,native[0x1ca1b]);putWord(0x1bb0c,0x100);putWord(0x1bbec,0x80);original=native;initialize();
+    for(unsigned track=0;track<8;++track){currentTrack=track;auto game=scr::runtime::startNativeGame(argv[1]);native=*game.memory;scr::initializeNativeTrack(native,track);scr::runtime::initializeNativePlayerConfiguration(native);put(0x1ca29,track);put(0x1bb1d,native[0x1ca1b]);putWord(0x1bb0c,0x100);putWord(0x1bbec,0x80);original=native;initialize();
         for(unsigned segment=0;segment<native[0x1ca1a];++segment)for(unsigned fraction:{0U,1U,63U,64U,127U,128U,192U,255U})for(unsigned angle=0;angle<4;++angle){
             currentSegment=segment;currentFraction=fraction;put(0x1bb1d,segment);putWord(0x1bb0c,fraction);putWord(0x1bc30,angle<<14);put(0x1bb04,native[0x1c588+segment]&15);put(0x1bb06,native[0x1c588+segment]>>4);geometry();
         }

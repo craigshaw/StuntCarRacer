@@ -1,6 +1,6 @@
 // Synthetic native mixer tests. No original sample bytes and no claim of
 // cycle/analog equality: these exercise the stated sample-DMA/PCM contract.
-#include "paula_mixer.h"
+#include "audio/paula_mixer.h"
 #include <algorithm>
 #include <array>
 #include <iostream>

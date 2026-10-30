@@ -1,4 +1,4 @@
-#include "native_race_initialization.h"
+#include "race/native_race_initialization.h"
 #include "m68k.h"
 #include <algorithm>
 #include <array>
@@ -11,7 +11,7 @@
 #include <vector>
 
 namespace {
-using Ram=scr::viewer::NativeMemory;
+using Ram=scr::runtime::NativeMemory;
 Ram original{},native{},baseline{};
 std::array<std::uint8_t,4096> stackBytes{};
 constexpr unsigned stackBase=0x8f000,stackTop=0x90000,sentinel=0xa0000;
@@ -105,17 +105,17 @@ int main(int argc,char** argv)try {
         for(unsigned address:{0x64aecu,0x7a21au,0x7a416u,0x5cf2cu})
             for(unsigned i=0;i<4;++i)original[address+i]=std::uint8_t(next());
         original[0x1bb94]=std::uint8_t(next());original[0x64af0]=std::uint8_t(next());
-        run(0x5c960,scr::viewer::initializeNativeLoadState,"successful-load-transition");
+        run(0x5c960,scr::runtime::initializeNativeLoadState,"successful-load-transition");
     }
     for(unsigned context:{0u,11u})for(unsigned network:{0u,0x40u})for(unsigned fuel:{0u,1u,2u,25u,50u,99u,100u,255u})for(unsigned variation=0;variation<4;++variation) {
         prepare();original[0x1c9d0]=std::uint8_t(context);original[0x57c3c]=std::uint8_t(network);
         original[0x1ca2c]=original[0x1ca2d]=std::uint8_t(fuel);
-        run(0x5d726,scr::viewer::initializeNativePlayerConfiguration,"player-configuration");
+        run(0x5d726,scr::runtime::initializeNativePlayerConfiguration,"player-configuration");
     }
     for(unsigned variation=0;variation<32;++variation) {
         prepare();original[0x57c3c]=0;original[0x1c9d0]=0;
-        run(0x5a9b6,scr::viewer::initializeNativeGameData,"game-data");
-        prepare();run(0x5aa38,scr::viewer::initializeNativeGameTables,"game-tables");
+        run(0x5a9b6,scr::runtime::initializeNativeGameData,"game-data");
+        prepare();run(0x5aa38,scr::runtime::initializeNativeGameTables,"game-tables");
     }
     std::cout<<"{\"cases\":"<<cases<<",\"compared_bytes\":"<<compared<<",\"mismatches\":0,\"maximum_instructions\":"<<maximumInstructions
         <<",\"whole_ram_compared\":true,\"loader_os_vector_bytes_excluded\":4,\"original_code_unmodified\":true,\"native_state_reseeded_with_original_outputs\":false,\"captured_state_used\":false,\"hardware_side_effects_compared\":false}\n";

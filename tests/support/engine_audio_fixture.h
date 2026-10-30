@@ -1,5 +1,5 @@
 #pragma once
-#include "engine_audio.h"
+#include "audio/engine_audio.h"
 #include "audio_playback_fixture.h"
 namespace scr::test::engineAudio {
 constexpr unsigned generationEntry=0xf402,generationEnd=0xf472;

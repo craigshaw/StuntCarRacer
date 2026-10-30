@@ -2,9 +2,9 @@
 #define WIN32_LEAN_AND_MEAN
 #include <windows.h>
 #include <shellapi.h>
-#include "replay_scene.h"
-#include "windows_drive_input.h"
-#include "windows_audio_output.h"
+#include "race/race_scene.h"
+#include "platform/windows/drive_input.h"
+#include "platform/windows/audio_output.h"
 #include <algorithm>
 #include <chrono>
 #include <cmath>
@@ -18,7 +18,7 @@
 #include <vector>
 
 namespace {
-using Scene=scr::viewer::ReplayScene;
+using Scene=scr::runtime::RaceScene;
 struct Options {
     std::filesystem::path chip,payload,assetPack,inputs,reference,trace,report,framesDirectory,audioWav,recordingsDirectory=L"analysis/live-driving";
     std::vector<unsigned> snapshots;std::vector<double> smoothSnapshots;
@@ -96,8 +96,8 @@ void report(const Options& o,const Scene* scene,const std::vector<ExportedFrame>
         <<",\"side_pixels\":"<<e.statistics.sidePixels<<",\"mountain_pixels\":"<<e.statistics.mountainPixels
         <<",\"near_queue_entries\":"<<e.statistics.nearQueueEntries<<",\"near_fill_commands\":"<<e.statistics.nearFillCommands
         <<",\"edge_highlight_commands\":"<<e.statistics.edgeHighlightCommands<<",\"edge_highlight_pixels\":"<<e.statistics.edgeHighlightPixels<<'}';}
-    out<<"\n  ],\n  \"interpolation\":{\"target_fps\":"<<scr::viewer::replayPresentationHz
-       <<",\"physics_tick_seconds\":"<<scr::viewer::replayTickSeconds<<",\"rendered_samples\":"<<smooth.samples
+    out<<"\n  ],\n  \"interpolation\":{\"target_fps\":"<<scr::runtime::presentationHz
+       <<",\"physics_tick_seconds\":"<<scr::runtime::gameplayTickSeconds<<",\"rendered_samples\":"<<smooth.samples
        <<",\"changed_samples\":"<<smooth.changedSamples<<",\"exact_endpoints_checked\":"<<smooth.exactEndpoints
        <<",\"seek_samples_checked\":"<<smooth.seekSamples
        <<",\"elapsed_ms\":"<<smooth.milliseconds<<",\"snapshots\":[";
@@ -117,7 +117,7 @@ void exportAudio(const Scene& scene,const std::filesystem::path& path){
     const auto longword=[&](std::uint32_t v){word(std::uint16_t(v));word(std::uint16_t(v>>16));};
     out.write("RIFF",4);longword(std::uint32_t(frames*4+36));out.write("WAVEfmt ",8);longword(16);
     word(1);word(2);longword(48000);longword(192000);word(4);word(16);out.write("data",4);longword(std::uint32_t(frames*4));
-    scr::viewer::GameAudio audio(scene.audioSeed());
+    scr::runtime::GameAudio audio(scene.audioSeed());
     for(const auto& frame:scene.frames()){
         audio.submit(frame.audio);const auto pcm=audio.renderFrames(5760);for(auto sample:pcm)word(std::uint16_t(sample));
     }
@@ -135,7 +135,7 @@ class Window {
 public:
     Window(Scene& scene,const Options& options):scene_(scene),position_(std::min(options.startTick,unsigned(scene.frames().size()-1))),paused_(options.paused),interpolate_(options.interpolate),live_(options.live){
         titleFont_=makeFont(22,FW_SEMIBOLD);bodyFont_=makeFont(15);smallFont_=makeFont(13);buttonFont_=makeFont(15,FW_SEMIBOLD);
-        if(live_)audio_=std::make_unique<scr::viewer::WindowsAudioOutput>(scene_.audioSeed());
+        if(live_)audio_=std::make_unique<scr::runtime::WindowsAudioOutput>(scene_.audioSeed());
     }
     ~Window(){if(timer_)CloseHandle(timer_);DeleteObject(titleFont_);DeleteObject(bodyFont_);DeleteObject(smallFont_);DeleteObject(buttonFont_);}
     int run(HINSTANCE instance,int show){
@@ -150,7 +150,7 @@ public:
         if(!timer_)timer_=CreateWaitableTimerExW(nullptr,nullptr,0,TIMER_MODIFY_STATE|SYNCHRONIZE);
         if(!timer_)throw std::runtime_error("Cannot create replay presentation timer");
         last_=fpsStart_=std::chrono::steady_clock::now();auto deadline=last_;
-        const auto period=std::chrono::duration_cast<std::chrono::steady_clock::duration>(std::chrono::duration<double>(1.0/scr::viewer::replayPresentationHz));
+        const auto period=std::chrono::duration_cast<std::chrono::steady_clock::duration>(std::chrono::duration<double>(1.0/scr::runtime::presentationHz));
         const auto arm=[&](){
             const auto remaining=std::chrono::duration<double>(deadline-std::chrono::steady_clock::now()).count();
             LARGE_INTEGER due{};due.QuadPart=-std::max<LONGLONG>(1,LONGLONG(std::ceil(remaining*10000000)));
@@ -164,7 +164,7 @@ public:
                 const auto now=std::chrono::steady_clock::now();const double delta=std::min(0.25,std::chrono::duration<double>(now-last_).count());last_=now;
                 if(live_)updateLive(window,delta);
                 else if(!paused_&&!dragging_){
-                    position_+=delta*speeds_[speedIndex_]/scr::viewer::replayTickSeconds;
+                    position_+=delta*speeds_[speedIndex_]/scr::runtime::gameplayTickSeconds;
                     if(position_>=scene_.frames().size()-1){position_=double(scene_.frames().size()-1);paused_=true;}
                     if(!IsIconic(window)){InvalidateRect(window,nullptr,FALSE);UpdateWindow(window);}
                 }
@@ -181,11 +181,11 @@ public:
     }
 private:
     Scene& scene_;double position_{};bool paused_{},dragging_{},wireframe_{},interpolate_{true},live_{};unsigned speedIndex_=1;
-    scr::viewer::WindowsDriveInput driveInput_;
-    scr::viewer::PolledDrivePad drivePad_;
-    scr::viewer::DriveInputLatch driveLatch_;
-    scr::viewer::FixedDriveClock driveClock_;
-    std::unique_ptr<scr::viewer::WindowsAudioOutput> audio_;
+    scr::runtime::WindowsDriveInput driveInput_;
+    scr::runtime::PolledDrivePad drivePad_;
+    scr::runtime::DriveInputLatch driveLatch_;
+    scr::runtime::FixedDriveClock driveClock_;
+    std::unique_ptr<scr::runtime::WindowsAudioOutput> audio_;
     bool muted_{};
     std::array<bool,256> keys_{};
     HANDLE timer_{};
@@ -196,7 +196,7 @@ private:
     static constexpr double speeds_[4]{0.5,1,2,4};
     unsigned index() const{return live_?1:std::min(unsigned(position_),unsigned(scene_.frames().size()-1));}
     unsigned driveMask()const{
-        return scr::viewer::mapDriveControls({keys_['W']||keys_[VK_UP],keys_['S']||keys_[VK_DOWN],keys_['A']||keys_[VK_LEFT],keys_['D']||keys_[VK_RIGHT],keys_[VK_SPACE]},drivePad_.pad);
+        return scr::runtime::mapDriveControls({keys_['W']||keys_[VK_UP],keys_['S']||keys_[VK_DOWN],keys_['A']||keys_[VK_LEFT],keys_['D']||keys_[VK_RIGHT],keys_[VK_SPACE]},drivePad_.pad);
     }
     void resetLive(){scene_.resetLive();driveClock_.reset();driveLatch_.clear();keys_.fill(false);paused_=false;resetFrameCounter();audio_->reset(scene_.audioSeed());audio_->setPlaying(true);}
     void updateLive(HWND window,double elapsed){
@@ -216,13 +216,13 @@ private:
     }
     void layout(int width,int height){
         const int availableHeight=std::max(200,height-190);
-        const auto layout=scr::viewer::fitPresentationImage(320,200,std::max(1,width-48),availableHeight);
+        const auto layout=scr::runtime::fitPresentationImage(320,200,std::max(1,width-48),availableHeight);
         const int w=layout.width,h=layout.height;const int x=24+layout.x,y=76+layout.y;
         image_={x,y,x+w,y+h};const int bottom=std::max(y+h+20,height-98);
         timeline_={32,bottom+8,width-32,bottom+24};
         for(unsigned n=0;n<buttons_.size();++n)buttons_[n]={32+int(n)*108,bottom+38,128+int(n)*108,bottom+72};
     }
-    std::wstring time(const scr::viewer::ReplaySceneFrame& frame)const{
+    std::wstring time(const scr::runtime::RaceFrame& frame)const{
         std::wostringstream s;s<<std::hex<<std::setfill(L'0')<<std::setw(2)<<unsigned(frame.minutes)<<L":"<<std::setw(2)<<unsigned(frame.seconds)<<L"."<<std::setw(2)<<unsigned(frame.subseconds);return s.str();
     }
     void paint(HWND window){
@@ -351,10 +351,10 @@ int WINAPI wWinMain(HINSTANCE instance,HINSTANCE,PWSTR,int show){
             for(unsigned tick=0;tick<scene->frames().size();++tick){exactHashes.push_back(pixelHash(scene->render(tick)));coverage.add(scene->statistics());++renderedFrames;}
             const auto started=std::chrono::steady_clock::now();
             const auto last=double(scene->frames().size()-1);
-            const auto intervals=unsigned(std::ceil(last*scr::viewer::replayTickSeconds*scr::viewer::replayPresentationHz-1e-9));
+            const auto intervals=unsigned(std::ceil(last*scr::runtime::gameplayTickSeconds*scr::runtime::presentationHz-1e-9));
             std::vector<std::pair<double,std::uint64_t>> seekChecks;
             for(unsigned sample=0;sample<=intervals;++sample){
-                const double position=std::min(last,double(sample)/(scr::viewer::replayTickSeconds*scr::viewer::replayPresentationHz));
+                const double position=std::min(last,double(sample)/(scr::runtime::gameplayTickSeconds*scr::runtime::presentationHz));
                 const auto hash=pixelHash(scene->renderInterpolated(position));++smooth.samples;
                 if(sample%37==0)seekChecks.push_back({position,hash});
                 if(hash!=exactHashes[unsigned(position)]&&hash!=exactHashes[std::min(unsigned(position)+1,unsigned(last))])++smooth.changedSamples;

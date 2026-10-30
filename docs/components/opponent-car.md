@@ -8,7 +8,7 @@ positions project those two sets of heights through the game's angular tables.
 The resulting pairs determine the body, four wheels and shadow with the original
 word arithmetic, size clamps, rounding and one-pixel biases.
 
-`src/opponent_car.cpp` implements original entry `0x67aa6` and its model builder
+`src/render/opponent_car.cpp` implements original entry `0x67aa6` and its model builder
 `0x599e2`. `OpponentCarInputs` holds the four footprint heights in original
 X1,Y1,X2,Y2 order, their four already camera-relative X/Z coordinate pairs,
 three road support bounds, angular camera state and visibility flags. The
@@ -32,7 +32,7 @@ as in the original.
 
 Competitive rendering also recovers the original far-track queue, rather than
 trying to insert a distant car into the three dense near-track segments.
-`src/opponent_far_track.cpp` implements cached-section projection `0x65ec4`,
+`src/render/opponent_far_track.cpp` implements cached-section projection `0x65ec4`,
 queue construction `0x67460` and far painter `0x690bc`. It starts with the
 endpoint carry and unrolled side coordinates left by the dense passes. The
 cache stream and per-segment projection limits come from the local asset pack.
@@ -123,7 +123,7 @@ all 86 placements satisfy the car's independent distance guard.
 
 The final scene oracle runs 4,096 complete original main-loop updates from
 fresh native competitive seeds across all eight tracks, alongside an
-independently evolving `ReplayScene`. It executes every original renderer and
+independently evolving `RaceScene`. It executes every original renderer and
 raster call, retaining the original CPU and RAM across ticks. All 4,096 car
 command frames match, including 2,056 actual car calls and their precise arena
 allocations, 51,400 car input values and 6,270 ordered car polygons:

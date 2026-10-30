@@ -2,8 +2,8 @@
 // screen roll and polygon-command consumer execute original bytes. At the
 // line/pixel backend entry points the harness records commands and returns
 // symbolic line handles; it does not claim original clipping/raster coverage.
-#include "mountain_horizon.h"
-#include "motion_transforms.h"
+#include "render/mountain_horizon.h"
+#include "physics/motion_transforms.h"
 #include "m68k.h"
 #include <algorithm>
 #include <array>

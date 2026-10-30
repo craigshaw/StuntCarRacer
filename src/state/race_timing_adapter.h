@@ -1,5 +1,5 @@
 #pragma once
-#include "race_timing.h"
+#include "race/race_timing.h"
 #include <algorithm>
 #include <array>
 #include <cstdint>

@@ -1,5 +1,5 @@
 #pragma once
-#include "race_transitions.h"
+#include "race/race_transitions.h"
 #include "race_timing_adapter.h"
 #include <array>
 namespace scr::state::transitions {

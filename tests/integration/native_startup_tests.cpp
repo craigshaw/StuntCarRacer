@@ -1,7 +1,7 @@
-#include "native_startup.h"
-#include "replay_scene.h"
-#include "game_audio.h"
-#include "native_damage_holes.h"
+#include "assets/native_startup.h"
+#include "race/race_scene.h"
+#include "audio/game_audio.h"
+#include "presentation/native_damage_holes.h"
 #include "driving_replay_fixture.h"
 #include <algorithm>
 #include <cstdlib>
@@ -21,7 +21,7 @@ void advance(scr::test::replay::NativeReplay& state,unsigned mask){
 }
 void steeringRegression(const std::filesystem::path& pack){
     using scr_test::readWord;
-    auto startup=scr::viewer::startNativeRace(pack,0);
+    auto startup=scr::runtime::startNativeRace(pack,0);
     auto driven=std::make_unique<scr::test::replay::NativeReplay>(*startup.memory);
     bool ready=false;
     for(unsigned tick=0;tick<600;++tick){
@@ -45,22 +45,22 @@ unsigned damageEntryRegression(const std::filesystem::path& pack){
     // Persistent configuration is prepared before race entry, never midrace.
     unsigned entries=0;
     for(unsigned mode:{0u,1u,0x80u})for(unsigned holes:{0u,4u,10u}){
-        auto startup=scr::viewer::startNativeRace(pack,0);auto& memory=*startup.memory;
+        auto startup=scr::runtime::startNativeRace(pack,0);auto& memory=*startup.memory;
         memory[0x5eb76]=1;memory[0x5eb79]=11;memory[0x1ca22]=std::uint8_t(mode);
         memory[0x1c9cf]=10;memory[0x1ca36+11]=std::uint8_t(holes);
-        scr::viewer::initializeNativeRace(memory);
+        scr::runtime::initializeNativeRace(memory);
         require(memory[0x1bbb5]==10&&memory[0x1c9cf]==holes,"Race entry did not restore this driver's damage allowance");
-        const auto actual=scr::viewer::captureCockpitFrame(memory.data(),memory.size());
-        scr::viewer::initializeNativeDamageHoles(memory);
-        const auto expected=scr::viewer::captureCockpitFrame(memory.data(),memory.size());
+        const auto actual=scr::runtime::captureCockpitFrame(memory.data(),memory.size());
+        scr::runtime::initializeNativeDamageHoles(memory);
+        const auto expected=scr::runtime::captureCockpitFrame(memory.data(),memory.size());
         require(actual.damageStrip==expected.damageStrip,"Race entry omitted carried damage pixels");++entries;
     }
     return entries;
 }
-void reviewInterval(scr::viewer::ReplayScene& scene,const std::filesystem::path& folder,const char* name){
-    using namespace scr::viewer;
+void reviewInterval(scr::runtime::RaceScene& scene,const std::filesystem::path& folder,const char* name){
+    using namespace scr::runtime;
     const auto& a=scene.frames().front();const auto& b=scene.frames().back();
-    require(canInterpolateReplay(a.restarts,b.restarts,a.action,b.action),"Review interval crossed a transition");
+    require(canInterpolatePresentation(a.restarts,b.restarts,a.action,b.action),"Review interval crossed a transition");
     const auto exact=scene.render(1);
     const auto output=folder/name;std::filesystem::create_directories(output);
     for(const auto view:{NativeView::Original,NativeView::Extended,NativeView::Widescreen}){
@@ -75,10 +75,10 @@ void reviewInterval(scr::viewer::ReplayScene& scene,const std::filesystem::path&
 struct RaceEffectsCoverage {unsigned ticks{},dropStart{},pressFire{},dust{},sparks{},smoothDust{},smoothSparks{},smoothWheels{};};
 struct BoostCoverage {unsigned ticks{},frames{},phases{},releaseFrames{},chainFrames{},liftingFrames{},smoothChains{},chainExit{};};
 BoostCoverage boostRegression(const std::filesystem::path& pack,const std::filesystem::path& output){
-    using namespace scr::viewer;
+    using namespace scr::runtime;
     const auto folder=output/"boost-effects";std::filesystem::create_directories(folder);
     auto startup=startNativeRace(pack,0);write(folder/"native-initial.bin",startup.memory->data(),startup.memory->size());
-    ReplayScene scene;scene.loadNativeState(*startup.memory,startup.payload,folder/"recordings");
+    RaceScene scene;scene.loadNativeState(*startup.memory,startup.payload,folder/"recordings");
     BoostCoverage coverage;std::ofstream controls(folder/"controls.csv");controls<<"tick,controls\n";
     for(unsigned tick=0;tick<180;++tick){
         const unsigned mask=(tick>=55&&tick<70)?1:17;controls<<tick<<','<<mask<<'\n';
@@ -102,7 +102,7 @@ BoostCoverage boostRegression(const std::filesystem::path& pack,const std::files
             }
         }
         const auto& from=scene.frames().front();
-        if(canInterpolateReplay(from.restarts,frame.restarts,from.action,frame.action)){
+        if(canInterpolatePresentation(from.restarts,frame.restarts,from.action,frame.action)){
             if(!from.chainDraws.empty()&&!frame.chainDraws.empty()&&from.chains.position!=frame.chains.position){
                 if(!coverage.smoothChains)reviewInterval(scene,folder,"chains-lifting");++coverage.smoothChains;
             }
@@ -122,10 +122,10 @@ BoostCoverage boostRegression(const std::filesystem::path& pack,const std::files
     return coverage;
 }
 RaceEffectsCoverage effectsRegression(const std::filesystem::path& pack,const std::filesystem::path& output){
-    using namespace scr::viewer;
+    using namespace scr::runtime;
     const auto folder=output/"race-effects";std::filesystem::create_directories(folder);
     auto startup=startNativeRace(pack,0);write(folder/"native-initial.bin",startup.memory->data(),startup.memory->size());
-    ReplayScene scene,control;scene.loadNativeState(*startup.memory,startup.payload,folder/"recordings");
+    RaceScene scene,control;scene.loadNativeState(*startup.memory,startup.payload,folder/"recordings");
     control.loadNativeState(*startup.memory,startup.payload,{});
     RaceEffectsCoverage coverage;bool savedDrop=false,savedRecovery=false,savedDust=false,savedSparks=false;
     std::ofstream controls(folder/"controls.csv");controls<<"tick,controls\n";
@@ -148,7 +148,7 @@ RaceEffectsCoverage effectsRegression(const std::filesystem::path& pack,const st
         if(dust&&!savedDust&&coverage.dust>=6){scene.saveBitmap(folder/"dust.bmp");savedDust=true;}
         if(sparks&&!savedSparks){scene.saveBitmap(folder/"sparks.bmp");savedSparks=true;}
         const auto& from=scene.frames().front();
-        if(canInterpolateReplay(from.restarts,frame.restarts,from.action,frame.action)){
+        if(canInterpolatePresentation(from.restarts,frame.restarts,from.action,frame.action)){
             const auto particles=interpolateNativeDrivingParticles(from.particleDraws,frame.particleDraws,0.5);
             bool movingDust=false,movingSpark=false;
             for(unsigned n=0;n<particles.size();++n)if(particles[n].x!=from.particleDraws[n].x||particles[n].y!=from.particleDraws[n].y){
@@ -185,7 +185,7 @@ RaceEffectsCoverage effectsRegression(const std::filesystem::path& pack,const st
 }
 int main(int argc,char** argv)try{
     if(argc!=3)throw std::runtime_error("native_startup_tests pack output-directory");
-    using namespace scr::viewer;const std::filesystem::path pack=argv[1],out=argv[2];std::filesystem::create_directories(out);
+    using namespace scr::runtime;const std::filesystem::path pack=argv[1],out=argv[2];std::filesystem::create_directories(out);
     const auto original=read(pack);unsigned rejected=0;const auto bad=out/"invalid.scr-assets";
     for(unsigned offset:{0u,8u,12u,16u,48u,80u,84u,88u,unsigned(original.size()-1)}){
         auto bytes=original;bytes.at(offset)^=1;write(bad,bytes.data(),bytes.size());
@@ -201,7 +201,7 @@ int main(int argc,char** argv)try{
         require((*startup.memory)[0x1ca1a]>0&&(*startup.memory)[0x1ca1a]<=100,"Fresh track topology missing");
         require((*startup.memory)[0x1bb55]==0&&(*startup.memory)[0x1bb20]==0,"Fresh race inherited damage/laps");
         write(trackOut/"native-initial.bin",startup.memory->data(),startup.memory->size());
-        ReplayScene scene;scene.loadNative(pack,trackOut/"recordings",track);const auto initial=hash(scene.renderLive(0));
+        RaceScene scene;scene.loadNative(pack,trackOut/"recordings",track);const auto initial=hash(scene.renderLive(0));
         const auto recording=scene.liveRecording();
         GameAudio audio(scene.audioSeed());std::ofstream controls(trackOut/"controls.csv");controls<<"tick,controls\n";
         const auto initialPosition=scene.frames().back().pose.worldPosition;bool moved=false,changed=false;

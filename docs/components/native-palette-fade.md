@@ -1,6 +1,6 @@
 # Original palette fades
 
-`app/native_palette_fade.cpp` ports the original palette transition routines
+`app/presentation/native_palette_fade.cpp` ports the original palette transition routines
 `fadeToColor` (`0x6444e`) and `animatePaletteToTarget` (`0x64470`). Addresses refer
 to the supported disk payload loaded at `0xe700`, SHA-256
 `508646f12af15115de73b06940c79e579f920bf47ce55f7cd8920eca60b7921c`.

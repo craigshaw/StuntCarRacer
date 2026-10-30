@@ -1,5 +1,5 @@
-#include "native_race_initialization.h"
-#include "native_menu_flow.h"
+#include "race/native_race_initialization.h"
+#include "menus/native_menu_flow.h"
 #include "m68k.h"
 #include <algorithm>
 #include <array>
@@ -12,7 +12,7 @@
 #include <vector>
 
 namespace {
-using Ram=scr::viewer::NativeMemory;
+using Ram=scr::runtime::NativeMemory;
 Ram original{},native{},baseline{};
 std::array<std::uint8_t,4096> stackBytes{};
 constexpr unsigned stackBase=0x8f000,stackTop=0x90000,sentinel=0xa0000;
@@ -75,7 +75,7 @@ void run(unsigned entry,void(*routine)(Ram&),const char* stage,unsigned d0=0) {
 void prepare(unsigned variation) {
     original=baseline;
     original[0x5eb79]=11;original[0x1c9d0]=(variation&1)?11:0;
-    scr::viewer::initializeNativeGameData(original);
+    scr::runtime::initializeNativeGameData(original);
     original[0x1c9d0]=(variation&1)?11:0;
     original[0x57c3c]=original[0x5eb76]=0;
     original[0x1c9ce]=std::uint8_t((variation>>1)&3);
@@ -91,24 +91,24 @@ void prepare(unsigned variation) {
 }
 void flowTest() {
     auto memory=std::make_unique<Ram>(baseline);
-    (*memory)[0x5eb79]=11;scr::viewer::initializeNativeGameData(*memory);
-    scr::viewer::initializeNativeMenuSession(*memory);scr::viewer::NativeMenuFlow flow(*memory);
+    (*memory)[0x5eb79]=11;scr::runtime::initializeNativeGameData(*memory);
+    scr::runtime::initializeNativeMenuSession(*memory);scr::runtime::NativeMenuFlow flow(*memory);
     auto tick=[&](unsigned mask,unsigned keys=0){return flow.update({std::uint8_t(mask),std::uint8_t(keys)},1.0);};
     for(unsigned i=0;i<4;++i)tick(0);
     tick(0,4);for(unsigned i=0;i<4;++i)tick(0);
     tick(16);tick(0);
-    if(flow.page()!=scr::viewer::NativeMenuPage::Matchup||!flow.competitive())throw std::runtime_error("Start Season route missing");
+    if(flow.page()!=scr::runtime::NativeMenuPage::Matchup||!flow.competitive())throw std::runtime_error("Start Season route missing");
     unsigned humanRaces=0;
-    while(flow.page()!=scr::viewer::NativeMenuPage::Main) {
-        if(flow.page()==scr::viewer::NativeMenuPage::Matchup) {
+    while(flow.page()!=scr::runtime::NativeMenuPage::Main) {
+        if(flow.page()==scr::runtime::NativeMenuPage::Matchup) {
             const unsigned ordinal=2*(*memory)[0x1c9ce]+((*memory)[0x1ca35]&1);
             if((*memory)[0x1ca33]!=(*memory)[0x648c2+ordinal]||(*memory)[0x1ca29]==11)
                 throw std::runtime_error("Invalid original season opponent or track");
         }
         tick(0);tick(0);const auto action=tick(16);
-        if(flow.page()==scr::viewer::NativeMenuPage::Preview) {
+        if(flow.page()==scr::runtime::NativeMenuPage::Preview) {
             tick(0);const auto start=tick(16);
-            if(start!=scr::viewer::NativeMenuAction::StartRace)throw std::runtime_error("Season did not start competitive race");
+            if(start!=scr::runtime::NativeMenuAction::StartRace)throw std::runtime_error("Season did not start competitive race");
             (*memory)[0x1bbb4]=std::uint8_t((humanRaces&3)<<6);flow.returnFromRace();++humanRaces;
         }
         (void)action;
@@ -133,17 +133,17 @@ int main(int argc,char** argv)try {
     std::copy(payload.begin(),payload.end(),baseline.begin()+0xe700);
     m68k_init();m68k_set_cpu_type(M68K_CPU_TYPE_68000);m68k_set_instr_hook_callback(hook);
     for(unsigned variation=0;variation<128;++variation) {
-        prepare(variation);run(0x5ab46,scr::viewer::configureNativeSeasonMatch,"configure-match");
-        prepare(variation);run(0x5ee68,scr::viewer::randomizeNativeSeasonCars,"local-car-assignments");
-        prepare(variation);run(0x5aa84,scr::viewer::scoreNativeSeasonRound,"score-and-sort-round");
-        prepare(variation);run(0x64916,scr::viewer::finishNativeSeason,"promotion-and-relegation");
-        if(variation<32){prepare(variation);run(0x609ae,scr::viewer::encodeNativeSeason,"league-encoder-rng");}
+        prepare(variation);run(0x5ab46,scr::runtime::configureNativeSeasonMatch,"configure-match");
+        prepare(variation);run(0x5ee68,scr::runtime::randomizeNativeSeasonCars,"local-car-assignments");
+        prepare(variation);run(0x5aa84,scr::runtime::scoreNativeSeasonRound,"score-and-sort-round");
+        prepare(variation);run(0x64916,scr::runtime::finishNativeSeason,"promotion-and-relegation");
+        if(variation<32){prepare(variation);run(0x609ae,scr::runtime::encodeNativeSeason,"league-encoder-rng");}
         prepare(variation);original[0x1ca33]=std::uint8_t(variation%8);
         for(unsigned a=0x7a61a;a<0x7a81a;++a)original[a]=std::uint8_t(next());
-        run(0x5f25a,[](Ram& m){scr::viewer::transferNativeLapRecords(m,true);},"load-track-records",0x80);
+        run(0x5f25a,[](Ram& m){scr::runtime::transferNativeLapRecords(m,true);},"load-track-records",0x80);
         prepare(variation);original[0x1ca33]=std::uint8_t(variation%8);
         for(unsigned a=0x5ec48;a<0x5ec61;++a)original[a]=std::uint8_t(next());
-        run(0x5f25a,[](Ram& m){scr::viewer::transferNativeLapRecords(m,false);},"save-track-records");
+        run(0x5f25a,[](Ram& m){scr::runtime::transferNativeLapRecords(m,false);},"save-track-records");
     }
     flowTest();
     std::cout<<"{\"cases\":"<<cases<<",\"compared_bytes\":"<<compared<<",\"mismatches\":0,\"maximum_instructions\":"<<maximumInstructions

@@ -1,5 +1,5 @@
-#include "native_startup.h"
-#include "replay_scene.h"
+#include "assets/native_startup.h"
+#include "race/race_scene.h"
 #include <algorithm>
 #include <filesystem>
 #include <fstream>
@@ -7,81 +7,81 @@
 #include <stdexcept>
 
 namespace {
-using namespace scr::viewer;
+using namespace scr::runtime;
 void require(bool value,const char* message){if(!value)throw std::runtime_error(message);}
 bool worldPixel(unsigned x,unsigned y){return x>=32&&x<288&&y>=16&&y<144;}
 void compareArtwork(const std::vector<std::uint32_t>& original,const std::vector<std::uint32_t>& extended,
-    const ReplayRenderAssets& assets,const CockpitFrame& cockpit,const NativeWheelSprites& sprites,
+    const RaceRenderAssets& assets,const CockpitFrame& cockpit,const NativeWheelSprites& sprites,
     const NativeWheelSpriteFrame& placements,const scr::WheelAnimationState& animation){
     require(original.size()==320*200&&extended.size()==original.size(),"Extended changed the original canvas dimensions");
-    std::vector<std::uint32_t> foreground(320*200,replayTransparent);
-    composeReplayCockpit(assets,cockpit,foreground,true);composeNativeWheelSprites(sprites,placements,animation,foreground);
+    std::vector<std::uint32_t> foreground(320*200,transparentPixel);
+    composeCockpit(assets,cockpit,foreground,true);composeNativeWheelSprites(sprites,placements,animation,foreground);
     for(unsigned y=0;y<200;++y)for(unsigned x=0;x<320;++x){const unsigned at=y*320+x;
         if(y==83&&(x==16||x==303)) {
             require(original[at]==assets.palette[0]&&extended[at]==assets.palette[9],"Extended did not close just the original post/brace seam");
             continue;
         }
-        if(foreground[at]!=replayTransparent||(!worldPixel(x,y)&&!assets.exteriorMask[at]))
+        if(foreground[at]!=transparentPixel||(!worldPixel(x,y)&&!assets.exteriorMask[at]))
             require(extended[at]==original[at],"Extended moved/replaced an original cockpit, wheel, exhaust or instrument pixel");
     }
 }
 void compareWidescreen(const std::vector<std::uint32_t>& original,const std::vector<std::uint32_t>& wide,
-    const ReplayRenderAssets& assets,const CockpitFrame& cockpit,const NativeWheelSprites& sprites,
+    const RaceRenderAssets& assets,const CockpitFrame& cockpit,const NativeWheelSprites& sprites,
     const NativeWheelSpriteFrame& placements,const scr::WheelAnimationState& animation){
     require(wide.size()==432*200||wide.size()==864*200,"Wide canvas dimensions differ");
     const unsigned width=unsigned(wide.size()/200),offset=(width-320)/2;
-    std::vector<std::uint32_t> dynamic(320*200,replayTransparent);
-    composeReplayCockpit(assets,cockpit,dynamic,true,false);composeNativeWheelSprites(sprites,placements,animation,dynamic);
+    std::vector<std::uint32_t> dynamic(320*200,transparentPixel);
+    composeCockpit(assets,cockpit,dynamic,true,false);composeNativeWheelSprites(sprites,placements,animation,dynamic);
     for(unsigned y=0;y<200;++y)for(unsigned x=0;x<320;++x){const unsigned at=y*320+x;
-        if(dynamic[at]!=replayTransparent||(y>=100&&x>=14&&x<306&&!worldPixel(x,y)&&!assets.exteriorMask[at]))
+        if(dynamic[at]!=transparentPixel||(y>=100&&x>=14&&x<306&&!worldPixel(x,y)&&!assets.exteriorMask[at]))
             require(wide[y*width+offset+x]==original[at],"Wide view changed the original car assembly, instrument or main arch artwork");
     }
 }
-std::vector<std::uint32_t> cageLayer(const ReplayRenderAssets& assets,const CockpitFrame& cockpit,unsigned width){
-    std::vector<std::uint32_t> cage(width*200,replayTransparent),top(320*200,replayTransparent);
-    composeReplayWidescreenFrame(assets,cage);composeReplayCage(assets,cockpit,top,true);compositeReplayCentred(top,cage);return cage;
+std::vector<std::uint32_t> cageLayer(const RaceRenderAssets& assets,const CockpitFrame& cockpit,unsigned width){
+    std::vector<std::uint32_t> cage(width*200,transparentPixel),top(320*200,transparentPixel);
+    composeWidescreenFrame(assets,cage);composeCage(assets,cockpit,top,true);compositeCentredFrame(top,cage);return cage;
 }
-void upperFrameTests(const ReplayRenderAssets& assets,const CockpitFrame& cockpit,const std::filesystem::path& output){
+void upperFrameTests(const RaceRenderAssets& assets,const CockpitFrame& cockpit,const std::filesystem::path& output){
     unsigned pairSamples=0,opaqueSamples=0;
     auto indexed=assets;for(unsigned i=0;i<16;++i)indexed.palette[i]=i;
     std::array<std::uint32_t,16> black{};
-    require(replayUpperFrameOpacity(0)==4&&replayUpperFrameOpacity(80)==4&&replayUpperFrameOpacity(100)==16,"Upper-frame opacity does not match the agreed range");
-    for(unsigned y=1;y<200;++y)require(replayUpperFrameOpacity(y)>=replayUpperFrameOpacity(y-1),"Upper frame becomes transparent again near the wheels");
+    require(upperFrameOpacity(0)==4&&upperFrameOpacity(80)==4&&upperFrameOpacity(100)==16,"Upper-frame opacity does not match the agreed range");
+    for(unsigned y=1;y<200;++y)require(upperFrameOpacity(y)>=upperFrameOpacity(y-1),"Upper frame becomes transparent again near the wheels");
     for(unsigned width:{432u,864u}){
         const auto rgbCage=cageLayer(assets,cockpit,width),indexedCage=cageLayer(indexed,cockpit,width);
         const auto& frame=width==432?assets.widescreenFrame:assets.ultrawideFrame;
         for(unsigned source:{0u,7u,9u,13u,15u}){
             std::vector<std::uint32_t> rgb(width*200,assets.palette[source]),indices(width*200,source);
-            compositeReplayUpperFrame(assets,rgbCage,rgb);compositeReplayUpperFrame(indexed,indexedCage,indices,true);
+            compositeUpperFrame(assets,rgbCage,rgb);compositeUpperFrame(indexed,indexedCage,indices,true);
             for(unsigned at=0;at<rgb.size();++at){
                 const unsigned y=at/width;
-                require(rgb[at]==replayPresentationColor(assets.palette,std::uint16_t(indices[at]),at%width,y,width),"Upper-frame fade capture differs from the live blend");
-                require(replayPresentationColor(black,std::uint16_t(indices[at]),at%width,y,width)==0,"Upper frame remains visible at the black fade endpoint");
-                if(rgbCage[at]==replayTransparent)require(rgb[at]==assets.palette[source],"Translucency tinted the open windscreen or scenery");
+                require(rgb[at]==presentationColor(assets.palette,std::uint16_t(indices[at]),at%width,y,width),"Upper-frame fade capture differs from the live blend");
+                require(presentationColor(black,std::uint16_t(indices[at]),at%width,y,width)==0,"Upper frame remains visible at the black fade endpoint");
+                if(rgbCage[at]==transparentPixel)require(rgb[at]==assets.palette[source],"Translucency tinted the open windscreen or scenery");
                 else if(indices[at]<16){require(rgb[at]==rgbCage[at],"Opaque cage material changed");++opaqueSamples;}
                 else {require(indices[at]>=0x100&&indices[at]<0x300,"Cage lost one of its palette sources");++pairSamples;}
-                if(y>=100&&replaySideFrameOpacity(at%width,width)==80&&rgbCage[at]!=replayTransparent)
+                if(y>=100&&sideFrameOpacity(at%width,width)==80&&rgbCage[at]!=transparentPixel)
                     require(rgb[at]==rgbCage[at]&&indices[at]<16,"Inner frame no longer conceals the tyre crops");
                 if(frame[at]==7||frame[at]==8)require(rgb[at]==assets.palette[frame[at]],"Upper-frame translucency changed a blue side panel");
             }
         }
-        std::vector<std::uint32_t> testCage(width*200,replayTransparent),white(width*200,0xffffff);
+        std::vector<std::uint32_t> testCage(width*200,transparentPixel),white(width*200,0xffffff);
         const unsigned side=160*width+(width-320)/2-30,inner=110*width+(width-320)/2+14;
         testCage[0]=0;testCage[100*width]=0;testCage[side]=0;testCage[inner]=0;
-        compositeReplayUpperFrame(assets,testCage,white);
+        compositeUpperFrame(assets,testCage,white);
         require(white[0]==0xbfbfbf&&white[100*width]==0,"Black cage blend has the wrong opacity or rounding");
         require(white[side]==0x595959&&white[inner]==0,"Side brace opacity does not reach 65% or preserve the tyre guard");
-        for(unsigned x=0;x<width;++x)require(replaySideFrameOpacity(x,width)==replaySideFrameOpacity(width-1-x,width),"Side-frame opacity is asymmetric");
+        for(unsigned x=0;x<width;++x)require(sideFrameOpacity(x,width)==sideFrameOpacity(width-1-x,width),"Side-frame opacity is asymmetric");
     }
     require(pairSamples>0&&opaqueSamples>0,"Upper-frame checks missed a material region");
     std::ofstream report(output/"upper-frame-results.json");report<<"{\"palette_pair_samples\":"<<pairSamples<<",\"opaque_samples\":"<<opaqueSamples<<",\"upper_opacity\":0.25,\"inner_fully_opaque_row\":100,\"side_opacity\":0.65,\"side_solid_column\":14,\"blue_panels_unchanged\":true,\"fade_capture_exact\":true}\n";
     require(bool(report),"Cannot export upper-frame verification results");
 }
-void upperCapture(ReplayScene& scene,const ReplayRenderAssets& assets,NativeView view){
+void upperCapture(RaceScene& scene,const RaceRenderAssets& assets,NativeView view){
     const auto rgb=scene.renderLive(0,false,false,view);const auto indices=scene.captureLiveIndices(false,view);
     const unsigned width=unsigned(rgb.size()/200);unsigned pairs=0;
     for(unsigned at=0;at<rgb.size();++at)if(at<100*width||indices[at]>=0x100){
-        require(rgb[at]==replayPresentationColor(assets.palette,indices[at],at%width,at/width,width),"Complete-scene upper frame differs during race fades");pairs+=indices[at]>=0x100;
+        require(rgb[at]==presentationColor(assets.palette,indices[at],at%width,at/width,width),"Complete-scene upper frame differs during race fades");pairs+=indices[at]>=0x100;
     }
     require(pairs>0,"Complete-scene check missed the translucent upper frame");
 }
@@ -93,30 +93,30 @@ void maskTests(){
     image.pixels[100]=0; // An enclosed black roof/damage detail is still opaque.
     image.pixels[83*320+16]=0;image.pixels[83*320+17]=9;
     image.pixels[83*320+303]=0;image.pixels[83*320+302]=9;
-    const auto mask=makeReplayExteriorMask(image);
+    const auto mask=makeFrameExteriorMask(image);
     require(std::count(mask.begin(),mask.end(),1)==186,"Exterior mask did not follow just the connected upper corners");
     require(mask[32]&&mask[35]&&mask[284]&&mask[287],"Exterior mask stopped at the old damage-strip boundary");
     require(!mask[100]&&!mask[110*320+10]&&!mask[180*320+100]&&!mask[30*320+100],"Exterior mask made a roof, tyre, instrument or interior black transparent");
-    ReplayRenderAssets assets;assets.background=image;assets.exteriorMask=mask;
+    RaceRenderAssets assets;assets.background=image;assets.exteriorMask=mask;
     for(unsigned i=0;i<16;++i)assets.palette[i]=i;
-    std::vector<std::uint32_t> pixels(320*200,0x234567);composeReplayFrame(assets,pixels);
+    std::vector<std::uint32_t> pixels(320*200,0x234567);composeCockpitFrame(assets,pixels);
     require(pixels[32]==0x234567&&pixels[287]==0x234567&&pixels[100]==0,"Extended roof masking changed enclosed black details");
     require(pixels[83*320+16]==9&&pixels[83*320+303]==9,"Extended seam repair did not use the adjacent dark-red outline");
-    makeReplayBackground(assets,pixels);
+    makeRaceBackground(assets,pixels);
     require(pixels[83*320+16]==0&&pixels[83*320+303]==0,"Extended seam repair mutated the Original bitmap");
 }
-void roofMaskTests(const ReplayRenderAssets& assets,CockpitFrame frame){
+void roofMaskTests(const RaceRenderAssets& assets,CockpitFrame frame){
     for(const std::uint8_t damage:{std::uint8_t(0),std::uint8_t(9)}) {
         frame.damageStrip.fill(damage);
         std::vector<std::uint32_t> original(320*200,0x234567),extended=original;
-        composeReplayCockpit(assets,frame,original);composeReplayCockpit(assets,frame,extended,true);
+        composeCockpit(assets,frame,original);composeCockpit(assets,frame,extended,true);
         for(unsigned y=0;y<8;++y)for(unsigned x=32;x<288;++x){const unsigned at=y*320+x;
             require(original[at]==assets.palette[damage],"Original damage-strip composition changed");
             require(extended[at]==(assets.exteriorMask[at]?0x234567:original[at]),"Extended damage drawing covered the exterior or removed a roof detail");
         }
     }
 }
-unsigned assemblyVariants(const ReplayRenderAssets& assets,const NativeWheelSprites& sprites,const ReplaySceneFrame& source){
+unsigned assemblyVariants(const RaceRenderAssets& assets,const NativeWheelSprites& sprites,const RaceFrame& source){
     unsigned cases=0;
     for(unsigned rotation=0;rotation<3;++rotation)for(unsigned boost=0;boost<4;++boost)
     for(unsigned pose=0;pose<3;++pose)for(unsigned hardware=0;hardware<12;++hardware){
@@ -129,18 +129,18 @@ unsigned assemblyVariants(const ReplayRenderAssets& assets,const NativeWheelSpri
         for(auto& placement:placements.placements)placement.y+=displacement(placement.x<160);
         scr::WheelAnimationState animation;const unsigned phase=hardware%3,raised=hardware/3;
         animation.spritePointers={{sprites.animation.spritePointers[phase+((raised&1)?6:0)],sprites.animation.spritePointers[5-phase+((raised&2)?6:0)]}};
-        std::vector<std::uint32_t> original,extended(320*200,0x234567);makeReplayBackground(assets,original);
+        std::vector<std::uint32_t> original,extended(320*200,0x234567);makeRaceBackground(assets,original);
         for(unsigned y=16;y<144;++y)for(unsigned x=32;x<288;++x)original[y*320+x]=0x234567;
-        composeReplayFrame(assets,extended);
-        composeReplayCockpit(assets,frame,original);composeReplayCockpit(assets,frame,extended,true);
+        composeCockpitFrame(assets,extended);
+        composeCockpit(assets,frame,original);composeCockpit(assets,frame,extended,true);
         composeNativeWheelSprites(sprites,placements,animation,original);composeNativeWheelSprites(sprites,placements,animation,extended);
         compareArtwork(original,extended,assets,frame,sprites,placements,animation);
-        std::vector<std::uint32_t> wide(432*200,0x234567),foreground(320*200,replayTransparent);
-        compositeReplayUpperFrame(assets,cageLayer(assets,frame,432),wide);composeReplayCockpit(assets,frame,foreground,true,false);
-        composeNativeWheelSprites(sprites,placements,animation,foreground);compositeReplayCentred(foreground,wide);
+        std::vector<std::uint32_t> wide(432*200,0x234567),foreground(320*200,transparentPixel);
+        compositeUpperFrame(assets,cageLayer(assets,frame,432),wide);composeCockpit(assets,frame,foreground,true,false);
+        composeNativeWheelSprites(sprites,placements,animation,foreground);compositeCentredFrame(foreground,wide);
         compareWidescreen(extended,wide,assets,frame,sprites,placements,animation);
         std::vector<std::uint32_t> ultra(864*200,0x234567);
-        compositeReplayUpperFrame(assets,cageLayer(assets,frame,864),ultra);compositeReplayCentred(foreground,ultra);
+        compositeUpperFrame(assets,cageLayer(assets,frame,864),ultra);compositeCentredFrame(foreground,ultra);
         compareWidescreen(extended,ultra,assets,frame,sprites,placements,animation);
         ++cases;
     }
@@ -150,14 +150,14 @@ unsigned assemblyVariants(const ReplayRenderAssets& assets,const NativeWheelSpri
 int main(int argc,char** argv)try{
     if(argc!=3)throw std::runtime_error("Usage: native_extended_view_tests assets output");
     const std::filesystem::path pack=argv[1],output=argv[2];std::filesystem::create_directories(output);
-    maskTests();ReplayViewSettings extended;extended.view=NativeView::Extended;
-    ReplayViewSettings widescreen;widescreen.view=NativeView::Widescreen;
-    ReplayViewSettings ultrawide;ultrawide.view=NativeView::Ultrawide;
+    maskTests();CameraViewSettings extended;extended.view=NativeView::Extended;
+    CameraViewSettings widescreen;widescreen.view=NativeView::Widescreen;
+    CameraViewSettings ultrawide;ultrawide.view=NativeView::Ultrawide;
     unsigned queries=0,cornerChanges=0,variants=0,maskPixels=0,lowerWorldPixels=0,outerWorldPixels=0;
     for(unsigned track=0;track<8;++track){
         auto seed=startNativeRace(pack,track);
-        ReplayScene control,viewed;control.loadNativeState(*seed.memory,seed.payload,{});viewed.loadNativeState(*seed.memory,seed.payload,{});
-        const auto assets=decodeReplayRenderAssets(seed.payload.data(),seed.payload.size(),seed.memory->data(),seed.memory->size());
+        RaceScene control,viewed;control.loadNativeState(*seed.memory,seed.payload,{});viewed.loadNativeState(*seed.memory,seed.payload,{});
+        const auto assets=decodeRaceRenderAssets(seed.payload.data(),seed.payload.size(),seed.memory->data(),seed.memory->size());
         const auto sprites=decodeNativeWheelSprites(seed.memory->data(),seed.memory->size());
         for(unsigned y=0;y<200;++y)for(unsigned x=0;x<432;++x)
             require(assets.ultrawideFrame[y*864+216+x]==assets.widescreenFrame[y*432+x],"32:9 modified the established 16:9 frame artwork");
@@ -178,9 +178,9 @@ int main(int argc,char** argv)try{
                 require(viewed.renderLive(0,false,false,NativeView::Ultrawide)==ultra,"Ultrawide is not deterministic");
                 if(tick==128){upperCapture(viewed,assets,NativeView::Widescreen);upperCapture(viewed,assets,NativeView::Ultrawide);}
                 for(unsigned y=0;y<200;++y)for(unsigned x=0;x<864;++x)if(x<216||x>=648)
-                    if(assets.ultrawideFrame[y*864+x]==replayFrameTransparent&&ultra[y*864+x]!=assets.palette[0])++outerWorldPixels;
+                    if(assets.ultrawideFrame[y*864+x]==transparentFrameIndex&&ultra[y*864+x]!=assets.palette[0])++outerWorldPixels;
                 for(unsigned y=144;y<200;++y)for(unsigned x=0;x<432;++x)
-                    if(assets.widescreenFrame[y*432+x]==replayFrameTransparent&&wide[y*432+x]!=assets.palette[0])++lowerWorldPixels;
+                    if(assets.widescreenFrame[y*432+x]==transparentFrameIndex&&wide[y*432+x]!=assets.palette[0])++lowerWorldPixels;
                 for(unsigned at=0;at<assets.exteriorMask.size();++at)if(assets.exteriorMask[at]){
                     require(original[at]==assets.palette[0],"Exterior mask includes original foreground artwork");cornerChanges+=image[at]!=original[at];
                 }
@@ -189,8 +189,8 @@ int main(int argc,char** argv)try{
                 const auto midpoint=viewed.renderView(0.5,extended);require(viewed.renderView(0.5,extended)==midpoint,"Extended interpolation is not deterministic");
                 const auto originalMidpoint=viewed.renderLive(0.5,false,true);
                 const auto& from=viewed.frames().front();const auto& to=viewed.frames().back();
-                const bool interpolated=canInterpolateReplay(from.restarts,to.restarts,from.action,to.action);
-                const auto visual=interpolated?interpolateReplayVisuals(from,to,0.5,trig):static_cast<const ReplayVisualState&>(from);
+                const bool interpolated=canInterpolatePresentation(from.restarts,to.restarts,from.action,to.action);
+                const auto visual=interpolated?interpolatePresentation(from,to,0.5,trig):static_cast<const PresentationPose&>(from);
                 const auto placements=interpolated?interpolateNativeWheelSprites(from.wheelSprites,to.wheelSprites,from.cockpit,to.cockpit,0.5):from.wheelSprites;
                 compareArtwork(originalMidpoint,midpoint,assets,visual.cockpit,sprites,placements,from.wheelTimeline[interpolated?3:0]);
                 const auto wideMidpoint=viewed.renderView(0.5,widescreen);

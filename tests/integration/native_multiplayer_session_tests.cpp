@@ -1,4 +1,4 @@
-#include "native_game_session.h"
+#include "session/native_game_session.h"
 #include <algorithm>
 #include <filesystem>
 #include <fstream>
@@ -8,7 +8,7 @@
 #include <string>
 
 namespace {
-using namespace scr::viewer;
+using namespace scr::runtime;
 unsigned races{},ticks{},seasons{},forfeits{},completed{},loads{},saves{};
 std::set<unsigned> drivers,pages;
 void require(bool condition,const char* text){if(!condition)throw std::runtime_error(text);}

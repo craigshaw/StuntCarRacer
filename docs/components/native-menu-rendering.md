@@ -1,6 +1,6 @@
 # Native menu rendering
 
-`app/native_menu_render.cpp` reconstructs the original 320×200 menu from the
+`app/presentation/native_menu_render.cpp` reconstructs the original 320×200 menu from the
 local asset pack. It reads the image, palette, font, strings, strip offsets and
 track names from `NativeMemory`; no screenshot, host font, copied text table or
 captured emulator state is a runtime input.

@@ -1,5 +1,5 @@
 #pragma once
-#include "opponent_collision.h"
+#include "race/opponent_collision.h"
 #include <algorithm>
 
 namespace scr::state::contact {

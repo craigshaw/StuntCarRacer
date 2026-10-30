@@ -1,6 +1,6 @@
 # Native graphics and sample startup
 
-`app/native_asset_initialization.cpp` takes zeroed 512 KiB memory containing only
+`app/assets/native_asset_initialization.cpp` takes zeroed 512 KiB memory containing only
 the original ADF payload at `0xe700`. It accepts no RAM capture. Call it once on
 fresh memory, before race-specific initialization; converting the stored audio
 samples with XOR is deliberately not an idempotent operation.

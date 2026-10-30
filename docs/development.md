@@ -68,8 +68,8 @@ The native game check runs this safeguard automatically after staging.
 
 | Path | Purpose |
 | --- | --- |
-| `src/` | Typed gameplay, audio and rendering algorithms, with shared recovered-layout adapters in `src/state/` |
-| `app/` | Player session, menus, launcher and Windows host |
+| `src/` | Typed algorithms grouped into `physics/`, `race/`, `track/`, `audio/`, `render/` and recovered-layout adapters in `state/` |
+| `app/` | Assets, audio, input, launcher, menus, persistence, presentation and race/session orchestration; host adapters in `platform/windows/` |
 | `tools/replay/` | Optional replay viewer and headless native replay entry points |
 | `scripts/`, `tools/research/` | Everyday checks/launchers and optional recovery, emulator and reference-analysis utilities |
 | `setup/local-tools.json` | Ignored per-machine tool paths; the checked-in example contains no machine paths |
@@ -103,13 +103,16 @@ For an app-only build, `cmake --build --preset windows-release
 --target native_game` skips test/viewer targets. A custom configure can disable
 their definitions with `-DBUILD_TESTING=OFF -DSCR_BUILD_DEV_TOOLS=OFF`.
 `SCR_BUILD_ORACLE` defaults to OFF and requires `BUILD_TESTING=ON` when enabled.
+The experimental cockpit study additionally requires `SCR_BUILD_ARTWORK_TOOLS=ON`;
+ordinary development builds omit it.
 
 CTest includes synthetic input/audio/storage tests and native integration tests
 for startup, menus, races, saves, display and launcher behaviour. Tests needing
 private files are explicitly **Skipped** when those files are absent. Import a
 pack with the development tool below, then rerun CTest to include them. Override
 `SCR_TEST_ASSET_PACK`, `SCR_TEST_ADF` (optional) and `SCR_TEST_PAYLOAD` at configure
-time when local inputs live elsewhere. `ctest --preset windows-release -L unit`
+time when local inputs live elsewhere. `SCR_TEST_CAPTURE` selects the optional
+captured audio fixture. `ctest --preset windows-release -L unit`
 runs the asset-free native subset. Python source-policy tests are registered
 when an interpreter is available; compiling the application does not require it.
 Native window and host-storage checks run serially; other tests can run in parallel.

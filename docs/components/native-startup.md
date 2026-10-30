@@ -6,7 +6,7 @@ from the original disk data. The direct-race development command below bypasses
 menus and selects Practice. The native application requires one local asset
 pack; it does not load a ROM, savestate,
 WinUAE or a CPU emulator. The original captured replay remains a separate
-regression test and is still available through `Watch Native Replay.cmd`.
+regression test and is still available through `tools/replay/Watch Native Replay.cmd`.
 
 ## Import and launch
 

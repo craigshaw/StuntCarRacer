@@ -1,4 +1,4 @@
-#include "native_opening_flow.h"
+#include "menus/native_opening_flow.h"
 #include "m68k.h"
 #include <algorithm>
 #include <array>
@@ -12,7 +12,7 @@
 #include <vector>
 
 namespace {
-using namespace scr::viewer;
+using namespace scr::runtime;
 NativeMemory baseline{},original{},native{};
 std::array<std::uint8_t,4096> stack{};
 constexpr unsigned stackBase=0x8f000,stackTop=0x90000,sentinel=0xa0000;

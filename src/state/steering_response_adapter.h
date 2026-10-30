@@ -1,6 +1,6 @@
 #ifndef SCR_STATE_STEERING_RESPONSE_ADAPTER_H
 #define SCR_STATE_STEERING_RESPONSE_ADAPTER_H
-#include "steering_response.h"
+#include "physics/steering_response.h"
 #include <array>
 #include <cstdint>
 #include <utility>

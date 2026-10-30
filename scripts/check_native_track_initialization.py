@@ -91,8 +91,8 @@ def main():
             'sha256': sha(code), 'bytes': len(code), 'instructions': len(decoded)})
         listing.extend(f'{ins.address:06x}: {ins.mnemonic} {ins.op_str}' for ins in decoded)
     (output/'original-disassembly.asm').write_text('\n'.join(listing)+'\n', encoding='utf-8')
-    files = ['src/track_initialization.h', 'src/track_initialization.cpp',
-        'src/track_sampling.h', 'src/track_sampling.cpp',
+    files = ['src/track/track_initialization.h', 'src/track/track_initialization.cpp',
+        'src/track/track_sampling.h', 'src/track/track_sampling.cpp',
         'tests/oracle/track_initialization_oracle.cpp', 'scripts/check_native_track_initialization.py']
     report = {'passed': True, 'source_adf_sha256': ADF_SHA, 'payload_sha256': PAYLOAD_SHA,
         'payload_adf_offset': '0xdc00', 'payload_length': len(payload), 'payload_ram_base': '0xe700',

@@ -1,4 +1,4 @@
-#include "native_game_session.h"
+#include "session/native_game_session.h"
 #include "driving_replay_io.h"
 #include <algorithm>
 #include <array>
@@ -8,7 +8,7 @@
 #include <stdexcept>
 
 namespace {
-using namespace scr::viewer;
+using namespace scr::runtime;
 void require(bool condition,const char* text){if(!condition)throw std::runtime_error(text);}
 bool settle(NativeGameSession& game){
     bool started=false;

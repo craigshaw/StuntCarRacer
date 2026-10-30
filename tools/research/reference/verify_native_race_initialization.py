@@ -65,7 +65,7 @@ def main():
               'captured_state_used': False, 'routines': routines, 'differential_tests': tests,
               'test_executable_sha256': sha(args.test_executable.read_bytes()),
               'sources': {str(path.relative_to(ROOT)): sha(path.read_bytes()) for path in [
-                  ROOT/'app/native_race_initialization.cpp', ROOT/'app/native_race_initialization.h',
+                  ROOT/'app/race/native_race_initialization.cpp', ROOT/'app/race/native_race_initialization.h',
                   ROOT/'tests/oracle/native_race_initialization_tests.cpp', Path(__file__).resolve(),
                   *sorted((ROOT/'src/state').glob('*.h')),
                   *sorted((ROOT/'tests/support').glob('*.h'))]},

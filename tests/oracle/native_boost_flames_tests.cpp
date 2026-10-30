@@ -1,6 +1,6 @@
 // The original flame branch and masked-object renderer execute unmodified.
-#include "native_startup.h"
-#include "replay_render_assets.h"
+#include "assets/native_startup.h"
+#include "presentation/race_render_assets.h"
 #include "m68k.h"
 #include <algorithm>
 #include <array>
@@ -13,7 +13,7 @@
 #include <vector>
 
 namespace {
-using namespace scr::viewer;
+using namespace scr::runtime;
 NativeMemory ram{};
 std::array<std::uint8_t,4096> stack{};
 constexpr unsigned stackBase=0x8f000,stackTop=0x90000,stop=0xa0000,frameBase=0x6a594;
@@ -62,11 +62,11 @@ void compare(const std::vector<std::uint32_t>& expected,const std::vector<std::u
     if(expected!=actual){const auto i=std::mismatch(expected.begin(),expected.end(),actual.begin()).first-expected.begin();
         throw std::runtime_error("Flame pixel differs case="+std::to_string(cases)+" pixel="+std::to_string(i));}
 }
-void step(CockpitFrame& frame,const ReplayRenderAssets& assets,unsigned base){
+void step(CockpitFrame& frame,const RaceRenderAssets& assets,unsigned base){
     auto actual=pixels(ram,base),other=pixels(ram,frameBase+32000-(base-frameBase));
-    frame.boostActive=ram[0x1bb62];advanceReplayFlames(frame.boostActive,frame.flameFrame);
+    frame.boostActive=ram[0x1bb62];advanceBoostFlames(frame.boostActive,frame.flameFrame);
     const auto before=std::make_unique<NativeMemory>(ram);
-    composeReplayFlames(assets,frame,actual);
+    composeBoostFlames(assets,frame,actual);
     if(ram!=*before)throw std::runtime_error("Flame rendering changed source memory");
     run();
     if(frame.flameFrame!=ram[0x1bb69])throw std::runtime_error("Flame phase differs from original");
@@ -77,7 +77,7 @@ void step(CockpitFrame& frame,const ReplayRenderAssets& assets,unsigned base){
     compare(pixels(ram,base),actual);
     compare(pixels(ram,frameBase+32000-(base-frameBase)),other);
     // Repainting a completed frame must neither advance phase nor change it.
-    auto again=pixels(*before,base);composeReplayFlames(assets,frame,again);
+    auto again=pixels(*before,base);composeBoostFlames(assets,frame,again);
     if(again!=actual)throw std::runtime_error("Repeated flame drawing changed pixels");
     ++cases;
 }
@@ -97,7 +97,7 @@ int main(int argc,char** argv)try{
     if(payload.size()!=408540)throw std::invalid_argument("Wrong original payload size");
     auto source=std::make_unique<NativeMemory>();std::copy(payload.begin(),payload.end(),source->begin()+0xe700);
     initializeNativeAssets(*source);(*source)[0x5d724]=0x40;
-    auto assets=decodeReplayRenderAssets(payload.data(),payload.size(),source->data(),source->size());
+    auto assets=decodeRaceRenderAssets(payload.data(),payload.size(),source->data(),source->size());
     for(unsigned i=0;i<16;++i)assets.palette[i]=i;
     for(unsigned i=0;i<64000;++i)(*source)[frameBase+i]=std::uint8_t(i*37+(i>>7)*13);
     m68k_init();m68k_set_cpu_type(M68K_CPU_TYPE_68000);m68k_set_instr_hook_callback(hook);

@@ -11,7 +11,7 @@ copies. Removing the last-used career leaves Continue unavailable until another
 career is explicitly chosen. Names retain the original editor's twelve-character
 limit and case rules. No rename or legacy import is provided.
 
-`app/native_career_session.cpp` owns the host continuation/UI policy.
+`app/session/native_career_session.cpp` owns the host continuation/UI policy.
 `native_career_checkpoint.*` encodes explicit menu state and changed native-byte
 ranges against deterministic opening assets. The header pins the baseline hash;
 version, bounds, driver order, league, damage, round and supported continuation
@@ -35,7 +35,7 @@ shared. Original arithmetic, race logic and clocks are unchanged.
   pre-race damage/RNG. Game menu Leave Race selects the quit outcome immediately
   without another physics tick, including during crash/recovery. Its resulting
   damage, RNG and scoring still pass through the normal exit and checkpoint path.
-- At a competitive terminal message, `ReplayScene::copyLiveExit` stages exit on
+- At a competitive terminal message, `RaceScene::copyLiveExit` stages exit on
   a private copy, and a separate menu instance scores that copy. The checkpoint
   retains the outstanding finish frame and resulting report. The running game
   still applies its normal exit once; a restored finish acknowledgement reveals

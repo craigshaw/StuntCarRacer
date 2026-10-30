@@ -1,5 +1,5 @@
-#include "game_audio.h"
-#include "windows_audio_output.h"
+#include "audio/game_audio.h"
+#include "platform/windows/audio_output.h"
 #include "audio_playback_fixture.h"
 #include <algorithm>
 #include <chrono>
@@ -12,8 +12,8 @@
 namespace {
 void require(bool value,const char* message){if(!value)throw std::runtime_error(message);}
 bool audible(const std::vector<std::int16_t>& pcm){return std::any_of(pcm.begin(),pcm.end(),[](auto value){return value!=0;});}
-scr::viewer::GameAudioSeed load(const char* path){
-    std::ifstream in(path,std::ios::binary);scr::viewer::GameAudioSeed seed;
+scr::runtime::GameAudioSeed load(const char* path){
+    std::ifstream in(path,std::ios::binary);scr::runtime::GameAudioSeed seed;
     seed.samples={std::istreambuf_iterator<char>(in),std::istreambuf_iterator<char>()};
     require(seed.samples.size()==524288,"Expected captured512KiB Chip RAM");
     namespace a=scr::test::audio;const auto* ram=seed.samples.data();
@@ -27,7 +27,7 @@ scr::viewer::GameAudioSeed load(const char* path){
 int main(int argc,char** argv){
     try{
         if(argc<2)throw std::runtime_error("native_audio_tests capture-chip.bin [--device]");
-        using namespace scr::viewer;const auto seed=load(argv[1]);const auto original=seed.samples;unsigned cases=0;
+        using namespace scr::runtime;const auto seed=load(argv[1]);const auto original=seed.samples;unsigned cases=0;
         GameAudio whole(seed),parts(seed);auto frame=seed.frame;frame.forwardSpeed=0x6800;frame.wheelMovement=1;frame.inputFlags=1;
         whole.submit(frame);parts.submit(frame);const auto expected=whole.renderFrames(5760);
         std::vector<std::int16_t> partitioned;for(unsigned count:{1u,959u,7u,1800u,2993u}){

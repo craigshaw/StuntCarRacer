@@ -1,6 +1,6 @@
 // Native coverage regression. Read the original local geometry instead of
 // embedding mountain assets. This test does not claim original pixel equality.
-#include "software_renderer.h"
+#include "render/software_renderer.h"
 #include <algorithm>
 #include <fstream>
 #include <iostream>
@@ -23,7 +23,7 @@ int main(int argc,char** argv)try {
     std::array<std::uint32_t,16> palette{};
     for(unsigned n=0;n<palette.size();++n)palette[n]=0x123400+n;
     const scr::TrackMesh road{};const std::vector<scr::TrackSideFace> sides{};
-    scr::RenderProjectionTables tables{};scr::SoftwareReplayRenderer renderer;
+    scr::RenderProjectionTables tables{};scr::SoftwareRenderer renderer;
     std::vector<std::uint32_t> pixels(320*200),background(320*200);
     renderer.drawFrame(road,sides,{},camera,tables,palette,background);
     renderer.drawFrame(road,sides,mountains,camera,tables,palette,pixels);

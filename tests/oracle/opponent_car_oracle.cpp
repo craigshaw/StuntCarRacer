@@ -1,6 +1,6 @@
 #include "opponent_car_fixture.h"
-#include "native_startup.h"
-#include "motion_transforms.h"
+#include "assets/native_startup.h"
+#include "physics/motion_transforms.h"
 #include "m68k.h"
 #include <algorithm>
 #include <array>
@@ -10,7 +10,7 @@
 #include <stdexcept>
 
 namespace {
-namespace f=scr::test::opponentCar;using Ram=scr::viewer::NativeMemory;
+namespace f=scr::test::opponentCar;using Ram=scr::runtime::NativeMemory;
 Ram ram{};constexpr unsigned stack=0x7f000,sentinel=0x7e000;
 bool failed{},returned{};unsigned pc{},instructions{};std::uint64_t totalInstructions{},cases{},comparedEdges{},comparedCommands{};
 struct Command {unsigned color{};std::array<unsigned,4> pointers{};};std::vector<Command> commands;
@@ -54,7 +54,7 @@ unsigned m68k_read_memory_8(unsigned a){return read(a);}unsigned m68k_read_memor
 void m68k_write_memory_8(unsigned a,unsigned v){write(a,v);}void m68k_write_memory_16(unsigned a,unsigned v){write(a,v>>8);write(a+1,v);}void m68k_write_memory_32(unsigned a,unsigned v){m68k_write_memory_16(a,v>>16);m68k_write_memory_16(a+2,v);}
 }
 int main(int argc,char** argv){try{
-    if(argc!=2)throw std::invalid_argument("Usage: opponent_car_oracle local.scr-assets");auto source=scr::viewer::startNativeGame(argv[1]);const auto tables=scr::test::renderProjection::readTables(source.memory->data());const auto trig=scr::test::renderProjection::readTrig(source.memory->data());
+    if(argc!=2)throw std::invalid_argument("Usage: opponent_car_oracle local.scr-assets");auto source=scr::runtime::startNativeGame(argv[1]);const auto tables=scr::test::renderProjection::readTables(source.memory->data());const auto trig=scr::test::renderProjection::readTrig(source.memory->data());
     m68k_init();m68k_set_cpu_type(M68K_CPU_TYPE_68000);m68k_set_instr_hook_callback(hook);
     scr::OpponentCarInputs base{};base.relativeX={{std::uint16_t(-120),120,std::uint16_t(-120),120}};base.relativeZ={{1100,1100,1250,1250}};base.footprint={{900,940,1000,980}};base.bounds={{850,930,900}};
     base.camera.heightBaseline=3000;base.camera.cosRoll=0x7fff;base.distance=1100;base.roadOffset=128;

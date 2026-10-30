@@ -2,7 +2,7 @@
 // This memory representation has no runtime emulator dependency.
 #ifndef SCR_STATE_TRACK_SAMPLING_ADAPTER_H
 #define SCR_STATE_TRACK_SAMPLING_ADAPTER_H
-#include "track_sampling.h"
+#include "track/track_sampling.h"
 #include <array>
 #include <cstdint>
 #include <vector>

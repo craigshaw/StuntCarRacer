@@ -4,7 +4,7 @@ The native cockpit uses the original font, masked car graphics, positions and
 planar drawing rules. Those bytes come from the locally extracted asset pack.
 There are no copied font or icon assets in source control.
 
-`app/native_cockpit_instruments.cpp` ports the original drawing leaves. It
+`app/presentation/native_cockpit_instruments.cpp` ports the original drawing leaves. It
 operates on private presentation RAM, including the original two screen
 buffers. Gameplay remains in the independently verified native simulation.
 Instrument updates happen at their original events; display refresh does not
@@ -98,7 +98,7 @@ supply their captured, corrected time while the scheduler holds that result,
 and a race finish freezes the displayed time. The lower best-time panel keeps
 its original event handling. No host-time clock or interpolated digits are used.
 
-`ReplaySceneFrame` retains both instrument strips. The player opts into the
+`RaceFrame` retains both instrument strips. The player opts into the
 hundredths strip with `setRunningLapHundredths(true)`; exact/original-code tools
 default to the original event-driven strip. Repeated captures cannot alter the
 two retained buffers, text scratch, simulation clocks, records or RNG.

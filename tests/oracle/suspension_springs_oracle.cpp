@@ -1,6 +1,6 @@
 // Differential execution of original recovered bytes, with Musashi confined to
 // this test executable. The external wrapper pins payload/code/table hashes.
-#include "suspension_springs.h"
+#include "physics/suspension_springs.h"
 #include "m68k.h"
 #include <algorithm>
 #include <array>

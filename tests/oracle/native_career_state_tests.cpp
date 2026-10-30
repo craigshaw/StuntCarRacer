@@ -1,7 +1,7 @@
-#include "native_race_initialization.h"
-#include "native_menu_flow.h"
-#include "native_opening_flow.h"
-#include "native_save_state.h"
+#include "race/native_race_initialization.h"
+#include "menus/native_menu_flow.h"
+#include "menus/native_opening_flow.h"
+#include "persistence/native_save_state.h"
 #include "race_transitions_fixture.h"
 #include "m68k.h"
 #include <algorithm>
@@ -16,7 +16,7 @@
 #include <vector>
 
 namespace {
-using namespace scr::viewer;
+using namespace scr::runtime;
 namespace transitions=scr::test::transitions;
 NativeMemory baseline{},original{},native{};
 std::array<std::uint8_t,4096> stack{};

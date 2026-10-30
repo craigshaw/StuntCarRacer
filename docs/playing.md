@@ -370,5 +370,5 @@ including first/repeated menu-entered races and the complete three-lap fixture.
 See [development](development.md) for prerequisites, focused checks and receipt
 interpretation. Reports and generated images remain under ignored `analysis/`.
 `scripts/start-native-race.ps1` opens the direct-race development viewer;
-`Watch Native Replay.cmd` opens the captured authored replay. Their controls are
+`tools/replay/Watch Native Replay.cmd` opens the captured authored replay. Their controls are
 listed in their own guides, rather than the game controls above.

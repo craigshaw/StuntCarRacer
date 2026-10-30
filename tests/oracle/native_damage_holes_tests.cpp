@@ -1,5 +1,5 @@
-#include "native_startup.h"
-#include "native_damage_holes.h"
+#include "assets/native_startup.h"
+#include "presentation/native_damage_holes.h"
 #include "m68k.h"
 #include <algorithm>
 #include <array>
@@ -9,7 +9,7 @@
 #include <string>
 
 namespace {
-using Memory=scr::viewer::NativeMemory;
+using Memory=scr::runtime::NativeMemory;
 Memory ram{};
 std::array<std::uint8_t,4096> stack{};
 constexpr unsigned stackBase=0x8f000,stackTop=0x90000,sentinel=0xa0000;
@@ -58,7 +58,7 @@ void m68k_write_memory_32(unsigned a,unsigned v){m68k_write_memory_16(a,v>>16);m
 }
 int main(int argc,char** argv)try{
     if(argc!=2)throw std::invalid_argument("Usage: native_damage_holes_tests asset-pack");
-    auto startup=scr::viewer::startNativeRace(argv[1]);
+    auto startup=scr::runtime::startNativeRace(argv[1]);
     const auto& base=*startup.memory;frame=longword(base,0x6a584);
     for(auto range:std::array<std::array<unsigned,2>,2>{{{0x6091a,0x609ae},{0x69f42,0x69fe8}}})
         if(!std::equal(startup.payload.begin()+range[0]-0xe700,startup.payload.begin()+range[1]-0xe700,base.begin()+range[0]))
@@ -70,7 +70,7 @@ int main(int argc,char** argv)try{
         longword(ram,0x6a58c,frame+((variation&1)?32000:0x284));
         const auto before=std::make_unique<Memory>(ram);auto native=std::make_unique<Memory>(ram);
         for(unsigned repeat=0;repeat<2;++repeat){
-            scr::viewer::initializeNativeDamageHoles(*native);run();
+            scr::runtime::initializeNativeDamageHoles(*native);run();
             for(unsigned a=0;a<ram.size();++a){++comparedBytes;if(ram[a]!=(*native)[a])
                 throw std::runtime_error("Damage-hole mismatch position="+std::to_string(position)+" variation="+std::to_string(variation)+" address="+std::to_string(a));}
             if(longword(*native,0x625a2)!=longword(*before,0x625a2)||(*native)[0x625a6]!=(*before)[0x625a6]||
@@ -83,7 +83,7 @@ int main(int argc,char** argv)try{
     for(unsigned kind=0;kind<4;++kind){auto native=std::make_unique<Memory>(base);
         if(kind==0)(*native)[0x1c9cf]=11;if(kind==1)longword(*native,0x6a584,0x7ffff);
         if(kind==2)word(*native,0x6a16c+23*16+4,2);if(kind==3)longword(*native,0x6a4ac+27*4,0);
-        try{scr::viewer::initializeNativeDamageHoles(*native);}catch(const std::invalid_argument&){++rejected;}
+        try{scr::runtime::initializeNativeDamageHoles(*native);}catch(const std::invalid_argument&){++rejected;}
     }
     if(rejected!=4)throw std::runtime_error("Damage-hole initializer admitted an invalid domain");
     std::cout<<"{\"cases\":"<<cases<<",\"compared_bytes\":"<<comparedBytes<<",\"original_instructions\":"<<totalInstructions

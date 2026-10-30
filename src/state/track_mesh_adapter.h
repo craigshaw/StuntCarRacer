@@ -1,10 +1,10 @@
 #pragma once
-#include "track_mesh.h"
+#include "render/track_mesh.h"
 #include <algorithm>
 #include <array>
 #include <stdexcept>
 
-namespace scr::viewer {
+namespace scr::state::mesh {
 constexpr unsigned trackMeshStreamBase=0x7abda,trackMeshPointerTable=0x7aa1a,trackMeshEndPointer=0x66102;
 // Decode the recovered state layout for native mesh algorithms. The same
 // adapter accepts fresh native state and captured verification state.
@@ -39,4 +39,4 @@ inline TrackMeshData decodeTrackMesh(const std::array<std::uint8_t,0x80000>& r) 
     }
     return d;
 }
-} // namespace scr::viewer
+} // namespace scr::state::mesh

@@ -148,8 +148,8 @@ def main():
         'font': {'runtime_address': '0x1fe82', 'bytes': 768, 'captured_sha256': sha(ram[0x1fe82:0x20182]), 'disk_sha256': sha(payload[0x11782:0x11a82]), 'initialized_byte_changes': [{'runtime_address': hex(0x1fe82 + i), 'disk': a, 'capture': b} for i, (a, b) in enumerate(zip(payload[0x11782:0x11a82], ram[0x1fe82:0x20182])) if a != b], 'reason': 'Original startup explicitly patches font bytes; native font uses captured initialized data.'},
         'evidence': {'rle_routine': '0x593f8..0x59450', 'masked_object_routine': '0x69f42..0x69fe8', 'background_copy': '0x1bace..0x1baf8', 'palette_to_copper': '0x1ba82..0x1bace'},
         'limitations': ['Captured display frame is a saved buffer, not a DMA/display timing observation.', 'Decoded static background has no moving road; foreground image is the decoded original background plus selected original masked objects.']}
-    source_files = ['src/planar_image.h', 'src/planar_image.cpp',
-                    'app/replay_render_assets.h', 'app/replay_render_assets.cpp',
+    source_files = ['src/render/planar_image.h', 'src/render/planar_image.cpp',
+                    'app/presentation/race_render_assets.h', 'app/presentation/race_render_assets.cpp',
                     'scripts/prepare_replay_render_assets.py', 'tests/oracle/planar_image_oracle.cpp']
     record['sources'] = [{'path': path, 'sha256': sha((ROOT / path).read_bytes())} for path in source_files]
     if args.oracle:

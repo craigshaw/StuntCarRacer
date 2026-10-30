@@ -1,5 +1,5 @@
-#include "native_save_menu.h"
-#include "native_race_initialization.h"
+#include "menus/native_save_menu.h"
+#include "race/native_race_initialization.h"
 #include "m68k.h"
 #include <algorithm>
 #include <array>
@@ -12,7 +12,7 @@
 #include <vector>
 
 namespace {
-using namespace scr::viewer;
+using namespace scr::runtime;
 NativeMemory original{},baseline{},native{};
 std::array<std::uint8_t,4096> stack{};
 constexpr unsigned stackBase=0x8f000,stackTop=0x90000,sentinel=0xa0000,frame=0x6a594;

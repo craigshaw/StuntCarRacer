@@ -1,4 +1,4 @@
-#include "native_palette_fade.h"
+#include "presentation/native_palette_fade.h"
 #include "m68k.h"
 #include <algorithm>
 #include <cmath>
@@ -11,7 +11,7 @@
 #include <vector>
 
 namespace {
-using namespace scr::viewer;
+using namespace scr::runtime;
 NativeMemory ram{};
 std::array<std::uint8_t,4096> stack{};
 std::vector<std::uint8_t> continuation;

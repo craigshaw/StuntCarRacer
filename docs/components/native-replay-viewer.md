@@ -6,7 +6,7 @@ It loads the original game bytes locally; tracked source contains no copyrighted
 image or track data. The viewer executable does not link Musashi or execute a
 68000 emulator.
 
-Double-click `Watch Native Replay.cmd`, or run `scripts/start-native-replay.ps1`,
+Double-click `tools/replay/Watch Native Replay.cmd`, or run `scripts/start-native-replay.ps1`,
 to verify the local inputs, build and open the viewer. For a paused start use
 `scripts/start-native-replay.ps1 -Paused -StartTick 272`. It uses the
 same controls as the 1,463-tick original/native regression. The full track cycle
@@ -73,7 +73,7 @@ If that evidence is absent or stale, it regenerates the original/native replay.
 `--refresh-reference` forces regeneration; `--skip-build` requires a retained
 build receipt matching every native source, capture adapter and executable hash.
 
-The wrapper builds `native_replay_viewer` and `replay_interpolation_tests` with `SCR_BUILD_ORACLE=OFF`, runs the viewer
+The wrapper builds `native_replay_viewer` and `presentation_interpolation_tests` with `SCR_BUILD_ORACLE=OFF`, runs the viewer
 without opening a window, renders every replay tick, compares every declared
 gameplay trace column with the original trace, and requires at least one complete
 observed lap. It also renders the entire 60 Hz presentation timeline: **10,528

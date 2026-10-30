@@ -1,5 +1,5 @@
-#include "native_player_name.h"
-#include "native_cockpit_instruments.h"
+#include "menus/native_player_name.h"
+#include "presentation/native_cockpit_instruments.h"
 #include "m68k.h"
 #include <algorithm>
 #include <array>
@@ -12,7 +12,7 @@
 #include <vector>
 
 namespace {
-using namespace scr::viewer;
+using namespace scr::runtime;
 NativeMemory original{},baseline{},native{};
 std::array<std::uint8_t,4096> stack{};
 constexpr unsigned stackBase=0x8f000,stackTop=0x90000,sentinel=0xa0000;

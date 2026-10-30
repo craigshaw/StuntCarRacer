@@ -1,4 +1,4 @@
-#include "native_game_session.h"
+#include "session/native_game_session.h"
 #include <filesystem>
 #include <fstream>
 #include <iostream>
@@ -6,7 +6,7 @@
 #include <string>
 
 namespace {
-using namespace scr::viewer;
+using namespace scr::runtime;
 unsigned names{},routes{},ticks{},snapshots{},hallRoutes{};
 void require(bool condition,const char* message){if(!condition)throw std::runtime_error(message);}
 void settle(NativeGameSession& game){

@@ -1,7 +1,7 @@
 #define NOMINMAX
 #define WIN32_LEAN_AND_MEAN
 #include <windows.h>
-#include "native_game_session.h"
+#include "session/native_game_session.h"
 #include "state/race_timing_adapter.h"
 #include <algorithm>
 #include <fstream>
@@ -9,7 +9,7 @@
 #include <set>
 
 namespace {
-using namespace scr::viewer;
+using namespace scr::runtime;
 void require(bool value,const char* message){if(!value)throw std::runtime_error(message);}
 NativeGameInput input(unsigned controls=0,bool back=false,unsigned number=0){NativeGameInput i;i.menu={std::uint8_t(controls),std::uint8_t(number),back};return i;}
 void tap(NativeGameSession& game,unsigned controls=16,bool back=false,unsigned number=0){game.update(0,{});game.update(0,input(controls,back,number));game.update(0,{});}
@@ -239,13 +239,13 @@ void earnedRecords(const std::filesystem::path& pack,const std::filesystem::path
         // The observer receives its native state while the race is unfinished.
         (void)scr::updateRaceTiming(in,state);timing::writeInputs(memory->data(),in);timing::writeState(memory->data(),state);
         const auto human=in.currentPlayerId;const auto expected=state.lapRecordName;const unsigned ordinal=(*memory)[0x648c2+(*memory)[0x1ca33]]+(league?8:0);
-        const_cast<ReplayScene&>(game->race()).loadNativeState(*memory,data.payload,{});game->update(.12,{});
+        const_cast<RaceScene&>(game->race()).loadNativeState(*memory,data.payload,{});game->update(.12,{});
         require(!game->raceEnded(),"Lap persistence fixture unexpectedly finished its race");require(game->requestClose(),"Earned record did not flush");
         // The third completed lap also updates the three-lap record through
         // the same unchanged routine, independently of career checkpointing.
         state.lapCounter[0]=3;state.crossingArmed[0]=0;state.times[0]={0,0x20,0x10};state.times[human+12]={0,0x40,0};state.times[15]={9,0x59,0x99};
         (void)scr::updateRaceTiming(in,state);timing::writeInputs(memory->data(),in);timing::writeState(memory->data(),state);
-        const_cast<ReplayScene&>(game->race()).loadNativeState(*memory,data.payload,{});game->update(.12,{});require(game->requestClose(),"Three-lap record did not flush");game.reset();
+        const_cast<RaceScene&>(game->race()).loadNativeState(*memory,data.payload,{});game->update(.12,{});require(game->requestClose(),"Three-lap record did not flush");game.reset();
         NativeCareerStore store(folder);const auto saved=store.readHall();require(saved.state==CareerFileState::Valid,"Earned Hall record missing on disk");
         require(std::equal(expected.begin(),expected.end(),saved.data.begin()+ordinal*16)&&saved.data[ordinal*16+12]==0&&saved.data[ordinal*16+13]==0x20,"Unfinished race lost its eligible human lap record");
         require(std::equal(expected.begin(),expected.end(),saved.data.begin()+256+ordinal*16)&&saved.data[256+ordinal*16+12]==1&&saved.data[256+ordinal*16+13]==0,"Three-lap record was not persisted");

@@ -54,7 +54,7 @@ def main():
     build_dir = ORACLE_BUILD
     targets = ('native_render_audit', 'opponent_far_track_oracle',
                'mountain_horizon_oracle', 'near_track_visibility_oracle',
-               'replay_scene_commands_tests')
+               'scene_commands_tests')
     executables = {name: build_dir / 'Release' / (name + '.exe') for name in targets}
     records = sources()
     receipt = output / 'build-receipt.json'
@@ -95,7 +95,7 @@ def main():
                               output / 'mountain-results.json'),
         'near_track': run_json([executables['near_track_visibility_oracle'], payload,
                                seed, controls], output / 'near-track-results.json'),
-        'scene_commands': run_json([executables['replay_scene_commands_tests'], pack],
+        'scene_commands': run_json([executables['scene_commands_tests'], pack],
                                    output / 'scene-command-results.json')}
     if originals['near_track'].get('full_near_frames', 0) <= 0:
         raise RuntimeError('The original near-track check omitted evolving complete frames')

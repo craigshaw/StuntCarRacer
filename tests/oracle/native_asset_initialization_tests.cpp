@@ -1,5 +1,5 @@
-#include "native_asset_initialization.h"
-#include "replay_render_assets.h"
+#include "assets/native_asset_initialization.h"
+#include "presentation/race_render_assets.h"
 #include "m68k.h"
 #include <algorithm>
 #include <fstream>
@@ -11,7 +11,7 @@
 #include <vector>
 
 namespace {
-using Memory=scr::viewer::NativeMemory;
+using Memory=scr::runtime::NativeMemory;
 Memory ram{};
 std::array<std::uint8_t,4096> stack{};
 constexpr unsigned stackBase=0x8f000,stackTop=0x90000,sentinel=0xa0000;
@@ -90,13 +90,13 @@ int main(int argc,char** argv){try{
     if(argc<2||argc>3)throw std::invalid_argument("Usage: native_asset_initialization_tests original-payload.bin [capture-chipram.bin]");
     const auto payload=readFile(argv[1]);if(payload.size()!=408540)throw std::invalid_argument("Wrong original payload size");
     auto native=std::make_unique<Memory>();std::copy(payload.begin(),payload.end(),native->begin()+0xe700);ram=*native;
-    scr::viewer::initializeNativeAssets(*native);
+    scr::runtime::initializeNativeAssets(*native);
     m68k_init();m68k_set_cpu_type(M68K_CPU_TYPE_68000);m68k_set_instr_hook_callback(hook);
     run(0xed56,0);run(0x69cfc,1);run(0x5aa02,2);run(0x1bace,3);
     // Every byte agrees except native OS interrupt vectors and buffers which
     // native startup deliberately clears independently of the Amiga hardware.
     compare(*native,0,0x64);compare(*native,0x80,0x80000);
-    const auto assets=scr::viewer::decodeReplayRenderAssets(payload.data(),payload.size(),native->data(),native->size());
+    const auto assets=scr::runtime::decodeRaceRenderAssets(payload.data(),payload.size(),native->data(),native->size());
     if(assets.background.pixels.size()!=64000)throw std::runtime_error("Native assets did not decode into the renderer");
     unsigned captureObjects=0;
     if(argc==3){

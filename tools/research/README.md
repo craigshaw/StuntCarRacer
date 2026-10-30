@@ -13,7 +13,7 @@ needed. These utilities are optional and do not participate in the player build.
 | `verify-rea-mcp.mjs`, `verify-rea-wsl.mjs` | Explicit native/WSL REA transport checks |
 | `local-tools.mjs` | Read optional local configuration for Node research checks |
 
-The root `Play Stunt Car Racer.cmd` still opens the original-game launcher.
+`Play Stunt Car Racer.cmd` in this directory opens the original-game launcher.
 Inputs and outputs retain their existing `analysis/` and `working/` locations.
 See [research setup and mapping](../../docs/research/reverse-engineering.md),
 [evidence locations](../../docs/research/evidence.md) and

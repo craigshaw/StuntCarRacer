@@ -199,7 +199,7 @@ def main():
         oracle.update({'executable': str(args.oracle.resolve()), 'executable_sha256': sha(args.oracle.read_bytes()),
                        'source_adf_sha256': ADF_SHA, 'payload_sha256': PAYLOAD_SHA, 'ram_sha256': sha(chip),
                        'source_sha256': {str(path.relative_to(ROOT)): sha(path.read_bytes()) for path in [
-                           ROOT / 'src/mountain_horizon.h', ROOT / 'src/mountain_horizon.cpp',
+                           ROOT / 'src/render/mountain_horizon.h', ROOT / 'src/render/mountain_horizon.cpp',
                            ROOT / 'tests/oracle/mountain_horizon_oracle.cpp', Path(__file__).resolve()]}})
         (args.output / 'oracle.json').write_text(json.dumps(oracle, indent=2) + '\n')
     print(json.dumps({'report': str(args.output / 'reference-comparison.json'),

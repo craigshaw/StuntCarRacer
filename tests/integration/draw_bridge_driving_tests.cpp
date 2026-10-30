@@ -1,6 +1,6 @@
-#include "native_startup.h"
-#include "replay_scene.h"
-#include "replay_scene_commands.h"
+#include "assets/native_startup.h"
+#include "race/race_scene.h"
+#include "presentation/scene_commands.h"
 #include "render_projection_fixture.h"
 #include "state/track_mesh_adapter.h"
 #include "driving_replay_io.h"
@@ -16,9 +16,9 @@
 
 namespace {
 namespace replay=scr::test::replay;
-using scr::viewer::ReplayScene;
-using scr::viewer::ReplaySceneFrame;
-using scr::viewer::ReplayTrackSnapshot;
+using scr::runtime::RaceScene;
+using scr::runtime::RaceFrame;
+using scr::runtime::TrackPresentationSnapshot;
 void require(bool condition,const std::string& text){if(!condition)throw std::runtime_error(text);}
 void write(const std::filesystem::path& path,const std::uint8_t* bytes,std::size_t count){
     std::ofstream stream(path,std::ios::binary);stream.write(reinterpret_cast<const char*>(bytes),std::streamsize(count));
@@ -52,12 +52,12 @@ std::uint64_t surfaceHash(const scr::TrackProgressData& data){
     scr::projectNearTrackSegment(data,geometry);Hash h;for(const auto& vertex:geometry.upper)h.add(vertex.height);return h.value;
 }
 bool onBridge(unsigned segment){return segment>=0x33&&segment<0x38;}
-std::filesystem::path liveTrace(const ReplayScene& scene){const auto name=scene.liveRecording().string();return name.substr(0,name.size()-std::string("-controls.csv").size())+"-native.csv";}
+std::filesystem::path liveTrace(const RaceScene& scene){const auto name=scene.liveRecording().string();return name.substr(0,name.size()-std::string("-controls.csv").size())+"-native.csv";}
 struct Counts {
     unsigned ticks{},occupied{},phaseHeld{},released{},rawChanges{},meshChanges{},surfaceChanges{},rendered{},queries{},retainedQueries{};
     unsigned firstEntry=~0U,firstExit=~0U;std::set<unsigned> visited;
 };
-void runScenario(const scr::viewer::NativeStartupData& startup,const std::filesystem::path& output,Counts& counts){
+void runScenario(const scr::runtime::NativeStartupData& startup,const std::filesystem::path& output,Counts& counts){
     std::filesystem::create_directories(output);
     auto placement=std::make_unique<replay::NativeReplay>(*startup.memory);
     placement->restartStage(0x31);
@@ -66,20 +66,20 @@ void runScenario(const scr::viewer::NativeStartupData& startup,const std::filesy
     std::ofstream description(output/"scenario.txt");description<<"Synthetic verification placement authored by the recovered native restart initializer at segment49.\n"
         <<"No RAM capture and no claim of a completed lap. Hold original digital accelerate input for512ticks.\n";description.close();
     auto state=std::make_unique<replay::NativeReplay>(*seed);
-    ReplayScene scene;scene.loadNativeState(*seed,startup.payload,output/"recordings");
+    RaceScene scene;scene.loadNativeState(*seed,startup.payload,output/"recordings");
     const auto projection=scr::test::renderProjection::readTables(seed->data());
     const auto mountains=scr::decodeMountainHorizonData(startup.payload.data(),startup.payload.size());
     std::ofstream controls(output/"controls.csv"),trace(output/"native.csv");controls<<"tick,controls\n";replay::traceHeader(trace);
     auto previousRaw=geometryHash(state->progressData.track);
-    auto previousMesh=meshHash(scr::buildTrackMesh(scr::viewer::decodeTrackMesh(state->ram)));
+    auto previousMesh=meshHash(scr::buildTrackMesh(scr::state::mesh::decodeTrackMesh(state->ram)));
     auto previousSurface=surfaceHash(state->progressData);
-    std::shared_ptr<const ReplayTrackSnapshot> frozen;std::uint64_t frozenRaw{},frozenMesh{},frozenSurface{};
+    std::shared_ptr<const TrackPresentationSnapshot> frozen;std::uint64_t frozenRaw{},frozenMesh{},frozenSurface{};
     std::vector<std::uint64_t> liveExact,liveMidpoints;
     bool entered=false,left=false;
     for(unsigned tick=0;tick<512;++tick){
         const unsigned mask=1;controls<<tick<<','<<mask<<'\n';state->begin(mask);state->controlsStage();state->physicsStage();state->engineStage();state->progressStage();
         const auto phase=state->ram[0x1bbb0],player=state->ram[0x1bb1c],opponent=state->ram[0x1bb1d],active=state->ram[0x1bb3f],throttle=state->ram[0x1bbcd];
-        const auto frameRaw=geometryHash(state->progressData.track);const auto frameMesh=meshHash(scr::buildTrackMesh(scr::viewer::decodeTrackMesh(state->ram)));
+        const auto frameRaw=geometryHash(state->progressData.track);const auto frameMesh=meshHash(scr::buildTrackMesh(scr::state::mesh::decodeTrackMesh(state->ram)));
         const auto framePosition=std::array<std::uint32_t,3>{{scr_test::readLong(state->ram,0x1bcd8),scr_test::readLong(state->ram,0x1bcdc),scr_test::readLong(state->ram,0x1bce0)}};
         state->groundStage();state->wheelsStage();state->bridgeStage();
         const bool held=onBridge(player)||onBridge(opponent)||(opponent>=0x30&&opponent<0x38&&active);
@@ -89,7 +89,7 @@ void runScenario(const scr::viewer::NativeStartupData& startup,const std::filesy
         if(left&&!held&&!(throttle&0x80)){++counts.released;require(state->ram[0x1bbb0]!=phase,"Bridge failed to resume after release");}
         counts.visited.insert(player);
         require(state->physicsData.track.geometry==state->progressData.track.geometry&&state->restartData.track.geometry==state->progressData.track.geometry,"Gameplay consumers retained stale bridge geometry");
-        const auto raw=geometryHash(state->progressData.track);const auto mesh=meshHash(scr::buildTrackMesh(scr::viewer::decodeTrackMesh(state->ram)));const auto surface=surfaceHash(state->progressData);
+        const auto raw=geometryHash(state->progressData.track);const auto mesh=meshHash(scr::buildTrackMesh(scr::state::mesh::decodeTrackMesh(state->ram)));const auto surface=surfaceHash(state->progressData);
         if(held)require(raw==frameRaw&&mesh==frameMesh,"Occupied bridge geometry/cache moved while phase was held");
         counts.rawChanges+=raw!=previousRaw;counts.meshChanges+=mesh!=previousMesh;counts.surfaceChanges+=surface!=previousSurface;
         previousRaw=raw;previousMesh=mesh;previousSurface=surface;
@@ -101,9 +101,9 @@ void runScenario(const scr::viewer::NativeStartupData& startup,const std::filesy
         require(frame.movingTrack->bridgePhase==phase,"Scene snapshots used a later bridge phase");
         require(geometryHash(frame.movingTrack->progress.track)==frameRaw&&meshHash(frame.movingTrack->mesh)==frameMesh,"Scene consumers retained stale track geometry");
         auto nearSeed=frame.nearSeed;std::array<std::uint8_t,100> renderFlags{};std::array<bool,100> known{};
-        for(const auto& section:scr::viewer::decodeTrackMesh(state->ram).sections)if(!known[section.segment]){renderFlags[section.segment]=section.flags;known[section.segment]=true;}
+        for(const auto& section:scr::state::mesh::decodeTrackMesh(state->ram).sections)if(!known[section.segment]){renderFlags[section.segment]=section.flags;known[section.segment]=true;}
         const auto near=scr::buildNearTrackFrame(frame.movingTrack->progress,renderFlags,frame.nearInputs,nearSeed);
-        const auto commands=scr::viewer::buildReplaySceneCommands(near,frame.nearInputs.drawing,projection,
+        const auto commands=scr::runtime::buildSceneCommands(near,frame.nearInputs.drawing,projection,
             frame.movingTrack->farTrack,nearSeed,mountains,frame.cameraYaw,frame.camera);
         require(nearHash(commands.presentation)==nearHash(frame.nearTrack),"Scene geometry used a later bridge state");
         if(!frozen){frozen=frame.movingTrack;frozenRaw=frameRaw;frozenMesh=frameMesh;frozenSurface=surfaceHash(frozen->progress);}
@@ -124,13 +124,13 @@ void runScenario(const scr::viewer::NativeStartupData& startup,const std::filesy
     // Reuse the authored native trace as a consistency input here. The parent
     // runner independently verifies this exact seed/controls against original
     // code before treating the trace as original-validated evidence.
-    ReplayScene retained;retained.load(output/"seed.bin",output.parent_path()/"source-payload.bin",output/"controls.csv",output/"native.csv",output/"scene.csv");
+    RaceScene retained;retained.load(output/"seed.bin",output.parent_path()/"source-payload.bin",output/"controls.csv",output/"native.csv",output/"scene.csv");
     std::vector<std::uint64_t> exact,interpolated;const auto total=unsigned(retained.frames().size());
     for(unsigned tick=0;tick<total;tick+=7){
         exact.push_back(pixelHash(retained.render(tick)));interpolated.push_back(pixelHash(retained.renderInterpolated(tick+0.5)));counts.retainedQueries+=2;
         require(exact.back()==liveExact.at(tick),"Retained exact frame differs from its live bridge snapshot");
         if(tick+1<total){const auto& from=retained.frames()[tick];const auto& to=retained.frames()[tick+1];
-            if(scr::viewer::canInterpolateReplay(from.restarts,to.restarts,from.action,to.action))
+            if(scr::runtime::canInterpolatePresentation(from.restarts,to.restarts,from.action,to.action))
                 require(interpolated.back()==liveMidpoints.at(tick+1),"Retained interpolation differs from its live bridge snapshot");
         }
     }
@@ -146,7 +146,7 @@ void runScenario(const scr::viewer::NativeStartupData& startup,const std::filesy
 int main(int argc,char** argv)try{
     if(argc!=3)throw std::runtime_error("draw_bridge_driving_tests pack output-directory");
     const std::filesystem::path output=argv[2];std::filesystem::create_directories(output);
-    auto startup=scr::viewer::startNativeRace(argv[1],5);write(output/"source-payload.bin",startup.payload.data(),startup.payload.size());
+    auto startup=scr::runtime::startNativeRace(argv[1],5);write(output/"source-payload.bin",startup.payload.data(),startup.payload.size());
     Counts counts;runScenario(startup,output/"synthetic-approach",counts);
     std::cout<<"{\"status\":\"passed\",\"synthetic_placement\":true,\"completed_lap_claim\":false,\"ticks\":"<<counts.ticks
         <<",\"bridge_occupied_ticks\":"<<counts.occupied<<",\"phase_held_ticks\":"<<counts.phaseHeld<<",\"released_ticks\":"<<counts.released

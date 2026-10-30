@@ -1,5 +1,5 @@
 #pragma once
-#include "near_track_visibility.h"
+#include "render/near_track_visibility.h"
 #include "near_track_geometry_fixture.h"
 namespace scr::test::nearVisibility {
 using nearGeometry::Ram;

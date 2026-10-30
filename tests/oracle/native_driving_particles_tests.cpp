@@ -1,6 +1,6 @@
 // Pixel and ordered-event comparisons against the unmodified disk code.
 // Musashi belongs only to this SCR_BUILD_ORACLE executable.
-#include "native_driving_particles.h"
+#include "presentation/native_driving_particles.h"
 #include "driving_effects_fixture.h"
 #include "audio_playback_fixture.h"
 #include "m68k.h"
@@ -12,10 +12,10 @@
 #include <string>
 
 namespace {
-using Memory=scr::viewer::NativeMemory;
+using Memory=scr::runtime::NativeMemory;
 namespace f=scr::test::effects;
 namespace audio=scr::test::audio;
-using namespace scr::viewer;
+using namespace scr::runtime;
 Memory ram{};
 std::array<std::uint8_t,4096> stack{};
 constexpr unsigned stackBase=0x8f000,stackTop=0x90000,stopPc=0xa0000,frame=0x6a594;
@@ -81,13 +81,13 @@ void prepare(const Memory& base,unsigned variation){
     for(unsigned i=0;i<64000;++i)ram[frame+i]=std::uint8_t(i*37+(i>>7)*13+variation*71);
     originalDraws.clear();originalSounds.clear();
 }
-std::vector<std::uint32_t> pixels(const ReplayRenderAssets& assets){
+std::vector<std::uint32_t> pixels(const RaceRenderAssets& assets){
     const auto original=scr::decodePlanarImage(ram.data()+frame,32000,320,200,4);
     std::vector<std::uint32_t> result(64000);
     for(unsigned i=0;i<64000;++i)result[i]=assets.palette[original.pixels[i]];
     return result;
 }
-void comparePixels(const ReplayRenderAssets& assets,const std::vector<std::uint32_t>& native,const char* stage){
+void comparePixels(const RaceRenderAssets& assets,const std::vector<std::uint32_t>& native,const char* stage){
     const auto original=scr::decodePlanarImage(ram.data()+frame,32000,320,200,4);
     for(unsigned i=0;i<64000;++i){++comparedPixels;if(native[i]!=assets.palette[original.pixels[i]])
         throw std::runtime_error(std::string(stage)+" pixel mismatch case="+std::to_string(cases)+" x="+std::to_string(i%320)+" y="+std::to_string(i/320));}
@@ -99,7 +99,7 @@ void compareEvents(const scr::DrivingParticleDraws& native){
         if(n.x!=o.x||n.y!=o.y||n.index!=o.index||n.dust!=o.dust)throw std::runtime_error("Ordered particle draw mismatch case="+std::to_string(cases)+" event="+std::to_string(i));}
     drawEvents+=native.size();
 }
-void direct(const Memory& base,const ReplayRenderAssets& assets,const NativeDrivingParticleData& data,
+void direct(const Memory& base,const RaceRenderAssets& assets,const NativeDrivingParticleData& data,
         unsigned x,unsigned y,unsigned index,unsigned phase,bool dust){
     prepare(base,cases);ram[0x1bb9c]=dust?128:0;ram[0x1bbac]=std::uint8_t(phase);
     word(ram,0x1c380+index*2,x);word(ram,0x1c3c0+index*2,y);
@@ -112,7 +112,7 @@ void direct(const Memory& base,const ReplayRenderAssets& assets,const NativeDriv
     if(draws.empty()&&word(ram,0x1c3c0+index*2)!=210)throw std::runtime_error("Original particle rejection did not retire particle");
     if(dust)++dustCases;else ++sparkCases;
 }
-scr::DrivingEffectsState ground(const Memory& base,const ReplayRenderAssets& assets,const NativeDrivingParticleData& data,
+scr::DrivingEffectsState ground(const Memory& base,const RaceRenderAssets& assets,const NativeDrivingParticleData& data,
         scr::DrivingEffectsInputs inputs,scr::DrivingEffectsState state,unsigned phase){
     prepare(base,cases);f::writeInputs(ram,inputs);f::writeState(ram,state);ram[0x1bbac]=std::uint8_t(phase);
     auto expected=std::make_unique<Memory>(ram),withoutDraws=std::make_unique<Memory>(ram);
@@ -148,7 +148,7 @@ void m68k_write_memory_32(unsigned a,unsigned v){m68k_write_memory_16(a,v>>16);m
 int main(int argc,char** argv)try{
     if(argc!=2)throw std::invalid_argument("Usage: native_driving_particles_tests original-asset-pack");
     auto startup=startNativeRace(argv[1]);const auto& base=*startup.memory;
-    const auto assets=decodeReplayRenderAssets(startup.payload.data(),startup.payload.size(),base.data(),base.size());
+    const auto assets=decodeRaceRenderAssets(startup.payload.data(),startup.payload.size(),base.data(),base.size());
     const auto data=decodeNativeDrivingParticleData(base);
     for(auto range:codeRanges)if(!std::equal(startup.payload.begin()+range[0]-0xe700,startup.payload.begin()+range[1]-0xe700,base.begin()+range[0]))
         throw std::runtime_error("Original particle code changed during initialization");

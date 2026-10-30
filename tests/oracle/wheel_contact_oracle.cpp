@@ -1,7 +1,7 @@
 // Execute original MC68000 interpolation/contact bytes and compare their stored
 // results with the native functions. Musashi is a test-only dependency.
-#include "wheel_contact.h"
-#include "track_interpolation.h"
+#include "physics/wheel_contact.h"
+#include "track/track_interpolation.h"
 #include "m68k.h"
 
 #include <algorithm>

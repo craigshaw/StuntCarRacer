@@ -1,7 +1,7 @@
-#include "native_startup.h"
-#include "native_race_initialization.h"
-#include "native_menu_flow.h"
-#include "replay_scene.h"
+#include "assets/native_startup.h"
+#include "race/native_race_initialization.h"
+#include "menus/native_menu_flow.h"
+#include "race/race_scene.h"
 #include "opponent_car_fixture.h"
 #include "driving_replay_io.h"
 #include <algorithm>
@@ -15,12 +15,12 @@
 
 namespace {
 namespace replay=scr::test::replay;
-using namespace scr::viewer;
+using namespace scr::runtime;
 void require(bool condition,const std::string& text){if(!condition)throw std::runtime_error(text);}
 void write(const std::filesystem::path& path,const std::uint8_t* data,std::size_t size){std::ofstream out(path,std::ios::binary);out.write(reinterpret_cast<const char*>(data),std::streamsize(size));require(bool(out),"Cannot write "+path.string());}
 std::string readText(const std::filesystem::path& path){std::ifstream file(path,std::ios::binary);require(bool(file),"Cannot read "+path.string());return {std::istreambuf_iterator<char>(file),std::istreambuf_iterator<char>()};}
 std::uint64_t hash(const std::vector<std::uint32_t>& pixels){std::uint64_t value=14695981039346656037ULL;for(auto pixel:pixels){value^=pixel;value*=1099511628211ULL;}return value;}
-std::filesystem::path liveTrace(const ReplayScene& scene){auto path=scene.liveRecording().string();return path.substr(0,path.size()-std::string("-controls.csv").size())+"-native.csv";}
+std::filesystem::path liveTrace(const RaceScene& scene){auto path=scene.liveRecording().string();return path.substr(0,path.size()-std::string("-controls.csv").size())+"-native.csv";}
 NativeStartupData freshSeasonRace(const std::filesystem::path& pack,unsigned division,unsigned parity){
     auto startup=startNativeGame(pack);auto& m=*startup.memory;initializeNativeMenuSession(m);
     m[0x1c9ce]=std::uint8_t(division);m[0x1ca22]=0x80;
@@ -38,10 +38,10 @@ struct Counts {unsigned ticks{},visible{},pixels{},polygons{},moved{},airborne{}
 Counts runScenario(const NativeStartupData& startup,const std::filesystem::path& folder,const std::filesystem::path& payload,bool idle,const std::vector<unsigned>* contactPlan=nullptr){
     std::filesystem::create_directories(folder);const auto& seed=*startup.memory;write(folder/"seed.bin",seed.data(),seed.size());
     std::ofstream description(folder/"scenario.txt");description<<"Fresh native season. Local driver11 is synthetically placed in the selected division's third slot before original season initialization.\nNo captured state and no opponent state injection during driving.\n"<<(contactPlan?"171 ticks: accelerate and boost, steer left on ticks110 through133, then continue straight.\n":idle?"Idle controls until the original opponent completes the race.\n":"512 original-rate digital-control ticks, or an earlier original terminal transition.\n");description.close();
-    auto state=std::make_unique<replay::NativeReplay>(seed);ReplayScene scene;scene.loadNativeState(seed,startup.payload,folder/"recordings");
+    auto state=std::make_unique<replay::NativeReplay>(seed);RaceScene scene;scene.loadNativeState(seed,startup.payload,folder/"recordings");
     std::ofstream controls(folder/"controls.csv"),trace(folder/"native.csv"),observations(folder/"opponent.csv");controls<<"tick,controls,quit\n";replay::traceHeader(trace);observations<<"tick,player_lateral,opponent_lateral,distance,player_height,opponent_height,wheel_movement,start_timer,start_complete,ai_enabled\n";
     Counts counts;counts.track=seed[0x1ca33];std::set<unsigned> positions;std::vector<unsigned> samples;std::vector<std::uint64_t> exact,midpoints;
-    std::unique_ptr<ReplaySceneFrame> frozen;std::array<std::uint16_t,4> frozenX{},frozenZ{},frozenFootprint{};
+    std::unique_ptr<RaceFrame> frozen;std::array<std::uint16_t,4> frozenX{},frozenZ{},frozenFootprint{};
     for(unsigned tick=0;tick<(contactPlan?unsigned(contactPlan->size()):idle?6000U:512U);++tick){
         unsigned mask=idle?0:1;
         if(!idle&&tick>=256){if((tick%96)>=32&&(tick%96)<40)mask|=4;if((tick%96)>=64&&(tick%96)<72)mask|=8;if(tick%64<8)mask|=16;}
@@ -55,7 +55,7 @@ Counts runScenario(const NativeStartupData& startup,const std::filesystem::path&
         replay::traceRow(trace,state->ram,tick,mask,0,unsigned(state->outerAction),state->restarts);
         require(scene.stepLive(mask),"Scene stopped before independent native race");const auto& frame=scene.frames().back();require(frame.opponentEnabled,"Competitive frame omitted opponent");require(frame.pose.worldPosition==world,"Scene player physics differs");
         require(frame.opponent.relativeX==expected.relativeX&&frame.opponent.relativeZ==expected.relativeZ&&frame.opponent.footprint==expected.footprint&&frame.opponent.bounds==expected.bounds,"Scene opponent snapshot differs from native geometry");
-        if(!frozen){frozen=std::make_unique<ReplaySceneFrame>(frame);frozenX=frame.opponent.relativeX;frozenZ=frame.opponent.relativeZ;frozenFootprint=frame.opponent.footprint;}
+        if(!frozen){frozen=std::make_unique<RaceFrame>(frame);frozenX=frame.opponent.relativeX;frozenZ=frame.opponent.relativeZ;frozenFootprint=frame.opponent.footprint;}
         require(frozen->opponent.relativeX==frozenX&&frozen->opponent.relativeZ==frozenZ&&frozen->opponent.footprint==frozenFootprint,"Retained opponent snapshot mutated");
         if(tick%8==0||scene.liveTerminal()){
             samples.push_back(tick);const auto signature=frame.opponent.relativeX;
@@ -71,14 +71,14 @@ Counts runScenario(const NativeStartupData& startup,const std::filesystem::path&
     if(idle){require(counts.terminal,"Idle opponent race failed to finish within6000ticks");require(counts.opponentLap==4&&state->ram[0x1bbaf]==4,"Opponent did not naturally complete three laps");require(state->ram[0x1bb20]<4&&(counts.outcome&0x80),"Idle player did not lose the completed race");}
     // Retained replay and reverse seeking must rebuild presentation from each
     // tick's immutable opponent/bridge snapshot, preserving the verified trace.
-    ReplayScene retained;retained.load(folder/"seed.bin",payload,folder/"controls.csv",folder/"native.csv",folder/"scene.csv");
+    RaceScene retained;retained.load(folder/"seed.bin",payload,folder/"controls.csv",folder/"native.csv",folder/"scene.csv");
     for(unsigned i=0;i<samples.size();++i){const auto tick=samples[i];require(hash(retained.render(tick))==exact[i],"Retained exact opponent frame differs from live frame");++counts.seekQueries;
-        if(tick&&scr::viewer::canInterpolateReplay(retained.frames()[tick-1].restarts,retained.frames()[tick].restarts,retained.frames()[tick-1].action,retained.frames()[tick].action)){
+        if(tick&&scr::runtime::canInterpolatePresentation(retained.frames()[tick-1].restarts,retained.frames()[tick].restarts,retained.frames()[tick-1].action,retained.frames()[tick].action)){
             require(hash(retained.renderInterpolated(tick-0.5))==midpoints[i],"Retained opponent interpolation differs from live frame");++counts.seekQueries;
         }
     }
     for(unsigned i=unsigned(samples.size());i>0;--i){const auto sample=i-1,tick=samples[sample];const auto interpolated=hash(retained.renderInterpolated(tick+0.5));require(hash(retained.render(tick))==exact[sample],"Reverse seek changed opponent frame");require(hash(retained.renderInterpolated(tick+0.5))==interpolated,"Repeated seek changed opponent interpolation");counts.seekQueries+=3;
-        if(tick+1<retained.frames().size()&&scr::viewer::canInterpolateReplay(retained.frames()[tick].restarts,retained.frames()[tick+1].restarts,retained.frames()[tick].action,retained.frames()[tick+1].action)){
+        if(tick+1<retained.frames().size()&&scr::runtime::canInterpolatePresentation(retained.frames()[tick].restarts,retained.frames()[tick+1].restarts,retained.frames()[tick].action,retained.frames()[tick+1].action)){
             // Live query tick+1 is sampled only every eighth tick, so compare
             // endpoints above and use deterministic repeated midpoint queries.
             require(!retained.renderInterpolated(tick+0.5).empty(),"Missing interpolated opponent image");

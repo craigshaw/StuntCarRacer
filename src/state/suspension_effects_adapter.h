@@ -1,5 +1,5 @@
 #pragma once
-#include "suspension_effects.h"
+#include "physics/suspension_effects.h"
 #include <array>
 #include <cstdint>
 

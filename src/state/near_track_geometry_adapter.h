@@ -1,5 +1,5 @@
 #pragma once
-#include "near_track_geometry.h"
+#include "render/near_track_geometry.h"
 #include "track_progress_adapter.h"
 #include "render_projection_adapter.h"
 

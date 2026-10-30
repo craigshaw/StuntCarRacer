@@ -150,8 +150,8 @@ def main():
         oracle.update({'source_adf_sha256': ADF_SHA, 'payload_sha256': PAYLOAD_SHA, 'ram_sha256': sha(chip),
             'inputs_sha256': sha(args.inputs.read_bytes()), 'executable': str(args.oracle.resolve()),
             'executable_sha256': sha(args.oracle.read_bytes()), 'source_sha256': {
-                str(path.relative_to(ROOT)): sha(path.read_bytes()) for path in [ROOT / 'src/near_track_geometry.h',
-                ROOT / 'src/near_track_geometry.cpp', ROOT / 'tests/support/near_track_geometry_fixture.h',
+                str(path.relative_to(ROOT)): sha(path.read_bytes()) for path in [ROOT / 'src/render/near_track_geometry.h',
+                ROOT / 'src/render/near_track_geometry.cpp', ROOT / 'tests/support/near_track_geometry_fixture.h',
                 ROOT / 'tests/oracle/near_track_geometry_oracle.cpp', Path(__file__).resolve(),
                 *sorted((ROOT / 'src/state').glob('*.h'))]}})
         (args.output / 'oracle.json').write_text(json.dumps(oracle, indent=2) + '\n')

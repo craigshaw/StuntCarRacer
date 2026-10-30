@@ -1,5 +1,5 @@
-#include "native_startup.h"
-#include "replay_scene.h"
+#include "assets/native_startup.h"
+#include "race/race_scene.h"
 #include "state/track_mesh_adapter.h"
 #include "state/track_progress_adapter.h"
 #include <algorithm>
@@ -8,14 +8,14 @@
 #include <stdexcept>
 
 namespace {
-using namespace scr::viewer;
+using namespace scr::runtime;
 void require(bool value,const char* message){if(!value)throw std::runtime_error(message);}
 bool hasFarLines(const scr::OpponentFarTrackFrame& frame){
     for(unsigned at=frame.denseEnd/32;at<frame.queue.offset/32;++at)
         for(const auto& edge:frame.queue.entries.at(at).edges)if(edge.present)return true;
     return false;
 }
-void rightEdgeWall(const std::vector<std::uint32_t>& pixels,const ReplayRenderAssets& assets,unsigned alternate){
+void rightEdgeWall(const std::vector<std::uint32_t>& pixels,const RaceRenderAssets& assets,unsigned alternate){
     require(pixels.size()==864*200,"Stepping Stones reproduction has the wrong canvas size");
     // In the initial drop the red/white track wall crosses every outer column.
     // The original 29-section cap left all of these columns without track.
@@ -33,13 +33,13 @@ int main(int argc,char** argv)try{
     auto seed=startNativeRace(argv[1],1); // Practice on Stepping Stones, initial car drop.
     const auto& memory=*seed.memory;
     const auto data=scr::state::trackProgress::readData(memory);
-    const auto assets=decodeReplayRenderAssets(seed.payload.data(),seed.payload.size(),memory.data(),memory.size());
-    scr::OpponentFarTrackData farData;farData.mesh=decodeTrackMesh(memory);
+    const auto assets=decodeRaceRenderAssets(seed.payload.data(),seed.payload.size(),memory.data(),memory.size());
+    scr::OpponentFarTrackData farData;farData.mesh=scr::state::mesh::decodeTrackMesh(memory);
     std::copy_n(memory.begin()+0x65e70,100,farData.projectionLimits.begin());
     std::array<std::uint8_t,100> flags{};std::array<bool,100> known{};
     for(const auto& section:farData.mesh.sections)if(!known[section.segment]){flags[section.segment]=section.flags;known[section.segment]=true;}
     scr::RenderProjectionTables tables;tables.angleTable=data.angleTable;tables.magnitudeTable=data.magnitudeTable;
-    ReplayScene scene;scene.loadNativeState(memory,seed.payload,{});
+    RaceScene scene;scene.loadNativeState(memory,seed.payload,{});
     unsigned pixelChecks=0,projectionChecks=0;
     for(unsigned tick=0;tick<=16;++tick){
         if(tick%8==0){

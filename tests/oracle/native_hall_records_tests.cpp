@@ -1,4 +1,4 @@
-#include "native_race_initialization.h"
+#include "race/native_race_initialization.h"
 #include "race_timing_fixture.h"
 #include "m68k.h"
 #include <algorithm>
@@ -11,7 +11,7 @@
 #include <vector>
 
 namespace {
-using Ram=scr::viewer::NativeMemory;
+using Ram=scr::runtime::NativeMemory;
 namespace timing=scr::test::timing;
 Ram original{},native{},baseline{};
 std::array<std::uint8_t,4096> stackBytes{};
@@ -93,11 +93,11 @@ void prepare(unsigned context) {
 }
 void hallPreparation() {
     timingRun=false;
-    native=original;scr::viewer::prepareNativeHallOfFame(native);
+    native=original;scr::runtime::prepareNativeHallOfFame(native);
     execute(0x5fbc6);compare("hall-record-bank-copy");++preparationCases;
 }
 void transfer(bool load) {
-    timingRun=false;native=original;scr::viewer::transferNativeLapRecords(native,load);
+    timingRun=false;native=original;scr::runtime::transferNativeLapRecords(native,load);
     execute(0x5f25a,load?0x80:0);compare(load?"load-track-records":"store-track-records");++transferCases;
 }
 void recordCrossing(unsigned player,unsigned variation) {

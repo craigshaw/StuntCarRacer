@@ -1,7 +1,7 @@
 // Test-only 68000 execution of the actual recovered bytes. The native library
 // does not link this core. Supply a verified 130-byte code file, never a source
 // re-encoding, so the oracle is independent of the C++ arithmetic formulation.
-#include "wheel_coordinates.h"
+#include "physics/wheel_coordinates.h"
 #include "m68k.h"
 
 #include <algorithm>

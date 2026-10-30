@@ -1,6 +1,6 @@
 // Actual original main-loop replay with independently evolving native cockpit.
 // Original drawing calls and the PAL wheel interrupt prefix execute unchanged.
-#include "replay_scene.h"
+#include "race/race_scene.h"
 #include "driving_replay_io.h"
 #include "wheel_animation_fixture.h"
 #include "m68k.h"
@@ -35,16 +35,16 @@ struct EffectCoverage {
 EffectCoverage effectCoverage;
 struct OriginalFrameEffects {
     scr::DrivingParticleDraws particles;
-    scr::viewer::NativeRaceMessageFrame message;
-    scr::viewer::NativeChainState chains;
-    scr::viewer::NativeChainDraws chainDraws;
+    scr::runtime::NativeRaceMessageFrame message;
+    scr::runtime::NativeChainState chains;
+    scr::runtime::NativeChainDraws chainDraws;
     std::uint8_t flameFrame{},boostActive{};
     std::uint8_t frameCounter{};
     bool rendered{},messageCaptured{},messageGate{},messageVisible{};
 };
 OriginalFrameEffects originalEffects;
 std::string failure;
-const scr::viewer::ReplaySceneFrame* frame{};
+const scr::runtime::RaceFrame* frame{};
 std::array<std::uint8_t,320*32> boundaryHud{};
 struct Scenario {std::string name;std::filesystem::path seed,controls;unsigned maximum{};bool preserveHud{};};
 std::string currentScenario;
@@ -353,7 +353,7 @@ int main(int argc,char** argv){try{
             }
         }
         *seed=ram;
-        auto scene=std::make_unique<scr::viewer::ReplayScene>();scene->loadNativeState(*seed,payload,scenario.seed.parent_path()/"cockpit-oracle-recordings");cia=ddra=255;
+        auto scene=std::make_unique<scr::runtime::RaceScene>();scene->loadNativeState(*seed,payload,scenario.seed.parent_path()/"cockpit-oracle-recordings");cia=ddra=255;
         const auto firstTick=ticks,firstTimer=timerCalls,firstResults=resultCalls,firstCounter=lapCounterCalls,firstFuel=fuelCalls,firstRestart=restartUpdates;
         const auto firstEffects=effectCoverage;
         for(unsigned tick=0;tick<std::min(scenario.maximum,unsigned(controls.size()));++tick){

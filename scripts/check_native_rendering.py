@@ -94,7 +94,7 @@ def verify_reference(path, inputs, capture_record):
 
 
 def viewer_sources():
-    paths = {ROOT / 'CMakeLists.txt', ROOT / 'tests/unit/replay_interpolation_tests.cpp', ROOT / 'tests/unit/live_drive_tests.cpp',
+    paths = {ROOT / 'CMakeLists.txt', ROOT / 'tests/unit/presentation_interpolation_tests.cpp', ROOT / 'tests/unit/drive_input_tests.cpp',
              ROOT / 'tests/unit/paula_mixer_tests.cpp', ROOT / 'tests/integration/native_audio_tests.cpp'}
     for directory in ('src', 'app', 'tools/replay'):
         for pattern in ('*.cpp', '*.h'):
@@ -265,8 +265,8 @@ def main():
     subprocess.run([sys.executable, str(ROOT / 'scripts/prepare_replay_render_assets.py'), '--capture', str(capture), '--output', str(asset_output)], check=True, cwd=ROOT)
     build = NATIVE_BUILD
     executable = build / 'Release/native_replay_viewer.exe'
-    interpolation_test = build / 'Release/replay_interpolation_tests.exe'
-    live_test = build / 'Release/live_drive_tests.exe'
+    interpolation_test = build / 'Release/presentation_interpolation_tests.exe'
+    live_test = build / 'Release/drive_input_tests.exe'
     mixer_test = build / 'Release/paula_mixer_tests.exe'
     audio_test = build / 'Release/native_audio_tests.exe'
     sources = viewer_sources();source_records = [identity(path) for path in sources]
@@ -274,7 +274,7 @@ def main():
     build_commands = []
     if not args.skip_build:
         build_commands = [configure_command(oracle=False),
-                          ['cmake', '--build', str(build), '--config', 'Release', '--target', 'native_replay_viewer', 'replay_interpolation_tests', 'live_drive_tests', 'paula_mixer_tests', 'native_audio_tests', '--parallel', '4']]
+                          ['cmake', '--build', str(build), '--config', 'Release', '--target', 'native_replay_viewer', 'presentation_interpolation_tests', 'drive_input_tests', 'paula_mixer_tests', 'native_audio_tests', '--parallel', '4']]
         with (out / 'build.log').open('w', encoding='utf-8') as log:
             for command in build_commands:
                 log.write(json.dumps(command) + '\n');log.flush()

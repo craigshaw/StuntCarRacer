@@ -1,10 +1,10 @@
 #define NOMINMAX
 #define WIN32_LEAN_AND_MEAN
-#include "windows_game_display.h"
-#include "native_game_session.h"
-#include "race_transitions.h"
+#include "platform/windows/game_display.h"
+#include "session/native_game_session.h"
+#include "race/race_transitions.h"
 #include "state/race_transitions_adapter.h"
-#include "replay_view.h"
+#include "presentation/camera_view.h"
 #include <algorithm>
 #include <chrono>
 #include <fstream>
@@ -14,7 +14,7 @@
 #include <stdexcept>
 
 namespace {
-using namespace scr::viewer;
+using namespace scr::runtime;
 double ultrawideFilterMilliseconds{};
 void require(bool condition,const char* message){if(!condition)throw std::runtime_error(message);}
 struct Surface {
@@ -62,7 +62,7 @@ void widescreenDisplay(WindowsGameDisplay& display,const std::filesystem::path& 
     Surface larger(target+640,720);display.paint(larger.dc,target+640,720,wide,prefs);GdiFlush();
     for(int y=0;y<720;++y)for(int x=0;x<target+640;++x)if(x<320||x>=target+320)
         require(!(larger.pixels[y*(target+640)+x]&0xffffff),"Wide canvas overdraw escaped its aspect aperture");
-    ReplayScene scene;scene.loadNative(pack,{},6);
+    RaceScene scene;scene.loadNative(pack,{},6);
     scene.setRunningLapHundredths(true);
     for(unsigned tick=0;tick<=128;++tick)require(scene.stepLive(1|(tick%40<8?16:0)|(tick>100&&tick%40<4?4:0)),"Display capture race ended early");
     prefs.filtering=NativeFiltering::NearestNeighbour;Surface gameplay(target,720);
@@ -334,7 +334,7 @@ void leaveRaceOutcomes(const std::filesystem::path& pack){
         (*memory)[0x1bb9c]=flags&4?0x80:0;(*memory)[0x1bbaf]=flags&8?0x80:0;
         (*memory)[0x1bb41]=flags&16?0:0x80;(*memory)[0x1bb6c]=0;
         (*memory)[0x1bbb4]=0x80;
-        ReplayScene scene;scene.loadNativeState(*memory,seed.payload,{});
+        RaceScene scene;scene.loadNativeState(*memory,seed.payload,{});
         const auto pose=scene.frames().back().pose.worldPosition;
         scene.quitLive();scene.quitLive();
         require(scene.liveTerminal()&&!scene.stepLive(31,true)&&scene.liveTicks()==0&&scene.frames().back().restarts==0&&scene.frames().back().pose.worldPosition==pose,"Host quit ran physics or recovery, or was not idempotent");

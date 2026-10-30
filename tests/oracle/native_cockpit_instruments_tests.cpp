@@ -1,5 +1,5 @@
-#include "native_cockpit_instruments.h"
-#include "native_asset_initialization.h"
+#include "presentation/native_cockpit_instruments.h"
+#include "assets/native_asset_initialization.h"
 #include "m68k.h"
 #include <algorithm>
 #include <array>
@@ -12,7 +12,7 @@
 #include <vector>
 
 namespace {
-using Memory=scr::viewer::NativeMemory;
+using Memory=scr::runtime::NativeMemory;
 Memory ram{};
 std::array<std::uint8_t,4096> stack{};
 constexpr unsigned stackBase=0x8f000,stackTop=0x90000,sentinel=0xa0000;
@@ -86,7 +86,7 @@ int main(int argc,char** argv)try{
     const std::vector<std::uint8_t> payload{std::istreambuf_iterator<char>(file),std::istreambuf_iterator<char>()};
     if(payload.size()!=408540)throw std::invalid_argument("Wrong original payload size");
     auto base=std::make_unique<Memory>();std::copy(payload.begin(),payload.end(),base->begin()+0xe700);
-    scr::viewer::initializeNativeAssets(*base);scr::viewer::initializeNativeGameData(*base);
+    scr::runtime::initializeNativeAssets(*base);scr::runtime::initializeNativeGameData(*base);
     longword(*base,0x6a584,0x6a594);longword(*base,0x6a58c,0x6a594);prepare(*base,0);
     auto native=std::make_unique<Memory>();
     m68k_init();m68k_set_cpu_type(M68K_CPU_TYPE_68000);m68k_set_instr_hook_callback(hook);
@@ -96,50 +96,50 @@ int main(int argc,char** argv)try{
         ram[0x1bbd3]=(mode&1)?128:0;ram[0x1bbbc]=(mode&2)?128:0;
         if(mode&2)longword(ram,0x6a58c,0x6a594+32000);
         masks(ram,(v>>2)&15,(v*7)&15);*native=ram;
-        run(0x594c6,ch);scr::viewer::drawNativeCockpitCharacter(*native,ch);compare(*native,"character",v);
+        run(0x594c6,ch);scr::runtime::drawNativeCockpitCharacter(*native,ch);compare(*native,"character",v);
     }
     for(unsigned v=0;v<512;++v){
         ram=*base;prepare(ram,v);const unsigned slot=v%24,pos=(v/24)%4,visibility=(v&1)?128:0;
         ram[0x1c908+slot]=std::uint8_t(v&15);ram[0x1c920+slot]=std::uint8_t(v*13);ram[0x1c938+slot]=std::uint8_t(v*29);
         masks(ram,v&15,(v+5)&15);*native=ram;run(0x5e326,visibility,pos,slot);
-        scr::viewer::drawNativeCockpitLapTime(*native,visibility,pos,slot);compare(*native,"lap-time",v);
+        scr::runtime::drawNativeCockpitLapTime(*native,visibility,pos,slot);compare(*native,"lap-time",v);
     }
     for(unsigned v=0;v<256;++v){
         ram=*base;prepare(ram,v);ram[0x1ca20]=std::uint8_t(v);*native=ram;run(0x60846);
-        scr::viewer::drawNativeCockpitBoostDigits(*native);compare(*native,"boost",v);
+        scr::runtime::drawNativeCockpitBoostDigits(*native);compare(*native,"boost",v);
     }
     for(unsigned v=0;v<1024;++v){
         ram=*base;prepare(ram,v);ram[0x1bbac]=std::uint8_t(v);ram[0x1bbb8]=(v&4)?128:0;
         ram[0x1bbaf]=(v&8)?4:0;word(ram,0x1bc38,std::uint16_t(v*67));word(ram,0x1bc3e,std::uint16_t(v*103));
         ram[0x1bb20]=std::uint8_t(v%4);ram[0x1bb21]=std::uint8_t((v/4)%4);
         ram[0x1bb1c]=std::uint8_t((v/16)%12);ram[0x1bb1d]=std::uint8_t((v/64)%12);ram[0x1ca1a]=12;ram[0x1ca32]=3;
-        *native=ram;run(0x5e12a);scr::viewer::drawNativeCockpitDistance(*native);compare(*native,"distance",v);
+        *native=ram;run(0x5e12a);scr::runtime::drawNativeCockpitDistance(*native);compare(*native,"distance",v);
     }
     for(unsigned v=0;v<4096;++v){
         ram=*base;prepare(ram,v);word(ram,0x1bd30,v*16);word(ram,0x1bc20,(v*37)%128);*native=ram;run(0x5e23e);
-        scr::viewer::updateNativeCockpitSpeedometer(*native);compare(*native,"speed",v);
+        scr::runtime::updateNativeCockpitSpeedometer(*native);compare(*native,"speed",v);
     }
     for(unsigned v=0;v<64;++v){
         ram=*base;prepare(ram,v);ram[0x1bbb2]=std::uint8_t(v*4);*native=ram;run(0x5e098);
-        scr::viewer::drawNativeCockpitResultIcon(*native);compare(*native,"result-icon",v);
-        ram=*base;prepare(ram,v);*native=ram;run(0x5e474);scr::viewer::drawNativeCockpitLabels(*native);compare(*native,"labels",v);
+        scr::runtime::drawNativeCockpitResultIcon(*native);compare(*native,"result-icon",v);
+        ram=*base;prepare(ram,v);*native=ram;run(0x5e474);scr::runtime::drawNativeCockpitLabels(*native);compare(*native,"labels",v);
     }
     for(unsigned v=0;v<512;++v){
         ram=*base;prepare(ram,v);ram[0x1bb20]=std::uint8_t(v&3);ram[0x1bb21]=std::uint8_t((v>>2)&3);
         ram[0x1bb1c]=std::uint8_t((v>>4)%12);ram[0x1bb1d]=std::uint8_t((v>>6)%12);
         ram[0x1ca32]=3;ram[0x1ca1a]=12;word(ram,0x1bc3e,(v&256)?65535:0);ram[0x57c3c]=(v&128)?128:0;
-        *native=ram;run(0x5e0c4);scr::viewer::drawNativeCockpitLeaderIcon(*native);compare(*native,"leader-icon",v);
+        *native=ram;run(0x5e0c4);scr::runtime::drawNativeCockpitLeaderIcon(*native);compare(*native,"leader-icon",v);
     }
     for(unsigned v=0;v<64;++v){
         ram=*base;prepare(ram,v);ram[0x5983e]=std::uint8_t(20+v%24);ram[0x5983f]=23;ram[0x5d724]=0x41;
         ram[0x1bbd3]=(v&1)?128:0;*native=ram;const unsigned ch=(v&2)?127:'+';
-        run(0x594c6,ch);scr::viewer::drawNativeCockpitCharacter(*native,ch);compare(*native,"displaced-erase",v);
+        run(0x594c6,ch);scr::runtime::drawNativeCockpitCharacter(*native,ch);compare(*native,"displaced-erase",v);
     }
     for(unsigned v=0;v<64;++v){
         ram=*base;prepare(ram,v);*native=ram;
         const scr::PackedLapTime eventTime{std::uint8_t(v&15),std::uint8_t(v*13),std::uint8_t(v*29)};
         ram[0x1c908+2]=eventTime.minutes;ram[0x1c920+2]=eventTime.seconds;ram[0x1c938+2]=eventTime.subseconds;
-        run(0x5e326,128,3,2);scr::viewer::drawNativeCockpitLapTime(*native,eventTime,128,3,2);
+        run(0x5e326,128,3,2);scr::runtime::drawNativeCockpitLapTime(*native,eventTime,128,3,2);
         compare(*native,"immutable-time-event",v);
         if((*native)[0x1c908+2]!=(*base)[0x1c908+2]||(*native)[0x1c920+2]!=(*base)[0x1c920+2]||(*native)[0x1c938+2]!=(*base)[0x1c938+2])
             throw std::runtime_error("Rendering a captured timer event changed the current clock slot");
@@ -147,17 +147,17 @@ int main(int argc,char** argv)try{
     for(unsigned v=0;v<32;++v){
         ram=*base;prepare(ram,v);*native=ram;
         run(0x5981a,14);run(0x59806,0);run(0x5e474);run(0x5e0d6,0,0,11);run(0x5e0aa,0,0,11);
-        scr::viewer::initializeNativeCockpitInstruments(*native);compare(*native,"race-entry",v);
+        scr::runtime::initializeNativeCockpitInstruments(*native);compare(*native,"race-entry",v);
         for(unsigned a=0x5982e;a<0x5983e;++a)if((*native)[a]!=ram[a])throw std::runtime_error("Race-entry text colour mask mismatch");
     }
     for(unsigned v=0;v<16;++v){
         ram=*base;prepare(ram,v);ram[0x1bb20]=std::uint8_t(v);*native=ram;
-        run(0x5dd86,0,0,0,0x5ddd0);scr::viewer::drawNativeCockpitLapCounter(*native);compare(*native,"lap-counter",v);
+        run(0x5dd86,0,0,0,0x5ddd0);scr::runtime::drawNativeCockpitLapCounter(*native);compare(*native,"lap-counter",v);
     }
     {
         *native=*base;ram=*base;prepare(*native,37);const auto preserved=std::make_unique<Memory>(*native);
         ram[0x1ca20]=0x17;ram[0x1bb20]=3;word(ram,0x1bd30,0x1234);const auto source=std::make_unique<Memory>(ram);
-        scr::viewer::syncNativeCockpitInstrumentInputs(*native,ram);
+        scr::runtime::syncNativeCockpitInstrumentInputs(*native,ram);
         if(ram!=*source)throw std::runtime_error("Instrument input synchronization changed gameplay RAM");
         if((*native)[0x1ca20]!=0x17||(*native)[0x1bb20]!=3||word(*native,0x1bd30)!=0x1234)
             throw std::runtime_error("Instrument input synchronization lost gameplay inputs");

@@ -25,13 +25,13 @@ def sources():
     paths.add(ROOT / 'tests/integration/native_launcher_tests.cpp')
     paths.add(ROOT / 'tests/integration/native_navigation_tests.cpp')
     paths.add(ROOT / 'tests/integration/native_autosave_tests.cpp')
-    paths.add(ROOT / 'tests/unit/live_drive_tests.cpp')
+    paths.add(ROOT / 'tests/unit/drive_input_tests.cpp')
     paths.add(ROOT / 'tests/integration/native_opening_session_tests.cpp')
     paths.add(ROOT / 'tests/integration/native_opponent_session_tests.cpp')
     paths.add(ROOT / 'tests/integration/native_multiplayer_session_tests.cpp')
     paths.add(ROOT / 'tests/integration/native_career_session_tests.cpp')
     paths.add(ROOT / 'tests/oracle/native_render_audit.cpp')
-    paths.add(ROOT / 'tests/oracle/replay_scene_commands_tests.cpp')
+    paths.add(ROOT / 'tests/oracle/scene_commands_tests.cpp')
     paths.add(ROOT / 'tests/integration/native_save_session_tests.cpp')
     paths.add(ROOT / 'tests/unit/native_save_store_tests.cpp')
     paths.add(ROOT / 'tests/oracle/draw_bridge_oracle.cpp')
@@ -108,7 +108,7 @@ def main():
     save_test = binary_dir / 'Release/native_save_session_tests.exe'
     store_test = binary_dir / 'Release/native_save_store_tests.exe'
     display_test = binary_dir / 'Release/native_display_tests.exe'
-    controls_test = binary_dir / 'Release/live_drive_tests.exe'
+    controls_test = binary_dir / 'Release/drive_input_tests.exe'
     launcher_test = binary_dir / 'Release/native_launcher_tests.exe'
     navigation_test = binary_dir / 'Release/native_navigation_tests.exe'
     autosave_test = binary_dir / 'Release/native_autosave_tests.exe'
@@ -127,7 +127,7 @@ def main():
                ['cmake', '--build', binary_dir, '--config', 'Release', '--target',
                 'native_game', 'native_game_session_tests', 'native_opening_session_tests', 'native_startup_tests', 'draw_bridge_driving_tests',
                 'native_opponent_session_tests', 'native_multiplayer_session_tests', 'native_career_session_tests',
-                'native_save_session_tests', 'native_save_store_tests', 'native_display_tests', 'native_launcher_tests', 'native_navigation_tests', 'native_autosave_tests', 'live_drive_tests', '--parallel', '4']], output / 'build.log')
+                'native_save_session_tests', 'native_save_store_tests', 'native_display_tests', 'native_launcher_tests', 'native_navigation_tests', 'native_autosave_tests', 'drive_input_tests', '--parallel', '4']], output / 'build.log')
         receipt.write_text(json.dumps({'sources': records, 'artwork': artwork, **{key: identity(path) for key, path in executables.items()}}, indent=2) + '\n')
     launcher_args = [launcher_test, pack, output / 'launcher']
     disk = args.adf or ROOT / 'Stunt Car Racer (MicroStyle).adf'
@@ -229,7 +229,7 @@ def main():
                 'native_multiplayer_state_tests', 'native_multiplayer_render_tests',
                 'native_opponent_race_tests', 'native_competition_render_tests',
                 'native_career_state_tests',
-                'native_render_audit', 'replay_scene_commands_tests',
+                'native_render_audit', 'scene_commands_tests',
                 'driving_replay_oracle', 'draw_bridge_oracle', '--parallel', '4']], output / 'oracle-build.log')
         payload = ROOT / 'analysis/reference/vesuri/offline-extracted-payload.bin'
         for name, argument in (('native_menu_render', payload), ('native_menu_flow', payload), ('native_track_preview', pack),
@@ -241,7 +241,7 @@ def main():
             target = oracle_build / 'Release' / (name + '_tests.exe')
             original[name] = run_json([target, argument], output / (name + '-original-results.json'))
             original[name]['oracle'] = identity(target)
-        scene_commands = oracle_build / 'Release/replay_scene_commands_tests.exe'
+        scene_commands = oracle_build / 'Release/scene_commands_tests.exe'
         original['scene_commands'] = run_json([scene_commands, pack], output / 'scene-commands-original-results.json')
         original['scene_commands']['oracle'] = identity(scene_commands)
         if (original['scene_commands'].get('cases') != 1920

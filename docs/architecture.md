@@ -9,14 +9,14 @@ decoders; retaining original code bytes in the pack does not make them executabl
 
 | Layer | Main sources | Responsibility |
 | --- | --- | --- |
-| `scr_physics` | `src/` gameplay modules | Fixed-point physics, controls, collision, AI, race timing, restart and bridge state |
-| `scr_audio` | `src/engine_audio.*`, `paula_mixer.*` | Recovered engine interrupt, sample handlers and four-channel mixing |
-| `scr_render` | `src/` geometry, projection, planar and raster modules | Original assets, geometry and native image generation |
+| `scr_simulation` | `src/physics/`, `src/race/`, `src/track/`, sample requests in `src/audio/` | Fixed-point physics, controls, collision, AI, race timing, restart and bridge state |
+| `scr_audio` | `src/audio/engine_audio.*`, `paula_mixer.*` | Recovered engine interrupt, sample handlers and four-channel mixing |
+| `scr_render` | `src/render/` | Geometry, projection, planar decoding and software rasterization |
 | `scr_state` | `src/state/` shared headers | Recovered memory-layout adapters, native race stages and replay I/O |
-| `scr_startup` | `app/native_startup.*`, `native_*` components | Asset/race initialization, original menus, text, records and competition rules |
-| `scr_game` | `app/native_game_session.*`, `native_career_*`, `replay_scene.*` | Session/menu/race handoff, career continuation/storage, independently evolved gameplay, snapshots and recordings |
-| `scr_display` | `app/native_launcher.*`, `windows_launcher.*`, `native_display_settings.*`, `windows_game_display.*` | Pre-game setup, display/control UI, scaling, fullscreen and preferences |
-| Windows host | `app/native_game.cpp`, `windows_drive_input.*`, `windows_audio_output.*` | Event/presentation loop, keyboard, XInput, device playback and window lifecycle |
+| `scr_runtime` | `app/assets/`, `menus/`, `presentation/`, shared rule adapters | Asset/race initialization, original menus, text, records and competition rules |
+| `scr_game` | `app/session/`, `race/`, `persistence/`, `input/`, `audio/` | Session/race handoff, career continuation/storage, gameplay orchestration, snapshots and recordings |
+| `scr_host_ui` | `app/launcher/`, Windows launcher and display in `app/platform/windows/` | Pre-game setup, display/control UI, scaling, fullscreen and preferences |
+| Windows host | `app/main.cpp`, `app/platform/windows/` | Event/presentation loop, keyboard, XInput, device playback and window lifecycle |
 
 `CMakeLists.txt` owns production library linkage; `cmake/DevTools.cmake` defines
 optional replay tools, and `cmake/NativeTests.cmake` and `cmake/OracleTests.cmake`
@@ -24,6 +24,10 @@ define separate test targets. Presets share the native build across suites, keep
 oracle output separate and stage the player and licence notices in `dist/`. Production state
 adapters live under `src/state/` and use `scr::state` namespaces. Native
 race orchestration and replay I/O are shared by the player and development tools.
+Application components use `scr::runtime`; recorded playback is one consumer of
+the same `RaceScene`, presentation poses and `SoftwareRenderer` used for live racing.
+Includes name their owning domain, such as `physics/car_dynamics.h` and
+`presentation/race_render_assets.h`, without compatibility forwarding headers.
 Core calculations use typed native values, while the compatibility memory layout
 preserves recovered byte/word semantics. `tests/support/` imports these adapters
 into the historical test namespaces and owns the oracle ranges and comparison
@@ -48,7 +52,7 @@ change simulation advancement or the initial presentation snapshots.
    original menus, Practice and championship routes.
 4. `NativeGameSession` prepares the selected track, preview and race context.
    `initializeNativeRace` constructs fresh fuel, damage, timing and placement;
-   `ReplayScene` runs the recovered gameplay step.
+   `RaceScene` runs the recovered gameplay step.
 5. Race exit transfers persistent state back to the same menu session. Native
    career checkpoints retain the exact continuation stage and both RNG stores.
    A finished race stages its exit/scoring on a private copy before acknowledgement;
@@ -101,8 +105,8 @@ Presentation stalls use bounded catch-up with fixed steps. Pause/settings suspen
 preserve the fractional physics tick and require held controls to be released
 before gameplay resumes.
 
-`ReplayScene` retains immutable presentation snapshots, bridge geometry and
-renderer history. Interpolation and `renderView(ReplayViewSettings)` rebuild
+`RaceScene` retains immutable presentation snapshots, bridge geometry and
+renderer history. Interpolation and `renderView(CameraViewSettings)` rebuild
 views from private copies; repeated or reverse queries must not alter later
 physics, RNG, frames or saved state. Relative yaw/pitch/roll and cockpit visibility
 are developer APIs, without a player camera selector. The world uses one recovered

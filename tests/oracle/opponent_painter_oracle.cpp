@@ -1,5 +1,5 @@
-#include "opponent_car.h"
-#include "native_startup.h"
+#include "render/opponent_car.h"
+#include "assets/native_startup.h"
 #include "near_track_visibility_fixture.h"
 #include "m68k.h"
 #include <algorithm>
@@ -10,7 +10,7 @@
 #include <tuple>
 
 namespace {
-namespace f=scr::test::nearVisibility;using Ram=scr::viewer::NativeMemory;
+namespace f=scr::test::nearVisibility;using Ram=scr::runtime::NativeMemory;
 Ram ram{};constexpr unsigned stack=0x7f000,sentinel=0x7e000;
 bool failed{},returned{};unsigned pc{},instructions{},primitiveCount{},carDraws{};std::uint64_t cases{},totalInstructions{},slotCalls{},admissions{},emptySlots{};
 using Event=std::tuple<unsigned,unsigned,unsigned>;std::vector<Event> events;
@@ -77,7 +77,7 @@ unsigned m68k_read_memory_8(unsigned a){return read(a);}unsigned m68k_read_memor
 void m68k_write_memory_8(unsigned a,unsigned v){write(a,v);}void m68k_write_memory_16(unsigned a,unsigned v){write(a,v>>8);write(a+1,v);}void m68k_write_memory_32(unsigned a,unsigned v){m68k_write_memory_16(a,v>>16);m68k_write_memory_16(a+2,v);}
 }
 int main(int argc,char** argv){try{
-    if(argc!=2)throw std::invalid_argument("Usage: opponent_painter_oracle local.scr-assets");const auto source=scr::viewer::startNativeGame(argv[1]);m68k_init();m68k_set_cpu_type(M68K_CPU_TYPE_68000);m68k_set_instr_hook_callback(hook);
+    if(argc!=2)throw std::invalid_argument("Usage: opponent_painter_oracle local.scr-assets");const auto source=scr::runtime::startNativeGame(argv[1]);m68k_init();m68k_set_cpu_type(M68K_CPU_TYPE_68000);m68k_set_instr_hook_callback(hook);
     for(unsigned n=0;n<180;++n){const auto q=queue(n);for(unsigned mode:{0u,1u,0x80u})for(int lateral:{-512,-1,0,1,511})for(unsigned relative:{0u,1u,128u}){
         scr::NearTrackDrawInputs in{};in.renderingOrderMode=std::uint8_t(mode);in.offsetFromRoadCenter=std::uint16_t(lateral);in.raceStartTimer=std::uint8_t(n&1);in.offRoadSideFlags=std::uint8_t(n%3==0?0:n%3==1?2:128);in.sideEdgeColor=9;in.alternateSideColor=10;
         in.minimumQueueOffset=std::uint16_t(n%4==0?(n%((q.offset/32)+1))*32:0);const unsigned marker=n%6==0?0xffff:(next()%(q.offset/32+2))*32;check(*source.memory,q,in,relative,marker);

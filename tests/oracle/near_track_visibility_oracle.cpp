@@ -1,5 +1,5 @@
 #include "near_track_visibility_fixture.h"
-#include "near_track_frame.h"
+#include "render/near_track_frame.h"
 #include "driving_replay_io.h"
 #include "m68k.h"
 #include <algorithm>

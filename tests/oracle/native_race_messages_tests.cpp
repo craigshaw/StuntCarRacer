@@ -1,4 +1,4 @@
-#include "native_race_messages.h"
+#include "presentation/native_race_messages.h"
 #include "m68k.h"
 #include <algorithm>
 #include <array>
@@ -11,7 +11,7 @@
 #include <vector>
 
 namespace {
-using Memory=scr::viewer::NativeMemory;
+using Memory=scr::runtime::NativeMemory;
 Memory ram{};
 std::array<std::uint8_t,4096> stack{};
 constexpr unsigned stackBase=0x8f000,stackTop=0x90000,sentinel=0xa0000,frameBase=0x6a594;
@@ -86,10 +86,10 @@ int main(int argc,char** argv)try{
     const std::vector<std::uint8_t> payload{std::istreambuf_iterator<char>(file),std::istreambuf_iterator<char>()};
     if(payload.size()!=408540)throw std::invalid_argument("Wrong original payload size");
     auto source=std::make_unique<Memory>();std::copy(payload.begin(),payload.end(),source->begin()+0xe700);
-    scr::viewer::initializeNativeAssets(*source);
+    scr::runtime::initializeNativeAssets(*source);
     (*source)[0x5d724]=0x40;(*source)[0x5924a]=(*source)[0x59843]=(*source)[0x59844]=0;
     for(unsigned i=0;i<64000;++i)(*source)[frameBase+i]=std::uint8_t((i*37+(i>>7)*13)&255);
-    auto assets=scr::viewer::decodeReplayRenderAssets(payload.data(),payload.size(),source->data(),source->size());
+    auto assets=scr::runtime::decodeRaceRenderAssets(payload.data(),payload.size(),source->data(),source->size());
     for(unsigned i=0;i<assets.palette.size();++i)assets.palette[i]=i;
     m68k_init();m68k_set_cpu_type(M68K_CPU_TYPE_68000);m68k_set_instr_hook_callback(hook);
 
@@ -100,7 +100,7 @@ int main(int argc,char** argv)try{
     for(unsigned index:{0x2cu,0x3cu})for(unsigned countdown=0;countdown<256;++countdown){
         ram[0x1bb8e]=std::uint8_t(active);ram[0x1bba4]=std::uint8_t(pause);
         ram[0x5e65b]=std::uint8_t(index);ram[0x1bb6c]=std::uint8_t(countdown);
-        if(run(0x5e508,true)!=scr::viewer::captureNativeRaceMessage(ram).visible())
+        if(run(0x5e508,true)!=scr::runtime::captureNativeRaceMessage(ram).visible())
             throw std::runtime_error("Race message admission differs from original");
         ++gateCases;
     }
@@ -112,27 +112,27 @@ int main(int argc,char** argv)try{
         (*source)[0x1bb8e]=0x80;(*source)[0x1bba4]=(*source)[0x1bb6c]=0;
         (*source)[0x5e65b]=std::uint8_t(message[0]);(*source)[0x5e65a]=std::uint8_t(message[1]);
         (*source)[0x1bb88]=std::uint8_t(blink);ram=*source;
-        const auto frame=scr::viewer::captureNativeRaceMessage(*source);auto actual=pixels(*source);
+        const auto frame=scr::runtime::captureNativeRaceMessage(*source);auto actual=pixels(*source);
         if(frame.panel.x!=128||frame.panel.y!=27||frame.panel.widthWords!=4||frame.panel.height!=28)
             throw std::runtime_error("Original message panel placement changed");
         if(restorePanel)run(0x5fae8);
         run(0x5e508);
         const auto unchanged=std::make_unique<Memory>(*source);
-        scr::viewer::drawNativeRaceMessage(*source,assets,frame,actual,restorePanel!=0);
+        scr::runtime::drawNativeRaceMessage(*source,assets,frame,actual,restorePanel!=0);
         if(*source!=*unchanged)throw std::runtime_error("Race message drawing changed source RAM");
         compare(actual,pixelCases);
         // A retained frame supplies its own state even after current gameplay
         // has hidden or changed the message and moved the panel coordinates.
         (*source)[0x1bb8e]=0;(*source)[0x5e65b]=0;putWord(*source,0x6a49c+8,0);
         auto historical=pixels(*source);
-        scr::viewer::drawNativeRaceMessage(*source,assets,frame,historical,restorePanel!=0);
+        scr::runtime::drawNativeRaceMessage(*source,assets,frame,historical,restorePanel!=0);
         if(actual!=historical)throw std::runtime_error("Race message consumed later gameplay state");
         putWord(*source,0x6a49c+8,8);
     }
     {
-        auto frame=scr::viewer::captureNativeRaceMessage(*source);frame.active=0;
+        auto frame=scr::runtime::captureNativeRaceMessage(*source);frame.active=0;
         auto actual=pixels(*source);const auto unchanged=actual;
-        scr::viewer::drawNativeRaceMessage(*source,assets,frame,actual,true);
+        scr::runtime::drawNativeRaceMessage(*source,assets,frame,actual,true);
         if(actual!=unchanged)throw std::runtime_error("Inactive race message changed pixels");
     }
     std::cout<<"{\"mismatches\":0,\"gate_cases\":"<<gateCases<<",\"pixel_cases\":"<<pixelCases

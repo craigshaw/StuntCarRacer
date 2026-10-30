@@ -98,7 +98,7 @@ Useful runtime anchors:
 
 ## Original game in WinUAE
 
-Double-click `Play Stunt Car Racer.cmd` or run `tools/research/start-game.ps1`.
+Double-click `tools/research/Play Stunt Car Racer.cmd` or run `tools/research/start-game.ps1`.
 The launcher prefers `working/stunt-car-racer-play.uae`: A500 PAL, 68000, OCS,
 512 KiB chip plus 512 KiB slow RAM, normal disk speed, write-protected working
 ADF, normal audio, USB Xbox controller on port 2 and mouse on port 1.

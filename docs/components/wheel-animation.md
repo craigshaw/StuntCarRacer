@@ -15,8 +15,8 @@ discrete; no wheel sprite is blended or rescaled. Smoothing off and exact frame
 queries retain their original placements. Restart/terminal boundaries cut the
 interval rather than interpolating through a repositioned car.
 
-`src/wheel_animation.cpp` recovers the original wheel-only VBlank prefix and
-its helpers. `app/native_wheel_sprites.cpp` decodes and composites the hardware
+`src/render/wheel_animation.cpp` recovers the original wheel-only VBlank prefix and
+its helpers. `app/presentation/native_wheel_sprites.cpp` decodes and composites the hardware
 images from the initialized local asset pack. Neither component executes
 68000 instructions at runtime or contains graphics copied from the game.
 

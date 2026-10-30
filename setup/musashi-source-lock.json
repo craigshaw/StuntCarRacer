@@ -1,7 +1,7 @@
 {
   "repository": "https://github.com/kstenerud/Musashi",
   "commit": "313ebf1bd9f4d0d93341eb5ce21fd8a119e9dbdd",
-  "purpose": "Test-only MC68000 oracle; not linked into scr_physics",
+  "purpose": "Test-only MC68000 oracle; not linked into scr_simulation",
   "files": [
     {
       "path": "m68k.h",

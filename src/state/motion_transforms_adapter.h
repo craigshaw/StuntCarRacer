@@ -1,6 +1,6 @@
 #ifndef SCR_STATE_MOTION_TRANSFORMS_ADAPTER_H
 #define SCR_STATE_MOTION_TRANSFORMS_ADAPTER_H
-#include "motion_transforms.h"
+#include "physics/motion_transforms.h"
 #include <algorithm>
 #include <array>
 #include <cstdint>

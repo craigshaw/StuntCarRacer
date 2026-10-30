@@ -3,7 +3,7 @@
 
 // Big-endian adapters for the recovered state layout.
 // Addresses are verified against the supplied payload; no CPU is executed.
-#include "suspension_response.h"
+#include "physics/suspension_response.h"
 #include <algorithm>
 #include <array>
 #include <cstdint>

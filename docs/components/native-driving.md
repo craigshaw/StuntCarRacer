@@ -13,7 +13,7 @@ opening **Native driving**. It constructs a fresh Practice race and starts
 paused. No captured state or ROM is needed. Click
 **Drive**, press **P**, or press the controller's **Start** button to begin.
 This uses the native C++ physics and renderer; the executable has no CPU emulator.
-`Watch Native Replay.cmd` continues to open the authored replay.
+`tools/replay/Watch Native Replay.cmd` continues to open the authored replay.
 
 | Action | Keyboard | Xbox / XInput controller |
 | --- | --- | --- |

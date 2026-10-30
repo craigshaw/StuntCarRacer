@@ -1,11 +1,11 @@
-#include "native_cockpit_presentation.h"
-#include "replay_scene.h"
+#include "presentation/native_cockpit_presentation.h"
+#include "race/race_scene.h"
 #include <filesystem>
 #include <iostream>
 #include <stdexcept>
 
 namespace {
-using namespace scr::viewer;
+using namespace scr::runtime;
 unsigned cases{};
 void check(bool value,const char* message){++cases;if(!value)throw std::runtime_error(message);}
 void clock(NativeMemory& m,scr::PackedLapTime time){m[0x1c908]=time.minutes;m[0x1c920]=time.seconds;m[0x1c938]=time.subseconds;}
@@ -54,7 +54,7 @@ int main(int argc,char** argv)try{
     if(argc!=3)throw std::runtime_error("Usage: native_lap_timer_tests assets output");
     const std::filesystem::path output=argv[2];std::filesystem::create_directories(output);
     auto seed=startNativeRace(argv[1],0);synthetic(*seed.memory);
-    ReplayScene control,shown;control.loadNativeState(*seed.memory,seed.payload,{});shown.loadNativeState(*seed.memory,seed.payload,{});
+    RaceScene control,shown;control.loadNativeState(*seed.memory,seed.payload,{});shown.loadNativeState(*seed.memory,seed.payload,{});
     shown.setRunningLapHundredths(true);bool captured=false;unsigned ticks=0;
     for(;ticks<600&&!captured;++ticks){
         check(control.stepLive(1)==shown.stepLive(1),"Timer enhancement changed race lifetime");

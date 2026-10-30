@@ -1,6 +1,6 @@
 // Compare a composition of recovered entrypoints with the same native calls.
 // Deliberately not an execution of the complete original physics driver.
-#include "road_suspension_step.h"
+#include "physics/road_suspension_step.h"
 #include "track_sampling_fixture.h"
 #include "suspension_response_fixture.h"
 #include "m68k.h"

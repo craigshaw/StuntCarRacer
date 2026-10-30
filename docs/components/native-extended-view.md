@@ -17,7 +17,7 @@ still centred at the original (160,80), with unchanged angular scale, camera
 pose and horizon. It reveals more world without widening the arch, moving the
 car, cropping the source bitmap or changing its simulation camera.
 
-`makeReplayExteriorMask` flood-fills palette-index-zero regions from the two
+`makeFrameExteriorMask` flood-fills palette-index-zero regions from the two
 upper outside corners. Admission stays within the 32 outer columns and above
 row 144, except that the top eight rows also admit connected exterior pixels
 beyond those columns. Damage drawing respects this mask; enclosed black roof
@@ -25,7 +25,7 @@ and damage details remain opaque. The mask is derived once from the indexed
 background, before any RGB palette fade. Interior black details, tyres and
 instrument backgrounds remain opaque. This is not a global black colour key.
 
-After world rendering, `composeReplayFrame` restores every original static
+After world rendering, `composeCockpitFrame` restores every original static
 foreground pixel outside the old world viewport except that exterior mask.
 Extended fills the one-pixel post/brace notch at (16,83) and (303,83) with the
 adjacent dark-red outline colour. These are its only foreground pixel edits;
@@ -51,7 +51,7 @@ whole working canvas, including the exposed lower outer corners. Private
 geometry, opponent admission, horizon accounting, viewport closure and raster
 bounds use [-88,344] × [-16,184] in the original viewport coordinate domain.
 
-`makeReplayWidescreenFrame` derives only frame and blue interior from the
+`makeWidescreenFrame` derives only frame and blue interior from the
 original background. The outer 14 columns of each side brace are reworked to
 join its extension along one straight axis. The original highlight determines
 the angle; column 14 supplies a constant, slimmer 33-row material profile.
@@ -60,7 +60,7 @@ indices and an explicit transparent value of 255. Inner lower black artwork
 remains opaque; the upper frame and outer braces receive the translucency below.
 No generated image file is loaded at runtime.
 
-`ReplayScene::draw` composes that frame after rendering the world.
+`RaceScene::draw` composes that frame after rendering the world.
 It draws particles, chains, software car objects, flames, instruments,
 hardware wheels and messages onto a separate original-size 320×200 layer,
 then composites it at (56,0). Native object positions, animation phases and
@@ -87,7 +87,7 @@ existing composition and pixel output.
 Temporary race fade captures use 16-bit entries: ordinary palette indices
 0–15, or `tag | (frameIndex << 4) | worldIndex` for translucent frame samples.
 The tag is `0x100` for upper-only opacity and `0x200` for the side-brace fade.
-`replayPresentationColor` resolves both sources against the current fading
+`presentationColor` resolves both sources against the current fading
 palette and the sample's row/column-dependent opacity. This preserves exact live
 blends, duplicate palette identities and the black fade endpoint. The codes
 never enter saved career images, which continue to capture Original.

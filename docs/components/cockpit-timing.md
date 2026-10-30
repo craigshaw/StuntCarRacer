@@ -156,7 +156,7 @@ event extension. Runtime state and original arithmetic are unchanged.
 
 `tests/oracle/native_cockpit_replay_oracle.cpp` additionally executes the complete
 original game loop, including its actual cockpit drawing routines, against an
-independently evolving `ReplayScene`. It compares both original buffers over
+independently evolving `RaceScene`. It compares both original buffers over
 the full 320 × 32 instrument strip at rows 168–199, including HUD changes
 inside a restart's warm-up frames. At the original buffer-wait boundary it
 preserves the interrupted CPU registers and stack, executes the original

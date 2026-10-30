@@ -1,5 +1,5 @@
 #pragma once
-#include "opponent_driving.h"
+#include "race/opponent_driving.h"
 #include "track_progress_adapter.h"
 #include <algorithm>
 #include <set>

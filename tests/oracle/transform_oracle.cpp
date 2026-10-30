@@ -1,8 +1,8 @@
 // Test-only differential execution of recovered 68000 bytes. No arithmetic
 // re-encoding of those bytes is used as the oracle. Musashi is not linked into
 // the native game library. The wrapper pins the supplied payload/table hashes.
-#include "transform_matrices.h"
-#include "wheel_coordinates.h"
+#include "physics/transform_matrices.h"
+#include "physics/wheel_coordinates.h"
 #include "m68k.h"
 
 #include <algorithm>

@@ -1,7 +1,7 @@
 #define NOMINMAX
 #define WIN32_LEAN_AND_MEAN
 #include <windows.h>
-#include "native_game_session.h"
+#include "session/native_game_session.h"
 #include <algorithm>
 #include <filesystem>
 #include <fstream>
@@ -11,7 +11,7 @@
 #include <string>
 
 namespace {
-using namespace scr::viewer;
+using namespace scr::runtime;
 unsigned saved{},loaded{},races{},ticks{},replays{};
 void require(bool condition,const char* text){if(!condition)throw std::runtime_error(text);}
 void settle(NativeGameSession& game){

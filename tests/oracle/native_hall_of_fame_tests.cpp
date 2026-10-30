@@ -1,5 +1,5 @@
-#include "native_hall_of_fame.h"
-#include "native_race_initialization.h"
+#include "presentation/native_hall_of_fame.h"
+#include "race/native_race_initialization.h"
 #include "m68k.h"
 #include <algorithm>
 #include <array>
@@ -12,7 +12,7 @@
 #include <vector>
 
 namespace {
-using Memory=scr::viewer::NativeMemory;
+using Memory=scr::runtime::NativeMemory;
 Memory ram{};
 std::array<std::uint8_t,4096> stack{};
 constexpr unsigned stackBase=0x8f000,stackTop=0x90000,sentinel=0xa0000,frame=0x6a594;
@@ -60,7 +60,7 @@ void run(){
     if(invalid||!stopped)throw std::runtime_error("Original Hall of Fame failed: "+failure);
     totalInstructions+=instructions;
 }
-void compare(const scr::viewer::NativeMenuImage& image,unsigned variation){
+void compare(const scr::runtime::NativeMenuImage& image,unsigned variation){
     for(unsigned i=0;i<16;++i){
         const unsigned source=word(ram,0xe85a+i*2);
         auto channel=[](unsigned v){v&=7;return (2*v+(v?1:0))*17;};
@@ -91,7 +91,7 @@ void records(Memory& m,unsigned variation){
         m[address+15]=std::uint8_t(variation+bank*97+track*7+type*41);
     }
 }
-void exportPpm(const scr::viewer::NativeMenuImage& image,const char* path){
+void exportPpm(const scr::runtime::NativeMenuImage& image,const char* path){
     std::ofstream output(path,std::ios::binary);if(!output)throw std::runtime_error("Cannot export Hall of Fame image");
     output<<"P6\n320 200\n255\n";
     for(auto index:image.indices)for(unsigned shift:{16u,8u,0u})output.put(char(image.palette[index]>>shift));
@@ -110,7 +110,7 @@ int main(int argc,char** argv)try{
     std::ifstream file(argv[1],std::ios::binary);const std::vector<std::uint8_t> payload{std::istreambuf_iterator<char>(file),std::istreambuf_iterator<char>()};
     if(payload.size()!=408540)throw std::invalid_argument("Wrong original payload size");
     auto base=std::make_unique<Memory>();std::copy(payload.begin(),payload.end(),base->begin()+0xe700);
-    scr::viewer::initializeNativeAssets(*base);scr::viewer::initializeNativeGameData(*base);
+    scr::runtime::initializeNativeAssets(*base);scr::runtime::initializeNativeGameData(*base);
     (*base)[0x1bbbc]=0x80;(*base)[0x5d724]=0x41;(*base)[0x1bb6d]=(*base)[0x1bb6e]=0;
     (*base)[0x59843]=(*base)[0x59844]=(*base)[0x5924a]=0;
     longword(*base,0x6a584,frame);longword(*base,0x6a588,frame+32000);longword(*base,0x6a58c,frame);
@@ -119,7 +119,7 @@ int main(int argc,char** argv)try{
     auto state=std::make_unique<Memory>();
     for(unsigned context:{0u,1u,2u,128u,255u})for(unsigned variation=0;variation<128;++variation){
         *state=*base;(*state)[0x1c9d0]=std::uint8_t(context);records(*state,variation);ram=*state;
-        const auto image=scr::viewer::makeNativeHallOfFameImage(*state);
+        const auto image=scr::runtime::makeNativeHallOfFameImage(*state);
         run();compare(image,variation);
         if(argc==3&&context==0&&variation==3)exportPpm(image,argv[2]);
         auto unchanged=std::make_unique<Memory>(*base);(*unchanged)[0x1c9d0]=std::uint8_t(context);records(*unchanged,variation);

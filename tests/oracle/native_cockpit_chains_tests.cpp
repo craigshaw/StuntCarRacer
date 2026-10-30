@@ -1,6 +1,6 @@
 // Original chain state/draw ordering and masked pixels; CPU is test-only.
-#include "native_cockpit_chains.h"
-#include "native_asset_initialization.h"
+#include "presentation/native_cockpit_chains.h"
+#include "assets/native_asset_initialization.h"
 #include "m68k.h"
 #include <algorithm>
 #include <array>
@@ -12,7 +12,7 @@
 #include <string>
 
 namespace {
-using namespace scr::viewer;
+using namespace scr::runtime;
 using Memory=NativeMemory;
 Memory ram{};
 std::array<std::uint8_t,4096> stack{};
@@ -91,7 +91,7 @@ NativeChainState stateCase(std::uint8_t timer,NativeChainState state,const Cockp
         throw std::runtime_error("Chain input capture differs");
     const auto draws=advanceNativeChains(timer,state,cockpit);run(false);compare(state,draws);return state;
 }
-std::vector<std::uint32_t> pixels(const Memory& memory,const ReplayRenderAssets& assets){
+std::vector<std::uint32_t> pixels(const Memory& memory,const RaceRenderAssets& assets){
     const auto image=scr::decodePlanarImage(memory.data()+currentBuffer,32000,320,200,4);
     std::vector<std::uint32_t> result(64000);
     for(unsigned i=0;i<result.size();++i)result[i]=assets.palette[image.pixels[i]];
@@ -114,7 +114,7 @@ int main(int argc,char** argv)try{
     auto base=std::make_unique<Memory>();std::copy(payload.begin(),payload.end(),base->begin()+0xe700);
     initializeNativeAssets(*base);
     const auto cockpit=captureCockpitFrame(base->data(),base->size());
-    auto assets=decodeReplayRenderAssets(payload.data(),payload.size(),base->data(),base->size());
+    auto assets=decodeRaceRenderAssets(payload.data(),payload.size(),base->data(),base->size());
     // Distinct index colours make every planar colour difference observable.
     for(unsigned i=0;i<assets.palette.size();++i)assets.palette[i]=i;
     m68k_init();m68k_set_cpu_type(M68K_CPU_TYPE_68000);m68k_set_instr_hook_callback(hook);ram=*base;

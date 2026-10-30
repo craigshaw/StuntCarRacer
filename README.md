@@ -128,9 +128,10 @@ existing private references and check reports remain under `analysis/`.
 See [build options and layout](docs/development.md#build-test-and-stage).
 See [local tool configuration](setup/README.md) when setting up development helpers.
 
-Gameplay algorithms live in `src/`, shared state adapters in `src/state/`, and
-the player application in `app/`. Optional replay tools live in `tools/replay/`;
-`tests/` separates unit, integration and original-code oracle checks.
+`src/` groups physics, race rules, tracks, audio, rendering and state adapters.
+`app/` separates assets, menus, sessions, persistence, presentation and the Windows
+host. Optional replay tools live in `tools/replay/`; `tests/` separates unit,
+integration and original-code oracle checks.
 
 ```powershell
 . .\scripts\env.ps1
@@ -156,9 +157,9 @@ CI enforce common asset exclusions; enable the hook in each checkout:
 git config core.hooksPath .githooks
 ```
 
-- **[Play Stunt Car Racer.cmd](Play%20Stunt%20Car%20Racer.cmd)** boots the original
+- **[Play Stunt Car Racer.cmd](tools/research/Play%20Stunt%20Car%20Racer.cmd)** boots the original
   ADF in the prepared WinUAE profile. F12 opens emulator settings.
-- **[Watch Native Replay.cmd](Watch%20Native%20Replay.cmd)** verifies and presents
+- **[Watch Native Replay.cmd](tools/replay/Watch%20Native%20Replay.cmd)** verifies and presents
   the retained three-lap authored replay; it needs the local capture fixtures.
 - `scripts/start-native-race.ps1 -Track 5` opens a fresh direct Practice race for
   development, bypassing menus.

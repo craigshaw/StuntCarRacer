@@ -1,5 +1,5 @@
 #pragma once
-#include "race_restart.h"
+#include "race/race_restart.h"
 #include "track_progress_adapter.h"
 #include "physics_update_adapter.h"
 #include "driving_effects_adapter.h"

@@ -1,5 +1,5 @@
-#include "native_startup.h"
-#include "replay_scene.h"
+#include "assets/native_startup.h"
+#include "race/race_scene.h"
 #include <algorithm>
 #include <cmath>
 #include <filesystem>
@@ -12,7 +12,7 @@
 // either side. Presentation at the existing pixel proportions, with a small
 // symmetric outer crop, gives an exact 16:9 preview without rescaling the car.
 namespace {
-using namespace scr::viewer;
+using namespace scr::runtime;
 constexpr unsigned width=432,height=200,margin=(width-320)/2;
 void require(bool value,const char* message){if(!value)throw std::runtime_error(message);}
 void raw(const std::filesystem::path& path,const std::vector<std::uint32_t>& pixels){
@@ -20,7 +20,7 @@ void raw(const std::filesystem::path& path,const std::vector<std::uint32_t>& pix
     file.write(reinterpret_cast<const char*>(pixels.data()),std::streamsize(pixels.size()*4));
     require(bool(file),"Cannot write cockpit study pixels");
 }
-double braceSlope(const ReplayRenderAssets& assets,bool right){
+double braceSlope(const RaceRenderAssets& assets,bool right){
     // Fit the pale highlight's centreline in the existing brace. Translating
     // an edge column by 1:1 changes its angle at the join and makes it look
     // thicker. All bands must follow the original axis with a fixed profile.
@@ -39,14 +39,14 @@ double braceSlope(const ReplayRenderAssets& assets,bool right){
     require(slope>1.3&&slope<1.4,"Unexpected original brace direction");
     return slope;
 }
-unsigned blueTop(const ReplayRenderAssets& assets,bool right,unsigned x){
+unsigned blueTop(const RaceRenderAssets& assets,bool right,unsigned x){
     for(unsigned y=100;y<160;++y){
         const auto index=assets.background.pixels[y*320+(right?319-x:x)];
         if(index==7||index==8)return y;
     }
     throw std::runtime_error("Missing original side interior");
 }
-std::uint32_t sidePixel(const ReplayRenderAssets& assets,bool right,int x,unsigned y,double slope){
+std::uint32_t sidePixel(const RaceRenderAssets& assets,bool right,int x,unsigned y,double slope){
     // Continue the slimmer profile at column 14 along one straight axis. The
     // old outer 14 columns of brace must follow this line too: preserving the
     // original taper there would leave a kink at the old bitmap boundary.
@@ -64,28 +64,28 @@ int main(int argc,char** argv)try{
     if(argc!=3)throw std::runtime_error("Usage: native_cockpit_study assets output");
     const std::filesystem::path output=argv[2];std::filesystem::create_directories(output);
     auto seed=startNativeRace(argv[1],6);
-    const auto assets=decodeReplayRenderAssets(seed.payload.data(),seed.payload.size(),seed.memory->data(),seed.memory->size());
+    const auto assets=decodeRaceRenderAssets(seed.payload.data(),seed.payload.size(),seed.memory->data(),seed.memory->size());
     const double leftSlope=braceSlope(assets,false),rightSlope=braceSlope(assets,true);
     require(leftSlope==rightSlope,"Original brace axes are not symmetric");
     const auto wheels=decodeNativeWheelSprites(seed.memory->data(),seed.memory->size());
-    ReplayScene scene;scene.loadNativeState(*seed.memory,seed.payload,{});
+    RaceScene scene;scene.loadNativeState(*seed.memory,seed.payload,{});
     for(unsigned tick=0;tick<=128;++tick){
         const unsigned controls=1|(tick%40<8?16:0)|(tick>100&&tick%40<4?4:0);
         require(scene.stepLive(controls),"Study race ended before its reference frame");
     }
     const auto pixels=scene.renderLive(0,false,false,NativeView::Extended);
     const auto& frame=scene.frames().back();
-    std::vector<std::uint32_t> foreground(320*height,replayTransparent);
-    composeReplayFrame(assets,foreground);
+    std::vector<std::uint32_t> foreground(320*height,transparentPixel);
+    composeCockpitFrame(assets,foreground);
     composeNativeChains(assets,frame.chainDraws,foreground);
-    composeReplayCockpit(assets,frame.cockpit,foreground,true);
+    composeCockpit(assets,frame.cockpit,foreground,true);
     for(unsigned n=0;n<frame.instrumentPixels.size();++n)
         foreground[320*cockpitInstrumentTop+n]=assets.palette[frame.instrumentPixels[n]];
     composeNativeWheelSprites(wheels,frame.wheelSprites,frame.wheelTimeline[0],foreground);
     // Use precisely the native scene's colour at every retained foreground
     // pixel, including the completed top mask and post/brace seam repairs.
     for(unsigned at=0;at<foreground.size();++at)
-        foreground[at]=foreground[at]==replayTransparent?0:0xff000000|pixels[at];
+        foreground[at]=foreground[at]==transparentPixel?0:0xff000000|pixels[at];
     const auto originalForeground=foreground;
     unsigned reworked=0;
     for(unsigned x=0;x<14;++x)for(bool right:{false,true}){

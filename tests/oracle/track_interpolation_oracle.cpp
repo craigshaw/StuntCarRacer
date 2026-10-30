@@ -1,6 +1,6 @@
 // Differential test against the recovered 68000 routine, not a second C++
 // formulation of interpolation. Musashi is linked only into this test target.
-#include "track_interpolation.h"
+#include "track/track_interpolation.h"
 #include "m68k.h"
 
 #include <algorithm>

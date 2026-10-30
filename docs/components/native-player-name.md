@@ -1,6 +1,6 @@
 # Native player-name entry
 
-`app/native_player_name.cpp` ports the disk build's raw input scanner and name
+`app/menus/native_player_name.cpp` ports the disk build's raw input scanner and name
 editor to C++. The native game does not execute the original 68000 code. Names
 and the keyboard tables are read from the locally extracted asset image; no
 original graphics, fonts, strings or executable bytes are checked in here.

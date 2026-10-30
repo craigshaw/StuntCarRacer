@@ -1,6 +1,6 @@
 # Shared native scene commands
 
-`app/replay_scene_commands.cpp` completes the three dense road passes with the
+`app/presentation/scene_commands.cpp` completes the three dense road passes with the
 recovered far road painter, horizon and mountain allocation, and an optional
 opponent car. Practice and competitive races use the same road path. The caller
 supplies the dense `NearTrackFrame` and its resulting geometry; the builder
@@ -60,7 +60,7 @@ evidence identities, the actual MC68000 caller instructions and source offsets.
 
 ## Verification
 
-`replay_scene_commands_tests` executes the unchanged original instructions in
+`scene_commands_tests` executes the unchanged original instructions in
 Musashi using fresh native asset/race initialization. Across all eight tracks
 and both standard (`0`) and Super (`11`) contexts it checks:
 
@@ -82,6 +82,6 @@ guard fixtures are synthetic; driving traces are checked separately.
 From the project root after configuring the oracle toolchain:
 
 ```powershell
-cmake --build build/windows-oracle --config Release --target replay_scene_commands_tests
-& build/windows-oracle/Release/replay_scene_commands_tests.exe analysis/assets/stunt-car-racer.scr-assets
+cmake --build build/windows-oracle --config Release --target scene_commands_tests
+& build/windows-oracle/Release/scene_commands_tests.exe analysis/assets/stunt-car-racer.scr-assets
 ```

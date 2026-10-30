@@ -1,6 +1,6 @@
-#include "native_wheel_sprites.h"
-#include "native_driving_particles.h"
-#include "native_cockpit_chains.h"
+#include "presentation/native_wheel_sprites.h"
+#include "presentation/native_driving_particles.h"
+#include "presentation/native_cockpit_chains.h"
 #include <algorithm>
 #include <cmath>
 #include <iostream>
@@ -8,7 +8,7 @@
 #include <stdexcept>
 
 namespace {
-using namespace scr::viewer;
+using namespace scr::runtime;
 unsigned cases{};
 void check(bool value,const char* message){++cases;if(!value)throw std::runtime_error(message);}
 bool same(const scr::DrivingParticleDraws& a,const scr::DrivingParticleDraws& b){
@@ -65,7 +65,7 @@ void particles(){
     check(draws[15].index==0&&!draws[15].spawned&&draws[15].y==127,"Existing particle was labelled as a birth");
 }
 void chains(){
-    ReplayRenderAssets assets;assets.palette[1]=0xff0000;
+    RaceRenderAssets assets;assets.palette[1]=0xff0000;
     CockpitFrame cockpit;
     for(unsigned id=19;id<=22;++id){
         auto& object=assets.objects[id];object.widthWords=1;object.sourceRows=8;object.words.resize(8);

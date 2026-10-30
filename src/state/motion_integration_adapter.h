@@ -1,7 +1,7 @@
 #ifndef SCR_STATE_MOTION_INTEGRATION_ADAPTER_H
 #define SCR_STATE_MOTION_INTEGRATION_ADAPTER_H
 
-#include "motion_integration.h"
+#include "physics/motion_integration.h"
 #include <array>
 #include <cstdint>
 

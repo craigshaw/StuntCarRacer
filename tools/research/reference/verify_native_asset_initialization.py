@@ -87,9 +87,9 @@ def main():
               'comparison_domain': 'All 524288 RAM bytes except 68000 hardware interrupt vectors 0x64..0x80; hardware I/O writes accepted in test only.',
               'limitations': ['Native startup deliberately omits Amiga OS interrupt vectors and hardware I/O.',
                               'Graphics and audio memory results are verified, not Amiga DMA or video beam timing.']}
-    files = ['app/native_asset_initialization.h', 'app/native_asset_initialization.cpp',
+    files = ['app/assets/native_asset_initialization.h', 'app/assets/native_asset_initialization.cpp',
              'tests/oracle/native_asset_initialization_tests.cpp', 'tools/research/reference/verify_native_asset_initialization.py',
-             'src/engine_audio.cpp', 'src/planar_image.cpp', 'app/replay_render_assets.cpp']
+             'src/audio/engine_audio.cpp', 'src/render/planar_image.cpp', 'app/presentation/race_render_assets.cpp']
     files += [path.relative_to(ROOT).as_posix() for folder in ('src/state', 'tests/support')
               for path in sorted((ROOT / folder).glob('*.h'))]
     record['sources'] = [{'path': name, 'sha256': sha((ROOT / name).read_bytes())} for name in files]

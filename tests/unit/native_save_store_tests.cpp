@@ -1,7 +1,7 @@
 #define NOMINMAX
 #define WIN32_LEAN_AND_MEAN
 #include <windows.h>
-#include "native_save_store.h"
+#include "persistence/native_save_store.h"
 #include <filesystem>
 #include <fstream>
 #include <iostream>
@@ -9,7 +9,7 @@
 #include <string>
 
 namespace {
-using namespace scr::viewer;
+using namespace scr::runtime;
 void require(bool condition,const char* message){if(!condition)throw std::runtime_error(message);}
 NativeSaveBlock pattern(unsigned seed){
     NativeSaveBlock result{};

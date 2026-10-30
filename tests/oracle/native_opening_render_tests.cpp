@@ -1,5 +1,5 @@
-#include "native_opening_render.h"
-#include "native_opening_flow.h"
+#include "presentation/native_opening_render.h"
+#include "menus/native_opening_flow.h"
 #include "m68k.h"
 #include <algorithm>
 #include <array>
@@ -12,7 +12,7 @@
 #include <vector>
 
 namespace {
-using Memory=scr::viewer::NativeMemory;
+using Memory=scr::runtime::NativeMemory;
 Memory ram{};
 std::array<std::uint8_t,4096> stack{};
 constexpr unsigned stackBase=0x8f000,stackTop=0x90000,sentinel=0xa0000,frame=0x6a594;
@@ -45,7 +45,7 @@ void run(unsigned entry,unsigned boundary=sentinel,unsigned d0=0,unsigned d1=0,u
     if(invalid||!stopped)throw std::runtime_error("Original opening renderer failed PC="+std::to_string(pc));
     totalInstructions+=instructions;
 }
-void compare(const scr::viewer::NativeMenuImage& image,const std::string& label,bool both=true){
+void compare(const scr::runtime::NativeMenuImage& image,const std::string& label,bool both=true){
     for(unsigned i=0;i<16;++i){
         const unsigned source=(unsigned(ram[0x23c32+2*i])<<8)|ram[0x23c33+2*i];
         auto channel=[](unsigned v){v&=7;return (2*v+(v?1:0))*17;};
@@ -62,7 +62,7 @@ void compare(const scr::viewer::NativeMenuImage& image,const std::string& label,
     }
     ++cases;
 }
-void exportPpm(const scr::viewer::NativeMenuImage& image,const char* path){
+void exportPpm(const scr::runtime::NativeMenuImage& image,const char* path){
     std::ofstream output(path,std::ios::binary);output<<"P6\n320 200\n255\n";
     for(auto index:image.indices){const auto colour=image.palette[index];
         for(unsigned shift:{16u,8u,0u})output.put(char(colour>>shift));}
@@ -82,7 +82,7 @@ int main(int argc,char** argv)try{
     const std::vector<std::uint8_t> payload{std::istreambuf_iterator<char>(file),std::istreambuf_iterator<char>()};
     if(payload.size()!=408540)throw std::invalid_argument("Wrong original payload size");
     auto base=std::make_unique<Memory>();std::copy(payload.begin(),payload.end(),base->begin()+0xe700);
-    scr::viewer::initializeNativeAssets(*base);
+    scr::runtime::initializeNativeAssets(*base);
     (*base)[0x1bbbc]=0x80;(*base)[0x5d724]=0x41;(*base)[0x1c9ce]=3;(*base)[0x1c9d0]=0;
     (*base)[0x1bb6d]=(*base)[0x1bb6e]=0;(*base)[0x5924a]=0;(*base)[0x64c18]=2;
     longword(*base,0x6a584,frame);longword(*base,0x6a588,frame+32000);longword(*base,0x6a58c,frame);
@@ -92,18 +92,18 @@ int main(int argc,char** argv)try{
         for(unsigned selection=0;selection<=count;++selection){
             ram=*base;ram[0x5eb75]=0x80;ram[0x1c9ce]=std::uint8_t(division);
             run(0x64570,0x645ac);run(0x5b840,0x5b962,selection,offset,count);
-            scr::viewer::NativeMenuRenderState menu;
+            scr::runtime::NativeMenuRenderState menu;
             menu.menuOffset=offset;menu.count=count;menu.selected=selection;menu.division=division;menu.menuStrings=true;
-            compare(scr::viewer::makeNativeMenuImage(*base,menu),"Opening choice",false);
+            compare(scr::runtime::makeNativeMenuImage(*base,menu),"Opening choice",false);
             ram[0x1bbca]=0x10;run(0x5b87e,0x5b962);menu.confirmed=true;
-            compare(scr::viewer::makeNativeMenuImage(*base,menu),"Confirmed opening choice",false);
+            compare(scr::runtime::makeNativeMenuImage(*base,menu),"Confirmed opening choice",false);
         }
     }
     const unsigned menuCases=cases;
     for(unsigned division=0;division<4;++division){
         ram=*base;ram[0x1c9ce]=std::uint8_t(division);run(0x64570,0x645ac);
         run(0x5b648,0x5b694);
-        scr::viewer::NativeOpeningNameScreen image(ram);compare(image.image(),"Initial name frame");
+        scr::runtime::NativeOpeningNameScreen image(ram);compare(image.image(),"Initial name frame");
         run(0x5b694,0x5b6f6);image.beginAttempt();compare(image.image(),"Initial input arrow",false);
         for(unsigned ch=32;ch<127;++ch){
             run(0x594c6,sentinel,ch);image.drawCharacter(ch);compare(image.image(),"Typed glyph "+std::to_string(ch),false);
@@ -116,7 +116,7 @@ int main(int argc,char** argv)try{
             const unsigned ch="Craig.9/ abcZ"[i];run(0x594c6,sentinel,ch);image.drawCharacter(ch);compare(image.image(),"Full name",false);
         }
         if(division==3){
-            run(0x5b648,0x5b694);scr::viewer::NativeOpeningNameScreen clean(ram);
+            run(0x5b648,0x5b694);scr::runtime::NativeOpeningNameScreen clean(ram);
             run(0x5b694,0x5b6f6);clean.beginAttempt();
             for(unsigned ch:std::string("Craig")){run(0x594c6,sentinel,ch);clean.drawCharacter(ch);compare(clean.image(),"Fresh typed name",false);}
             exportPpm(clean.image(),"analysis/opening-render/name.ppm");
@@ -135,8 +135,8 @@ int main(int argc,char** argv)try{
             if(variation&8)for(unsigned j=0;j<12;++j)(*state)[0x1ecab+16*i+j]=std::uint8_t("AZaz/9 .0:Cx"[(i+j)%12]);
         }
         ram=*state;run(0x64570,0x645ac);run(0x646e8,0x64828);
-        scr::viewer::prepareNativeOpeningLocalStandings(*state);
-        auto image=scr::viewer::makeNativeOpeningStandingsImage(*state);compare(image,"Local table "+std::to_string(additional+1),false);
+        scr::runtime::prepareNativeOpeningLocalStandings(*state);
+        auto image=scr::runtime::makeNativeOpeningStandingsImage(*state);compare(image,"Local table "+std::to_string(additional+1),false);
         if(additional==7&&variation==0)exportPpm(image,"analysis/opening-render/standings.ppm");
     }
     std::cout<<"{\"mismatches\":0,\"cases\":"<<cases<<",\"compared_pixels\":"<<comparedPixels<<

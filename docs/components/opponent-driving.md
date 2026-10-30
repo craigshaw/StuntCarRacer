@@ -7,7 +7,7 @@ off-grid branch omits distance/contact and still advances the opponent and its
 geometry. Practice skips the complete opponent block. A race-start or recovery
 gate inside the opponent logic preserves its state while that gate is active.
 
-`src/opponent_driving.cpp` recovers the original wheel forces, suspension limits,
+`src/race/opponent_driving.cpp` recovers the original wheel forces, suspension limits,
 wheel-based car footprint, movement patterns, speed selection, obstacle avoidance,
 acceleration and segment integration. `setupOpponentTrackGeometry` constructs
 the camera-relative road coordinates and support heights used by both driving
@@ -25,7 +25,7 @@ the original address representation. Musashi belongs to verification targets.
 - Integration uses the original multiplier 238/256, including each word wrap
   and intermediate arithmetic shift. The enhanced Vesuri source changes the
   scheduling and must not supply timing constants.
-- Contact positioning already recovered in `src/opponent_collision.cpp` moves
+- Contact positioning already recovered in `src/race/opponent_collision.cpp` moves
   laterally by nine units per call. The enhanced source changes this to one.
 - The second indexed displacement read in the geometry interpolation uses
   index 2 from address 0x1bbbe, so it reads the action timer at 0x1bbc0. It does

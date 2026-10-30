@@ -109,7 +109,7 @@ def main():
         require(oracle['total_cases']>=9000 and oracle['admission_cases']>=6000 and oracle['material_cases']>=3000,'Insufficient oracle cases')
         oracle['executable']={'path':str(args.oracle.resolve()),'sha256':sha(args.oracle.read_bytes())}
         oracle['sources']=[{'path':str((ROOT/name).resolve()),'sha256':sha((ROOT/name).read_bytes())} for name in
-            ('src/track_sides.h','src/track_sides.cpp','src/track_mesh.h','src/track_mesh.cpp',
+            ('src/render/track_sides.h','src/render/track_sides.cpp','src/render/track_mesh.h','src/render/track_mesh.cpp',
              'src/state/track_mesh_adapter.h','tests/support/track_mesh_fixture.h','tests/support/track_sides_fixture.h',
              'tests/oracle/track_sides_oracle.cpp','tools/research/reference/verify_track_sides.py',
              *[path.relative_to(ROOT).as_posix() for path in sorted((ROOT/'src/state').glob('*.h'))])]

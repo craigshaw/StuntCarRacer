@@ -7,7 +7,7 @@ boost hides the flames and retains their phase; the next press resumes it.
 This happens once per gameplay frame, including restart warm-ups, rather than
 at the host presentation rate or the wheel interrupt rate.
 
-`ReplayScene` owns the phase separately from gameplay RAM and captures it in
+`RaceScene` owns the phase separately from gameplay RAM and captures it in
 the completed cockpit frame. Exact, interpolated and historical views only
 draw that snapshot. The original input logic still decides whether boost is
 active and consumes fuel. Physics, RNG and all three clock rates are unchanged.
@@ -31,8 +31,8 @@ game loop and race-entry drawing. It found the absent flame advancement,
 | --- | --- |
 | Ground dust and edge sparks | `native_driving_particles` |
 | Hanging/lifting chains, objects 19–22 | `native_cockpit_chains` |
-| Tops, engine/exhausts and software wheel images | `replay_render_assets` |
-| Boost flames | `advanceReplayFlames` / `composeReplayFlames` |
+| Tops, engine/exhausts and software wheel images | `race_render_assets` |
+| Boost flames | `advanceBoostFlames` / `composeBoostFlames` |
 | Damage-strip sections and runtime holes | Race initialization / `driving_effects` |
 | Hardware wheel sprites and 50 Hz rotation | `native_wheel_sprites` / `wheel_animation` |
 | Ordinary race prompts; pause/end panel | `native_race_messages` / `renderLiveMessage` |

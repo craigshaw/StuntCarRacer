@@ -1,6 +1,6 @@
 #pragma once
-#include "draw_bridge.h"
-#include "track_initialization.h"
+#include "track/draw_bridge.h"
+#include "track/track_initialization.h"
 #include <algorithm>
 #include <vector>
 

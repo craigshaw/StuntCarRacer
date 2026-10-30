@@ -20,7 +20,7 @@ frequency, waveform and active-car handling, so it is not the behavioral oracle.
 
 ## Behavior and data ownership
 
-`src/draw_bridge.h` separates passive source data, current vehicle/track inputs,
+`src/track/draw_bridge.h` separates passive source data, current vehicle/track inputs,
 and mutable bridge state. `src/state/draw_bridge_adapter.h` is the address-space
 serialization adapter shared with the native driving implementation. Its
 `scr::test::drawBridge::animate(memory)` entry point returns whether the raw

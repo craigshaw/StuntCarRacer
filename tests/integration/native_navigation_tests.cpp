@@ -1,5 +1,5 @@
-#include "native_game_session.h"
-#include "native_display_settings.h"
+#include "session/native_game_session.h"
+#include "launcher/native_display_settings.h"
 #include <algorithm>
 #include <array>
 #include <filesystem>
@@ -8,7 +8,7 @@
 #include <stdexcept>
 
 namespace {
-using namespace scr::viewer;
+using namespace scr::runtime;
 void require(bool value,const char* text){if(!value)throw std::runtime_error(text);}
 NativeGameInput input(unsigned controls=0,bool back=false,unsigned number=0){
     NativeGameInput value;value.menu={std::uint8_t(controls),std::uint8_t(number),back};return value;

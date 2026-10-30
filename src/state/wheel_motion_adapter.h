@@ -1,5 +1,5 @@
 #pragma once
-#include "wheel_motion.h"
+#include "physics/wheel_motion.h"
 #include <array>
 #include <cstdint>
 

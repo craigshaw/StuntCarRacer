@@ -1,9 +1,9 @@
-#include "native_startup.h"
-#include "native_race_initialization.h"
-#include "native_menu_flow.h"
-#include "replay_scene.h"
-#include "replay_view.h"
-#include "track_initialization.h"
+#include "assets/native_startup.h"
+#include "race/native_race_initialization.h"
+#include "menus/native_menu_flow.h"
+#include "race/race_scene.h"
+#include "presentation/camera_view.h"
+#include "track/track_initialization.h"
 #include "state/track_mesh_adapter.h"
 #include "driving_replay_io.h"
 #include "m68k.h"
@@ -21,7 +21,7 @@
 
 namespace {
 using namespace scr;
-using namespace scr::viewer;
+using namespace scr::runtime;
 NativeMemory ram{};
 std::array<std::uint8_t,4096> stack{};
 constexpr unsigned stackBase=0x8f000,stackTop=0x90000,sentinel=0xa0000;
@@ -47,7 +47,7 @@ struct Hash {
     template<class T>void pod(const T& item){bytes(&item,sizeof(item));}
 };
 std::uint64_t pixelsHash(const std::vector<std::uint32_t>& pixels){Hash h;h.bytes(pixels.data(),pixels.size()*sizeof(pixels[0]));return h.value;}
-void frameHash(Hash& h,const ReplaySceneFrame& frame){
+void frameHash(Hash& h,const RaceFrame& frame){
     h.pod(frame.pose);h.pod(frame.camera);h.pod(frame.cockpit);h.pod(frame.forwardSpeed);h.pod(frame.tick);h.pod(frame.controls);h.pod(frame.restarts);h.pod(frame.action);
     h.pod(frame.nearInputs);h.pod(frame.nearSeed);h.pod(frame.progressInputs);h.pod(frame.opponent);h.pod(frame.opponentEnabled);
     h.pod(frame.instrumentPixels);h.pod(frame.wheelSprites);h.pod(frame.wheelTimeline);h.pod(frame.wheelVblanks);
@@ -57,12 +57,12 @@ void frameHash(Hash& h,const ReplaySceneFrame& frame){
     if(frame.movingTrack){const auto& track=*frame.movingTrack;h.pod(track.bridgePhase);h.pod(track.bridgeActive);h.bytes(track.progress.track.geometry.data(),track.progress.track.geometry.size());
         for(const auto& v:track.mesh.vertices)h.pod(v);for(const auto& f:track.mesh.faces)h.pod(f);for(const auto& side:track.sides)h.pod(side);}
 }
-std::uint64_t timelineHash(const ReplayScene& scene){Hash h;for(const auto& frame:scene.frames())frameHash(h,frame);return h.value;}
+std::uint64_t timelineHash(const RaceScene& scene){Hash h;for(const auto& frame:scene.frames())frameHash(h,frame);return h.value;}
 void cameraHash(Hash& h,const RenderProjectionCamera& camera){
     h.pod(camera.worldPosition);h.pod(camera.quarterTurn);h.pod(camera.heightBaseline);h.pod(camera.yawResidual);h.pod(camera.viewportCenterY);
     h.pod(camera.sinRoll);h.pod(camera.cosRoll);h.pod(camera.sinYaw);h.pod(camera.cosYaw);h.pod(camera.rotatedXUnits);h.pod(camera.rotatedZUnits);
 }
-std::uint64_t semanticFrameHash(const ReplaySceneFrame& frame){
+std::uint64_t semanticFrameHash(const RaceFrame& frame){
     Hash h;h.pod(frame.pose.worldPosition);h.pod(frame.pose.pitch);h.pod(frame.pose.yaw);h.pod(frame.pose.roll);h.pod(frame.pose.averageWheelVelocity);cameraHash(h,frame.camera);
     h.pod(frame.forwardSpeed);h.pod(frame.tick);h.pod(frame.controls);h.pod(frame.restarts);h.pod(frame.action);h.pod(frame.cameraYaw);
     h.pod(frame.lapCounter);h.pod(frame.raceComplete);h.pod(frame.boostFuel);h.pod(frame.damage);h.pod(frame.minutes);h.pod(frame.seconds);h.pod(frame.subseconds);
@@ -93,7 +93,7 @@ void bitmap(const std::filesystem::path& path,const std::vector<std::uint32_t>& 
     for(auto pixel:pixels)u32(pixel);require(bool(out),"Cannot export audit comparison bitmap");
 }
 void horizonAudit(const NativeStartupData& source){
-    SoftwareReplayRenderer renderer;TrackMesh mesh;MountainHorizonFrame mountains;RenderProjectionTables tables;
+    SoftwareRenderer renderer;TrackMesh mesh;MountainHorizonFrame mountains;RenderProjectionTables tables;
     std::array<std::uint32_t,16> palette{};for(unsigned i=0;i<16;++i)palette[i]=0x010101u*i;
     TrigTable trig{};for(unsigned i=0;i<trig.size();++i)trig[i]=std::uint16_t((unsigned((*source.memory)[0x1ca42+2*i])<<8)|(*source.memory)[0x1ca43+2*i]);
     for(unsigned mode:{0u,0x7fu,0x80u,0xffu})for(int pitch:{-1536,-512,0,512,1536})for(int roll:{-0x1800,-0x400,0,0x400,0x1800}){
@@ -119,7 +119,7 @@ NearTrackDrawCommand polygon(std::initializer_list<NearTrackPoint> points,unsign
     for(unsigned i=0;i<vertices.size();++i){NearTrackEdge edge;edge.present=true;edge.from=edge.clippedFrom=vertices[i];edge.to=edge.clippedTo=vertices[(i+1)%vertices.size()];command.edges.push_back(edge);}return command;
 }
 void coverageAudit(){
-    SoftwareReplayRenderer renderer;TrackMesh mesh;MountainHorizonFrame mountains;RenderProjectionCamera camera{};camera.cosRoll=0x7fff;RenderProjectionTables tables;
+    SoftwareRenderer renderer;TrackMesh mesh;MountainHorizonFrame mountains;RenderProjectionCamera camera{};camera.cosRoll=0x7fff;RenderProjectionTables tables;
     std::array<std::uint32_t,16> palette{};for(unsigned i=0;i<16;++i)palette[i]=i+1;
     for(unsigned reverse=0;reverse<2;++reverse)for(unsigned triangles=0;triangles<2;++triangles){
         NearTrackPresentation commands;
@@ -157,15 +157,15 @@ void scenes(const std::filesystem::path& pack,const std::filesystem::path& outpu
         auto source=fresh(pack,track,context,competition!=0);const auto name="track-"+std::to_string(track)+"-context-"+std::to_string(context)+"-mode-"+std::to_string(competition);
         const auto folder=output/name;std::filesystem::create_directories(folder);writeFile(folder/"seed.bin",source.memory->data(),source.memory->size());
         if(!counts.scenes)writeFile(output/"source-payload.bin",source.payload.data(),source.payload.size());
-        ReplayScene viewed,headless;viewed.loadNativeState(*source.memory,source.payload,folder/"viewed");headless.loadNativeState(*source.memory,source.payload,folder/"headless");
+        RaceScene viewed,headless;viewed.loadNativeState(*source.memory,source.payload,folder/"viewed");headless.loadNativeState(*source.memory,source.payload,folder/"headless");
         const auto probe=std::make_unique<scr::test::replay::NativeReplay>(*source.memory);
-        const auto assets=decodeReplayRenderAssets(source.payload.data(),source.payload.size(),source.memory->data(),source.memory->size());
+        const auto assets=decodeRaceRenderAssets(source.payload.data(),source.payload.size(),source.memory->data(),source.memory->size());
         const auto wheelAssets=decodeNativeWheelSprites(source.memory->data(),source.memory->size());
         const auto mountains=decodeMountainHorizonData(source.payload.data(),source.payload.size());RenderProjectionTables tables;
         for(unsigned i=0;i<2048;++i){tables.angleTable[i]=scr_test::readWord(*source.memory,0x1cc46+2*i);tables.magnitudeTable[i]=scr_test::readWord(*source.memory,0x1dc46+2*i);}
         std::array<std::uint8_t,100> flags{};for(unsigned i=0;i<(*source.memory)[0x1ca1a];++i)flags[i]=(*source.memory)[scr_test::readLong(*source.memory,0x7aa1a+4*i)];
         const auto sides=buildTrackSides(viewed.mesh(),{(*source.memory)[0x691b3],(*source.memory)[0x691b2],false});
-        SoftwareReplayRenderer comparisonRenderer;unsigned maximumDifference=0;
+        SoftwareRenderer comparisonRenderer;unsigned maximumDifference=0;
         std::ofstream differences(folder/"native-comparison.csv");differences<<"tick,changed_viewport_pixels,old_native_faces,corrected_native_faces\n";
         std::ofstream controls(folder/"controls.csv");controls<<"tick,controls\n";
         unsigned offtrack=0,restarts=0,commands=0,generic=0,bridge=0;std::uint64_t previousBridge=0;
@@ -177,40 +177,40 @@ void scenes(const std::filesystem::path& pack,const std::filesystem::path& outpu
             if(frame.movingTrack){Hash h;const auto& bytes=frame.movingTrack->progress.track.geometry;h.bytes(bytes.data(),bytes.size());bridge+=previousBridge&&previousBridge!=h.value;previousBridge=h.value;}
             if(tick%16==0||tick==383){
                 const unsigned current=unsigned(viewed.frames().size()-1);const auto before=timelineHash(viewed);const auto exact=pixelsHash(viewed.render(current));
-                const ReplayViewSettings defaults{};require(pixelsHash(viewed.renderView(double(current),defaults))==exact,"Default view differs from baseline");
+                const CameraViewSettings defaults{};require(pixelsHash(viewed.renderView(double(current),defaults))==exact,"Default view differs from baseline");
                 const auto middle=pixelsHash(viewed.renderLive(0.5));const auto again=pixelsHash(viewed.renderLive(0.5));require(middle==again,"Repeated interpolation changed its image");
                 generic+=viewed.statistics().roadFaces+viewed.statistics().sideFaces;
-                ReplayViewSettings alternate;alternate.yawOffset=0x400;alternate.pitchOffset=0x100;
+                CameraViewSettings alternate;alternate.yawOffset=0x400;alternate.pitchOffset=0x100;
                 const auto alt=pixelsHash(viewed.renderView(double(current),alternate));counts.cameraChanges+=alt!=exact;
                 require(pixelsHash(viewed.renderView(double(current),alternate))==alt,"Alternate view is not deterministic");
                 alternate.showCockpit=false;const auto hidden=pixelsHash(viewed.renderView(double(current),alternate));counts.cockpitChanges+=hidden!=alt;
                 require(pixelsHash(viewed.renderView(double(current),alternate))==hidden,"Hidden cockpit view is not deterministic");
-                ReplayViewSettings extended;extended.view=NativeView::Extended;
+                CameraViewSettings extended;extended.view=NativeView::Extended;
                 const auto originalPixels=viewed.render(current);
                 const auto extendedPixels=viewed.renderView(double(current),extended);
                 require(extendedPixels.size()==320*200,"Extended canvas has the wrong dimensions");
                 for(unsigned y=168;y<200;++y)for(unsigned x=32;x<288;++x)
                     require(extendedPixels[y*320+x]==originalPixels[y*320+x],"Extended view changed the original instrument pixels");
-                std::vector<std::uint32_t> carMask(320*200,replayTransparent);
-                composeReplayCockpit(assets,frame.cockpit,carMask);
+                std::vector<std::uint32_t> carMask(320*200,transparentPixel);
+                composeCockpit(assets,frame.cockpit,carMask);
                 composeNativeWheelSprites(wheelAssets,frame.wheelSprites,frame.wheelTimeline[0],carMask);
-                for(unsigned y=23;y<200;++y)for(unsigned x=0;x<320;++x)if(carMask[y*320+x]!=replayTransparent)
+                for(unsigned y=23;y<200;++y)for(unsigned x=0;x<320;++x)if(carMask[y*320+x]!=transparentPixel)
                     require(extendedPixels[y*320+x]==originalPixels[y*320+x],"Extended view changed the complete car assembly");
                 require(pixelsHash(viewed.renderView(double(current),extended))==pixelsHash(extendedPixels),"Extended view is not deterministic");
                 require(viewed.renderView(0.5,extended).size()==320*200,"Extended interpolated query failed");
-                ReplayViewSettings widescreen;widescreen.view=NativeView::Widescreen;
+                CameraViewSettings widescreen;widescreen.view=NativeView::Widescreen;
                 const auto widePixels=viewed.renderView(double(current),widescreen);
                 require(widePixels.size()==432*200,"Widescreen canvas has the wrong dimensions");
-                for(unsigned y=23;y<200;++y)for(unsigned x=0;x<320;++x)if(carMask[y*320+x]!=replayTransparent)
+                for(unsigned y=23;y<200;++y)for(unsigned x=0;x<320;++x)if(carMask[y*320+x]!=transparentPixel)
                     require(widePixels[y*432+56+x]==originalPixels[y*320+x],"Widescreen changed the complete original car assembly");
                 for(unsigned y=168;y<200;++y)for(unsigned x=32;x<288;++x)
                     require(widePixels[y*432+56+x]==originalPixels[y*320+x],"Widescreen changed the original instrument pixels");
                 require(pixelsHash(viewed.renderView(double(current),widescreen))==pixelsHash(widePixels),"Widescreen view is not deterministic");
                 require(viewed.renderView(0.5,widescreen).size()==432*200,"Widescreen interpolated query failed");
-                ReplayViewSettings ultrawide;ultrawide.view=NativeView::Ultrawide;
+                CameraViewSettings ultrawide;ultrawide.view=NativeView::Ultrawide;
                 const auto ultraPixels=viewed.renderView(double(current),ultrawide);
                 require(ultraPixels.size()==864*200,"Ultrawide canvas has the wrong dimensions");
-                for(unsigned y=23;y<200;++y)for(unsigned x=0;x<320;++x)if(carMask[y*320+x]!=replayTransparent)
+                for(unsigned y=23;y<200;++y)for(unsigned x=0;x<320;++x)if(carMask[y*320+x]!=transparentPixel)
                     require(ultraPixels[y*864+272+x]==originalPixels[y*320+x],"Ultrawide changed the complete original car assembly");
                 for(unsigned y=168;y<200;++y)for(unsigned x=32;x<288;++x)
                     require(ultraPixels[y*864+272+x]==originalPixels[y*320+x],"Ultrawide changed the original instruments");
@@ -240,7 +240,7 @@ void scenes(const std::filesystem::path& pack,const std::filesystem::path& outpu
         }
         const auto before=timelineHash(viewed);
         for(unsigned n=unsigned(viewed.frames().size());n>0;--n){
-            const unsigned index=n-1;const auto expected=pixelsHash(viewed.render(index));(void)viewed.renderView(index,ReplayViewSettings{0x800,0,0,false});
+            const unsigned index=n-1;const auto expected=pixelsHash(viewed.render(index));(void)viewed.renderView(index,CameraViewSettings{0x800,0,0,false});
             require(pixelsHash(viewed.render(index))==expected,"Reverse seek changed baseline image");++counts.retained;}
         require(timelineHash(viewed)==before,"Reverse seeking modified snapshots");
         for(unsigned tick=0;tick<600&&!viewed.liveTerminal();++tick){

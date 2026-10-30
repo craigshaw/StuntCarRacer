@@ -3,16 +3,16 @@
 #include <windows.h>
 #include <objidl.h>
 #include <gdiplus.h>
-#include "native_launcher.h"
-#include "windows_launcher.h"
-#include "local_asset_pack.h"
-#include "replay_scene.h"
+#include "launcher/native_launcher.h"
+#include "platform/windows/launcher.h"
+#include "assets/local_asset_pack.h"
+#include "race/race_scene.h"
 #include <fstream>
 #include <iostream>
 #include <stdexcept>
 
 namespace {
-using namespace scr::viewer;
+using namespace scr::runtime;
 void require(bool value,const char* message){if(!value)throw std::runtime_error(message);}
 std::string bytes(const std::filesystem::path& path){std::ifstream input(path,std::ios::binary);return {std::istreambuf_iterator<char>(input),{}};}
 void write(const std::filesystem::path& path,const std::string& value){std::ofstream output(path,std::ios::binary);output.write(value.data(),std::streamsize(value.size()));}
@@ -56,7 +56,7 @@ void preferences(const std::filesystem::path& root){
     require(defaultNativeLaunchPaths().pack.is_absolute()&&defaultNativeLaunchPaths().recordings.empty(),"Player defaults depend on working directory or enable recording");
 }
 void recording(const std::filesystem::path& pack,const std::filesystem::path& root){
-    ReplayScene normal,recorded;normal.loadNative(pack,{});recorded.loadNative(pack,root/L"explicit-recording");
+    RaceScene normal,recorded;normal.loadNative(pack,{});recorded.loadNative(pack,root/L"explicit-recording");
     require(normal.liveRecording().empty()&&!recorded.liveRecording().empty(),"Recording opt-in differs");
     for(unsigned tick=0;tick<96;++tick){const unsigned control=tick<16?0:17;
         require(normal.stepLive(control)==recorded.stepLive(control),"Recording affected race lifetime");

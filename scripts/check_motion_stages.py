@@ -85,7 +85,7 @@ def main():
     stage_results = {}
     run_targets = [(directory, target) for directory, _, target in STAGES]
     run_targets.append(('physics-prefix', 'physics_prefix_oracle'))
-    run_targets.append(('motion-tail', 'motion_step_oracle'))
+    run_targets.append(('motion-tail', 'motion_tail_oracle'))
     for directory, target in run_targets:
         exe = build / 'Release' / (target + '.exe')
         run = subprocess.run([str(exe), str(payload_path), *capture_args], cwd=ROOT,
@@ -105,7 +105,7 @@ def main():
     source_paths += [ROOT / 'tools/research/reference' / verifier for _, verifier, _ in STAGES]
     source_paths += [ROOT / 'tests/oracle' / (target + '.cpp') for _, _, target in STAGES]
     source_paths.append(ROOT / 'tests/oracle/physics_prefix_oracle.cpp')
-    source_paths.append(ROOT / 'tests/oracle/motion_step_oracle.cpp')
+    source_paths.append(ROOT / 'tests/oracle/motion_tail_oracle.cpp')
     source_paths += sorted((ROOT / 'tests/support').glob('*fixture.h'))
     source_paths = sorted(set(source_paths) | build_sources())
     report = {

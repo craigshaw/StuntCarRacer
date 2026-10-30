@@ -21,7 +21,7 @@ decoders; retaining original code bytes in the pack does not make them executabl
 `CMakeLists.txt` owns production library linkage; `cmake/DevTools.cmake` defines
 optional replay tools, and `cmake/NativeTests.cmake` and `cmake/OracleTests.cmake`
 define separate test targets. Presets share the native build across suites, keep
-oracle output separate and stage only the player in `dist/`. Production state
+oracle output separate and stage the player and licence notices in `dist/`. Production state
 adapters live under `src/state/` and use `scr::state` namespaces. Native
 race orchestration and replay I/O are shared by the player and development tools.
 Core calculations use typed native values, while the compatibility memory layout

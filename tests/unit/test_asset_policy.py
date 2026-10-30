@@ -32,6 +32,7 @@ def local_repository():
 class AssetPolicyTests(unittest.TestCase):
     def test_source_is_allowed(self):
         self.assertEqual(policy.violations('src/startup.cpp', b'void startup() {}\n'), [])
+        self.assertEqual(policy.violations('LICENSE', b'MIT License\n'), [])
 
     def test_forced_additions_are_detected(self):
         with local_repository() as directory:

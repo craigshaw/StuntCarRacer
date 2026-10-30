@@ -105,11 +105,12 @@ colour and typography. Its layout and status messages work before any source
 disk is available. The original game's artwork and menus retain their existing
 presentation after Play.
 
-There is no Native port / Amiga original subtitle. The supplied original logo
+There is no Native port / Amiga original subtitle. The approved original logo
 forms a low-opacity background behind the title and fades into the dialog.
-Scale the complete image to fit the padded header at the right, preserving its
-aspect ratio without cropping at normal or compact window sizes.
-It is a local build resource, kept out of source control with other original assets.
+It fits the padded header at the right, preserving its aspect ratio without
+cropping. Its exact hash is pinned as a release branding exception; the PNG
+stays out of Git. Builds without it use a text header. See
+[development](../development.md#development-helpers-and-detailed-receipts).
 
 ## Delivery and verification
 

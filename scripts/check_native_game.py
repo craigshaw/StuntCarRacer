@@ -10,6 +10,7 @@ from native_build import NATIVE_BUILD, ORACLE_BUILD, build_sources, configure_co
 from check_native_startup import sources as startup_sources
 from check_driving_replay import verify_replay_result
 from import_native_assets import DEFAULT_PACK, ROOT, import_assets
+from check_release import check_release
 
 
 def identity(path):
@@ -43,6 +44,7 @@ def sources():
                  'native_career_state'):
         paths.add(ROOT / 'tests/oracle' / (name + '_tests.cpp'))
     paths.update(build_sources())
+    paths.update(ROOT / name for name in ('scripts/check_release.py', 'setup/branding.json', 'LICENSE', 'THIRD_PARTY_NOTICES.md'))
     return [identity(path) for path in sorted(paths)]
 
 
@@ -300,8 +302,11 @@ def main():
     staged = ROOT / 'dist/Stunt Car Racer.exe'
     if identity(staged)['sha256'] != identity(executable)['sha256']:
         raise RuntimeError('Staged player executable differs from the checked build')
+    release = check_release(ROOT / 'dist')
+    if release['status'] != 'passed':
+        raise RuntimeError('Staged player failed release safeguards: ' + '; '.join(release['problems']))
     report = {'status': 'passed', 'capture_input': False, 'rom_input': False, 'cpu_emulation': False,
-              'pack': identity(pack), 'game': identity(staged), 'build_game': identity(executable), 'sources': records, 'artwork': artwork, 'launcher_disk': disk_fixture, 'launcher': launcher,
+              'pack': identity(pack), 'game': identity(staged), 'build_game': identity(executable), 'sources': records, 'artwork': artwork, 'release': release, 'launcher_disk': disk_fixture, 'launcher': launcher,
               'integration': integration, 'navigation': navigation, 'opening': opening, 'startup': startup, 'bridge_driving': bridge,
               'season': season, 'multiplayer': multiplayer, 'career': career, 'autosave': autosave, 'saves': saves, 'save_store': storage, 'display': display, 'controls': controls, 'original_comparisons': original}
     (output / 'check-results.json').write_text(json.dumps(report, indent=2) + '\n')

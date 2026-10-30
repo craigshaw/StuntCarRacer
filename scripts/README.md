@@ -14,6 +14,7 @@ and test interface; see [development](../docs/development.md).
 | `check_driving_replay.py`, `replay_lap.py` | Replay comparisons and authored-lap evidence checks |
 | `prepare_wheel_oracle.py` | Validate or explicitly download pinned test-only Musashi sources |
 | `check_repository_assets.py` | Source-only Git asset policy |
+| `check_release.py` | Staged player file list, notices and embedded-resource safeguards |
 | `native_build.py` | Shared build locations and source identities for wrappers |
 
 Optional disk inspection, emulator preparation, REA/Ghidra checks and reference

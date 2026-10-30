@@ -3,6 +3,7 @@ project(stunt_car_racer LANGUAGES C CXX)
 include(CTest)
 option(SCR_BUILD_DEV_TOOLS "Build development replay and direct-race viewers" ON)
 option(SCR_BUILD_ORACLE "Build differential tests against original 68000 bytes" OFF)
+option(SCR_EMBED_LAUNCHER_LOGO "Embed the hash-verified launcher logo when available locally" ON)
 set(MUSASHI_DIR "" CACHE PATH "Pinned, locally downloaded Musashi source")
 if(SCR_BUILD_ORACLE AND NOT BUILD_TESTING)
   message(FATAL_ERROR "SCR_BUILD_ORACLE requires BUILD_TESTING=ON")
@@ -102,8 +103,16 @@ if(WIN32)
   target_link_libraries(native_game PRIVATE scr_game scr_display user32 gdi32 shell32 xinput9_1_0 winmm comdlg32 dwmapi)
   target_compile_features(native_game PRIVATE cxx_std_17)
   target_compile_definitions(native_game PRIVATE UNICODE _UNICODE)
-  # Local copyrighted artwork remains ignored; only this resource recipe is tracked.
-  if(EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/logo.png")
+  # The approved launcher logo is the sole embedded-artwork exception.
+  if(SCR_EMBED_LAUNCHER_LOGO AND EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/logo.png")
+    set_property(DIRECTORY APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS
+      "${CMAKE_CURRENT_SOURCE_DIR}/setup/branding.json" "${CMAKE_CURRENT_SOURCE_DIR}/logo.png")
+    file(READ "${CMAKE_CURRENT_SOURCE_DIR}/setup/branding.json" branding)
+    string(JSON approved_logo_sha GET "${branding}" sha256)
+    file(SHA256 "${CMAKE_CURRENT_SOURCE_DIR}/logo.png" local_logo_sha)
+    if(NOT local_logo_sha STREQUAL approved_logo_sha)
+      message(FATAL_ERROR "Unreviewed launcher logo: verify its provenance and update setup/branding.json, or set SCR_EMBED_LAUNCHER_LOGO=OFF")
+    endif()
     file(WRITE "${CMAKE_CURRENT_BINARY_DIR}/launcher-logo.rc" "101 RCDATA \"${CMAKE_CURRENT_SOURCE_DIR}/logo.png\"\n")
     set(SCR_LAUNCHER_RESOURCE "${CMAKE_CURRENT_BINARY_DIR}/launcher-logo.rc")
     target_sources(native_game PRIVATE "${SCR_LAUNCHER_RESOURCE}")
@@ -119,8 +128,9 @@ if(SCR_BUILD_DEV_TOOLS)
 endif()
 
 if(WIN32)
-  # Staging installs only the player application, never fixtures or test tools.
+  # Stage only the player and its notices, never fixtures or test tools.
   install(TARGETS native_game RUNTIME DESTINATION . COMPONENT Runtime)
+  install(FILES LICENSE THIRD_PARTY_NOTICES.md DESTINATION . COMPONENT Runtime)
 endif()
 
 if(BUILD_TESTING)

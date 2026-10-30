@@ -15,7 +15,7 @@ FORBIDDEN_SUFFIXES = {'.adf', '.adz', '.ipf', '.dms', '.hdf', '.rom', '.uss', '.
                       '.png', '.jpg', '.jpeg', '.gif', '.webp', '.bmp', '.wav', '.mp3', '.ogg', '.flac',
                       '.scr-assets', '.scr-save', '.scr-career', '.scr-hall', '.scr-index', '.pack', '.exe', '.dll', '.lib', '.obj', '.o', '.pdb', '.gpr', '.zip', '.7z'}
 TEXT_SUFFIXES = {'.cpp', '.h', '.c', '.java', '.py', '.md', '.json', '.csv', '.txt', '.cmake', '.cmd', '.ps1', '.sh', '.mjs', '.yml', '.yaml'}
-TEXT_NAMES = {'.gitignore', '.gitattributes', 'CMakeLists.txt', 'pre-commit'}
+TEXT_NAMES = {'.gitignore', '.gitattributes', 'CMakeLists.txt', 'pre-commit', 'LICENSE'}
 
 
 def violations(path, blob):

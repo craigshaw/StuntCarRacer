@@ -54,9 +54,17 @@ cmake --install build/windows --config Release
 The presets select the prepared x64 Visual Studio toolchain. Configure generates
 the project, Build compiles it, CTest runs existing test executables, and Install
 stages the player executable. Running the staged game performs no build or tests.
-The default install prefix is `dist/`; it contains only `Stunt Car Racer.exe`.
+The default install prefix is `dist/`; it contains `Stunt Car Racer.exe`,
+`LICENSE` and `THIRD_PARTY_NOTICES.md`.
 The disk's asset pack is imported by the player on first launch and is not
-bundled there. Supplied local header artwork remains embedded in the executable.
+bundled there. The approved launcher logo is the sole embedded-artwork exception;
+source-only builds use a text header when that local file is absent.
+
+Before distributing the staged folder, run `python scripts/check_release.py`.
+It checks the exact file list, current notices, x64 executable headers and PE
+resources; only version information, the Windows manifest and the exact approved
+launcher logo are allowed.
+The native game check runs this safeguard automatically after staging.
 
 | Path | Purpose |
 | --- | --- |
@@ -70,7 +78,7 @@ bundled there. Supplied local header artwork remains embedded in the executable.
 | `CMakePresets.json`, `cmake/` | Shared toolchain settings, native/oracle target definitions and CTest registration |
 | `build/windows/` | Shared native compiler output for Release and Debug, CTest logs and per-configuration test outputs |
 | `build/windows-oracle/` | Separate original-code test build, including test-only Musashi |
-| `dist/` | Staged player executable |
+| `dist/` | Staged player executable and licence notices |
 | `analysis/` | Private inputs, recovered references, research evidence and detailed verification reports |
 | `working/` | Development settings, saves and emulator working copies |
 
@@ -155,10 +163,10 @@ ownership. The development helper defaults that directory to `working/player-dat
 `--recordings-dir` opts into development recordings.
 Drive Native.cmd remains a provisional helper, independent of the player app.
 
-The supplied local `logo.png` is ignored and embedded as a native resource when
-present at configure/build time. It is never copied into Git; a source-only clone
-builds a text header until the local artwork is supplied. The native game receipt
-records its hash and rejects stale artwork with `--skip-build`.
+The ignored `logo.png` is embedded only when its hash matches `setup/branding.json`.
+Unknown artwork fails configuration; replacing it requires an explicit provenance
+review and pin update. `-DSCR_EMBED_LAUNCHER_LOGO=OFF` selects the text header.
+The native game receipt records the local artwork's hash.
 
 `check_native_game.py` stages the checked executable in `dist/` after successful
 verification, verifies the copy's hash, and records both build and staged paths.

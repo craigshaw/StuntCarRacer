@@ -123,7 +123,7 @@ cmake --install build/windows --config Release
 ```
 
 Release and Debug share `build/windows/`; original-code tests use
-`build/windows-oracle/`. `dist/` contains only the player executable. The
+`build/windows-oracle/`. `dist/` contains the player executable and licence notices. The
 existing private references and check reports remain under `analysis/`.
 See [build options and layout](docs/development.md#build-test-and-stage).
 See [local tool configuration](setup/README.md) when setting up development helpers.
@@ -165,3 +165,15 @@ git config core.hooksPath .githooks
 
 These launch paths are distinct. See [reverse-engineering tools and mapping](docs/research/reverse-engineering.md)
 for WinUAE controls, raw 68000 analysis and retained evidence locations.
+
+## Credits and licence
+
+Original game: **Geoff Crammond / MicroStyle (1989)**.
+Research used [Vesuri's disassembly](https://github.com/Vesuri/stuntcarracer);
+optional original-code tests use [Musashi](https://github.com/kstenerud/Musashi).
+
+Original contributions to this port use the [MIT License](LICENSE).
+The original game and third-party material retain their own rights; see
+[third-party notices](THIRD_PARTY_NOTICES.md). No ADF, ROM or extracted game-data
+pack is included. The launcher logo is an explicit branding exception.
+This project is unofficial and unaffiliated with the original game's rights holders.

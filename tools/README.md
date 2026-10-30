@@ -3,7 +3,7 @@
 `replay/native_replay_viewer.cpp` is the Windows replay/direct-race viewer;
 `replay/driving_replay_native.cpp` runs a headless native replay. Both reuse the
 production implementations. `SCR_BUILD_DEV_TOOLS` controls these targets without
-enabling original-code tests. Only the player application is installed to `dist/`.
+enabling original-code tests. Only the player application and licence notices are installed to `dist/`.
 
 Everyday launch and verification commands remain in `scripts/`; optional
 recovery and emulator utilities live in [research/](research/README.md). See the

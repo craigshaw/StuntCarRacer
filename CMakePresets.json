@@ -12,7 +12,6 @@
       "cacheVariables": {
         "BUILD_TESTING": "ON",
         "SCR_BUILD_DEV_TOOLS": "ON",
-        "SCR_BUILD_ARTWORK_TOOLS": "OFF",
         "SCR_BUILD_ORACLE": "OFF",
         "SCR_EMBED_LAUNCHER_LOGO": "ON"
       }

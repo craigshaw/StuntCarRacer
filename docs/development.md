@@ -42,8 +42,7 @@ steps; its launcher accepts the player's supported ADF on first use.
 Use the same preset for configure, build and CTest. An app-only build uses
 `cmake --build --preset windows-release --target native_game`. Custom configuration
 can omit tests/viewers with `-DBUILD_TESTING=OFF -DSCR_BUILD_DEV_TOOLS=OFF`.
-`SCR_BUILD_ORACLE` defaults to OFF and requires testing. The experimental cockpit
-study additionally requires `SCR_BUILD_ARTWORK_TOOLS=ON`; ordinary builds omit it.
+`SCR_BUILD_ORACLE` defaults to OFF and requires testing.
 
 Install produces exactly `Stunt Car Racer.exe`, `LICENSE` and
 `THIRD_PARTY_NOTICES.md` under `dist/`. Assets, settings and saves are not bundled.

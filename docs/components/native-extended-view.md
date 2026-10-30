@@ -172,20 +172,3 @@ finishes with 32:9 active and retains the original finish-image codec.
 Captures and source/executable-identified
 receipts belong under ignored analysis/ or CTest output. These are bounded
 checks, not a claim of exhaustive visibility or original world-pixel identity.
-
-## 16:9 artwork study
-
-The development-only `native_cockpit_study` target reproduces the approved
-artwork reference. Run it with the asset-pack path and an
-output directory. It centres the original 320×200 car and main arch on a
-432×200 working canvas, extending only the diagonal side braces and blue
-interior. The outer 14 columns of each original brace are also reworked to
-join the extensions along a straight axis. The braces use their slimmer
-column-14 profile and original pale highlight's fitted direction, keeping
-their width and shading bands constant.
-BGRA outputs retain real transparency for future world rendering. The study
-checks exact protected car/arch pixels and symmetric extensions; its contextual
-image retains the protected native scene and leaves new scenery areas transparent.
-Display previews use the existing pixel proportions and a symmetric outer
-crop to present 16:9 without changing the original cockpit's displayed size.
-Neither 4:3 option nor the player executable is changed by this tool.

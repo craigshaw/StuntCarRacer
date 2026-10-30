@@ -180,7 +180,9 @@ git diff --check
 
 The asset checker reads indexed blobs, including forced additions; `--worktree`
 also checks non-ignored source. The hook must be enabled per checkout. CI runs
-source policy and synthetic Python tests without game data. Original media,
-packs, saves, screenshots, extracted data, built binaries and RE databases stay
-local. The logo exception applies to the release EXE, not to tracking its PNG.
+source policy and synthetic Python tests on Linux. Windows CI uses the Release
+presets to build the player/tools, run asset-free CTest checks and validate the
+staged release without local artwork. Original-code checks use local fixtures.
+Original media, packs, saves, screenshots, extracted data, built binaries and RE
+databases stay local. The logo exception applies to the release EXE, not to tracking its PNG.
 See [third-party notices](../THIRD_PARTY_NOTICES.md) for provenance and licence scope.

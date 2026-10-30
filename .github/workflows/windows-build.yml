@@ -1,0 +1,26 @@
+name: Windows build
+
+on: [push, pull_request, workflow_dispatch]
+
+permissions:
+  contents: read
+
+jobs:
+  release:
+    runs-on: windows-2025-vs2026
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Configure
+        run: cmake --preset windows-release -DSCR_EMBED_LAUNCHER_LOGO=OFF
+      - name: Build player, tools and tests
+        run: cmake --build --preset windows-release
+      - name: Run asset-free tests
+        run: ctest --preset windows-release -L "unit|source"
+      - name: Stage player
+        run: cmake --install build/windows --config Release
+      - name: Check release contents
+        run: python scripts/check_release.py

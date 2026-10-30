@@ -5,6 +5,13 @@
 namespace scr::runtime {
 namespace {
 using namespace state::checkpoint;
+std::uint64_t checkpointBaselineHash(const NativeMemory& baseline){
+    const auto identity=hash(baseline.data(),baseline.size());
+    // These two verified mode-chooser baselines differ only in unused loader
+    // code and preview help text. Keep the existing QTX save identity without
+    // changing either disk's payload or accepting any other altered baseline.
+    return identity==0x5bddbb6119b27c96ULL?0x885427bc82f0893cULL:identity;
+}
 bool allowed(NativeMenuPage page){
     switch(page){
     case NativeMenuPage::Main:case NativeMenuPage::Matchup:case NativeMenuPage::Results:
@@ -37,7 +44,7 @@ CareerBytes encodeNativeCheckpoint(const NativeMemory& baseline,const NativeCare
         const auto season=decode(baseline,c.suspendedSeason,false);
         if(!season.menu.competitive)throw std::runtime_error("Suspended checkpoint is not a season");
     }
-    Writer w;w.u32(2);w.u64(hash(baseline.data(),baseline.size()));
+    Writer w;w.u32(2);w.u64(checkpointBaselineHash(baseline));
     w.u32(unsigned(c.menu.page));w.u32(c.menu.competitive);w.u32(c.menu.division);w.u32(c.menu.context);
     for(int value:{c.menu.mainSelection,c.menu.divisionSelection,c.menu.saveSelection,c.menu.trackSelections[0],c.menu.trackSelections[1],c.menu.trackSelections[2],c.menu.trackSelections[3]})w.u32(unsigned(value+1));
     w.u32(c.previewPrepared);w.u32(c.preparedTrack);w.u32(c.preparedLeague);w.u32(c.finishPending);
@@ -57,7 +64,7 @@ CareerBytes encodeNativeCheckpoint(const NativeMemory& baseline,const NativeCare
 namespace {
 NativeCareerCheckpoint decode(const NativeMemory& baseline,const CareerBytes& bytes,bool allowSeason){
     Reader r{bytes};const auto version=r.u32();
-    if((version!=1&&version!=2)||r.u64()!=hash(baseline.data(),baseline.size()))throw UnsupportedNativeCheckpoint("Unsupported career checkpoint or asset pack");
+    if((version!=1&&version!=2)||r.u64()!=checkpointBaselineHash(baseline))throw UnsupportedNativeCheckpoint("Unsupported career checkpoint or asset pack");
     NativeCareerCheckpoint c;c.memory=std::make_unique<NativeMemory>(baseline);c.menu.page=NativeMenuPage(r.u32());
     const auto flag=[&](){const auto value=r.u32();if(value>1)throw std::runtime_error("Invalid checkpoint flag");return bool(value);};
     c.menu.competitive=flag();c.menu.division=r.u32();c.menu.context=r.u32();

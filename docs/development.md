@@ -132,6 +132,7 @@ The rendering audit accepts `--jobs 1` if parallel MSBuild workers are unavailab
 CTest skips tests with missing private inputs. `ctest --preset windows-release -L unit`
 runs the asset-free native subset. Configure-time `SCR_TEST_ASSET_PACK`,
 `SCR_TEST_ADF`, `SCR_TEST_PAYLOAD` and `SCR_TEST_CAPTURE` select local fixtures.
+`SCR_TEST_ALTERNATE_ASSET_PACK` adds cross-ADF career checks when a second pack exists.
 Python policy/replay/lap/release tests are registered when an interpreter exists.
 Window and host-storage checks run serially; rapid atomic-replacement tests can
 still expose intermittent Windows access-denied errors, which remain failures.
@@ -183,6 +184,7 @@ also checks non-ignored source. The hook must be enabled per checkout. CI runs
 source policy and synthetic Python tests on Linux. Windows CI uses the Release
 presets to build the player/tools, run asset-free CTest checks and validate the
 staged release without local artwork. Original-code checks use local fixtures.
-Original media, packs, saves, screenshots, extracted data, built binaries and RE
-databases stay local. The logo exception applies to the release EXE, not to tracking its PNG.
+Original media, packs, saves, extracted data, built binaries and RE databases
+stay local. Only the four pinned README screenshots may be tracked; the launcher
+logo exception applies to the release EXE, not to tracking its PNG.
 See [third-party notices](../THIRD_PARTY_NOTICES.md) for provenance and licence scope.

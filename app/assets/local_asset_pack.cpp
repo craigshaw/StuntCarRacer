@@ -3,6 +3,7 @@
 #include <windows.h>
 #include <bcrypt.h>
 #include "assets/local_asset_pack.h"
+#include "supported_adf_sources.h"
 #include <algorithm>
 #include <array>
 #include <fstream>
@@ -13,9 +14,11 @@
 
 namespace scr::runtime {
 namespace {
-constexpr std::size_t headerBytes=88,payloadBytes=408540;
-constexpr char adfHash[]="548fd106cd62f2d80159d48ddd5293d8b22b6b17f80c17a84a61d75f5c8a9e06";
-constexpr char payloadHash[]="508646f12af15115de73b06940c79e579f920bf47ce55f7cd8920eca60b7921c";
+constexpr std::size_t headerBytes=88,payloadBytes=detail::payload_bytes;
+const detail::AdfSource* findSource(const std::string& digest){
+    for(const auto& source:detail::adfSources)if(digest==source.sha256)return &source;
+    return nullptr;
+}
 std::uint32_t word(const std::vector<std::uint8_t>& data,unsigned offset){
     return std::uint32_t(data[offset])|(std::uint32_t(data[offset+1])<<8)|
         (std::uint32_t(data[offset+2])<<16)|(std::uint32_t(data[offset+3])<<24);
@@ -72,8 +75,9 @@ LocalAssetPack loadLocalAssetPack(const std::filesystem::path& path){
     const std::array<std::uint8_t,8> magic{'S','C','R','D','A','T','A','1'};
     if(!std::equal(magic.begin(),magic.end(),bytes.begin())||word(bytes,8)!=1||word(bytes,12)!=headerBytes)
         throw std::runtime_error("Unsupported local asset pack version");
-    if(hex(bytes.data()+16,32)!=adfHash||hex(bytes.data()+48,32)!=payloadHash||
-       word(bytes,80)!=0xe700||word(bytes,84)!=payloadBytes||sha256(bytes.data()+headerBytes,payloadBytes)!=payloadHash)
+    const auto source=findSource(hex(bytes.data()+16,32));
+    if(!source||hex(bytes.data()+48,32)!=source->payload_sha256||
+       word(bytes,80)!=detail::load_address||word(bytes,84)!=payloadBytes||sha256(bytes.data()+headerBytes,payloadBytes)!=source->payload_sha256)
         throw std::runtime_error("Local asset pack failed source/payload SHA-256 validation");
     return {{bytes.begin()+headerBytes,bytes.end()}};
 }
@@ -88,27 +92,36 @@ void importLocalAssetPack(const std::filesystem::path& source,const std::filesys
     }
     std::ifstream input(adf,std::ios::binary|std::ios::ate);
     if(!input)throw std::runtime_error("Cannot read this ADF. Check the file is available, then choose it again.");
-    if(input.tellg()!=901120)throw std::runtime_error("This ADF is not yet supported. Choose the verified original Stunt Car Racer disk.");
-    std::vector<std::uint8_t> disk(901120);input.seekg(0);input.read(reinterpret_cast<char*>(disk.data()),std::streamsize(disk.size()));
+    if(input.tellg()!=detail::adf_bytes)throw std::runtime_error("This ADF is not yet supported. Choose a verified Stunt Car Racer disk.");
+    std::vector<std::uint8_t> disk(detail::adf_bytes);input.seekg(0);input.read(reinterpret_cast<char*>(disk.data()),std::streamsize(disk.size()));
     if(!input)throw std::runtime_error("The ADF could not be read completely. Choose it again.");
-    if(sha256(disk.data(),disk.size())!=adfHash||sha256(disk.data()+0xdc00,payloadBytes)!=payloadHash)
-        throw std::runtime_error("This ADF is not yet supported. Choose the verified original Stunt Car Racer disk.");
+    const auto sourceDefinition=findSource(sha256(disk.data(),disk.size()));
+    if(!sourceDefinition||sha256(disk.data()+detail::disk_offset,payloadBytes)!=sourceDefinition->payload_sha256)
+        throw std::runtime_error("This ADF is not yet supported. Choose a verified Quartex (QTX) or Woodpecker disk.");
     std::vector<std::uint8_t> bytes(headerBytes+payloadBytes);
     const std::string magic="SCRDATA1";std::copy(magic.begin(),magic.end(),bytes.begin());
-    putWord(bytes,8,1);putWord(bytes,12,headerBytes);putHash(bytes,16,adfHash);putHash(bytes,48,payloadHash);
-    putWord(bytes,80,0xe700);putWord(bytes,84,payloadBytes);std::copy_n(disk.begin()+0xdc00,payloadBytes,bytes.begin()+headerBytes);
+    putWord(bytes,8,1);putWord(bytes,12,headerBytes);putHash(bytes,16,sourceDefinition->sha256);putHash(bytes,48,sourceDefinition->payload_sha256);
+    putWord(bytes,80,detail::load_address);putWord(bytes,84,payloadBytes);std::copy_n(disk.begin()+detail::disk_offset,payloadBytes,bytes.begin()+headerBytes);
     std::ostringstream record;record<<"{\n  \"format\": \"SCRDATA1\", \"version\": 1,\n  \"source\": {\"filename\": "<<jsonString(adf.filename().wstring())
-        <<", \"bytes\": 901120, \"sha256\": \""<<adfHash<<"\"},\n  \"source_image\": {\"disk_offset\": 56320, \"bytes\": 408540, \"load_address\": 59136, \"sha256\": \""<<payloadHash
+        <<", \"bytes\": "<<detail::adf_bytes<<", \"sha256\": \""<<sourceDefinition->sha256<<"\", \"variant\": \""<<sourceDefinition->name<<"\"},\n  \"source_image\": {\"disk_offset\": "<<detail::disk_offset<<", \"bytes\": "<<payloadBytes<<", \"load_address\": "<<detail::load_address<<", \"sha256\": \""<<sourceDefinition->payload_sha256
         <<"\"},\n  \"pack\": {\"bytes\": "<<bytes.size()<<", \"sha256\": \""<<sha256(bytes.data(),bytes.size())
         <<"\"},\n  \"recipe\": \"native verified ADF slice v1\",\n  \"capture_input\": false, \"rom_input\": false, \"cpu_execution\": false\n}\n";
     if(pack.has_parent_path())std::filesystem::create_directories(pack.parent_path());
     try{
         writeComplete(pending,bytes.data(),bytes.size());(void)loadLocalAssetPack(pending);
         const auto json=record.str();writeComplete(pendingManifest,json.data(),json.size());
-        // All supported imports produce the same pack bytes. Commit provenance
-        // first, then the pack; either manifest describes any retained good pack.
+        // Validate both files before replacing either retained output. The
+        // pack header remains authoritative if a provenance replacement fails.
         replaceFile(pendingManifest,manifest);replaceFile(pending,pack);
     }catch(...){DeleteFileW(pending.c_str());DeleteFileW(pendingManifest.c_str());throw;}
+}
+std::wstring supportedAdfNames(){
+    std::wstring names;
+    for(const auto& source:detail::adfSources){
+        if(!names.empty())names+=L", ";
+        const std::string name=source.name;names.append(name.begin(),name.end());
+    }
+    return names;
 }
 std::wstring localAssetSourceName(const std::filesystem::path& pack){
     const auto fallback=L"Verified original disk";
@@ -116,6 +129,11 @@ std::wstring localAssetSourceName(const std::filesystem::path& pack){
     if(!input||input.tellg()>65536)return fallback;
     const auto size=input.tellg();if(size<0)return fallback;
     std::string data(std::size_t(size),'\0');input.seekg(0);input.read(data.data(),std::streamsize(data.size()));if(!input)return fallback;
+    std::ifstream packed(pack,std::ios::binary);std::array<std::uint8_t,48> header{};
+    if(!packed.read(reinterpret_cast<char*>(header.data()),header.size()))return fallback;
+    // A failed pack replacement can leave newer advisory provenance behind.
+    // Never label the retained pack with a different source disk's filename.
+    if(data.find(hex(header.data()+16,32))==std::string::npos)return fallback;
     auto at=data.find("\"filename\"");if(at==std::string::npos)return fallback;
     at=data.find(':',at+10);if(at==std::string::npos)return fallback;
     at=data.find_first_not_of(" \r\n\t",at+1);if(at==std::string::npos||data[at++]!='"')return fallback;

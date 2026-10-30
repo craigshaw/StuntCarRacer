@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.21)
-project(stunt_car_racer LANGUAGES C CXX)
+project(stunt_car_racer VERSION 0.1.0 LANGUAGES C CXX)
 include(CTest)
 option(SCR_BUILD_DEV_TOOLS "Build development replay and direct-race viewers" ON)
 option(SCR_BUILD_ORACLE "Build differential tests against original 68000 bytes" OFF)
@@ -99,6 +99,7 @@ target_include_directories(scr_state INTERFACE "${PROJECT_SOURCE_DIR}/src")
 target_compile_features(scr_state INTERFACE cxx_std_17)
 
 if(WIN32)
+  include(cmake/WindowsVersion.cmake)
   add_library(scr_runtime STATIC
     app/assets/local_asset_pack.cpp
     app/assets/native_startup.cpp
@@ -131,6 +132,7 @@ if(WIN32)
   target_include_directories(scr_runtime PUBLIC app)
   target_link_libraries(scr_runtime PUBLIC scr_render scr_audio scr_state bcrypt)
   target_compile_features(scr_runtime PUBLIC cxx_std_17)
+  include(cmake/AssetSources.cmake)
   add_library(scr_game STATIC
     app/session/native_game_session.cpp
     app/session/native_career_session.cpp
@@ -153,12 +155,14 @@ if(WIN32)
     app/platform/windows/launcher.cpp
   )
   target_include_directories(scr_host_ui PUBLIC app)
+  target_include_directories(scr_host_ui PRIVATE "${PROJECT_BINARY_DIR}/generated")
   target_link_libraries(scr_host_ui PUBLIC scr_runtime user32 gdi32 gdiplus shell32 ole32 comctl32)
   target_compile_features(scr_host_ui PUBLIC cxx_std_17)
   if(MSVC)
     target_compile_options(scr_host_ui PRIVATE /W4 /utf-8 /permissive-)
   endif()
-  add_executable(native_game WIN32 app/main.cpp app/platform/windows/drive_input.cpp app/platform/windows/audio_output.cpp)
+  add_executable(native_game WIN32 app/main.cpp app/platform/windows/drive_input.cpp app/platform/windows/audio_output.cpp
+    "${PROJECT_BINARY_DIR}/player-version.rc")
   set_target_properties(native_game PROPERTIES OUTPUT_NAME "Stunt Car Racer")
   target_link_libraries(native_game PRIVATE scr_game scr_host_ui user32 gdi32 shell32 xinput9_1_0 winmm comdlg32 dwmapi)
   target_compile_features(native_game PRIVATE cxx_std_17)

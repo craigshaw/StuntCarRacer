@@ -40,6 +40,10 @@ instructions with Capstone MC68000 mode or WinUAE's 68000 execution.
 
 ## Verified disk and memory mapping
 
+This research mapping and the original-code fixtures use the Quartex revision.
+The importer also accepts the verified Woodpecker disk; supported identities
+are recorded in [the source registry](../../setup/adf-sources.json).
+
 The supported ADF is 901,120 bytes. SHA-256:
 `548fd106cd62f2d80159d48ddd5293d8b22b6b17f80c17a84a61d75f5c8a9e06`.
 It has a valid boot checksum but no valid ordinary AmigaDOS root block; do not

@@ -177,9 +177,12 @@ struct NativeTrackPreview::State {
             drawing.previewColorOverride=!(geometry.progress.segment.steeringFlags&0xc0)&&!(geometry.heightDifference&0x40);
             for(const auto& command:drawNearTrackQueue(queue,drawing))rasterCommand(image,command);
         }
+        const bool crackCredit=memory[0x64383]=='B';
         NativeMenuTextCursor instruction{};instruction.column=12;instruction.row=24;
-        instruction.horizontalOffset=6;instruction.yOffset=8;instruction.colour=3;
-        drawNativeMenuString(memory,image,instruction,0x64354,0x43);
+        instruction.horizontalOffset=crackCredit?6:0;instruction.yOffset=8;instruction.colour=3;
+        // QTX replaces the original rotation hint with a crack credit. Skip
+        // that credit there; Woodpecker retains the complete original hint.
+        drawNativeMenuString(memory,image,instruction,0x64354,crackCredit?0x43:0x2c);
         indices.assign(image.indices.begin(),image.indices.end());
         packNativeMenuPixels(image,pixels);
     }

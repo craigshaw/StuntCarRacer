@@ -80,6 +80,24 @@ std::unique_ptr<NativeGameSession> reload(std::unique_ptr<NativeGameSession> gam
     require(game->page()==page,"Resume Season restored the wrong stage");require(progress(game->memory())==state,"Opening a career changed career, fixture, damage or RNG");
     require(game->render()==pixels,"Resume Season changed the pending report image");return game;
 }
+void diskVariants(const std::filesystem::path& first,const std::filesystem::path& second,const std::filesystem::path& root){
+    auto game=start(first,root);create(*game,"VARIANTS");const auto id=game->activeCareer()->id;
+    NativeGameSession firstBaseline(first,{}),secondBaseline(second,{});
+    NativeCareerCheckpoint checkpoint;checkpoint.memory=std::make_unique<NativeMemory>(game->memory());
+    const auto encoded=encodeNativeCheckpoint(firstBaseline.memory(),checkpoint);
+    auto legacy=encoded;legacy[0]=1;legacy.resize(legacy.size()-4);
+    require(progress(*decodeNativeCheckpoint(secondBaseline.memory(),legacy).memory)==progress(*checkpoint.memory),"Disk change rejected an existing native checkpoint");
+    auto altered=std::make_unique<NativeMemory>(secondBaseline.memory());(*altered)[0x100]^=1;
+    bool rejected=false;try{(void)decodeNativeCheckpoint(*altered,encoded);}catch(const UnsupportedNativeCheckpoint&){rejected=true;}
+    require(rejected,"Disk compatibility accepted an unrelated altered baseline");
+    choose(*game,2);tap(*game);require(game->page()==NativeMenuPage::Matchup,"Variant fixture did not start a season");
+    const auto fixture=progress(game->memory());game=reload(std::move(game),second,root);
+    require(game->activeCareer()->id==id,"Changing disks changed career identity");
+    back(*game);require(game->hasSuspendedSeason(),"Changing disks lost the suspended season");
+    game=reload(std::move(game),first,root);resume(*game);
+    require(progress(game->memory())==fixture,"Changing disks altered the fixture or RNG");
+    game=reload(std::move(game),second,root);require(game->requestClose(),"Variant career did not flush");
+}
 void careerFlow(const std::filesystem::path& pack,const std::filesystem::path& root){
     auto game=start(pack,root);create(*game,"ALPHA");image(*game,root/"career.ppm");const auto first=game->activeCareer()->id;
     choose(*game,2);tap(*game);require(game->page()==NativeMenuPage::Matchup,"Season did not start");
@@ -276,7 +294,8 @@ void checkpointContexts(const std::filesystem::path& pack){
 }
 }
 int main(int argc,char** argv)try{
-    if(argc!=3)throw std::invalid_argument("native_autosave_tests pack output");const std::filesystem::path root=argv[2];
+    if(argc!=3&&argc!=4)throw std::invalid_argument("native_autosave_tests pack output [alternate-pack]");const std::filesystem::path root=argv[2];
+    if(argc==4)diskVariants(argv[1],argv[3],root/"disk-variants");
     std::filesystem::create_directories(root);storage(root/"storage");checkpointContexts(argv[1]);careerFlow(argv[1],root/"flow");failures(argv[1],root/"failures");practicePolicies(argv[1],root/"policies");leaveRacePersistence(argv[1],root/"leave-race");paging(argv[1],root/"paging");draftsAndRecovery(argv[1],root/"recovery");seasonEndings(argv[1],root/"endings");earnedRecords(argv[1],root/"records");
     std::cout<<"{\"status\":\"passed\",\"checkpoint_contexts\":8,\"checkpoint_phases\":9,\"season_ending_contexts\":8,\"practice_policy_cases\":4,\"listed_careers\":36,\"record_mode_league_cases\":4,\"finish_before_acknowledgement\":true,\"finish_scoring_matches_uninterrupted\":true,\"interrupted_fixture\":true,\"duplicate_names\":true,\"delete\":true,\"recovery\":true,\"write_retry\":true,\"record_merge\":true,\"three_lap_records\":true,\"setup_draft\":true,\"conditional_entry_rows\":true,\"three_row_main_menu\":true,\"continue_opens_main_menu\":true,\"resume_season\":true,\"practice_preserves_suspended_season\":true,\"existing_native_careers\":true,\"career_switch_isolation\":true}\n";return 0;
 }catch(const std::exception& e){std::cerr<<e.what()<<'\n';return 1;}

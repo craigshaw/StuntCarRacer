@@ -1,10 +1,12 @@
 """Synthetic checks for local-only extraction and Git index enforcement."""
 import importlib.util
+import struct
 from contextlib import contextmanager
 from pathlib import Path
 import subprocess
 import sys
 import unittest
+from unittest.mock import patch
 
 ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT / 'tests/support'))
@@ -69,6 +71,41 @@ class AssetPolicyTests(unittest.TestCase):
     def test_wrong_original_is_rejected(self):
         with self.assertRaisesRegex(ValueError, 'SHA-256'):
             importer.build_pack(b'not the original ADF')
+
+    def test_each_import_uses_its_own_source_and_payload_identity(self):
+        for marker in (7, 19):
+            disk = bytearray(importer.ADF_BYTES)
+            disk[importer.DISK_OFFSET + 40] = marker
+            digest = importer.sha(disk)
+            payload_digest = importer.sha(disk[importer.DISK_OFFSET:importer.DISK_OFFSET + importer.PAYLOAD_BYTES])
+            with patch.object(importer, 'ADF_SOURCES', {digest: {'name': 'Synthetic', 'payload_sha256': payload_digest}}):
+                packed = importer.build_pack(disk)
+                fields = struct.unpack('<8sII32s32sII', packed[:88])
+                self.assertEqual(fields[3].hex(), digest)
+                self.assertEqual(fields[4].hex(), payload_digest)
+                self.assertEqual(packed[88:], disk[importer.DISK_OFFSET:importer.DISK_OFFSET + importer.PAYLOAD_BYTES])
+            with patch.object(importer, 'ADF_SOURCES', {digest: {'name': 'Synthetic', 'payload_sha256': '0' * 64}}):
+                with self.assertRaisesRegex(ValueError, 'payload identity'):
+                    importer.build_pack(disk)
+
+    def test_only_exact_pinned_screenshots_are_allowed(self):
+        for name in policy.SCREENSHOTS:
+            content = (ROOT / name).read_bytes()
+            self.assertEqual(policy.violations(name, content), [])
+            self.assertTrue(policy.violations(name, content + b'changed'))
+            self.assertTrue(policy.violations('docs/screenshots/unreviewed.png', content))
+
+    def test_staged_screenshot_replacement_is_checked(self):
+        name = next(iter(policy.SCREENSHOTS))
+        approved = (ROOT / name).read_bytes()
+        with local_repository() as directory:
+            subprocess.run(['git', 'init', '-q', directory], check=True)
+            image = Path(directory) / name
+            image.parent.mkdir(parents=True)
+            image.write_bytes(approved + b'unreviewed')
+            subprocess.run(['git', '-C', directory, 'add', name], check=True)
+            image.write_bytes(approved)
+            self.assertEqual(policy.check_index(directory)['status'], 'failed')
 
     def test_pack_outputs_are_confined(self):
         with self.assertRaisesRegex(ValueError, 'analysis/'):

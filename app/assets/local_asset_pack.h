@@ -12,4 +12,5 @@ struct LocalAssetPack {std::vector<std::uint8_t> payload;};
 // Read-only source disk, verified recipe, atomic destination replacement.
 void importLocalAssetPack(const std::filesystem::path& adf,const std::filesystem::path& pack);
 std::wstring localAssetSourceName(const std::filesystem::path& pack);
+std::wstring supportedAdfNames();
 } // namespace scr::runtime

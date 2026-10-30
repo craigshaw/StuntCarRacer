@@ -1,0 +1,18 @@
+{
+  "adf_bytes": 901120,
+  "disk_offset": 56320,
+  "payload_bytes": 408540,
+  "load_address": 59136,
+  "sources": [
+    {
+      "name": "Quartex (QTX)",
+      "sha256": "548fd106cd62f2d80159d48ddd5293d8b22b6b17f80c17a84a61d75f5c8a9e06",
+      "payload_sha256": "508646f12af15115de73b06940c79e579f920bf47ce55f7cd8920eca60b7921c"
+    },
+    {
+      "name": "Woodpecker",
+      "sha256": "243680c86dd13001706d2b24161907edbd54a72a2df34ac788a8ff895f321fe2",
+      "payload_sha256": "26d7efffe6ffa0b5e9d1d53b0b5b1981926e29fe2d5d9097388caa30d61b1f8f"
+    }
+  ]
+}

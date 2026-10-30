@@ -7,6 +7,8 @@ set(SCR_TEST_PAYLOAD "${PROJECT_SOURCE_DIR}/analysis/reference/vesuri/offline-ex
   CACHE FILEPATH "Local original payload for test-only comparisons")
 set(SCR_TEST_CAPTURE "${PROJECT_SOURCE_DIR}/analysis/captures/race/chip-000000.bin"
   CACHE FILEPATH "Local captured sample state for audio integration tests")
+set(SCR_TEST_ALTERNATE_ASSET_PACK "${PROJECT_SOURCE_DIR}/analysis/assets/stunt-car-racer-woodpecker.scr-assets"
+  CACHE FILEPATH "Optional second verified ADF pack for cross-disk career tests")
 set(test_output "${PROJECT_BINARY_DIR}/test-output/$<CONFIG>")
 
 function(scr_test target label input)
@@ -36,8 +38,12 @@ if(WIN32)
       draw_bridge_driving_tests native_opponent_driving_tests native_opponent_session_tests
       native_multiplayer_session_tests native_career_session_tests native_save_session_tests
       native_display_tests native_launcher_tests native_navigation_tests native_autosave_tests native_extended_view_tests native_lap_timer_tests native_track_visibility_tests)
+    set(alternate_pack)
+    if(target STREQUAL "native_autosave_tests" AND EXISTS "${SCR_TEST_ALTERNATE_ASSET_PACK}")
+      list(APPEND alternate_pack "${SCR_TEST_ALTERNATE_ASSET_PACK}")
+    endif()
     scr_test(${target} "native;assets" "${SCR_TEST_ASSET_PACK}"
-      "${SCR_TEST_ASSET_PACK}" "${test_output}/${target}")
+      "${SCR_TEST_ASSET_PACK}" "${test_output}/${target}" ${alternate_pack})
   endforeach()
   # These suites create native windows. Serialize their use of the desktop.
   set_tests_properties(native_display_tests native_launcher_tests PROPERTIES

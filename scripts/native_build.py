@@ -16,5 +16,5 @@ def configure_command(*, oracle=False):
 
 def build_sources():
     """Build definitions included in source identities, including CMake modules."""
-    return {ROOT / 'CMakeLists.txt', ROOT / 'CMakePresets.json', ROOT / 'setup/branding.json', Path(__file__).resolve(),
+    return {ROOT / 'CMakeLists.txt', ROOT / 'CMakePresets.json', ROOT / 'setup/branding.json', ROOT / 'setup/adf-sources.json', Path(__file__).resolve(),
             *sorted((ROOT / 'cmake').glob('*.cmake'))}

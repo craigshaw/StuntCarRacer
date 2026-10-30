@@ -1,0 +1,28 @@
+{
+  "screenshots": [
+    {
+      "path": "docs/screenshots/hero.png",
+      "sha256": "65ef9010ea027515d8befd4b150fafcc9c711131b9549ee98389ce27bad26442",
+      "width": 1280,
+      "height": 720
+    },
+    {
+      "path": "docs/screenshots/original.png",
+      "sha256": "6f7a4b38495ab2181eb5f8dfb6f35fd2606e1ef9a6003fcd2b583d0acdf18b05",
+      "width": 960,
+      "height": 720
+    },
+    {
+      "path": "docs/screenshots/widescreen.png",
+      "sha256": "1b134ec0ffccf0b43a1ff7b617b7351899227958c1815f660c90920892941601",
+      "width": 1280,
+      "height": 720
+    },
+    {
+      "path": "docs/screenshots/ultrawide.png",
+      "sha256": "f5d33316aea6945a591dcc0a8a6b8ce697862d4f0e2128ecec8c309a29e83262",
+      "width": 2560,
+      "height": 720
+    }
+  ]
+}

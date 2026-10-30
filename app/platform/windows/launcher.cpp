@@ -1,6 +1,8 @@
 #define NOMINMAX
 #define WIN32_LEAN_AND_MEAN
 #include "platform/windows/launcher.h"
+#include "assets/local_asset_pack.h"
+#include "version/app_version.h"
 #include <commctrl.h>
 #include <objidl.h>
 #include <gdiplus.h>
@@ -159,7 +161,7 @@ void WindowsLauncher::paint(HDC dc,int width,int height,const NativeLauncher& mo
     text(dc,fonts_[2],{margin_+px(20),assetY_+px(44),right-px(170),assetY_+px(68)},model.ready()?model.sourceName():L"Choose your supported Amiga ADF to get started.",muted,DT_LEFT|DT_VCENTER|DT_SINGLELINE|DT_END_ELLIPSIS);
     if(details_){
         text(dc,fonts_[2],{margin_,assetY_+assetHeight_+px(33),right,settingsY_-px(20)},
-            L"Supported ADF SHA-256: 548fd106cd62f2d80159d48ddd5293d8b22b6b17f80c17a84a61d75f5c8a9e06\nGame data: "+model.paths().pack.wstring(),muted,DT_LEFT|DT_TOP|DT_WORDBREAK);
+            L"Supported ADFs: "+supportedAdfNames()+L"\nGame data: "+model.paths().pack.wstring(),muted,DT_LEFT|DT_TOP|DT_WORDBREAK);
     }
     const auto& prefs=model.preferences();
     const bool integer=prefs.scaling==NativeScaling::Integer;
@@ -182,6 +184,7 @@ void WindowsLauncher::paint(HDC dc,int width,int height,const NativeLauncher& mo
     fill(dc,{0,footerY_,width,height},panel);fill(dc,{0,footerY_,width,footerY_+1},line);
     text(dc,fonts_[2],{margin_,footerY_+px(17),right-px(250),footerY_+px(42)},L"Choices are saved when you press Play.",muted);
     text(dc,fonts_[2],{margin_,footerY_+px(40),right-px(250),footerY_+px(66)},L"Arrows / D-pad: navigate   Enter / A: confirm",muted);
+    text(dc,fonts_[2],{right-px(130),footerY_+px(62),right,footerY_+px(78)},applicationVersionLabel,muted,DT_RIGHT|DT_VCENTER|DT_SINGLELINE);
 }
 void WindowsLauncher::drawButton(const DRAWITEMSTRUCT& item){
     const auto dc=item.hDC;const bool combo=isCombo(item.CtlID);

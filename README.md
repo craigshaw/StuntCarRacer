@@ -3,6 +3,8 @@
 
   A port of the original <strong>Stunt Car Racer</strong> for Windows. Bring your own Amiga disk image. No emulator required.
 
+[![Stunt Car Racer running in 16:9](docs/screenshots/hero.png)](docs/screenshots/hero.png)
+
 ## Features
 
 - **Original racing.** All eight tracks, including Draw Bridge, both leagues,
@@ -21,6 +23,25 @@
   audio and sound effects.
 
 Computer Link is not supported.
+
+### Widescreen
+
+The same frame in Original 4:3, 16:9 and 32:9. The car keeps its original scale.
+
+<p align="center">
+  <a href="docs/screenshots/original.png"><img src="docs/screenshots/original.png" width="37.5%" alt="Original 4:3 view of the same frame"></a><br>
+  <em>Original (4:3)</em>
+</p>
+
+<p align="center">
+  <a href="docs/screenshots/widescreen.png"><img src="docs/screenshots/widescreen.png" width="50%" alt="16:9 view of the same frame, revealing more scenery"></a><br>
+  <em>16:9</em>
+</p>
+
+<p align="center">
+  <a href="docs/screenshots/ultrawide.png"><img src="docs/screenshots/ultrawide.png" width="100%" alt="32:9 ultrawide view of the same frame"></a><br>
+  <em>32:9</em>
+</p>
 
 ## Play
 
@@ -73,3 +94,4 @@ optional original-code tests use [Musashi](https://github.com/kstenerud/Musashi)
 Original contributions use the [MIT License](LICENSE). Game and third-party
 rights remain with their respective holders; see [third-party notices](THIRD_PARTY_NOTICES.md).
 This is an unofficial project, unaffiliated with the original game's rights holders.
+Game artwork in the screenshots belongs to its respective rights holders.

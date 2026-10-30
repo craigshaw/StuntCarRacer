@@ -4,8 +4,9 @@ Examines indexed blobs, including forced additions and staged content that
 differs from the working tree. It needs no original game data.
 """
 import argparse
+import hashlib
 import json
-from pathlib import PurePosixPath
+from pathlib import Path, PurePosixPath
 import re
 import subprocess
 import sys
@@ -16,9 +17,14 @@ FORBIDDEN_SUFFIXES = {'.adf', '.adz', '.ipf', '.dms', '.hdf', '.rom', '.uss', '.
                       '.scr-assets', '.scr-save', '.scr-career', '.scr-hall', '.scr-index', '.pack', '.exe', '.dll', '.lib', '.obj', '.o', '.pdb', '.gpr', '.zip', '.7z'}
 TEXT_SUFFIXES = {'.cpp', '.h', '.c', '.java', '.py', '.md', '.json', '.csv', '.txt', '.cmake', '.cmd', '.ps1', '.sh', '.mjs', '.yml', '.yaml'}
 TEXT_NAMES = {'.gitignore', '.gitattributes', 'CMakeLists.txt', 'pre-commit', 'LICENSE'}
+SCREENSHOTS = {entry['path']: entry for entry in json.loads(
+    (Path(__file__).resolve().parents[1] / 'setup/screenshots.json').read_text())['screenshots']}
 
 
 def violations(path, blob):
+    screenshot = SCREENSHOTS.get(path)
+    if screenshot and hashlib.sha256(blob).hexdigest() == screenshot['sha256']:
+        return []
     p = PurePosixPath(path)
     reasons = []
     if p.parts[0].lower() in FORBIDDEN_DIRECTORIES or path.lower().startswith('setup/upstream/'):

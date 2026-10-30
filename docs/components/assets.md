@@ -6,8 +6,9 @@ as data. Original execution belongs to separate verification programs.
 
 ## Import
 
-The supported ADF is 901,120 bytes, SHA-256:
-`548fd106cd62f2d80159d48ddd5293d8b22b6b17f80c17a84a61d75f5c8a9e06`.
+Supported 901,120-byte ADFs are **Quartex (QTX)** and **Woodpecker**.
+The exact disk/payload hashes are pinned in [the source registry](../../setup/adf-sources.json);
+filenames do not affect recognition.
 The [research guide](../research/reverse-engineering.md#verified-disk-and-memory-mapping)
 records its payload mapping and reference provenance.
 
@@ -35,9 +36,10 @@ outputs can leave an apparently playable state with disabled or incorrect rules.
 
 ## Source-control safeguards
 
-Keep original media, extracted assets, packs, captures and generated previews
-outside Git, including data disguised as source arrays or encoded text. Preserve
-source hashes and offsets with derived files under ignored `analysis/`.
+Keep original media, extracted assets, packs and captures outside Git, including
+data disguised as source arrays or encoded text. The four README screenshots
+are a hash-pinned exception in [the screenshot registry](../../setup/screenshots.json).
+Preserve source hashes and offsets with derived files under ignored `analysis/`.
 
 The indexed-blob asset checker and release resource/file-list checker are described
 in [development](../development.md). The approved launcher

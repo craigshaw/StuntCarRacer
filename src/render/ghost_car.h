@@ -11,6 +11,9 @@ namespace scr {
 struct GhostCarPose {
     RenderWorldPoint position;
     std::uint16_t pitch{},yaw{},roll{};
+    // Exterior allowance for the recorded suspension load above its flat-road
+    // calibration. This is presentation state, not an extra physics update.
+    double suspensionLift{};
 };
 GhostCarPose makeGhostCarPose(const RenderCameraInputs&) noexcept;
 struct GhostCarFace {

@@ -120,9 +120,52 @@ void mountainPolygon(const MountainScreenPolygon& polygon,std::uint32_t color,
         }
     }
 }
+// A colour fill can merge a whole banked/curved run. Keep its original strips
+// for depth: one plane fitted to the merged boundary is not its road surface.
+// Coefficients below yield inverse forward depth and barycentric numerators
+// directly from an angular camera ray, without a per-pixel matrix inversion.
+struct AngularDepthTriangle {RenderCameraRelative depth,u,v;double left{},right{},top{},bottom{};};
+RenderCameraRelative cross(const RenderCameraRelative& a,const RenderCameraRelative& b){return {a.down*b.forward-a.forward*b.down,a.forward*b.side-a.side*b.forward,a.side*b.down-a.down*b.side};}
+double dot(const RenderCameraRelative& a,const RenderCameraRelative& b){return a.side*b.side+a.down*b.down+a.forward*b.forward;}
+RenderCameraRelative subtract(const RenderCameraRelative& a,const RenderCameraRelative& b){return {a.side-b.side,a.down-b.down,a.forward-b.forward};}
+RenderCameraRelative scale(const RenderCameraRelative& a,double t){return {a.side*t,a.down*t,a.forward*t};}
+std::array<double,2> angularRay(double x,double y,const RenderProjectionCamera& camera){
+    constexpr double radians=6.28318530717958647692/65536;
+    const auto word=[](std::uint16_t v){return v<0x8000?double(v):double(int(v)-65536);};
+    const auto c=word(camera.cosRoll)/32768,s=word(camera.sinRoll)/32768;
+    const auto norm=c*c+s*s;
+    const auto side=((x-128)*c-(y-64)*s)/norm,down=((y-64)*c+(x-128)*s)/norm;
+    const auto horizontal=side*32*radians,vertical=(down*32+word(camera.viewportCenterY))*radians;
+    return {std::tan(horizontal),std::tan(vertical)/std::cos(horizontal)};
+}
+std::vector<AngularDepthTriangle> depthTriangles(const NearTrackDrawCommand& command,const RenderProjectionCamera& camera){
+    std::vector<AngularDepthTriangle> result;
+    if(!camera.cosRoll&&!camera.sinRoll)return result;
+    constexpr double angleUnits=65536/6.28318530717958647692;
+    const auto word=[](std::uint16_t v){return v<0x8000?double(v):double(int(v)-65536);};
+    const auto cosine=word(camera.cosRoll)/32768,sine=word(camera.sinRoll)/32768;
+    for(const auto& patch:command.depthPatches)for(unsigned n=1;n<3;++n){
+        const auto& a=patch[0];const auto& b=patch[n];const auto& c=patch[n+1];
+        const auto e=subtract(b,a),f=subtract(c,a),normal=cross(e,f);
+        const auto area=dot(normal,normal),distance=dot(normal,a);if(area<1e-12||std::abs(distance)<1e-8)continue;
+        AngularDepthTriangle t;t.depth=scale(normal,1/distance);
+        const auto u=scale(cross(f,normal),1/area),v=scale(cross(normal,e),1/area);
+        t.u=subtract(u,scale(t.depth,dot(u,a)));t.v=subtract(v,scale(t.depth,dot(v,a)));
+        t.left=t.top=1e9;t.right=t.bottom=-1e9;
+        for(const auto& p:{a,b,c}){
+            if(p.forward<1){t.left=t.top=-1e9;t.right=t.bottom=1e9;break;}
+            const auto side=std::atan2(p.side,p.forward)*angleUnits/32,down=(std::atan2(p.down,std::hypot(p.side,p.forward))*angleUnits-word(camera.viewportCenterY))/32;
+            const auto x=128+side*cosine+down*sine,y=64+down*cosine-side*sine;
+            t.left=std::min(t.left,x-2);t.right=std::max(t.right,x+2);t.top=std::min(t.top,y-2);t.bottom=std::max(t.bottom,y+2);
+        }
+        result.push_back(t);
+    }
+    return result;
+}
 void nearPolygon(const NearTrackDrawCommand& command,std::uint32_t color,
     std::vector<std::uint32_t>& pixels,std::vector<std::uint8_t>& coverage,
-    std::vector<std::uint8_t>& highlights,const RenderCanvas& canvas,std::vector<float>* depth) {
+    std::vector<std::uint8_t>& highlights,const RenderCanvas& canvas,std::vector<float>* depth,const RenderProjectionCamera& camera) {
+    const auto triangles=depth?depthTriangles(command,camera):std::vector<AngularDepthTriangle>{};
     struct Crossing {double x{},inverseDepth{};};
     std::vector<Crossing> crossings;crossings.reserve(command.edges.size());
     for(int y=0;y<canvas.viewportHeight();++y){
@@ -145,8 +188,21 @@ void nearPolygon(const NearTrackDrawCommand& command,std::uint32_t color,
                 coverage[index]=command.surface==NearTrackSurface::opponent?4:command.surface==NearTrackSurface::road?1:2;highlights[index]=0;
                 if(depth){
                     const auto fraction=right.x==left.x?0:(x+0.5-left.x)/(right.x-left.x);
-                    (*depth)[index]=left.inverseDepth>0&&right.inverseDepth>0?
-                        float(std::max(0.0,left.inverseDepth+(right.inverseDepth-left.inverseDepth)*fraction)):0;
+                    auto inverse=left.inverseDepth>0&&right.inverseDepth>0?left.inverseDepth+(right.inverseDepth-left.inverseDepth)*fraction:0;
+                    if(!triangles.empty()){
+                        const auto px=x+0.5-canvas.padding;const auto r=angularRay(px,scan,camera);const RenderCameraRelative ray{r[0],r[1],1};double nearest=0;
+                        for(const auto& t:triangles)if(px>=t.left&&px<=t.right&&scan>=t.top&&scan<=t.bottom){
+                            const auto d=dot(t.depth,ray),u=dot(t.u,ray),v=dot(t.v,ray);
+                            if(d>0&&u>=-1e-8&&v>=-1e-8&&u+v<=d+1e-8)nearest=std::max(nearest,d);
+                        }
+                        if(nearest>0)inverse=nearest;
+                    }
+                    // The recovered straight-edged fill and viewport closure
+                    // can paint beyond the exact angular source triangles.
+                    // Keep their endpoint depth there, including genuine
+                    // unknowns, so colour/depth coverage and painter order stay
+                    // identical. Source geometry never paints extra pixels.
+                    (*depth)[index]=float(std::max(0.0,inverse));
                 }
             }
         }
@@ -258,7 +314,7 @@ RenderStatistics SoftwareRenderer::drawFrame(const TrackMesh& mesh,const std::ve
         for(const auto& command:nearTrack->commands){
             if(command.color>=palette.size())throw std::invalid_argument("Near command palette index outside range");
             if(command.kind==NearTrackCommandKind::fill){
-                nearPolygon(command,palette[command.color],pixels,coverage_,highlights_,canvas,captureTrackDepth?&inverseDepth_:nullptr);++stats.nearFillCommands;
+                nearPolygon(command,palette[command.color],pixels,coverage_,highlights_,canvas,captureTrackDepth?&inverseDepth_:nullptr,camera);++stats.nearFillCommands;
                 stats.opponentPolygons+=command.surface==NearTrackSurface::opponent;
                 if(wireframe)for(const auto& edge:command.edges)drawEdge(edge,palette[3],false);
             }else{

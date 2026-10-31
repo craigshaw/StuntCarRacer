@@ -230,10 +230,16 @@ storage and cannot change original scene commands or allocation limits.
 Capture depth alongside the original ordered road/side fills when a ghost query
 requests it. The earlier auxiliary mesh mask left gaps because its projected
 triangles did not cover the same clipped boundaries as the recovered painter.
-Projected endpoints now carry reciprocal forward depth through clipping and
-viewport closure; the existing scanline fill interpolates depth over exactly the
-pixels that receive colour. Later painter commands replace both colour and depth,
-including when that differs from a generic nearest-surface sort.
+Projected endpoints carry reciprocal forward depth through clipping and viewport
+closure. Each fill additionally retains its unmerged source road/side strips in
+camera coordinates. Within those strips, inverse angular projection and triangle
+intersection give depth; linearly interpolating reciprocal depth across angular
+screen coordinates caused false occlusion on banked corners. A merged fill can
+span many non-coplanar strips, so fitting one plane to its boundary is insufficient.
+The original scanline fill alone owns colour and coverage. Its straight boundaries
+and viewport closure can extend beyond the angular strips; endpoint depth remains
+there. Later painter commands replace both colour and depth, including when that
+differs from a generic nearest-surface sort.
 Rejected-line endpoints used for viewport closure retain attributes within the
 source segment. A missing depth attribute remains unknown; no constant or nearby
 edge fallback can make the complete-coverage test pass.
@@ -258,15 +264,26 @@ trace. It executes no original CPU code. The same path is sampled twelve updates
 ahead of the camera for an illustrative target, not as a distinct faster lap.
 These development fixtures introduce no capture requirement for the player.
 
-The exterior is native artwork calibrated against the recovered opponent. A
+The exterior is native artwork calibrated against the recovered opponent. Its
+low/thin wedge nose faces local +Z, with the tall end at the rear; artwork
+orientation does not reverse the recorded heading or pitch convention. A
 synthetic flat-support observation of `setupOpponentTrackGeometry` on private
 typed state yields a reference footprint 5.0625 world units wide with rows 7.5625
 units apart for the default fixture. These are visual calibration measurements,
 not a recovered player collision volume or four physical wheel centres. The
 body uses a sloping counterpart of the recovered procedural vertices 4..11,
 within the middle half of the footprint; tyre ends fit within its rows. The
-model contact offset follows flat recorded player driving. It does not infer an
-extra cabin or nose from player suspension lever arms.
+model contact offset follows flat recorded player driving. Above that calibration,
+the retained average suspension-response word supplies a bounded exterior height
+allowance; a fixed offset buried the small model when the physical datum dropped
+under cornering load. Airborne zero response adds no allowance. This is a visual
+adaptation, not reconstructed spring travel or independently articulated wheels.
+Pitch and roll rotate in the projection's isotropic space (world Y divided by two),
+then restore world Y. Otherwise the half-height projection visibly flattens those
+angles. Recorded position/orientation and the durable format remain unchanged;
+existing saved ghosts already contain the response word. No live road snap or
+trajectory-derived pitch is applied. The model infers no extra cabin or nose from
+player suspension lever arms.
 
 `opponent-footprint.json`, `proportions/measurements.csv` and `proportions.png`
 retain the observation and opaque comparisons against `buildOpponentCarFrame` at
@@ -276,6 +293,14 @@ with view, so a rigid exterior cannot claim exact silhouette identity at every
 angle; oblique body/height and suspension articulation remain approximations.
 Grounded and airborne previews accompany comparisons with no ghost, an unmasked
 ghost and the track-masked ghost.
+Named regressions additionally query 80 exact/half-update positions through a
+banked turn and 80 through ramp flight in all four apertures. A private observer
+keeps the exterior in view; the corner gate requires at least 75 percent of its
+silhouette to remain visible. These are fixture-specific visibility bounds,
+not a promise that legitimate foreground geometry can never hide the ghost.
+`preview-corner.gif` and `preview-jump-side.gif` show these queries; unit checks
+verify projected pitch/roll magnitude, unchanged flat proportions, suspension
+allowance, angular road depth and continued foreground-wall occlusion.
 
 The proof sweeps every retained update and quarter-update presentation position
 in all four apertures, requiring zero painted road/side pixels without depth.

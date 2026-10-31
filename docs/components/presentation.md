@@ -24,8 +24,10 @@ generic depth sorting is not a substitute for the recovered command stream.
 
 The optional [ghost renderer](personal-best-ghosts.md) carries reciprocal forward
 depth with projected road/side endpoints through clipping and viewport closure.
-When requested, the same ordered scanline fills write colour and interpolated
-depth over identical spans; later painter fills replace both. This presentation
+When requested, the same ordered scanline fills write colour and depth over
+identical spans; later painter fills replace both. Unmerged source strips supply
+angular ray/triangle depth within each fill, with endpoint interpolation retained
+at straight fill boundaries and viewport closure. This presentation
 metadata is not written to recovered RAM. Ghost-disabled rendering keeps its baseline
 colour path and allocation limits; a separate mesh rasterizer is not the ghost's
 live track-visibility mask.

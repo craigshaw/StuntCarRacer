@@ -1,6 +1,7 @@
 #include "render/near_track_visibility.h"
 #include "render/track_sides.h"
 #include <algorithm>
+#include <cmath>
 #include <stdexcept>
 
 namespace scr {
@@ -8,7 +9,7 @@ namespace {
 int sw(unsigned x){x&=65535;return x<32768?int(x):int(x)-65536;}
 int sb(unsigned x){x&=255;return x<128?int(x):int(x)-256;}
 bool valid(const NearTrackVertex& v){return !(v.height&0x8000);}
-NearTrackPoint point(const NearTrackVertex& v){return {sw(unsigned(v.x)),sw(unsigned(v.y)),v.inverseDepth};}
+NearTrackPoint point(const NearTrackVertex& v){return {sw(unsigned(v.x)),sw(unsigned(v.y)),v.inverseDepth,v.source};}
 NearTrackVertex& vertex(NearTrackGeometryState& s,unsigned index){
     if(index>=0xf0||(index&1))throw std::out_of_range("Near vertex byte index outside buffers");
     return index>=0x78?s.lower[(index-0x78)/2]:s.upper[index/2];
@@ -122,6 +123,13 @@ FillResult fill(std::vector<NearTrackDrawCommand>& output,const NearTrackQueueSt
     command.originQueueOffset=std::uint16_t(end);command.firstQueueOffset=std::uint16_t(first);
     command.color=surface==NearTrackSurface::road?trackRoadFillColor(header.segment,header.processedFlags):
         trackSideFillColor(header.segment,{in.sideEdgeColor,in.alternateSideColor,in.previewColorOverride},true);
+    const auto depthPatch=[&](const NearTrackEdge& a,const NearTrackEdge& b){
+        if(!a.present||!b.present||!a.from.source.forward||!a.to.source.forward||!b.from.source.forward||!b.to.source.forward)return;
+        const auto distance=[](const auto& p,const auto& q){return std::hypot(p.side-q.side,p.forward-q.forward);};
+        const bool swap=distance(a.from.source,b.from.source)+distance(a.to.source,b.to.source)>
+            distance(a.from.source,b.to.source)+distance(a.to.source,b.from.source);
+        command.depthPatches.push_back({a.from.source,a.to.source,swap?b.from.source:b.to.source,swap?b.to.source:b.from.source});
+    };
     std::vector<NearTrackEdge> front{*initial},back;unsigned clip=initial->clipFlags;
     unsigned frontFlags=initial->clipFlags^0x40,backFlags=initial->clipFlags;
     bool special=cursor==32;
@@ -131,6 +139,7 @@ FillResult fill(std::vector<NearTrackDrawCommand>& output,const NearTrackQueueSt
         frontFlags=a.clipFlags;front.push_back(a);
         const auto& b=q.entries.at(cursor/32).edges[backIndex];clip&=b.clipFlags;
         if(!b.present){front.pop_back();if(cursor==end)return {barrierOffset};break;}
+        depthPatch(a,b);
         backFlags=b.clipFlags;back.push_back(b);cursor-=32;
         if(cursor==first)break;special=cursor==32;
     }
@@ -138,6 +147,7 @@ FillResult fill(std::vector<NearTrackDrawCommand>& output,const NearTrackQueueSt
         const auto& a=q.entries.at(cursor/32).edges[frontIndex];clip&=a.clipFlags;if(a.present){frontFlags=a.clipFlags;front.push_back(a);}
         const auto start=endpoint(front.back(),frontFlags);
         const auto& b=q.entries.at(cursor/32).edges[backIndex];clip&=b.clipFlags;if(b.present){backFlags=b.clipFlags;back.push_back(b);}
+        depthPatch(a,b);
         // A2 still equals the shared edge-sort base when no backward-chain
         // edge exists. Original extraction then reads the initial edge just
         // written at that base, rather than an absent edge sentinel.
@@ -163,7 +173,7 @@ void barrierEdges(std::vector<NearTrackDrawCommand>& out,const NearTrackQueueSta
 } // namespace
 
 NearTrackEdge makeNearTrackEdge(NearTrackPoint from,NearTrackPoint to,int padding,int topPadding,int bottomPadding){
-    from={sw(unsigned(from.x)),sw(unsigned(from.y)),from.inverseDepth};to={sw(unsigned(to.x)),sw(unsigned(to.y)),to.inverseDepth};
+    from.x=sw(unsigned(from.x));from.y=sw(unsigned(from.y));to.x=sw(unsigned(to.x));to.y=sw(unsigned(to.y));
     NearTrackEdge e{};e.from=from;e.to=to;e.present=true;
     auto a=from,b=to;if(a.y<b.y){std::swap(a,b);e.clipFlags=0x40;}
     unsigned common=outcode(a,padding,topPadding,bottomPadding)&outcode(b,padding,topPadding,bottomPadding);

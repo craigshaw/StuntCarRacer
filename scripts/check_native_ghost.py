@@ -72,11 +72,18 @@ for folder, title in [('preview', 'Recorded trajectory: grounded driving'), ('pr
         draw.text((8, 5), f'{title} | player {entry["player_tick"]}, ghost {entry["ghost_tick"]} | prototype', fill='white')
         frames.append(frame)
     frames[0].save(root / f'{folder}.gif', save_all=True, append_images=frames[1:], duration=60, loop=0, disposal=2)
+for folder, title in [('preview-corner', 'Banked turn: recorded suspension load and roll'), ('preview-jump-side', 'Ramp flight: recorded pitch, side observer')]:
+    frames = []
+    for source in sorted((root / folder).glob('*.bmp')):
+        frame = Image.open(source).convert('RGB').resize((864, 480), Image.Resampling.NEAREST)
+        ImageDraw.Draw(frame).text((8, 5), title, fill='white', stroke_width=2, stroke_fill='#151923')
+        frames.append(frame)
+    frames[0].save(root / f'{folder}.gif', save_all=True, append_images=frames[1:], duration=60, loop=0, disposal=2)
 '''
     interpreter = image_python()
     subprocess.run([str(interpreter), '-c', code, str(output)], check=True, cwd=ROOT)
     return {'interpreter': identity(interpreter), 'files': [identity(path) for path in
-        (output / 'hero-wide.png', output / 'comparison.png', output / 'proportions.png', output / 'preview.gif', output / 'preview-jump.gif')]}
+        (output / 'hero-wide.png', output / 'comparison.png', output / 'proportions.png', output / 'preview.gif', output / 'preview-jump.gif', output / 'preview-corner.gif', output / 'preview-jump-side.gif')]}
 
 
 def main():
@@ -125,6 +132,8 @@ def main():
             or not report.get('static_depth_boundary_gate_passed')
             or report.get('complete_depth_coverage_missing_pixels') != 0):
         raise RuntimeError('Ghost proof did not establish isolation and complete painted-depth coverage')
+    if report.get('banked_corner_pose_queries') != 320 or report.get('jump_pose_queries') != 320:
+        raise RuntimeError('Ghost proof omitted banked-corner or ramp-flight pose regressions')
     qa = visuals(output)
     if sources() != source_records or [identity(path) for path in fixture_paths] != fixtures:
         raise RuntimeError('Sources or fixtures changed during the ghost proof')

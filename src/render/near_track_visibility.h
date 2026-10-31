@@ -6,7 +6,7 @@
 #include <vector>
 
 namespace scr {
-struct NearTrackPoint {int x{},y{};double inverseDepth{};};
+struct NearTrackPoint {int x{},y{};double inverseDepth{};RenderCameraRelative source{};};
 struct NearTrackEdge {
     NearTrackPoint from{},to{},clippedFrom{},clippedTo{};
     bool present{};
@@ -62,6 +62,9 @@ struct NearTrackDrawCommand {
     std::uint8_t color{};
     std::uint16_t originQueueOffset{},firstQueueOffset{};
     std::vector<NearTrackEdge> edges;
+    // Unmerged source strips for auxiliary depth only. The recovered painter
+    // may merge many non-coplanar strips into one colour fill.
+    std::vector<std::array<RenderCameraRelative,4>> depthPatches;
 };
 struct NearTrackDrawInputs {
     std::uint16_t minimumQueueOffset{};

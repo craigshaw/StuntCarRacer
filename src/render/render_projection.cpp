@@ -78,9 +78,12 @@ RenderCameraRelative renderCameraRelative(const RenderWorldPoint& point,const Re
     return {dx*cosine-dz*sine,down,dx*sine+dz*cosine};
 }
 double renderCoordinateInverseDepth(std::uint16_t x,std::uint16_t z,std::uint16_t yaw,double units) noexcept{
+    return 1/std::max(1.0,renderCoordinateRelative(x,z,yaw,units).forward);
+}
+RenderCameraRelative renderCoordinateRelative(std::uint16_t x,std::uint16_t z,std::uint16_t yaw,double units) noexcept{
     constexpr double radians=6.28318530717958647692/65536;
     const auto angle=double(yaw)*radians;
-    const auto forward=(signedWord(x)*std::sin(angle)+signedWord(z)*std::cos(angle))/units;
-    return 1/std::max(1.0,forward);
+    const auto sine=std::sin(angle),cosine=std::cos(angle);
+    return {(signedWord(x)*cosine-signedWord(z)*sine)/units,0,(signedWord(x)*sine+signedWord(z)*cosine)/units};
 }
 } // namespace scr

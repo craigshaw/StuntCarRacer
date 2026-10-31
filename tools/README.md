@@ -33,7 +33,7 @@ tools live separately in [research/](research/README.md).
 
 After loading `scripts/env.ps1`, run `& $AmigaPython scripts/check_native_ghost.py`.
 It builds `native_ghost_proof`, runs focused CTest checks and writes identified
-results, comparison images and two animated previews under `analysis/ghost-proof/`.
+results, comparison images and animated previews under `analysis/ghost-proof/`.
 `--skip-build` requires matching source/executable identities. Pillow is needed
 only for QA conversion; the replay wrapper's bundled image runtime is reused.
 
@@ -51,6 +51,9 @@ Every retained update and quarter-update in all apertures must have complete
 painted-track depth coverage. `proportions.png` compares the calibrated exterior
 with the recovered procedural opponent at matched footprints and distances;
 the 3D model does not claim exact original silhouettes at every view angle.
+`preview-corner.gif` exercises the suspension allowance and banked-turn mask;
+`preview-jump-side.gif` shows the recorded airborne pitch from a private observer.
+Each named regression queries exact/half updates in all four apertures.
 Static boundary checks do not establish whole-feature production acceptance.
 These renderer proofs are separate from saved player acceptance below.
 See the [design and proof gates](../docs/components/personal-best-ghosts.md).

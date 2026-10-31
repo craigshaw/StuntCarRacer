@@ -53,12 +53,14 @@ std::uint8_t coordinateIndex(const NearTrackGeometryState& s,unsigned vertex){
 void horizontal(const TrackProgressData& d,NearTrackGeometryState& s,NearTrackVertex& p,std::uint16_t x,std::uint16_t z){
     s.progress.temporaryX=x;s.progress.temporaryZ=z;
     p.inverseDepth=renderCoordinateInverseDepth(x,z,s.progress.cameraYaw,16);
+    p.source=renderCoordinateRelative(x,z,s.progress.cameraYaw,16);
     if(s.preview&0x80){
         x=w(shr(sw(x),1));z=w(shr(sw(z),1));s.perspectiveDepth=std::uint16_t((z&255)|((b((z>>8)+0x31))<<8));
         z=w(shr(sw(z),1)+0x4900);p.x=shr(sw(w(int(polar(d,x,z).angle)-s.progress.cameraYaw)),3);
     }else{const auto value=polar(d,x,z);s.perspectiveDepth=value.distance;p.x=shr(sw(w(int(value.angle)-s.progress.cameraYaw)),3);}
 }
 void vertical(const TrackProgressData& d,NearTrackGeometryState& s,NearTrackVertex& p){
+    p.source.down=sw(w(int(s.progress.cameraHeight)-p.height))/64.0;
     auto down=w(shr(sw(w(int(s.progress.cameraHeight)-p.height)),2));
     if(s.preview&0x80)down=multiplyMatrixWord(down,0x4c1b);
     p.y=shr(sw(w(int(polar(d,down,s.perspectiveDepth).angle)-s.camera.viewportCenterY)),3);
@@ -114,7 +116,7 @@ void admitLower(const TrackProgressData& d,NearTrackGeometryState& s,unsigned in
         const auto difference=w(side?point(s,index).x-int(oldX):int(oldX)-point(s,index).x);
         visible=!(difference&0x8000);
     }
-    if(visible){auto& lower=point(s,index+120);lower.height=512;lower.x=point(s,index).x;lower.inverseDepth=point(s,index).inverseDepth;vertical(d,s,lower);rotate(lower,s.camera);}
+    if(visible){auto& lower=point(s,index+120);lower.height=512;lower.x=point(s,index).x;lower.inverseDepth=point(s,index).inverseDepth;lower.source=point(s,index).source;vertical(d,s,lower);rotate(lower,s.camera);}
 }
 } // namespace
 void projectNearTrackSegment(const TrackProgressData& d,NearTrackGeometryState& s){

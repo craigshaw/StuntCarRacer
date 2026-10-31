@@ -92,10 +92,18 @@ std::uint32_t blend(std::uint32_t background,std::uint32_t foreground,double opa
 }
 } // namespace
 GhostCarPose makeGhostCarPose(const RenderCameraInputs& pose) noexcept{
-    return {{worldCoordinate(pose.worldPosition[0]),worldCoordinate(pose.worldPosition[1]),worldCoordinate(pose.worldPosition[2])},pose.pitch,pose.yaw,pose.roll};
+    // The physical datum sinks as suspension load increases. The original
+    // cockpit compensates using this same retained suspension response word.
+    // Our small exterior was calibrated at 1.25 world units of load; preserve
+    // that silhouette, adding the excess allowance rather than burying it.
+    // Zero response in flight keeps the recorded airborne datum unchanged.
+    constexpr double rest=1.25;
+    const auto load=pose.averageWheelVelocity<0x8000?std::min(unsigned(pose.averageWheelVelocity),0x11ffu):0u;
+    const auto lift=std::max(0.0,double(load)/256-rest);
+    return {{worldCoordinate(pose.worldPosition[0]),worldCoordinate(pose.worldPosition[1]),worldCoordinate(pose.worldPosition[2])},pose.pitch,pose.yaw,pose.roll,lift};
 }
 GhostCarMesh buildGhostCarMesh(const GhostCarPose& pose){
-    if(!std::isfinite(pose.position.x)||!std::isfinite(pose.position.y)||!std::isfinite(pose.position.z))
+    if(!std::isfinite(pose.position.x)||!std::isfinite(pose.position.y)||!std::isfinite(pose.position.z)||!std::isfinite(pose.suspensionLift)||pose.suspensionLift<0)
         throw std::invalid_argument("Ghost position must be finite");
     GhostCarMesh mesh;
     // The old proof guessed width from player height lever arms. The recovered
@@ -106,13 +114,14 @@ GhostCarMesh buildGhostCarMesh(const GhostCarPose& pose){
     constexpr double contact=1.25,tyreWidth=width/4,tyreHeight=width/2,radius=tyreHeight/2;
     // Counterparts of the recovered procedural body vertices 4..11: a
     // sloping upper panel, half-footprint lower width and 3/8-width high end.
+    // Local +Z is the nose: the low/thin end goes forward, the tall end aft.
     // Convert the original screen-height offsets using the game's half-height
     // world projection. No extra cabin box or nose is inferred from physics.
     constexpr double support=contact+tyreHeight,low=support-width/4,high=support+width/2;
-    mesh.vertices={{-width/4,low,length/2},{-width*3/16,high,length/2},
-        {width*3/16,high,length/2},{width/4,low,length/2},
-        {-width/4,low,-length/2},{-width/4,support,-length/2},
-        {width/4,support,-length/2},{width/4,low,-length/2}};
+    mesh.vertices={{-width/4,low,-length/2},{-width*3/16,high,-length/2},
+        {width*3/16,high,-length/2},{width/4,low,-length/2},
+        {-width/4,low,length/2},{-width/4,support,length/2},
+        {width/4,support,length/2},{width/4,low,length/2}};
     mesh.faces={{{0,3,2,1},0x9ff5ff},{{4,5,6,7},0x55d9ef},
         {{1,2,6,5},0x9ff5ff},{{0,1,5,4},0x55d9ef},
         {{3,7,6,2},0x55d9ef},{{0,4,7,3},0x55d9ef}};
@@ -125,11 +134,13 @@ GhostCarMesh buildGhostCarMesh(const GhostCarPose& pose){
     const auto sp=std::sin(radians(pose.pitch)),cp=std::cos(radians(pose.pitch));
     const auto sr=std::sin(radians(pose.roll)),cr=std::cos(radians(pose.roll));
     for(auto& p:mesh.vertices){
-        // Positive pitch raises the front; positive roll raises the left wheel,
-        // as in calculateExpectedWheelHeights. Yaw zero faces world +Z.
-        const auto side=p.x*cr+p.y*sr,up=p.y*cr-p.x*sr;
+        // The original projection halves world Y. Rotate in its isotropic
+        // space, then restore world Y, so a recorded 20-degree pitch/roll also
+        // looks like 20 degrees. Flat proportions remain unchanged. Positive
+        // pitch raises the front; positive roll raises the left. Yaw zero +Z.
+        const auto side=p.x*cr+(p.y/2)*sr,up=(p.y/2)*cr-p.x*sr;
         const auto vertical=up*cp+p.z*sp,forward=p.z*cp-up*sp;
-        p={pose.position.x+side*cy+forward*sy,pose.position.y+vertical,pose.position.z+forward*cy-side*sy};
+        p={pose.position.x+side*cy+forward*sy,pose.position.y+pose.suspensionLift+vertical*2,pose.position.z+forward*cy-side*sy};
     }
     return mesh;
 }

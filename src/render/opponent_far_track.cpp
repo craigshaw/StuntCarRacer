@@ -27,7 +27,7 @@ unsigned horizonStorage(NearTrackPoint a,NearTrackPoint c,int padding,int topPad
     if(a.x<-padding)clipX(a,c,-padding);else if(a.x>=256+padding)clipX(a,c,256+padding);if(c.x<-padding)clipX(c,a,-padding);else if(c.x>=256+padding)clipX(c,a,256+padding);
     return 10+2*unsigned(std::abs(a.y-c.y));
 }
-NearTrackPoint point(const NearTrackVertex& p){return {sw(unsigned(p.x)),sw(unsigned(p.y)),p.inverseDepth};}
+NearTrackPoint point(const NearTrackVertex& p){return {sw(unsigned(p.x)),sw(unsigned(p.y)),p.inverseDepth,p.source};}
 NearTrackEdge line(OpponentFarTrackFrame& out,const NearTrackVertex& a,const NearTrackVertex& c,unsigned offset,unsigned index){
     NearTrackEdge e{};e.clipFlags=0x80;e.originQueueOffset=std::uint16_t(offset);e.originEdge=std::uint8_t(index);
     if((a.height|c.height)&0x8000||out.queue.lineBytes>=trackPresentationLineLimit(out.queue.horizontalPadding,out.queue.topPadding,out.queue.bottomPadding))return e;e=makeNearTrackEdge(point(a),point(c),out.queue.horizontalPadding,out.queue.topPadding,out.queue.bottomPadding);e.originQueueOffset=std::uint16_t(offset);e.originEdge=std::uint8_t(index);out.queue.lineBytes=std::uint16_t(out.queue.lineBytes+e.storageBytes);return e;
@@ -60,10 +60,12 @@ OpponentFarTrackFrame buildOpponentFarTrack(const OpponentFarTrackData& data,con
             const auto relativeX=w(shr(sw(x),1)+ox),relativeZ=w(shr(sw(z),1)+oz);
             const auto horizontal=polar(tables,relativeX,relativeZ);auto& p=out.upper[index/2+side];p.height=raw[2];p.x=shr(sw(w(int(horizontal.angle)-s.progress.cameraYaw)),3);
             p.inverseDepth=renderCoordinateInverseDepth(relativeX,relativeZ,s.progress.cameraYaw,8);
+            p.source=renderCoordinateRelative(relativeX,relativeZ,s.progress.cameraYaw,8);
+            p.source.down=sw(w(int(s.progress.cameraHeight)-p.height))/64.0;
             const auto down=w(shr(sw(w(int(s.progress.cameraHeight)-p.height)),3));p.y=shr(sw(w(int(polar(tables,down,horizontal.distance).angle)-s.camera.viewportCenterY)),3);
             const auto old=previous[side];previous[side]=w(p.x);auto& lower=out.lower[index/2+side];
             if(trackSideVertexRequired(side?TrackSide::left:TrackSide::right,w(p.x),old,s.progress.offRoadSide,section.flags)){
-                lower.height=512;lower.x=p.x;lower.inverseDepth=p.inverseDepth;const auto ground=w(shr(sw(w(int(s.progress.cameraHeight)-512)),3));lower.y=shr(sw(w(int(polar(tables,ground,horizontal.distance).angle)-s.camera.viewportCenterY)),3);rotate(lower,s.camera);
+                lower.height=512;lower.x=p.x;lower.inverseDepth=p.inverseDepth;lower.source=p.source;lower.source.down=sw(w(int(s.progress.cameraHeight)-512))/64.0;const auto ground=w(shr(sw(w(int(s.progress.cameraHeight)-512)),3));lower.y=shr(sw(w(int(polar(tables,ground,horizontal.distance).angle)-s.camera.viewportCenterY)),3);rotate(lower,s.camera);
             }else lower.height=0x8000;rotate(p,s.camera);
         }
         cursor=(cursor+1)%std::ptrdiff_t(data.mesh.sections.size());index+=4;

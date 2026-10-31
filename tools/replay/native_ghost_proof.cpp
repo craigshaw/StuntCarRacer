@@ -29,7 +29,9 @@ std::uint64_t framesHash(const std::vector<RaceFrame>& frames){
             for(const auto& edge:command.edges){
                 for(int p:{edge.from.x,edge.from.y,edge.to.x,edge.to.y})hash=hash*1099511628211ULL+std::uint64_t(p);
                 for(double d:{edge.from.inverseDepth,edge.to.inverseDepth}){std::uint64_t bits;std::memcpy(&bits,&d,sizeof(bits));hash=hash*1099511628211ULL+bits;}
+                for(const auto& p:{edge.from.source,edge.to.source})for(double d:{p.side,p.down,p.forward}){std::uint64_t bits;std::memcpy(&bits,&d,sizeof(bits));hash=hash*1099511628211ULL+bits;}
             }
+            for(const auto& patch:command.depthPatches)for(const auto& p:patch)for(double d:{p.side,p.down,p.forward}){std::uint64_t bits;std::memcpy(&bits,&d,sizeof(bits));hash=hash*1099511628211ULL+bits;}
         }
     }return hash;
 }
@@ -74,6 +76,32 @@ void ppm(const std::filesystem::path& path,const std::vector<std::uint32_t>& pix
     require(bool(out),"Cannot write proportion comparison");
 }
 struct ProportionStatistics {unsigned cases{},maximumWidthDifference{},maximumRearHeightDifference{};};
+struct PoseRegressionStatistics {unsigned cornerQueries{},jumpQueries{};double minimumCornerVisibility{1};};
+PoseRegressionStatistics poseRegressions(RaceScene& scene,const TrigTable& trig,const std::filesystem::path& output,bool preview){
+    PoseRegressionStatistics stats;const auto& frames=scene.frames();
+    // Named regressions from the retained native lap: the first banked turn
+    // and the ramp flight. Observer cameras are presentation queries only.
+    for(bool jump:{false,true})for(auto aperture:{NativeView::Original,NativeView::Extended,NativeView::Widescreen,NativeView::Ultrawide}){
+        const auto folder=output/(jump?"preview-jump-side":"preview-corner");
+        if(preview&&aperture==NativeView::Widescreen)std::filesystem::create_directories(folder);
+        for(unsigned n=0;n<80;++n){
+            const double time=(jump?216:120)+n*.5;const auto tick=unsigned(time);
+            const auto visual=interpolatePresentation(frames.at(tick),frames.at(tick+1),time-tick,trig);
+            const auto pose=makeGhostCarPose(visual.pose);CameraViewSettings view;view.view=aperture;view.showCockpit=false;
+            view.yawOffset=jump?0x3000:0;view.pitchOffset=std::int16_t(-visual.pose.pitch-0x0800);view.rollOffset=std::int16_t(-visual.pose.roll);
+            const auto heading=std::uint16_t(pose.yaw+view.yawOffset)*6.28318530717958647692/65536;
+            view.worldOffset={-32*std::sin(heading),14,-32*std::cos(heading)};
+            scene.renderGhostView(time,view,pose);const auto s=scene.ghostStatistics();
+            require(s.silhouettePixels>100,("Pose regression observer did not see the exterior at "+std::to_string(time)+", aperture "+viewName(aperture)+", pixels "+std::to_string(s.silhouettePixels)).c_str());
+            const auto fraction=double(s.visiblePixels)/s.silhouettePixels;
+            if(jump){++stats.jumpQueries;require(fraction>.75,"Ramp flight was spuriously buried by its road mask");}
+            else{++stats.cornerQueries;stats.minimumCornerVisibility=std::min(stats.minimumCornerVisibility,fraction);require(fraction>.75,("Banked corner buried the ghost exterior at "+std::to_string(time)+", "+viewName(aperture)+", fraction "+std::to_string(fraction)).c_str());}
+            require(!s.trackPixelsWithoutDepth,"Pose regression exposed a painted-depth boundary gap");
+            if(preview&&aperture==NativeView::Widescreen)scene.saveBitmap(folder/(std::to_string(1000+n).substr(1)+".bmp"));
+        }
+    }
+    return stats;
+}
 ProportionStatistics proportions(const std::filesystem::path& output,const RenderProjectionTables& tables,
     std::array<std::uint32_t,16> palette,double width,double wheelbase){
     ProportionStatistics stats;
@@ -148,6 +176,7 @@ int main(int argc,char** argv)try{
         proportionStats=proportions(output,tables,assets.palette,span(5,7),span(5,8));
     }
     const auto before=framesHash(frames);
+    const auto poseStats=poseRegressions(*scene,trig,output,preview);
     std::ofstream trajectory(output/"trajectory.csv");
     trajectory<<"tick,x,y,z,pitch,yaw,roll,restarts,road_y,clearance\n";
     double lowY=1e9,highY=-1e9;unsigned highYIndex=0;
@@ -267,12 +296,14 @@ int main(int argc,char** argv)try{
         <<",\n  \"static_depth_boundary_gate_passed\":true,\n  \"proportion_comparisons\":"<<proportionStats.cases
         <<",\n  \"maximum_reference_width_difference_pixels\":"<<proportionStats.maximumWidthDifference
         <<",\n  \"maximum_reference_rear_height_difference_pixels\":"<<proportionStats.maximumRearHeightDifference
-        <<",\n  \"depth_source\":\"original ordered painter spans and projected endpoint depth\",\n  \"production_occlusion_accepted\":false"
+        <<",\n  \"banked_corner_pose_queries\":"<<poseStats.cornerQueries<<",\n  \"jump_pose_queries\":"<<poseStats.jumpQueries
+        <<",\n  \"minimum_banked_corner_visibility\":"<<poseStats.minimumCornerVisibility
+        <<",\n  \"depth_source\":\"angular source-strip intersections within original painter spans, with endpoint depth at fill closure\",\n  \"production_occlusion_accepted\":false"
         <<",\n  \"average_masked_render_ms\":"<<renderMilliseconds/endpointChecks<<",\n  \"maximum_masked_render_ms\":"<<maxRenderMilliseconds
         <<",\n  \"zero_opacity_baseline_checks\":"<<endpointChecks<<",\n  \"live_isolation_queries\":"<<liveChecks<<",\n  \"full_simulation_bytes_compared\":"<<a->size()
         <<",\n  \"simulation_memory_hash\":"<<hashBytes(a->data(),a->size())<<",\n  \"simulation_and_rng_unchanged\":true,\n  \"retained_poses_and_commands_unchanged\":true"
         <<",\n  \"recorded_height_min\":"<<lowY<<",\n  \"recorded_height_max\":"<<highY<<",\n  \"hero_position\":"<<bestPosition<<",\n  \"preview_frames\":"<<previewFrames
-        <<",\n  \"limitations\":[\"Static track proof; no Draw Bridge policy implemented\",\"Endpoint depth interpolation follows the original painter rather than asserting exact physical visibility\",\"Same recorded trajectory sampled 12 ticks ahead for visibility, not a separate faster lap\",\"Native exterior calibrated to recovered opponent silhouettes; not a recovered 3D player car\"]\n}\n";
+        <<",\n  \"limitations\":[\"Static track proof; no Draw Bridge policy implemented\",\"Original fill closure retains endpoint depth outside the angular source strips; universal physical visibility is not claimed\",\"Same recorded trajectory sampled 12 ticks ahead for visibility, not a separate faster lap\",\"Native exterior calibrated to recovered opponent silhouettes; suspension allowance uses recorded response, not articulated physical wheel centres\"]\n}\n";
     require(bool(report),"Cannot write proof report");std::cout<<"Ghost proof passed; report: "<<(output/"results.json").string()<<'\n';
     return 0;
 }catch(const std::exception& error){std::cerr<<error.what()<<'\n';return 1;}

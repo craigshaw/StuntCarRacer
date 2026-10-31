@@ -5,6 +5,7 @@
 #include <iostream>
 #include <limits>
 #include <set>
+#include <string>
 #include <stdexcept>
 
 namespace {
@@ -35,6 +36,12 @@ int main()try{
     for(const auto& vertex:car.vertices){minX=std::min(minX,vertex.x);maxX=std::max(maxX,vertex.x);minY=std::min(minY,vertex.y);maxY=std::max(maxY,vertex.y);}
     require(std::abs(maxX-minX-ghostReferenceWidth)<1e-9&&std::abs(maxY-minY-ghostReferenceWidth)<1e-9,
         "Exterior lost the calibrated rear silhouette proportions");
+    // The exterior must point along its recorded heading, with the low/thin
+    // wedge nose at +Z. Reversing yaw to fix artwork would reverse its motion.
+    double frontTop=pose.position.y,rearTop=pose.position.y;
+    for(unsigned n=0;n<8;++n){const auto& p=car.vertices[n];
+        if(p.z>pose.position.z)frontTop=std::max(frontTop,p.y);else rearTop=std::max(rearTop,p.y);}
+    require(frontTop<rearTop,"Ghost wedge has its tall end at the front");
     auto pitched=pose;pitched.pitch=0x4000;
     const auto rotated=buildGhostCarMesh(pitched);
     const auto front=std::size_t(std::max_element(car.vertices.begin(),car.vertices.end(),[](const auto& a,const auto& b){return a.z<b.z;})-car.vertices.begin());
@@ -44,8 +51,28 @@ int main()try{
     const auto left=std::size_t(std::min_element(car.vertices.begin(),car.vertices.end(),[](const auto& a,const auto& b){return a.x<b.x;})-car.vertices.begin());
     const auto right=std::size_t(std::max_element(car.vertices.begin(),car.vertices.end(),[](const auto& a,const auto& b){return a.x<b.x;})-car.vertices.begin());
     require(roll.vertices[left].y>roll.vertices[right].y,"Positive roll does not raise the left side");
+    // Compare the rendered axes in the game's half-height space, rather than
+    // only checking their sign at an artificial quarter turn.
+    for(unsigned angle:{0x0800u,0x1800u,0xe800u}){
+        auto tilted=pose;tilted.pitch=std::uint16_t(angle);tilted.yaw=0x1555;
+        auto m=buildGhostCarMesh(tilted);
+        const auto dx=m.vertices[front].x-m.vertices[rear].x,dz=m.vertices[front].z-m.vertices[rear].z;
+        const auto dy=(m.vertices[front].y-m.vertices[rear].y)/2;
+        const auto expected=std::sin(angle*6.28318530717958647692/65536);
+        require(std::abs(dy/ghostReferenceFootprintLength-expected)<1e-9,"Projection flattened the recorded pitch");
+        require(std::abs(std::hypot(std::hypot(dx,dz),dy)-ghostReferenceFootprintLength)<1e-9,"Pitch distorted the model length");
+        tilted.pitch=0;tilted.roll=std::uint16_t(angle);m=buildGhostCarMesh(tilted);
+        require(std::abs((m.vertices[0].y-m.vertices[3].y)/ghostReferenceWidth-expected)<1e-9,"Projection flattened the recorded roll");
+    }
     RenderCameraInputs raw;raw.worldPosition={512u<<16,0xffff8000u,560u<<16};
     require(makeGhostCarPose(raw).position.y==-0.5,"Wrapped negative car height was treated as an unsigned coordinate");
+    const auto airborne=makeGhostCarPose(raw);raw.averageWheelVelocity=0x140;
+    require(makeGhostCarPose(raw).suspensionLift==0&&airborne.suspensionLift==0,"Flat calibration or flight acquired a suspension lift");
+    raw.averageWheelVelocity=0x440;const auto loaded=makeGhostCarPose(raw);
+    require(loaded.position.y==-0.5&&loaded.suspensionLift==3,"Suspension load changed the physical trajectory or lost its exterior allowance");
+    const auto loadedMesh=buildGhostCarMesh(loaded),airborneMesh=buildGhostCarMesh(airborne);
+    for(unsigned n=0;n<loadedMesh.vertices.size();++n)require(std::abs(loadedMesh.vertices[n].y-airborneMesh.vertices[n].y-3)<1e-9,"Suspension allowance was rotated with the body");
+    raw.averageWheelVelocity=0xffff;require(makeGhostCarPose(raw).suspensionLift==0,"Negative response raised the exterior");
     const std::uint32_t background=0x203040;
     std::vector<std::uint32_t> pixels(320*200,background);
     std::vector<std::uint8_t> coverage(256*128,0);
@@ -85,6 +112,31 @@ int main()try{
     const auto paintedGhost=renderer.draw(pose,style,{}, {},camera,tables,painterPixels,painter.worldCoverage(),0,false,0,&depth);
     require(paintedGhost.visiblePixels>0&&paintedGhost.occludedPixels>0&&!paintedGhost.ghostPixelsWithoutTrackDepth,
         "Painted road/side depth did not occlude the ghost without gaps");
+    const auto physicalFill=[&](const std::array<RenderWorldPoint,4>& points,NearTrackSurface surface){
+        auto command=rectangle(0,0,1,1,1,surface);command.edges.clear();std::array<NearTrackPoint,4> projected;
+        std::array<RenderCameraRelative,4> sources;
+        for(unsigned n=0;n<4;++n){const auto p=projectRenderWorldPoint(points[n],camera,tables);sources[n]=renderCameraRelative(points[n],camera);
+            projected[n]={p.x,p.y,1/sources[n].forward,sources[n]};}
+        for(unsigned n=0;n<4;++n)command.edges.push_back(makeNearTrackEdge(projected[n],projected[(n+1)%4]));
+        command.depthPatches.push_back(sources);return command;
+    };
+    painted.commands={physicalFill({{{488,40,528},{536,40,528},{536,40,640},{488,40,640}}},NearTrackSurface::road)};
+    painterPixels.assign(painterPixels.size(),background);withoutDepth=painterPixels;
+    painter.drawFrame({}, {}, {},camera,tables,palette,withoutDepth,false,&painted);
+    painter.drawFrame({}, {}, {},camera,tables,palette,painterPixels,false,&painted,0,false,0,true);
+    require(painterPixels==withoutDepth,"Angular source patches changed painted colour pixels");
+    for(unsigned y:{80u,96u,100u}){
+        constexpr double radians=6.28318530717958647692/65536;
+        const auto side=(128.5-128)/(32767.0/32768)*32*radians;
+        const auto down=(y+.5-64)/(32767.0/32768)*32*radians;
+        const auto inverse=std::tan(down)/std::cos(side)/3.5;
+        require(std::abs(painter.worldInverseDepth()[y*256+128]-inverse)<1e-7,("Angular road depth mismatch at row "+std::to_string(y)+": "+std::to_string(painter.worldInverseDepth()[y*256+128])+" versus "+std::to_string(inverse)).c_str());
+    }
+    painted.commands={physicalFill({{{480,10,536},{544,10,536},{544,80,536},{480,80,536}}},NearTrackSurface::rightSide)};
+    painterPixels.assign(painterPixels.size(),background);
+    painter.drawFrame({}, {}, {},camera,tables,palette,painterPixels,false,&painted,0,false,0,true);
+    require(renderer.draw(pose,style,{}, {},camera,tables,painterPixels,painter.worldCoverage(),0,false,0,&painter.worldInverseDepth()).visiblePixels==0,
+        "Source-patch depth let the ghost draw through a foreground wall");
     TrackMesh wall;wall.vertices={{480,10,536},{544,10,536},{544,80,536},{480,80,536}};
     wall.faces.push_back({{0,1,2,3},0,0});coverage.assign(coverage.size(),1);pixels.assign(pixels.size(),background);
     const auto hidden=renderer.draw(pose,style,wall,{},camera,tables,pixels,coverage);

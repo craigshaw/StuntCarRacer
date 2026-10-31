@@ -1,4 +1,5 @@
 #include "render/ghost_car.h"
+#include "render/opponent_car.h"
 #include <algorithm>
 #include <cmath>
 #include <stdexcept>
@@ -16,16 +17,6 @@ RenderWorldPoint mix(const RenderWorldPoint& a,const RenderWorldPoint& b,double 
 }
 double distance(const RenderWorldPoint& a,const RenderWorldPoint& b){
     return std::hypot(std::hypot(a.x-b.x,a.z-b.z),a.y-b.y);
-}
-void box(GhostCarMesh& mesh,const RenderWorldPoint& low,const RenderWorldPoint& high,std::uint32_t color){
-    const auto first=unsigned(mesh.vertices.size());
-    for(unsigned n=0;n<8;++n)mesh.vertices.push_back({n&1?high.x:low.x,n&2?high.y:low.y,n&4?high.z:low.z});
-    constexpr unsigned faces[6][4]={{0,1,3,2},{4,6,7,5},{0,4,5,1},{2,3,7,6},{0,2,6,4},{1,5,7,3}};
-    for(const auto& face:faces){
-        GhostCarFace f;f.color=color;
-        for(unsigned n=0;n<4;++n)f.vertices[n]=first+face[n];
-        mesh.faces.push_back(f);
-    }
 }
 Polygon clip(const Polygon& input,const RenderProjectionCamera& camera){
     Polygon out;if(input.empty())return out;
@@ -111,7 +102,7 @@ GhostCarMesh buildGhostCarMesh(const GhostCarPose& pose){
     // footprint, with each tyre occupying one quarter. Match that silhouette
     // at flat-support rear/three-quarter observations (see the proof CSV).
     constexpr double width=ghostReferenceWidth,length=ghostReferenceFootprintLength;
-    constexpr double contact=1.25,tyreWidth=width/4,tyreHeight=width/2,radius=tyreHeight/2;
+    constexpr double contact=1.25,tyreHeight=width/2;
     // Counterparts of the recovered procedural body vertices 4..11: a
     // sloping upper panel, half-footprint lower width and 3/8-width high end.
     // Local +Z is the nose: the low/thin end goes forward, the tall end aft.
@@ -125,15 +116,15 @@ GhostCarMesh buildGhostCarMesh(const GhostCarPose& pose){
     mesh.faces={{{0,3,2,1},0x9ff5ff},{{4,5,6,7},0x55d9ef},
         {{1,2,6,5},0x9ff5ff},{{0,1,5,4},0x55d9ef},
         {{3,7,6,2},0x55d9ef},{{0,4,7,3},0x55d9ef}};
-    // The original footprint rows bound the screen-space tyres; they are not
-    // centres of four circular 3D wheels. Keep the tyre ends within those rows.
-    for(double x:{-width*3/8,width*3/8})for(double z:{-length/2+radius,length/2-radius})
-        box(mesh,{x-tyreWidth/2,contact,z-radius},{x+tyreWidth/2,contact+tyreHeight,z+radius},0x286779);
+    // Match the opponent's projected tyre construction. Extruding these rows
+    // into boxes makes them disproportionately large at oblique angles.
+    mesh.tyreRows={{{{{-width/2,support,length/2},{width/2,support,length/2}}},
+                    {{{-width/2,support,-length/2},{width/2,support,-length/2}}}}};
     const auto radians=[](std::uint16_t angle){return double(angle)*2*pi/65536;};
     const auto sy=std::sin(radians(pose.yaw)),cy=std::cos(radians(pose.yaw));
     const auto sp=std::sin(radians(pose.pitch)),cp=std::cos(radians(pose.pitch));
     const auto sr=std::sin(radians(pose.roll)),cr=std::cos(radians(pose.roll));
-    for(auto& p:mesh.vertices){
+    const auto transform=[&](RenderWorldPoint& p){
         // The original projection halves world Y. Rotate in its isotropic
         // space, then restore world Y, so a recorded 20-degree pitch/roll also
         // looks like 20 degrees. Flat proportions remain unchanged. Positive
@@ -141,7 +132,9 @@ GhostCarMesh buildGhostCarMesh(const GhostCarPose& pose){
         const auto side=p.x*cr+(p.y/2)*sr,up=(p.y/2)*cr-p.x*sr;
         const auto vertical=up*cp+p.z*sp,forward=p.z*cp-up*sp;
         p={pose.position.x+side*cy+forward*sy,pose.position.y+pose.suspensionLift+vertical*2,pose.position.z+forward*cy-side*sy};
-    }
+    };
+    for(auto& p:mesh.vertices)transform(p);
+    for(auto& row:mesh.tyreRows)for(auto& p:row)transform(p);
     return mesh;
 }
 GhostCarStatistics GhostCarRenderer::draw(const GhostCarPose& pose,const GhostCarStyle& style,
@@ -185,6 +178,22 @@ GhostCarStatistics GhostCarRenderer::draw(const GhostCarPose& pose,const GhostCa
     for(const auto& face:car.faces){
         std::array<RenderWorldPoint,4> points;for(unsigned n=0;n<4;++n)points[n]=car.vertices.at(face.vertices[n]);
         quad(points,camera,tables,width,height,padding,top,carDepth_,&carColor_,face.color,stats.triangles);
+    }
+    for(const auto& row:car.tyreRows){
+        const auto left=renderCameraRelative(row[0],camera),right=renderCameraRelative(row[1],camera);
+        // Clipped/behind-camera supports cannot define a safe projected axle.
+        if(left.forward<nearPlane||right.forward<nearPlane)continue;
+        const auto a=projectRenderWorldPoint(row[0],camera,tables),b=projectRenderWorldPoint(row[1],camera,tables);
+        if(!a.inFront||!b.inFront)continue;
+        const auto tyres=buildOpponentTyreRow({a.x,a.y},{b.x,b.y});
+        for(unsigned n=0;n<2;++n){
+            const auto fraction=n?0.875:0.125;
+            const auto depth=1/(left.forward+(right.forward-left.forward)*fraction);
+            std::array<Vertex,4> points;
+            for(unsigned p=0;p<4;++p)points[p]={double(tyres[n][p].x+padding),double(tyres[n][p].y+top),depth};
+            triangle(points[0],points[1],points[2],width,height,carDepth_,&carColor_,ghostTyreColor);
+            triangle(points[0],points[2],points[3],width,height,carDepth_,&carColor_,ghostTyreColor);stats.triangles+=2;
+        }
     }
     for(int y=0;y<height;++y)for(int x=0;x<width;++x){
         const auto at=std::size_t(y*width+x);const bool track=coverage[at]==1||coverage[at]==2;

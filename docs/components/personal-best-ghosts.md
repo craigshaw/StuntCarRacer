@@ -212,8 +212,9 @@ must not simply be assumed to be the centre of a complete exterior model.
 The original opponent builder is a visual reference, not a ready-made ghost
 renderer: it uses projected wheel footprints, height clamping and a single
 opponent painter marker. It does not define a unique rigid 3D exterior. The ghost
-retains recorded jumps and orientation without borrowing live opponent state or
-the recovered line budget.
+shares only its pure tyre-polygon construction, projecting its own recorded axle
+supports. It retains recorded jumps and orientation without borrowing live
+opponent state, height clamping, admission guards or the recovered line budget.
 
 Start with a cool tint, approximately 30–40 percent opacity, and additional
 fading near or overlapping the player's car. Tune these values during the proof.
@@ -272,7 +273,12 @@ typed state yields a reference footprint 5.0625 world units wide with rows 7.562
 units apart for the default fixture. These are visual calibration measurements,
 not a recovered player collision volume or four physical wheel centres. The
 body uses a sloping counterpart of the recovered procedural vertices 4..11,
-within the middle half of the footprint; tyre ends fit within its rows. The
+within the middle half of the footprint; paired row supports drive the original
+projected tyre polygons. Solid tyre boxes inflated their visible area at oblique
+angles, even when the overall car bounds matched. The body stays rigid in world
+space; tyre artwork follows the opponent's view-dependent construction, using
+the recorded pitch/roll/yaw-transformed supports. Tyres and body resolve into the
+same private depth/colour layer before a single blend. The
 model contact offset follows flat recorded player driving. Above that calibration,
 the retained average suspension-response word supplies a bounded exterior height
 allowance; a fixed offset buried the small model when the physical datum dropped
@@ -288,7 +294,10 @@ player suspension lever arms.
 `opponent-footprint.json`, `proportions/measurements.csv` and `proportions.png`
 retain the observation and opaque comparisons against `buildOpponentCarFrame` at
 matched support points, four distances and rear/30-degree/45-degree views. Width
-and rear height have bounded pixel checks. The original procedure changes shape
+and rear height have bounded pixel checks. Forty-eight separate tyre glyph
+comparisons cover the same distances and angles, with a two-pixel width/height
+bound; `tyres.png` isolates the wheels from body occlusion. CSV measurements
+separate visible tyre pixels from tyre-only pixels. The original procedure changes shape
 with view, so a rigid exterior cannot claim exact silhouette identity at every
 angle; oblique body/height and suspension articulation remain approximations.
 Grounded and airborne previews accompany comparisons with no ghost, an unmasked

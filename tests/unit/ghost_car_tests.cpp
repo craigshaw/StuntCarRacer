@@ -32,10 +32,12 @@ int main()try{
     const GhostCarPose pose{{512,40,560},0,0,0};
     const auto car=buildGhostCarMesh(pose);
     require(car.vertices.size()<=64&&car.faces.size()<=48,"Exterior exceeded its bounded model budget");
-    double minX=1e9,maxX=-1e9,minY=1e9,maxY=-1e9;
-    for(const auto& vertex:car.vertices){minX=std::min(minX,vertex.x);maxX=std::max(maxX,vertex.x);minY=std::min(minY,vertex.y);maxY=std::max(maxY,vertex.y);}
-    require(std::abs(maxX-minX-ghostReferenceWidth)<1e-9&&std::abs(maxY-minY-ghostReferenceWidth)<1e-9,
-        "Exterior lost the calibrated rear silhouette proportions");
+    double minX=1e9,maxX=-1e9;
+    for(const auto& vertex:car.vertices){minX=std::min(minX,vertex.x);maxX=std::max(maxX,vertex.x);}
+    require(std::abs(maxX-minX-ghostReferenceWidth/2)<1e-9&&
+        std::abs(car.tyreRows[0][1].x-car.tyreRows[0][0].x-ghostReferenceWidth)<1e-9&&
+        std::abs(car.tyreRows[0][0].z-car.tyreRows[1][0].z-ghostReferenceFootprintLength)<1e-9,
+        "Exterior lost the calibrated body or tyre footprint");
     // The exterior must point along its recorded heading, with the low/thin
     // wedge nose at +Z. Reversing yaw to fix artwork would reverse its motion.
     double frontTop=pose.position.y,rearTop=pose.position.y;
@@ -72,6 +74,8 @@ int main()try{
     require(loaded.position.y==-0.5&&loaded.suspensionLift==3,"Suspension load changed the physical trajectory or lost its exterior allowance");
     const auto loadedMesh=buildGhostCarMesh(loaded),airborneMesh=buildGhostCarMesh(airborne);
     for(unsigned n=0;n<loadedMesh.vertices.size();++n)require(std::abs(loadedMesh.vertices[n].y-airborneMesh.vertices[n].y-3)<1e-9,"Suspension allowance was rotated with the body");
+    for(unsigned row=0;row<2;++row)for(unsigned side=0;side<2;++side)
+        require(std::abs(loadedMesh.tyreRows[row][side].y-airborneMesh.tyreRows[row][side].y-3)<1e-9,"Tyre supports lost the recorded suspension allowance");
     raw.averageWheelVelocity=0xffff;require(makeGhostCarPose(raw).suspensionLift==0,"Negative response raised the exterior");
     const std::uint32_t background=0x203040;
     std::vector<std::uint32_t> pixels(320*200,background);
@@ -81,6 +85,7 @@ int main()try{
     require(visible.visiblePixels>20&&visible.silhouettePixels==visible.visiblePixels,"Free ghost was not visible");
     std::set<std::uint32_t> once;
     for(const auto& face:car.faces)once.insert(blended(background,face.color,style.opacity));
+    once.insert(blended(background,ghostTyreColor,style.opacity));
     for(unsigned y=0;y<200;++y)for(unsigned x=0;x<320;++x){const auto p=pixels[y*320+x];
         if(p!=background){require(x>=32&&x<288&&y>=16&&y<144,"Ghost escaped the Original viewport");require(once.count(p)!=0,"Self-overlapping faces were blended more than once");}
     }

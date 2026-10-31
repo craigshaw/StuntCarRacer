@@ -31,7 +31,7 @@ def visuals(output):
 from pathlib import Path
 import csv
 import sys
-from PIL import Image, ImageDraw
+from PIL import Image, ImageDraw, ImageChops
 root = Path(sys.argv[1])
 for source in root.glob('hero-*.bmp'):
     image = Image.open(source).convert('RGB')
@@ -62,6 +62,19 @@ for row, (angle, label) in enumerate(labels):
         title = 'Recovered opponent' if kind == 'reference' else 'Ghost exterior'
         draw.text((column * 576 + 8, row * 372 + 7), f'{label} | {title} | matched footprint, distance 48', fill='white')
 proportions.save(root / 'proportions.png')
+tyres = Image.new('RGB', (720, 480), '#151923')
+draw = ImageDraw.Draw(tyres)
+draw.text((12, 8), 'Opposition tyres', fill='white')
+draw.text((372, 8), 'Ghost tyres | same footprint and distance', fill='white')
+for row, (angle, label) in enumerate(labels):
+    frames = [Image.open(root / 'proportions' / f'{angle}-48-{kind}-tyres.ppm').convert('RGB') for kind in ('reference', 'ghost')]
+    bounds = [ImageChops.difference(frame, Image.new('RGB', frame.size, '#203040')).getbbox() for frame in frames]
+    crop = (min(b[0] for b in bounds)-3, min(b[1] for b in bounds)-3, max(b[2] for b in bounds)+3, max(b[3] for b in bounds)+3)
+    draw.text((12, row * 150 + 36), label, fill='white')
+    for column, frame in enumerate(frames):
+        frame = frame.crop(crop).resize(((crop[2]-crop[0])*5, (crop[3]-crop[1])*6), Image.Resampling.NEAREST)
+        tyres.paste(frame, (column * 360 + (360-frame.width)//2, row * 150 + 60))
+tyres.save(root / 'tyres.png')
 for folder, title in [('preview', 'Recorded trajectory: grounded driving'), ('preview-jump', 'Recorded trajectory: ramp / airborne motion')]:
     frames = []
     timeline = list(csv.DictReader((root / folder / 'timeline.csv').open()))
@@ -83,7 +96,7 @@ for folder, title in [('preview-corner', 'Banked turn: recorded suspension load 
     interpreter = image_python()
     subprocess.run([str(interpreter), '-c', code, str(output)], check=True, cwd=ROOT)
     return {'interpreter': identity(interpreter), 'files': [identity(path) for path in
-        (output / 'hero-wide.png', output / 'comparison.png', output / 'proportions.png', output / 'preview.gif', output / 'preview-jump.gif', output / 'preview-corner.gif', output / 'preview-jump-side.gif')]}
+        (output / 'hero-wide.png', output / 'comparison.png', output / 'proportions.png', output / 'tyres.png', output / 'preview.gif', output / 'preview-jump.gif', output / 'preview-corner.gif', output / 'preview-jump-side.gif')]}
 
 
 def main():
@@ -134,6 +147,8 @@ def main():
         raise RuntimeError('Ghost proof did not establish isolation and complete painted-depth coverage')
     if report.get('banked_corner_pose_queries') != 320 or report.get('jump_pose_queries') != 320:
         raise RuntimeError('Ghost proof omitted banked-corner or ramp-flight pose regressions')
+    if report.get('tyre_glyph_comparisons') != 48 or max(report['maximum_tyre_width_difference_pixels'], report['maximum_tyre_height_difference_pixels']) > 2:
+        raise RuntimeError('Ghost proof omitted or failed the opposition tyre-size comparisons')
     qa = visuals(output)
     if sources() != source_records or [identity(path) for path in fixture_paths] != fixtures:
         raise RuntimeError('Sources or fixtures changed during the ghost proof')

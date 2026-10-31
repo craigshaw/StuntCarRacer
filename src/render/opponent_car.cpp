@@ -52,11 +52,12 @@ NearTrackEdge allocateEdge(OpponentCarFrame& f,NearTrackPoint a,NearTrackPoint b
     if(f.lineBytes>=trackPresentationLineLimit(f.horizontalPadding,f.topPadding,f.bottomPadding)){NearTrackEdge e{};e.clipFlags=0x80;return e;}
     auto e=makeNearTrackEdge(a,b,f.horizontalPadding,f.topPadding,f.bottomPadding);e.originQueueOffset=0xffff;f.lineBytes=std::uint16_t(f.lineBytes+e.storageBytes);return e;
 }
+std::array<NearTrackPoint,4> tyreQuad(const Steps& s,int x,int y){
+    return {{translated(s,add(x,-s.sx),add(y,-s.sy),2),translated(s,x,y,0),
+        translated(s,add(x,s.hx),add(y,s.hy),1),translated(s,add(add(x,-s.sx),s.hx),add(add(y,-s.sy),s.hy),3)}};
+}
 void quad(OpponentCarFrame& f,const Steps& s,int x,int y,unsigned offset){
-    f.vertices[0]=translated(s,add(x,-s.sx),add(y,-s.sy),2);
-    f.vertices[1]=translated(s,x,y,0);
-    f.vertices[2]=translated(s,add(x,s.hx),add(y,s.hy),1);
-    f.vertices[3]=translated(s,add(add(x,-s.sx),s.hx),add(add(y,-s.sy),s.hy),3);
+    const auto points=tyreQuad(s,x,y);std::copy(points.begin(),points.end(),f.vertices.begin());
     for(unsigned n=0;n<4;++n)f.edges[(offset/4)+n]=allocateEdge(f,f.vertices[n],f.vertices[(n+1)%4]);
 }
 void edge(OpponentCarFrame& f,unsigned offset,unsigned a,unsigned b){f.edges[offset/4]=allocateEdge(f,f.vertices[a],f.vertices[b]);}
@@ -66,6 +67,9 @@ void command(OpponentCarFrame& f,unsigned color,std::array<unsigned,4> offsets){
     c.originQueueOffset=c.firstQueueOffset=0x5e0;for(auto n:offsets)c.edges.push_back(f.edges[n/4]);f.commands.push_back(std::move(c));
 }
 } // namespace
+std::array<std::array<NearTrackPoint,4>,2> buildOpponentTyreRow(NearTrackPoint a,NearTrackPoint b){
+    const auto s=steps(a,b);return {{tyreQuad(s,-s.ox,-s.oy),tyreQuad(s,add(s.ox,-s.hx),add(s.oy,-s.hy))}};
+}
 OpponentCarFrame buildOpponentCarFrame(const OpponentCarInputs& in,const RenderProjectionTables& tables){
     OpponentCarFrame f{};f.horizontalPadding=in.horizontalPadding;f.topPadding=in.topPadding;f.bottomPadding=in.bottomPadding;f.lineBytes=in.lineBytes;if((in.aheadFlag&0x80)||in.distance<10||sw(in.distance)>=0xc80)return f;f.admitted=true;
     const auto clamp=[&](unsigned i,int bound){f.clampedHeights[i]=w(std::min(sw(in.footprint[i]),sw(w(bound+0x50))));};

@@ -21,12 +21,15 @@ struct GhostCarFace {
     std::uint32_t color{};
 };
 struct GhostCarMesh {
+    // Rigid body plus world-space supports for the original projected tyres.
     std::vector<RenderWorldPoint> vertices;
     std::vector<GhostCarFace> faces;
+    std::array<std::array<RenderWorldPoint,2>,2> tyreRows{};
 };
 // Visual calibration against a flat recovered opponent footprint. This is a
 // native exterior model, not a recovered player-car mesh or collision volume.
 constexpr double ghostReferenceWidth=5.0625,ghostReferenceFootprintLength=7.5625;
+constexpr std::uint32_t ghostTyreColor=0x286779;
 GhostCarMesh buildGhostCarMesh(const GhostCarPose&);
 
 struct GhostCarStyle {

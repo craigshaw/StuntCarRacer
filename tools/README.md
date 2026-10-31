@@ -51,6 +51,8 @@ Every retained update and quarter-update in all apertures must have complete
 painted-track depth coverage. `proportions.png` compares the calibrated exterior
 with the recovered procedural opponent at matched footprints and distances;
 the 3D model does not claim exact original silhouettes at every view angle.
+`tyres.png` isolates the shared native tyre polygons; 48 glyph comparisons check
+their width/height against the opposition at matched supports and distances.
 `preview-corner.gif` exercises the suspension allowance and banked-turn mask;
 `preview-jump-side.gif` shows the recorded airborne pitch from a private observer.
 Each named regression queries exact/half updates in all four apertures.

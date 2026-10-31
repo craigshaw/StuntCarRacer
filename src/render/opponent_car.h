@@ -29,6 +29,9 @@ struct OpponentCarFrame {
 // Original0x67aa6 guards and0x599e2 wheel-based procedural car construction.
 // Geometry is recovered code; all angular tables remain local-pack assets.
 OpponentCarFrame buildOpponentCarFrame(const OpponentCarInputs&,const RenderProjectionTables&);
+// Recovered tyre artwork for one projected axle. Pure geometry: no road-height
+// clamp, painter marker, line allocation or opponent state is consumed.
+std::array<std::array<NearTrackPoint,4>,2> buildOpponentTyreRow(NearTrackPoint,NearTrackPoint);
 
 enum class OpponentCarPainterSlot : std::uint8_t {ahead,behind,occluded};
 // Original0x6916c/0x6917c/0x69188: the first matching painter slot consumes the

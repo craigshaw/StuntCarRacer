@@ -75,7 +75,7 @@ void ppm(const std::filesystem::path& path,const std::vector<std::uint32_t>& pix
     for(auto p:pixels)for(unsigned shift:{16u,8u,0u})out.put(char((p>>shift)&255));
     require(bool(out),"Cannot write proportion comparison");
 }
-struct ProportionStatistics {unsigned cases{},maximumWidthDifference{},maximumRearHeightDifference{};};
+struct ProportionStatistics {unsigned cases{},maximumWidthDifference{},maximumRearHeightDifference{},tyreCases{},maximumTyreWidthDifference{},maximumTyreHeightDifference{};};
 struct PoseRegressionStatistics {unsigned cornerQueries{},jumpQueries{};double minimumCornerVisibility{1};};
 PoseRegressionStatistics poseRegressions(RaceScene& scene,const TrigTable& trig,const std::filesystem::path& output,bool preview){
     PoseRegressionStatistics stats;const auto& frames=scene.frames();
@@ -107,7 +107,7 @@ ProportionStatistics proportions(const std::filesystem::path& output,const Rende
     ProportionStatistics stats;
     const auto directory=output/"proportions";std::filesystem::create_directories(directory);
     std::ofstream csv(directory/"measurements.csv");
-    csv<<"angle,distance,reference_width,ghost_width,reference_height,ghost_height,reference_body_width,ghost_body_width\n";
+    csv<<"angle,distance,reference_width,ghost_width,reference_height,ghost_height,reference_body_width,ghost_body_width,reference_visible_tyre_pixels,ghost_visible_tyre_pixels,reference_tyre_only_pixels,ghost_tyre_only_pixels\n";
     RenderProjectionCamera camera;camera.worldPosition={512u<<16,47u<<16,512u<<16};
     camera.rotatedXUnits=camera.rotatedZUnits=512*16;camera.heightBaseline=47*32;camera.cosRoll=camera.cosYaw=0x7fff;
     constexpr std::uint32_t background=0x203040;palette[7]=palette[13]=background;
@@ -128,16 +128,38 @@ ProportionStatistics proportions(const std::filesystem::path& output,const Rende
         GhostCarRenderer ghostRenderer;GhostCarStyle style;style.opacity=1;style.occlusion=false;style.fadeNear=0;style.fadeFar=1;
         std::vector<std::uint32_t> ghostPixels(320*200,background);std::vector<std::uint8_t> coverage(256*128,0);
         ghostRenderer.draw({{512,38.75,512.0+distance},0,std::uint16_t(angle),0},style,{}, {},camera,tables,ghostPixels,coverage);
-        PixelBounds refBounds,ghostBounds,refBody,ghostBody;
+        PixelBounds refBounds,ghostBounds,refBody,ghostBody;unsigned refTyres=0,ghostTyres=0;
         for(int y=0;y<128;++y)for(int x=0;x<256;++x){const auto at=std::size_t((y+16)*320+x+32);
-            if(referenceRenderer.worldCoverage()[y*256+x]==4){refBounds.add(x,y);if(referencePixels[at]!=palette[0])refBody.add(x,y);}
-            if(ghostPixels[at]!=background){ghostBounds.add(x,y);if(ghostPixels[at]!=0x286779)ghostBody.add(x,y);}
+            if(referenceRenderer.worldCoverage()[y*256+x]==4){refBounds.add(x,y);if(referencePixels[at]!=palette[0])refBody.add(x,y);else ++refTyres;}
+            if(ghostPixels[at]!=background){ghostBounds.add(x,y);if(ghostPixels[at]!=ghostTyreColor)ghostBody.add(x,y);else ++ghostTyres;}
         }
-        csv<<angle<<','<<distance<<','<<refBounds.width()<<','<<ghostBounds.width()<<','<<refBounds.height()<<','<<ghostBounds.height()<<','<<refBody.width()<<','<<ghostBody.width()<<'\n';
+        NearTrackPresentation referenceTyres,ghostTyreCommands;referenceTyres.coveredSegments.fill(true);ghostTyreCommands.coveredSegments.fill(true);
+        for(const auto& command:original.commands)if(command.color==0)referenceTyres.commands.push_back(command);
+        const auto model=buildGhostCarMesh({{512,38.75,512.0+distance},0,std::uint16_t(angle),0});
+        for(unsigned row=0;row<2;++row){
+            const auto a=projectRenderWorldPoint(model.tyreRows[row][0],camera,tables),b=projectRenderWorldPoint(model.tyreRows[row][1],camera,tables);
+            const auto tyres=buildOpponentTyreRow({a.x,a.y},{b.x,b.y});
+            for(unsigned side=0;side<2;++side){
+                NearTrackDrawCommand command;command.kind=NearTrackCommandKind::fill;command.surface=NearTrackSurface::opponent;
+                PixelBounds nativeBounds,projectedBounds;const auto offset=(row?0x60:0x40)+side*0x10;
+                for(unsigned n=0;n<4;++n){const auto& native=original.edges[offset/4+n];nativeBounds.add(native.from.x,native.from.y);
+                    projectedBounds.add(tyres[side][n].x,tyres[side][n].y);command.edges.push_back(makeNearTrackEdge(tyres[side][n],tyres[side][(n+1)%4]));}
+                const auto dx=unsigned(std::abs(nativeBounds.width()-projectedBounds.width())),dy=unsigned(std::abs(nativeBounds.height()-projectedBounds.height()));
+                stats.maximumTyreWidthDifference=std::max(stats.maximumTyreWidthDifference,dx);stats.maximumTyreHeightDifference=std::max(stats.maximumTyreHeightDifference,dy);++stats.tyreCases;
+                require(dx<=2&&dy<=2,"Ghost tyre glyph differs from the recovered opponent size");ghostTyreCommands.commands.push_back(std::move(command));
+            }
+        }
+        auto refTyrePixels=std::vector<std::uint32_t>(320*200,background),ghostTyrePixels=refTyrePixels;SoftwareRenderer tyreRenderer;
+        tyreRenderer.drawFrame({}, {}, {},camera,tables,palette,refTyrePixels,false,&referenceTyres);
+        auto ghostPalette=palette;ghostPalette[0]=ghostTyreColor;
+        tyreRenderer.drawFrame({}, {}, {},camera,tables,ghostPalette,ghostTyrePixels,false,&ghostTyreCommands);
+        const auto refTyreOnly=std::count(refTyrePixels.begin(),refTyrePixels.end(),palette[0]),ghostTyreOnly=std::count(ghostTyrePixels.begin(),ghostTyrePixels.end(),ghostTyreColor);
+        csv<<angle<<','<<distance<<','<<refBounds.width()<<','<<ghostBounds.width()<<','<<refBounds.height()<<','<<ghostBounds.height()<<','<<refBody.width()<<','<<ghostBody.width()<<','<<refTyres<<','<<ghostTyres<<','<<refTyreOnly<<','<<ghostTyreOnly<<'\n';
         ++stats.cases;stats.maximumWidthDifference=std::max(stats.maximumWidthDifference,unsigned(std::abs(ghostBounds.width()-refBounds.width())));
         if(!angle)stats.maximumRearHeightDifference=std::max(stats.maximumRearHeightDifference,unsigned(std::abs(ghostBounds.height()-refBounds.height())));
         const auto name=std::to_string(angle)+"-"+std::to_string(distance);
         ppm(directory/(name+"-reference.ppm"),referencePixels);ppm(directory/(name+"-ghost.ppm"),ghostPixels);
+        ppm(directory/(name+"-reference-tyres.ppm"),refTyrePixels);ppm(directory/(name+"-ghost-tyres.ppm"),ghostTyrePixels);
         require(std::abs(ghostBounds.width()-refBounds.width())<=3,"Ghost width differs from recovered reference bounds");
         if(!angle)require(std::abs(ghostBounds.height()-refBounds.height())<=4,"Ghost rear height differs from recovered reference bounds");
     }return stats;
@@ -296,6 +318,8 @@ int main(int argc,char** argv)try{
         <<",\n  \"static_depth_boundary_gate_passed\":true,\n  \"proportion_comparisons\":"<<proportionStats.cases
         <<",\n  \"maximum_reference_width_difference_pixels\":"<<proportionStats.maximumWidthDifference
         <<",\n  \"maximum_reference_rear_height_difference_pixels\":"<<proportionStats.maximumRearHeightDifference
+        <<",\n  \"tyre_glyph_comparisons\":"<<proportionStats.tyreCases<<",\n  \"maximum_tyre_width_difference_pixels\":"<<proportionStats.maximumTyreWidthDifference
+        <<",\n  \"maximum_tyre_height_difference_pixels\":"<<proportionStats.maximumTyreHeightDifference
         <<",\n  \"banked_corner_pose_queries\":"<<poseStats.cornerQueries<<",\n  \"jump_pose_queries\":"<<poseStats.jumpQueries
         <<",\n  \"minimum_banked_corner_visibility\":"<<poseStats.minimumCornerVisibility
         <<",\n  \"depth_source\":\"angular source-strip intersections within original painter spans, with endpoint depth at fill closure\",\n  \"production_occlusion_accepted\":false"

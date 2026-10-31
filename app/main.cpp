@@ -153,6 +153,7 @@ private:
         return NativeQuitContext::General;
     }
     void openGameMenu(HWND window){
+        syncGhostMenu();
         settings_.openGameMenu(canLeaveRace(),navigation(),quitContext());clearGameInput();syncDisplay(window);
     }
     void toggleGameMenu(HWND window){
@@ -282,6 +283,7 @@ private:
         settingsError_=saved?L"":L"Settings could not be saved. Apply to retry.";return saved;
     }
     void navigateOverlay(HWND window){
+        syncGhostMenu();
         const auto before=settings_.page();
         const bool applied=settings_.navigate(navigation())&&saveSettings();
         if(applied)settings_.applied();
@@ -290,11 +292,18 @@ private:
         const auto action=settings_.takeAction();
         if(action==NativeDisplayAction::LeaveRace){leaveRaceRequested_=true;clearGameInput();}
         else if(action==NativeDisplayAction::Quit)closeApplication(window);
+        else if(action==NativeDisplayAction::ClearGhost){game_->clearPracticeGhost();syncGhostMenu();settings_.releaseNavigation();clearGameInput();}
+    }
+    void syncGhostMenu(){
+        if(!game_)return;const auto time=game_->practiceGhostTime();
+        settings_.setPracticeGhostContext(game_->practiceGhostActive(),std::wstring(time.begin(),time.end()),game_->canClearPracticeGhost());
     }
     void paint(HWND window){
         // Keep the last completed image visible while rendering. Clearing the
         // window before game_->render exposed black frames to the compositor.
+        if(game_)game_->setPracticeGhostVisible(settings_.preferences().practiceGhost);
         const std::vector<std::uint32_t>* pixels=game_?&game_->render(settings_.preferences().interpolate,settings_.blocksGame(),settings_.preferences().view):nullptr;
+        syncGhostMenu();
         PAINTSTRUCT painting{};auto target=BeginPaint(window,&painting);RECT client{};GetClientRect(window,&client);
         if(client.right<=0||client.bottom<=0){EndPaint(window,&painting);return;}
         auto dc=CreateCompatibleDC(target);
@@ -307,6 +316,7 @@ private:
         if(pixels){
             display_.paint(dc,client.right,client.bottom,*pixels,settings_.preferences());
             display_.overlay(dc,client.right,client.bottom,settings_,settingsError_);
+            if(settings_.page()!=NativeDisplayPage::Settings){const auto feedback=game_->ghostFeedback();display_.ghostFeedback(dc,client.right,client.bottom,std::wstring(feedback.begin(),feedback.end()),game_->ghostFeedbackWarning());}
             if(showFps_)display_.fpsOverlay(dc,client.right,client.bottom,fps_);
         }
         else launcherView_.paint(dc,client.right,client.bottom,launcher_);
@@ -350,7 +360,7 @@ private:
             if(key==VK_F10||key==VK_F11){
                 if(!(data&0x40000000)){
                     if(key==VK_F10){
-                        if(settings_.page()==NativeDisplayPage::QuitConfirmation)return 0;
+                        if(settings_.page()==NativeDisplayPage::QuitConfirmation||settings_.page()==NativeDisplayPage::ClearGhostConfirmation)return 0;
                         if(settings_.page()==NativeDisplayPage::Settings)settings_.back();else settings_.openSettings(navigation());
                         clearGameInput();
                     }else{settings_.toggleFullscreen();if(settings_.page()!=NativeDisplayPage::Settings)saveSettings();}

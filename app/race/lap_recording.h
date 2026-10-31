@@ -18,7 +18,8 @@ struct GhostLapKey {
     bool superLeague{};
     bool operator<(const GhostLapKey&)const noexcept;
 };
-struct GhostLapContext {GhostLapKey key;GhostLapSource source{};};
+struct GhostLapContext {GhostLapKey key;GhostLapSource source{};std::uint64_t trackContentIdentity{};};
+std::uint64_t ghostTrackContentIdentity(const std::vector<std::uint8_t>& payload);
 constexpr unsigned maxGhostLapSamples=65536,maxGhostLapBridgeShapes=64;
 constexpr std::uint16_t noGhostBridge=0xffff;
 struct GhostLapSample {
@@ -51,6 +52,8 @@ public:
     std::shared_ptr<const GhostLap> best(const GhostLapKey&)const;
     std::size_t size()const noexcept{return bests_.size();}
     void forgetCareer(const std::string&);
+    void forget(const GhostLapKey& key){bests_.erase(key);}
+    bool restore(GhostLap lap){return accept(std::move(lap));}
 private:
     friend class LapRecorder;
     bool accept(GhostLap);
@@ -82,6 +85,7 @@ public:
     void observeMovement(LapMovementObservation);
     void observeTiming(const RaceTimingEffects&);
     void stop();
+    void clear();
     std::optional<GhostLapPlayback> playback(std::int64_t absoluteMicroseconds,bool interpolate=true)const;
     const LapRecordingStatistics& statistics()const noexcept{return statistics_;}
     const GhostLapContext& context()const noexcept{return context_;}

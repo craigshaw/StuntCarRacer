@@ -135,31 +135,39 @@ void WindowsGameDisplay::fpsOverlay(HDC dc,int width,int height,double framesPer
 void WindowsGameDisplay::overlay(HDC dc,int width,int height,const NativeDisplaySettings& settings,const std::wstring& error){
     if(!settings.blocksGame())return;
     {Gdiplus::Graphics graphics(dc);Gdiplus::SolidBrush dim(Gdiplus::Color(176,0,0,0));graphics.FillRectangle(&dim,0,0,width,height);}
-    const double scale=std::max(0.3,std::min({1.5,double(width)/800,double(height)/540}));
-    const auto px=[&](int n){return int(std::lround(n*scale));};
     const bool menu=settings.page()==NativeDisplayPage::Settings;
-    const bool confirmation=settings.page()==NativeDisplayPage::QuitConfirmation;
-    const int help=menu?406:confirmation?262:64+int(settings.optionCount())*36+18;
-    const int panelWidth=px(560),panelHeight=px(menu?538:confirmation?334:help+94),left=(width-panelWidth)/2,top=(height-panelHeight)/2;
+    const bool clear=settings.page()==NativeDisplayPage::ClearGhostConfirmation;
+    const bool confirmation=settings.page()==NativeDisplayPage::QuitConfirmation||clear;
+    const int rows=confirmation?166:!menu&&settings.practiceGhostContext()?88:64;
+    const int help=menu?64+int(settings.optionCount())*36+18:confirmation?262:rows+int(settings.optionCount())*36+18;
+    const int baseHeight=menu?help+132:confirmation?334:help+94;
+    const double scale=std::max(0.3,std::min({1.5,double(width)/800,double(height)/(baseHeight+24)}));
+    const auto px=[&](int n){return int(std::lround(n*scale));};
+    const int panelWidth=px(560),panelHeight=px(baseHeight),left=(width-panelWidth)/2,top=(height-panelHeight)/2;
     const auto fill=[&](RECT r,COLORREF colour){const auto brush=CreateSolidBrush(colour);FillRect(dc,&r,brush);DeleteObject(brush);};
     RECT panel{left,top,left+panelWidth,top+panelHeight};fill(panel,RGB(19,25,35));
     const auto border=CreateSolidBrush(RGB(78,103,130));FrameRect(dc,&panel,border);DeleteObject(border);
     const auto font=CreateFontW(-px(19),0,0,0,FW_NORMAL,FALSE,FALSE,FALSE,DEFAULT_CHARSET,OUT_DEFAULT_PRECIS,CLIP_DEFAULT_PRECIS,CLEARTYPE_QUALITY,DEFAULT_PITCH,L"Segoe UI");
     const auto old=SelectObject(dc,font);SetBkMode(dc,TRANSPARENT);
     const auto text=[&](int x,int y,const wchar_t* value,COLORREF colour){SetTextColor(dc,colour);TextOutW(dc,left+px(x),top+px(y),value,int(wcslen(value)));};
-    text(24,18,menu?L"Settings":confirmation?L"Quit to Desktop?":L"Game menu",RGB(245,247,250));
-    const wchar_t* actions[]{L"Resume",L"Settings",settings.canLeaveRace()?L"Leave Race":L"Quit to Desktop",L"Quit to Desktop"};
-    const wchar_t* confirmActions[]{L"Cancel",L"Quit to Desktop"};
+    text(24,18,menu?L"Settings":clear?L"Clear personal best?":confirmation?L"Quit to Desktop?":L"Game menu",RGB(245,247,250));
+    std::vector<const wchar_t*> actions{L"Resume",L"Settings"};
+    if(settings.canLeaveRace())actions.push_back(L"Leave Race");
+    if(settings.canClearGhost())actions.push_back(L"Clear best and ghost...");actions.push_back(L"Quit to Desktop");
+    const wchar_t* confirmActions[]{L"Cancel",clear?L"Clear best and ghost":L"Quit to Desktop"};
+    const auto best=L"Personal best: "+settings.bestTime();
+    if(!menu&&!confirmation&&settings.practiceGhostContext())text(24,48,best.c_str(),RGB(148,213,243));
     if(confirmation){
         const wchar_t* message=L"Close Stunt Car Racer?";
-        if(settings.quitContext()==NativeQuitContext::Career)message=L"Your career and Hall of Fame will be saved before closing.";
-        else if(settings.quitContext()==NativeQuitContext::CareerRace)message=L"Your career will be saved.\nThis unfinished race will restart from its matchup.";
+        if(clear)message=L"Remove your best time and ghost for this circuit and league?\nThe lap in progress will not replace it.";
+        else if(settings.quitContext()==NativeQuitContext::Career)message=L"Your career, records and ghosts will be saved before closing.";
+        else if(settings.quitContext()==NativeQuitContext::CareerRace)message=L"Your career and best laps will be saved.\nThis unfinished race will restart from its matchup.";
         else if(settings.quitContext()==NativeQuitContext::Multiplayer)message=L"Progress since your last manual save will be lost.";
         RECT warning{left+px(24),top+px(64),left+panelWidth-px(24),top+px(150)};SetTextColor(dc,RGB(167,180,197));
         DrawTextW(dc,message,-1,&warning,DT_LEFT|DT_TOP|DT_WORDBREAK|DT_NOPREFIX);
     }
     const auto& prefs=settings.preferences();
-    const wchar_t* labels[]{L"Display mode",L"Image sizing",prefs.scaling==NativeScaling::Integer?L"Integer scale":L"Filtering",L"60 FPS smoothing",L"Driving controls",L"Menu navigation",L"Aspect ratio",L"Apply and back",L"Cancel"};
+    const wchar_t* labels[]{L"Display mode",L"Image sizing",prefs.scaling==NativeScaling::Integer?L"Integer scale":L"Filtering",L"60 FPS smoothing",L"Driving controls",L"Menu navigation",L"Aspect ratio",L"Practice ghost",L"Apply and back",L"Cancel"};
     auto detail=prefs.scaling==NativeScaling::Integer?integerScaleName(prefs.integerScale):std::wstring(filteringName(prefs.filtering));
     if(prefs.scaling==NativeScaling::Integer){
         const auto actual=unsigned(displayRectangle(width,height,prefs).height/originalDisplayHeight);
@@ -167,17 +175,31 @@ void WindowsGameDisplay::overlay(HDC dc,int width,int height,const NativeDisplay
         else if(actual!=prefs.integerScale)detail+=L" (using "+integerScaleName(actual)+L")";
     }
     const wchar_t* values[]{prefs.fullscreen?L"Borderless fullscreen":L"Windowed",scalingName(prefs.scaling),detail.c_str(),prefs.interpolate?L"On":L"Off",
-        prefs.controls==DriveControlPreset::Original?L"Original":L"Modern",prefs.navigation==NativeMenuNavigation::Responsive?L"Responsive":L"Original",viewName(prefs.view)};
+        prefs.controls==DriveControlPreset::Original?L"Original":L"Modern",prefs.navigation==NativeMenuNavigation::Responsive?L"Responsive":L"Original",viewName(prefs.view),prefs.practiceGhost?L"On":L"Off"};
     for(unsigned n=0;n<settings.optionCount();++n){
-        const int y=(confirmation?166:64)+int(n)*36;
+        const int y=rows+int(n)*36;
         if(n==settings.selected())fill({left+px(16),top+px(y-3),left+panelWidth-px(16),top+px(y+30)},RGB(35,65,91));
         text(28,y,menu?labels[n]:confirmation?confirmActions[n]:actions[n],RGB(237,242,247));
-        if(menu&&n<7)text(250,y,values[n],RGB(148,213,243));
+        if(menu&&n<8)text(250,y,values[n],RGB(148,213,243));
     }
     text(24,help,menu?L"Arrows / D-pad: select and change":L"Arrows / D-pad: select",RGB(167,180,197));
     text(24,help+25,confirmation?L"Enter / A: confirm    Esc / B: cancel":L"Enter / A: confirm    Esc / B: back",RGB(167,180,197));
     if(menu)text(24,help+50,prefs.controls==DriveControlPreset::Modern?L"Hold RT: accel   LT: brake   A / RB: boost":L"Stick / D-pad: accel/brake   A / RB: boost",RGB(148,213,243));
     if(!confirmation)text(24,help+(menu?75:50),error.empty()?(menu?L"Preview changes; Apply saves your choices.":L"Esc / P / Start: resume    F11: fullscreen"):error.c_str(),error.empty()?RGB(167,180,197):RGB(255,170,130));
+    SelectObject(dc,old);DeleteObject(font);
+}
+void WindowsGameDisplay::ghostFeedback(HDC dc,int width,int height,const std::wstring& value,bool warning){
+    if(value.empty()||width<80||height<80)return;
+    const int padding=12,boxWidth=std::min(width-24,760);
+    const auto font=CreateFontW(-int(18*std::clamp(double(height)/720,0.7,1.4)),0,0,0,FW_NORMAL,FALSE,FALSE,FALSE,
+        DEFAULT_CHARSET,OUT_DEFAULT_PRECIS,CLIP_DEFAULT_PRECIS,CLEARTYPE_QUALITY,DEFAULT_PITCH,L"Segoe UI");
+    const auto old=SelectObject(dc,font);RECT area{0,0,boxWidth-2*padding,0};
+    DrawTextW(dc,value.c_str(),-1,&area,DT_CALCRECT|DT_WORDBREAK|DT_NOPREFIX);
+    const int left=(width-boxWidth)/2;RECT box{left,8,left+boxWidth,8+area.bottom+2*padding};
+    const auto brush=CreateSolidBrush(RGB(19,25,35));FillRect(dc,&box,brush);DeleteObject(brush);
+    const auto border=CreateSolidBrush(warning?RGB(214,145,83):RGB(83,168,185));FrameRect(dc,&box,border);DeleteObject(border);
+    SetBkMode(dc,TRANSPARENT);SetTextColor(dc,warning?RGB(255,195,131):RGB(183,239,234));
+    area={box.left+padding,box.top+padding,box.right-padding,box.bottom-padding};DrawTextW(dc,value.c_str(),-1,&area,DT_WORDBREAK|DT_NOPREFIX);
     SelectObject(dc,old);DeleteObject(font);
 }
 } // namespace scr::runtime

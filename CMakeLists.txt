@@ -138,6 +138,7 @@ if(WIN32)
     app/session/native_game_session.cpp
     app/session/native_career_session.cpp
     app/persistence/native_career_store.cpp
+    app/persistence/ghost_lap_codec.cpp
     app/persistence/native_career_checkpoint.cpp
     app/persistence/native_save_store.cpp
     app/race/race_scene.cpp
@@ -180,7 +181,7 @@ if(WIN32)
     if(NOT local_logo_sha STREQUAL approved_logo_sha)
       message(FATAL_ERROR "Unreviewed launcher logo: verify its provenance and update setup/branding.json, or set SCR_EMBED_LAUNCHER_LOGO=OFF")
     endif()
-    file(WRITE "${CMAKE_CURRENT_BINARY_DIR}/launcher-logo.rc" "101 RCDATA \"${CMAKE_CURRENT_SOURCE_DIR}/logo.png\"\n")
+    file(CONFIGURE OUTPUT "${CMAKE_CURRENT_BINARY_DIR}/launcher-logo.rc" CONTENT "101 RCDATA \"${CMAKE_CURRENT_SOURCE_DIR}/logo.png\"\n" @ONLY)
     set(SCR_LAUNCHER_RESOURCE "${CMAKE_CURRENT_BINARY_DIR}/launcher-logo.rc")
     target_sources(native_game PRIVATE "${SCR_LAUNCHER_RESOURCE}")
     set_property(SOURCE "${CMAKE_CURRENT_BINARY_DIR}/launcher-logo.rc" APPEND PROPERTY OBJECT_DEPENDS "${CMAKE_CURRENT_SOURCE_DIR}/logo.png")

@@ -1,4 +1,9 @@
 # Included from the project root; source paths remain relative to that root.
+scr_add_test_executable(ghost_lap_codec_tests tests/unit/ghost_lap_codec_tests.cpp
+  app/persistence/ghost_lap_codec.cpp app/race/lap_recording.cpp app/presentation/ghost_bridge.cpp app/presentation/presentation_interpolation.cpp)
+target_include_directories(ghost_lap_codec_tests PRIVATE app)
+target_link_libraries(ghost_lap_codec_tests PRIVATE scr_render)
+target_compile_features(ghost_lap_codec_tests PRIVATE cxx_std_17)
 scr_add_test_executable(lap_recording_tests tests/unit/lap_recording_tests.cpp
   app/race/lap_recording.cpp app/presentation/ghost_bridge.cpp app/presentation/presentation_interpolation.cpp)
 target_include_directories(lap_recording_tests PRIVATE app)
@@ -26,6 +31,12 @@ target_link_libraries(drive_input_tests PRIVATE scr_render)
 target_compile_features(drive_input_tests PRIVATE cxx_std_17)
 
 if(WIN32)
+  scr_add_test_executable(native_practice_ghost_tests tests/integration/native_practice_ghost_tests.cpp)
+  target_link_libraries(native_practice_ghost_tests PRIVATE scr_game scr_host_ui)
+  target_compile_features(native_practice_ghost_tests PRIVATE cxx_std_17)
+  scr_add_test_executable(native_ghost_store_tests tests/integration/native_ghost_store_tests.cpp)
+  target_link_libraries(native_ghost_store_tests PRIVATE scr_game)
+  target_compile_features(native_ghost_store_tests PRIVATE cxx_std_17)
   scr_add_test_executable(native_lap_recording_tests tests/integration/native_lap_recording_tests.cpp)
   target_link_libraries(native_lap_recording_tests PRIVATE scr_game)
   target_compile_features(native_lap_recording_tests PRIVATE cxx_std_17)

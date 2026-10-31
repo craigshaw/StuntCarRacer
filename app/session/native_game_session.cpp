@@ -7,6 +7,9 @@
 #include "presentation/native_multiplayer_render.h"
 #include "presentation/native_hall_of_fame.h"
 #include "state/draw_bridge_adapter.h"
+#include "persistence/ghost_lap_codec.h"
+#include <iomanip>
+#include <sstream>
 #include <algorithm>
 #include <cmath>
 #include <stdexcept>
@@ -95,8 +98,17 @@ void NativeGameSession::startRace(){
     previewPrepared_=false;
     restoreCockpit(*data_.memory);initializeNativeRace(*data_.memory);
     race_.loadNativeState(*data_.memory,data_.payload,recordings_);
-    if(activeCareer_&&!multiplayer())race_.recordPersonalBestLaps(personalBestLaps_,
-        {{activeCareer_->id,menu_->trackId(),bool((*data_.memory)[0x1c9d0])},menu_->competitive()?GhostLapSource::League:GhostLapSource::Practice});
+    lapKey_.reset();lapImprovements_=lapOverflows_=0;ghostConditionsDiffer_=false;ghostNotice_.clear();ghostNoticeSeconds_=0;
+    if(activeCareer_&&!multiplayer()){
+        lapKey_=GhostLapKey{activeCareer_->id,menu_->trackId(),bool((*data_.memory)[0x1c9d0])};
+        const auto content=ghostTrackContentIdentity(data_.payload);const auto saved=careerStore_->readGhost(*lapKey_,content);ghostFileState_=saved.state;
+        unsigned diskTime=~0u;
+        if(saved.state==CareerFileState::Valid||saved.state==CareerFileState::Recovered){auto lap=decodeGhostLap(saved.data,*lapKey_,content);diskTime=lap.hundredths;personalBestLaps_.restore(std::move(lap));}
+        else if(saved.state==CareerFileState::Unsupported||saved.state==CareerFileState::Corrupt){ghostNotice_="Saved ghost unavailable. Clear it in the Practice game menu.";ghostNoticeSeconds_=5;}
+        const auto retained=personalBestLaps_.best(*lapKey_);
+        if(retained&&(saved.state!=CareerFileState::Valid||retained->hundredths<diskTime))careerStore_->saveGhost(*retained);
+        race_.recordPersonalBestLaps(personalBestLaps_,{*lapKey_,menu_->competitive()?GhostLapSource::League:GhostLapSource::Practice,content});
+    }
     race_.setRunningLapHundredths(true);
     driveClock_.reset();driveLatch_.clear();endFireWait_.reset();quitPending_=false;
 }
@@ -104,6 +116,42 @@ void NativeGameSession::leaveRace(){
     transitionIndices_=race_.captureLiveIndices(race_.frames().back().action==unsigned(RaceTransitionAction::raceEnd),presentationView_);
     fade_.fadeToColor(0);transition_=Transition::OutMenu;
     driveClock_.reset();releaseInput();
+}
+bool NativeGameSession::practiceGhostActive()const noexcept{
+    return lapKey_&&activeCareer_&&!multiplayer()&&!competitive()&&!finishPending_&&page()==NativeMenuPage::Race;
+}
+bool NativeGameSession::canClearPracticeGhost()const{
+    return practiceGhostActive()&&(personalBestLaps_.best(*lapKey_)||ghostFileState_!=CareerFileState::Missing);
+}
+std::string NativeGameSession::practiceGhostTime()const{
+    if(!practiceGhostActive())return {};
+    const auto best=personalBestLaps_.best(*lapKey_);if(!best)return "Not set";
+    std::ostringstream text;text<<best->hundredths/6000<<':'<<std::setw(2)<<std::setfill('0')<<(best->hundredths/100)%60<<'.'<<std::setw(2)<<best->hundredths%100;return text.str();
+}
+bool NativeGameSession::clearPracticeGhost(){
+    if(!practiceGhostActive()||!careerStore_)return false;
+    if(!careerStore_->clearGhost(*lapKey_)){ghostNotice_="Could not clear the ghost. Please try again.";ghostNoticeSeconds_=5;return false;}
+    personalBestLaps_.forget(*lapKey_);race_.clearPersonalBestLap();ghostFileState_=CareerFileState::Missing;ghostConditionsDiffer_=false;
+    ghostNotice_="Personal best and ghost cleared.";ghostNoticeSeconds_=2.5;return true;
+}
+void NativeGameSession::observePersonalBest(){
+    if(!lapKey_||!careerStore_)return;
+    const auto stats=race_.lapRecordingStatistics();if(!stats)return;
+    if(stats->overflowCandidates!=lapOverflows_){lapOverflows_=stats->overflowCandidates;ghostNotice_="Lap recording limit reached. Your saved best is unchanged.";ghostNoticeSeconds_=5;}
+    if(stats->improvements==lapImprovements_)return;
+    lapImprovements_=stats->improvements;const auto best=personalBestLaps_.best(*lapKey_);if(!best)return;
+    careerStore_->saveGhost(*best);
+    std::ostringstream time;time<<best->hundredths/6000<<':'<<std::setw(2)<<std::setfill('0')<<(best->hundredths/100)%60<<'.'<<std::setw(2)<<best->hundredths%100;
+    ghostNotice_="New personal best: "+time.str();ghostNoticeSeconds_=2.5;
+}
+bool NativeGameSession::ghostFeedbackWarning()const{
+    return (careerStore_&&careerStore_->ghostFailed())||(ghostNoticeSeconds_>0&&(ghostFileState_==CareerFileState::Unsupported||ghostFileState_==CareerFileState::Corrupt));
+}
+std::string NativeGameSession::ghostFeedback()const{
+    const bool failed=careerStore_&&careerStore_->ghostFailed();
+    if(ghostNoticeSeconds_>0)return ghostNotice_+(failed?" (ghost not saved)":"");
+    if(failed)return "Ghost not saved. Your best is kept for this session.";
+    return ghostConditionsDiffer_?"Bridge conditions differ":std::string{};
 }
 void NativeGameSession::advanceTransition(double elapsed,NativeGameUpdate& result){
     if(transition_==Transition::SaveDelay){
@@ -205,6 +253,7 @@ void NativeGameSession::finishResponsiveTransitions(NativeGameUpdate& result){
 }
 NativeGameUpdate NativeGameSession::update(double elapsed,const NativeGameInput& held){
     if(!std::isfinite(elapsed)||elapsed<0)throw std::invalid_argument("Invalid native game elapsed time");
+    ghostNoticeSeconds_=std::max(0.0,ghostNoticeSeconds_-elapsed);
     NativeGameUpdate managed;if(updateCareers(elapsed,held,managed))return managed;
     const auto oldPage=page();
     if(navigation_==NativeMenuNavigation::Original){const auto screen=navigationScreen();auto result=updateImpl(elapsed,held);observeCareerState(oldPage);if(screen!=navigationScreen())careerClock_.enterScreen(held.menu);return result;}
@@ -268,6 +317,7 @@ NativeGameUpdate NativeGameSession::updateImpl(double elapsed,const NativeGameIn
         for(unsigned n=0;n<steps;++n){
             race_.stepLive(driveLatch_.consume(input.drivePreset),quitPending_,input.drivePreset);quitPending_=input.quit;
             result.audio.push_back(race_.frames().back().audio);
+            observePersonalBest();
             observeHall();
             if(race_.liveTerminal()){
                 if(careerStore_){
@@ -452,6 +502,7 @@ void NativeGameSession::updateOpening(const NativeGameInput& input,double elapse
     handleOpeningAction(opening_->update(input.menu,elapsed),previous,result);
 }
 const std::vector<std::uint32_t>& NativeGameSession::render(bool interpolate,bool paused,NativeView view){
+    ghostConditionsDiffer_=false;
     presentationView_=view;
     if(careerPanel_!=CareerPanel::None){packNativeMenuPixels(careerImage(),pixels_);return pixels_;}
     if(finishPending_){pixels_=finishPixels_;return pixels_;}
@@ -465,10 +516,13 @@ const std::vector<std::uint32_t>& NativeGameSession::render(bool interpolate,boo
     }
     if(page()==NativeMenuPage::Preview)return preview_.pixels();
     if(page()==NativeMenuPage::Race){
+        const bool ghost=practiceGhostVisible_&&practiceGhostActive()&&!race_.liveTerminal();
+        if(ghost){const auto playback=race_.lapGhostPlayback(interpolate?driveClock_.fraction():1,interpolate);ghostConditionsDiffer_=playback&&!playback->finished&&playback->conditionsDiffer;}
         // Set the presentation view even when paused or at the terminal panel.
         if(race_.liveTerminal()||paused)race_.renderLive(driveClock_.fraction(),false,interpolate,view);
         if(race_.liveTerminal())return race_.renderLiveMessage(0x3c,4);
-        if(paused)return race_.renderLiveMessage(0x4c,2);
+        if(paused)return race_.renderLiveMessage(0x4c,2,ghost);
+        if(ghost)return race_.renderPracticeGhost(driveClock_.fraction(),interpolate,view);
         return race_.renderLive(driveClock_.fraction(),false,interpolate,view);
     }
     packNativeMenuPixels(menuImage(),pixels_);return pixels_;

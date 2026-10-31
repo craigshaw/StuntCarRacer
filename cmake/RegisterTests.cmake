@@ -44,12 +44,18 @@ if(TARGET native_ghost_bridge_proof)
     "${SCR_TEST_ASSET_PACK}" "${test_output}/native_ghost_bridge_proof")
 endif()
 
-foreach(target paula_mixer_tests presentation_interpolation_tests drive_input_tests ghost_car_tests ghost_bridge_tests lap_recording_tests)
+foreach(target paula_mixer_tests presentation_interpolation_tests drive_input_tests ghost_car_tests ghost_bridge_tests lap_recording_tests ghost_lap_codec_tests)
   scr_test(${target} "native;unit" "")
 endforeach()
 scr_test(software_renderer_tests "native;assets" "${SCR_TEST_PAYLOAD}" "${SCR_TEST_PAYLOAD}")
 
 if(WIN32)
+  scr_test(native_practice_ghost_tests "native;assets;capture" "${SCR_TEST_ASSET_PACK}"
+    "${SCR_TEST_ASSET_PACK}" "${test_output}/native_practice_ghost_tests" "${SCR_TEST_CAPTURE}" "${SCR_TEST_PAYLOAD}"
+    "${PROJECT_SOURCE_DIR}/tests/replays/laps/authored-race-1463.csv" "${SCR_TEST_GHOST_REFERENCE}")
+  set_tests_properties(native_practice_ghost_tests PROPERTIES RUN_SERIAL TRUE)
+  scr_test(native_ghost_store_tests "native;unit" "" "${test_output}/native_ghost_store_tests")
+  set_tests_properties(native_ghost_store_tests PROPERTIES RUN_SERIAL TRUE)
   scr_test(native_lap_recording_tests "native;assets" "${SCR_TEST_ASSET_PACK}"
     "${SCR_TEST_ASSET_PACK}" "${test_output}/native_lap_recording_tests"
     "${SCR_TEST_CAPTURE}" "${SCR_TEST_PAYLOAD}"

@@ -7,6 +7,25 @@ import time
 
 from native_build import ROOT, NATIVE_BUILD, ORACLE_BUILD
 from check_native_ghost import identity, sources
+from check_native_rendering import image_python
+
+
+def visuals(output):
+    source = NATIVE_BUILD / 'test-output/Release/native_practice_ghost_tests'
+    code = r'''
+from pathlib import Path
+from PIL import Image
+import sys
+source, output = map(Path, sys.argv[1:])
+for name in ('pause', 'settings', 'clear-confirmation', 'cleared', 'new-best'):
+    Image.open(source / (name + '.ppm')).save(output / (name + '.png'))
+frames = [Image.open(path).convert('RGB') for path in sorted((source / 'frames').glob('*.ppm'))]
+if not frames:
+    raise RuntimeError('Practice ghost preview is missing')
+frames[0].save(output / 'practice.gif', save_all=True, append_images=frames[1:], duration=120, loop=0, disposal=2)
+'''
+    subprocess.run([str(image_python()), '-c', code, str(source), str(output)], cwd=ROOT, check=True)
+    return [identity(output / name) for name in ('pause.png', 'settings.png', 'clear-confirmation.png', 'cleared.png', 'new-best.png', 'practice.gif')]
 
 
 def source_records():
@@ -41,7 +60,8 @@ def main():
     fixture_paths = (assets, chip, payload, controls, reference)
     fixtures = [identity(path) for path in fixture_paths]
     before = source_records()
-    targets = ('lap_recording_tests', 'native_lap_recording_tests', 'native_lap_timer_tests',
+    targets = ('lap_recording_tests', 'ghost_lap_codec_tests', 'native_ghost_store_tests', 'native_practice_ghost_tests',
+               'native_lap_recording_tests', 'native_lap_timer_tests', 'native_display_tests', 'native_launcher_tests', 'native_game_session_tests',
                'native_career_session_tests', 'native_multiplayer_session_tests', 'native_autosave_tests',
                'presentation_interpolation_tests', 'ghost_bridge_tests', 'native_opponent_driving_tests',
                'native_ghost_proof', 'native_ghost_bridge_proof', 'native_game')
@@ -71,6 +91,9 @@ def main():
     checks = json.loads((NATIVE_BUILD / 'test-output/Release/native_lap_recording_tests/results.json').read_text())
     if not checks['captured_regression_run'] or checks['earned_completed_laps'] != 3 or not checks['authored_competitive_completed_laps']:
         raise RuntimeError('Lap recording verification omitted complete Practice or competitive laps')
+    player = json.loads((NATIVE_BUILD / 'test-output/Release/native_practice_ghost_tests/results.json').read_text())
+    if player['view_mask'] != 15 or not player['visible_player_queries'] or not player['simulation_and_rng_unchanged']:
+        raise RuntimeError('Saved player ghost acceptance omitted visibility or isolation')
     originals = {}
     if args.verify_original:
         originals['timing'] = run_json([executables['race_timing_oracle'], payload, 'lap-recording', chip], output / 'timing-original.json')
@@ -78,11 +101,12 @@ def main():
                                                output / 'original.csv', '--full-loop'], output / 'race-original.json')
     if source_records() != before or [identity(path) for path in fixture_paths] != fixtures:
         raise RuntimeError('Lap recording sources or fixtures changed during verification')
-    result = {'status': 'passed', 'scope': 'in-memory lap recording, ranking and Practice playback timeline',
-              'durable_ghost_storage': False, 'player_ghost_controls': False,
+    qa = visuals(output)
+    result = {'status': 'passed', 'scope': 'saved personal-best ghosts, Practice rendering, controls and feedback',
+              'durable_ghost_storage': True, 'player_ghost_controls': True,
               'seconds': time.perf_counter() - started, 'sources': before, 'fixtures': fixtures,
               'executables': {name: identity(path) for name, path in executables.items()},
-              'checks': checks, 'original_cpu_executed': args.verify_original, 'original_comparisons': originals}
+              'checks': checks, 'player_checks': player, 'visuals': qa, 'original_cpu_executed': args.verify_original, 'original_comparisons': originals}
     (output / 'check-results.json').write_text(json.dumps(result, indent=2) + '\n')
     print(json.dumps({'status': 'passed', 'report': str(output / 'check-results.json'), 'checks': checks}, indent=2))
 

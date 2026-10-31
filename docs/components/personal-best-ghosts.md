@@ -1,9 +1,9 @@
 # Personal-best lap ghosts
 
-Status: agreed player-facing design; the static-track and Draw Bridge development
-proofs are implemented, including the painted-boundary depth fix. In-memory lap
-recording, best selection and the Practice playback timeline are integrated.
-Durable storage, player controls and broader production acceptance remain.
+Status: implemented local player feature, following the static-track and Draw
+Bridge proofs. Career recording, saved targets, Practice drawing, settings,
+feedback and confirmed clear share the contracts below. Online records remain
+future work; finite checks do not imply universal rendering equivalence.
 
 ## Player contract
 
@@ -94,8 +94,8 @@ Preserve unreadable or unsupported files rather than silently overwriting them.
 times, career/track/league keys and immutable best targets. `NativeGameSession`
 owns the in-memory library and binds a recorder when an active career enters
 Practice or a league race. Multiplayer cannot bind one. Switching modes or
-careers keeps their separate targets for that process; this library is not part
-of a checkpoint or Hall bank and does not yet survive closing the application.
+careers keeps their separate targets. The library is not part of a checkpoint or
+Hall bank; separate ghost files restore its targets on race entry.
 
 The recorder observes existing native wheel/frame and timing events. The first
 human line event starts a candidate; subsequent accepted events supply the
@@ -127,20 +127,61 @@ queries the same displayed timeline as the camera; repeated, paused and reverse
 queries cannot advance it. Recovery poses cut, bridge geometry is deduplicated,
 and the bridge guard/fades use recorded source regions and live frame snapshots.
 After the recorded finish, opacity reaches zero over 240 ms without looping.
-League recording creates no playback target. Ordinary player rendering remains
-unchanged until the settings/feedback stage integrates this explicit query.
+League recording creates no playback target. Practice rendering consumes this
+query when the ghost setting is enabled; hiding it retains baseline world pixels.
 
 Samples retain position, orientation and native contact information, rather
 than `RaceFrame`, RAM or assets. Recording metadata includes source mode and a
 control-preset bitmask, including a switch during a lap. Practice/league and
 Original/Modern still share one ranking key.
 
-The current capture resource ceilings are 65,536 samples and 64 distinct bridge
+The format/capture resource ceilings are 65,536 samples and 64 distinct bridge
 shapes per candidate. Overflow abandons only that candidate, preserves a saved
-best and resumes at the next line event. These are provisional memory bounds,
-not new lap-eligibility rules or a durable codec. The original clock holds its
-minute digit at nine, so ten minutes cannot be assumed to be a validity limit.
-The storage stage must settle file/duration bounds and failure feedback.
+best, shows a recording-limit notice and resumes at the next line event. These
+are storage bounds, not changes to original lap eligibility. The original clock
+holds its minute digit at nine, so ten minutes is not a validity limit. Movement
+duration is bounded by sample capacity times 120 ms, with at most one neighbouring
+update on either side. Duplicate timestamps retain internal recovery cuts.
+
+### Saved files and player integration
+
+`app/persistence/ghost_lap_codec.*` encodes version 1 movement/time records with
+an explicit race-rules version and the immutable source track-geometry identity.
+The content identity hashes payload geometry at recovered addresses
+`0x1ef82..0x2f082`, not mutable bridge RAM or the executable. Rendering changes
+alone do not invalidate a recording. Changes to movement units or gameplay rules
+require an appropriate format/rules version change.
+
+The codec validates owner, track, league, source mode, control metadata, BCD time,
+duration, crossing brackets, monotone timestamps, gap bounds, flags and bridge
+indices before restoring a target. It stores fixed-width pose bits and compact
+shape tables, with no captured memory or original assets. Serialized records fit
+inside the store's 4 MiB file bound. A checksum detects accidental corruption;
+it does not establish authenticity for a future online leaderboard.
+
+`NativeCareerStore` writes `ghosts/<career-id>/<track>-normal.scr-ghost` or
+`<track>-super.scr-ghost` through its existing serial worker. Best time and poses
+form one immutable job and one checksummed replacement, with two validated
+recovery generations. Loading accepts a good recovery copy; replacement preserves
+unreadable files under a damaged-copy name. Unsupported formats/rules/content or
+foreign ownership remain intact and block replacement. Failed writes retain the
+RAM best and last good file. The existing Retry/unsaved-departure flow applies;
+race entry also resubmits a retained improvement newer than disk. Saved status
+depends on worker completion.
+
+Confirmed clear drains the worker, removes that key's pending retry job and
+deletes its head, backups, temporary and damaged copies. It then removes the
+in-memory best and active ghost and cancels the current recording candidate.
+The next completed crossing starts a fresh candidate; the discarded partial lap
+cannot restore the cleared target. Career deletion removes its ghost files too.
+
+Display settings version 9 adds `practice-ghost`; versions 1–8 migrate with it on.
+F10 Settings previews and applies/cancels the toggle using existing controls.
+The Practice Game menu shows the best time and a clear confirmation defaulting
+to Cancel. Toggle and menu queries do not restart the target or advance gameplay.
+Host overlays show new personal bests in either recording mode, local bridge
+suppression, recording-limit and save-failure feedback without changing original
+cockpit artwork. The ghost remains silent and non-colliding.
 
 Run `scripts/check_native_laps.py --verify-original` for focused CTest checks,
 identified fixtures/results and fresh original-code timing/race comparisons.
@@ -152,6 +193,14 @@ its initial conditions are synthetic and it is not compared with the Practice
 trace. Unit timing sequences cover replacement in both directions, ties,
 partial entry, recovery cuts, bridge suppression, finish fading and overflow.
 Results stay under ignored `analysis/lap-recording/`.
+Player acceptance additionally reopens a saved league target in Practice, checks
+visible pixels in all apertures with smoothing on/off, hides/reveals without a
+timeline reset, clears during a lap and records a fresh improvement afterwards.
+Its captured entry handoff is authored before driving, not injected midrace;
+separate fresh native/session tests cover normal race preparation. Codec/store
+tests cover bounds, corruption, recovery, future formats, failed writes, retries,
+career isolation and pending-write deletion. UI captures and `practice.gif` stay
+beside the identified report.
 
 ## Rendering proposal and proof gate
 

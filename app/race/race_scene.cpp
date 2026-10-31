@@ -81,6 +81,7 @@ void RaceScene::initialise(const std::filesystem::path& chip,const std::filesyst
     chipPath_=chip;payloadPath_=payload;nativePackPath_.clear();initialiseMemory(*capture,original);
 }
 void RaceScene::initialiseMemory(const std::array<std::uint8_t,0x80000>& memory,const std::vector<std::uint8_t>& original){
+    trackContentIdentity_=ghostTrackContentIdentity(original);
     assets_=decodeRaceRenderAssets(original.data(),original.size(),memory.data(),memory.size());
     wheelAssets_=decodeNativeWheelSprites(memory.data(),memory.size());
     particleData_=decodeNativeDrivingParticleData(memory);
@@ -350,10 +351,20 @@ bool RaceScene::recordPersonalBestLaps(PersonalBestLaps& bests,GhostLapContext c
     if(ram[0x5eb76])return false;
     if(context.key.track!=ram[0x1ca33]||context.key.superLeague!=bool(ram[0x1c9d0])||
        (context.source==GhostLapSource::League)!=bool(ram[0x1ca22]&0x80))throw std::invalid_argument("Lap context differs from native race");
+    if(context.trackContentIdentity&&context.trackContentIdentity!=trackContentIdentity_)throw std::invalid_argument("Ghost track identity differs from native data");
+    context.trackContentIdentity=trackContentIdentity_;
     simulation_->laps=std::make_unique<LapRecorder>(bests,std::move(context),trig_);return true;
 }
 const LapRecordingStatistics* RaceScene::lapRecordingStatistics()const noexcept{
     return simulation_&&simulation_->laps?&simulation_->laps->statistics():nullptr;
+}
+void RaceScene::clearPersonalBestLap(){if(simulation_&&simulation_->laps)simulation_->laps->clear();}
+const std::vector<std::uint32_t>& RaceScene::renderPracticeGhost(double fraction,bool interpolate,NativeView view){
+    const auto playback=lapGhostPlayback(interpolate?fraction:1,interpolate);
+    if(!playback||playback->opacity<=0)return renderLive(fraction,false,interpolate,view);
+    lastLiveFraction_=fraction;lastLiveInterpolate_=interpolate;lastLiveView_=view;
+    CameraViewSettings camera;camera.view=view;GhostCarStyle style;style.opacity*=playback->opacity;
+    return renderGhostView(interpolate?fraction:1,camera,playback->pose,style);
 }
 std::optional<GhostLapPlayback> RaceScene::lapGhostPlayback(double position,bool interpolate)const{
     if(!std::isfinite(position)||frames_.empty())throw std::invalid_argument("Invalid ghost presentation position");
@@ -371,10 +382,12 @@ const std::vector<std::uint32_t>& RaceScene::renderLive(double fraction,bool wir
     const auto& frame=frames_[1];draw(frame,frame.nearTrack,wireframe,frame.movingTrack.get(),&frame,fraction);
     cachedFrame_=~0u;return pixels_;
 }
-const std::vector<std::uint32_t>& RaceScene::renderLiveMessage(unsigned index,unsigned mode){
+const std::vector<std::uint32_t>& RaceScene::renderLiveMessage(unsigned index,unsigned mode,bool includeGhost){
     // Repaint the final snapshot before overlaying the original panel, so a
     // pause message never becomes part of a later interpolated race image.
-    cachedFrame_=~0u;renderLive(lastLiveFraction_,false,lastLiveInterpolate_,lastLiveView_);
+    cachedFrame_=~0u;
+    if(includeGhost)renderPracticeGhost(lastLiveFraction_,lastLiveInterpolate_,lastLiveView_);
+    else renderLive(lastLiveFraction_,false,lastLiveInterpolate_,lastLiveView_);
     const auto& memory=simulation_->native.ram;
     const auto cockpit=captureCockpitFrame(memory.data(),memory.size());
     const bool wide=isWideView(lastLiveView_);

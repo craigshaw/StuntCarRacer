@@ -19,8 +19,9 @@ struct NativeDisplayPreferences {
     NativeFiltering filtering{NativeFiltering::NearestNeighbour};
     unsigned integerScale{}; // Zero selects the largest fitting integer scale.
     NativeView view{NativeView::Original};
+    bool practiceGhost{true};
     bool operator==(const NativeDisplayPreferences& other)const noexcept {
-        return fullscreen==other.fullscreen&&interpolate==other.interpolate&&scaling==other.scaling&&controls==other.controls&&navigation==other.navigation&&filtering==other.filtering&&integerScale==other.integerScale&&view==other.view;
+        return fullscreen==other.fullscreen&&interpolate==other.interpolate&&scaling==other.scaling&&controls==other.controls&&navigation==other.navigation&&filtering==other.filtering&&integerScale==other.integerScale&&view==other.view&&practiceGhost==other.practiceGhost;
     }
 };
 NativeDisplayPreferences loadDisplayPreferences(const std::filesystem::path&);
@@ -32,13 +33,13 @@ const wchar_t* viewName(NativeView)noexcept;
 int displayWidthAtScale(NativeView,unsigned scale)noexcept;
 PresentationRectangle displayRectangle(int width,int height,const NativeDisplayPreferences&,int sourceWidth=0);
 // Existing preference row identities stay stable; aspect ratio follows navigation.
-constexpr unsigned displayRowOrder[]{0,1,5,2,3,4,6};
+constexpr unsigned displayRowOrder[]{0,1,5,2,3,4,6,7};
 void changeDisplayPreference(NativeDisplayPreferences&,unsigned row,int direction=1);
 // Bits shared by keyboard and controller navigation: up/down/left/right/A/B.
 unsigned displayPadNavigation(const DrivePad&)noexcept;
 bool gameMenuShortcut(unsigned virtualKey,bool textEntry,bool raceScreen,bool modeChooser)noexcept;
-enum class NativeDisplayPage { Closed, Pause, Settings, QuitConfirmation };
-enum class NativeDisplayAction { None, LeaveRace, Quit };
+enum class NativeDisplayPage { Closed, Pause, Settings, QuitConfirmation, ClearGhostConfirmation };
+enum class NativeDisplayAction { None, LeaveRace, Quit, ClearGhost };
 enum class NativeQuitContext { General, Career, CareerRace, Multiplayer };
 class NativeDisplaySettings {
 public:
@@ -50,6 +51,10 @@ public:
     unsigned optionCount()const noexcept;
     bool canLeaveRace()const noexcept{return canLeaveRace_;}
     NativeQuitContext quitContext()const noexcept{return quitContext_;}
+    void setPracticeGhostContext(bool active,std::wstring time={},bool canClear=false){practice_=active;bestTime_=std::move(time);clearGhost_=active&&canClear;if(page_==NativeDisplayPage::Pause&&selected_>=optionCount())selected_=0;}
+    bool practiceGhostContext()const noexcept{return practice_;}
+    bool canClearGhost()const noexcept{return clearGhost_;}
+    const std::wstring& bestTime()const noexcept{return bestTime_;}
     NativeDisplayAction takeAction()noexcept{const auto action=action_;action_=NativeDisplayAction::None;return action;}
     void openSettings(unsigned held=0);
     void openGameMenu(bool allowLeaveRace,unsigned held=0,NativeQuitContext context=NativeQuitContext::General);
@@ -67,6 +72,8 @@ private:
     NativeDisplayPage page_{NativeDisplayPage::Closed},returnPage_{NativeDisplayPage::Closed};
     unsigned selected_{},previous_{};
     bool waitForRelease_{},canLeaveRace_{};
+    bool practice_{},clearGhost_{};
+    std::wstring bestTime_;
     NativeDisplayAction action_{NativeDisplayAction::None};
     NativeQuitContext quitContext_{NativeQuitContext::General};
 };

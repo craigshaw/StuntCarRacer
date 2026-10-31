@@ -89,6 +89,7 @@ def main():
     parser.add_argument('--adf', type=Path)
     parser.add_argument('--skip-build', action='store_true')
     parser.add_argument('--verify-original', action='store_true')
+    parser.add_argument('--jobs', type=int, default=4, help='MSBuild worker count; use 1 for serialized verification')
     args = parser.parse_args()
     pack = args.pack.resolve()
     if args.adf:
@@ -127,7 +128,7 @@ def main():
                ['cmake', '--build', binary_dir, '--config', 'Release', '--target',
                 'native_game', 'native_game_session_tests', 'native_opening_session_tests', 'native_startup_tests', 'draw_bridge_driving_tests',
                 'native_opponent_session_tests', 'native_multiplayer_session_tests', 'native_career_session_tests',
-                'native_save_session_tests', 'native_save_store_tests', 'native_display_tests', 'native_launcher_tests', 'native_navigation_tests', 'native_autosave_tests', 'drive_input_tests', '--parallel', '4']], output / 'build.log')
+                'native_save_session_tests', 'native_save_store_tests', 'native_display_tests', 'native_launcher_tests', 'native_navigation_tests', 'native_autosave_tests', 'drive_input_tests', '--parallel', str(max(1,args.jobs)), '--', '/nr:false']], output / 'build.log')
         receipt.write_text(json.dumps({'sources': records, 'artwork': artwork, **{key: identity(path) for key, path in executables.items()}}, indent=2) + '\n')
     launcher_args = [launcher_test, pack, output / 'launcher']
     disk = args.adf or ROOT / 'Stunt Car Racer (MicroStyle).adf'
@@ -230,7 +231,7 @@ def main():
                 'native_opponent_race_tests', 'native_competition_render_tests',
                 'native_career_state_tests',
                 'native_render_audit', 'scene_commands_tests',
-                'driving_replay_oracle', 'draw_bridge_oracle', '--parallel', '4']], output / 'oracle-build.log')
+                'driving_replay_oracle', 'draw_bridge_oracle', '--parallel', str(max(1,args.jobs)), '--', '/nr:false']], output / 'oracle-build.log')
         payload = ROOT / 'analysis/reference/vesuri/offline-extracted-payload.bin'
         for name, argument in (('native_menu_render', payload), ('native_menu_flow', payload), ('native_track_preview', pack),
                                ('native_palette_fade', payload), ('native_hall_of_fame', payload), ('native_hall_records', payload),

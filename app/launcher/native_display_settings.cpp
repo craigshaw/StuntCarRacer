@@ -20,8 +20,8 @@ NativeDisplayPreferences loadDisplayPreferences(const std::filesystem::path& pat
     if(error||size>1024)return preferences;
     std::ifstream input(path);std::string header,full,scale,motion,extra;
     if(!std::getline(input,header)||!std::getline(input,full)||!std::getline(input,scale)||!std::getline(input,motion))return {};
-    const bool version5=header=="SCR display 5",version6=header=="SCR display 6",version7=header=="SCR display 7",version8=header=="SCR display 8";
-    const bool current=header=="SCR display 4"||version5||version6||version7||version8;
+    const bool version5=header=="SCR display 5",version6=header=="SCR display 6",version7=header=="SCR display 7",version8=header=="SCR display 8",version9=header=="SCR display 9";
+    const bool current=header=="SCR display 4"||version5||version6||version7||version8||version9;
     if((header!="SCR display 1"&&header!="SCR display 2"&&header!="SCR display 3"&&!current)||(full!="fullscreen=0"&&full!="fullscreen=1")||
        (motion!="interpolate=0"&&motion!="interpolate=1"))return {};
     if(scale=="scaling=integer")preferences.scaling=NativeScaling::Integer;
@@ -58,13 +58,14 @@ NativeDisplayPreferences loadDisplayPreferences(const std::filesystem::path& pat
         if(view=="view=widescreen")preferences.view=NativeView::Extended;
         else if(view!="view=original")return {};
     }
-    if(version6||version7||version8){
+    if(version6||version7||version8||version9){
         std::string aspect;if(!std::getline(input,aspect))return {};
-        if(version8&&aspect=="aspect=ultrawide")preferences.view=NativeView::Ultrawide;
-        else if((version7||version8)&&aspect=="aspect=widescreen")preferences.view=NativeView::Widescreen;
+        if((version8||version9)&&aspect=="aspect=ultrawide")preferences.view=NativeView::Ultrawide;
+        else if((version7||version8||version9)&&aspect=="aspect=widescreen")preferences.view=NativeView::Widescreen;
         else if(aspect=="aspect=extended")preferences.view=NativeView::Extended;
         else if(aspect!="aspect=original")return {};
     }
+    if(version9){std::string ghost;if(!std::getline(input,ghost)||(ghost!="practice-ghost=0"&&ghost!="practice-ghost=1"))return {};preferences.practiceGhost=ghost=="practice-ghost=1";}
     while(std::getline(input,extra))if(!extra.empty())return {};
     preferences.fullscreen=full=="fullscreen=1";preferences.interpolate=motion=="interpolate=1";return preferences;
 }
@@ -73,7 +74,7 @@ bool saveDisplayPreferences(const std::filesystem::path& path,const NativeDispla
     std::error_code error;if(path.has_parent_path())std::filesystem::create_directories(path.parent_path(),error);
     if(error)return false;
     if(preferences.integerScale>maximumIntegerScale)return false;
-    std::ostringstream output;output<<"SCR display 8\nfullscreen="<<preferences.fullscreen<<"\nscaling=";
+    std::ostringstream output;output<<"SCR display 9\nfullscreen="<<preferences.fullscreen<<"\nscaling=";
     switch(preferences.scaling){case NativeScaling::Integer:output<<"integer";break;
         case NativeScaling::Fit:output<<"fit";break;case NativeScaling::Stretch:output<<"stretch";break;default:return false;}
     output<<"\ninterpolate="<<preferences.interpolate<<"\ncontrols=";
@@ -87,7 +88,7 @@ bool saveDisplayPreferences(const std::filesystem::path& path,const NativeDispla
         case NativeFiltering::Bilinear:output<<"bilinear";break;default:return false;}
     output<<"\ninteger-scale="<<preferences.integerScale<<"\naspect=";
     switch(preferences.view){case NativeView::Original:output<<"original";break;case NativeView::Extended:output<<"extended";break;case NativeView::Widescreen:output<<"widescreen";break;case NativeView::Ultrawide:output<<"ultrawide";break;default:return false;}
-    output<<'\n';const auto bytes=output.str();
+    output<<"\npractice-ghost="<<preferences.practiceGhost<<'\n';const auto bytes=output.str();
     const std::filesystem::path pending=path.wstring()+L".tmp";
     const auto handle=CreateFileW(pending.c_str(),GENERIC_WRITE,0,nullptr,CREATE_ALWAYS,FILE_ATTRIBUTE_NORMAL,nullptr);
     if(handle==INVALID_HANDLE_VALUE)return false;
@@ -129,6 +130,7 @@ void changeDisplayPreference(NativeDisplayPreferences& preferences,unsigned row,
     else if(row==3)preferences.controls=preferences.controls==DriveControlPreset::Original?DriveControlPreset::Modern:DriveControlPreset::Original;
     else if(row==4)preferences.navigation=preferences.navigation==NativeMenuNavigation::Responsive?NativeMenuNavigation::Original:NativeMenuNavigation::Responsive;
     else if(row==6)preferences.view=NativeView((unsigned(preferences.view)+(direction<0?3:1))%4);
+    else if(row==7)preferences.practiceGhost=!preferences.practiceGhost;
     else if(row==5){
         if(preferences.scaling==NativeScaling::Integer)preferences.integerScale=(preferences.integerScale+(direction<0?maximumIntegerScale:1))%(maximumIntegerScale+1);
         else preferences.filtering=preferences.filtering==NativeFiltering::NearestNeighbour?NativeFiltering::Bilinear:NativeFiltering::NearestNeighbour;
@@ -148,7 +150,8 @@ bool gameMenuShortcut(unsigned key,bool textEntry,bool raceScreen,bool modeChoos
     return key==VK_ESCAPE?(raceScreen||modeChooser):key=='P'&&!textEntry;
 }
 unsigned NativeDisplaySettings::optionCount()const noexcept{
-    return page_==NativeDisplayPage::Settings?9:page_==NativeDisplayPage::Pause?(canLeaveRace_?4:3):page_==NativeDisplayPage::QuitConfirmation?2:0;
+    return page_==NativeDisplayPage::Settings?10:page_==NativeDisplayPage::Pause?(canLeaveRace_?4:3)+(clearGhost_?1:0):
+        (page_==NativeDisplayPage::QuitConfirmation||page_==NativeDisplayPage::ClearGhostConfirmation)?2:0;
 }
 void NativeDisplaySettings::openGameMenu(bool allowLeaveRace,unsigned held,NativeQuitContext context){
     canLeaveRace_=allowLeaveRace;quitContext_=context;page_=NativeDisplayPage::Pause;selected_=0;previous_=held;action_=NativeDisplayAction::None;
@@ -157,11 +160,12 @@ void NativeDisplaySettings::pause(unsigned held){openGameMenu(true,held);}
 void NativeDisplaySettings::suspendRace(unsigned held,bool allowLeaveRace,NativeQuitContext context){
     canLeaveRace_=allowLeaveRace;quitContext_=context;
     if(page_==NativeDisplayPage::Settings){returnPage_=NativeDisplayPage::Pause;previous_=held;}
-    else if(page_!=NativeDisplayPage::QuitConfirmation)openGameMenu(allowLeaveRace,held,context);
+    else if(page_!=NativeDisplayPage::QuitConfirmation&&page_!=NativeDisplayPage::ClearGhostConfirmation)openGameMenu(allowLeaveRace,held,context);
 }
 void NativeDisplaySettings::back(){
     if(page_==NativeDisplayPage::Settings){preferences_=before_;page_=returnPage_;selected_=page_==NativeDisplayPage::Pause?1:0;}
-    else if(page_==NativeDisplayPage::QuitConfirmation){page_=NativeDisplayPage::Pause;selected_=canLeaveRace_?3:2;}
+    else if(page_==NativeDisplayPage::QuitConfirmation){page_=NativeDisplayPage::Pause;selected_=optionCount()-1;}
+    else if(page_==NativeDisplayPage::ClearGhostConfirmation){page_=NativeDisplayPage::Pause;selected_=canLeaveRace_?3:2;}
     else if(page_==NativeDisplayPage::Pause)page_=NativeDisplayPage::Closed;
 }
 void NativeDisplaySettings::applied(){
@@ -179,6 +183,7 @@ bool NativeDisplaySettings::navigate(unsigned controls){
             if(selected_==0)back();
             else if(selected_==1)openSettings(controls);
             else if(canLeaveRace_&&selected_==2){action_=NativeDisplayAction::LeaveRace;page_=NativeDisplayPage::Closed;}
+            else if(clearGhost_&&selected_==(canLeaveRace_?3u:2u)){page_=NativeDisplayPage::ClearGhostConfirmation;selected_=0;}
             else{page_=NativeDisplayPage::QuitConfirmation;selected_=0;}
         }
         return false;
@@ -187,8 +192,12 @@ bool NativeDisplaySettings::navigate(unsigned controls){
         if(pressed&16){if(selected_==0)back();else{action_=NativeDisplayAction::Quit;page_=NativeDisplayPage::Closed;}}
         return false;
     }
-    if(selected_<7&&(pressed&(4|8|16)))changeDisplayPreference(preferences_,displayRowOrder[selected_],(pressed&4)?-1:1);
-    else if(pressed&16){if(selected_==7)return true;if(selected_==8)back();}
+    if(page_==NativeDisplayPage::ClearGhostConfirmation){
+        if(pressed&16){if(selected_==0)back();else{action_=NativeDisplayAction::ClearGhost;page_=NativeDisplayPage::Pause;selected_=0;}}
+        return false;
+    }
+    if(selected_<8&&(pressed&(4|8|16)))changeDisplayPreference(preferences_,displayRowOrder[selected_],(pressed&4)?-1:1);
+    else if(pressed&16){if(selected_==8)return true;if(selected_==9)back();}
     return false;
 }
 } // namespace scr::runtime

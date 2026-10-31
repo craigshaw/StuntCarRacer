@@ -11,6 +11,8 @@
   Practice and championships, retaining the original physics, AI and race rules.
 - **Careers and records.** Multiple single-player careers, autosave, Resume Season
   and a shared Hall of Fame.
+- **Personal-best ghosts.** Save best laps from Practice or career races and
+  chase them in Practice, with an optional translucent ghost.
 - **Local multiplayer.** Championships for 2–8 drivers taking turns, with thirty
   manual save slots.
 - **Widescreen and ultrawide.** Original and Extended 4:3, 16:9 and 32:9 views,

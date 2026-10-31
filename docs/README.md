@@ -24,12 +24,12 @@
 - [0002 — Application-owned asset import](adr/0002-native-application-owns-asset-import.md).
 - [0003 — Per-user player data](adr/0003-per-user-player-data.md).
 
-## Proposed enhancements
+## Optional features
 
 - [Personal-best lap ghosts](components/personal-best-ghosts.md): recording in
   Practice and career league races, Practice playback, rendering/Draw Bridge proof
-  gates and a future online extension. Rendering proofs and in-memory recording
-  are available; durable storage and player controls remain pending.
+  gates, saved targets and player controls. A future online extension remains
+  separate from the local feature.
 
 ## Tools and research
 

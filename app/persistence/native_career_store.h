@@ -11,6 +11,7 @@
 #include <functional>
 
 namespace scr::runtime {
+struct GhostLap;struct GhostLapKey;
 using CareerBytes=state::checkpoint::Bytes;
 using NativeHallBanks=std::array<std::uint8_t,512>;
 enum class CareerFileState { Missing,Valid,Recovered,Corrupt,Unsupported };
@@ -44,17 +45,21 @@ public:
     void saveCareer(const NativeCareerInfo&,const CareerBytes&);
     void saveHall(const NativeHallBanks&);
     void setLastUsed(const std::string&);
+    CareerRead readGhost(const GhostLapKey&,std::uint64_t trackContentIdentity)const;
+    void saveGhost(const GhostLap&);
+    bool clearGhost(const GhostLapKey&);
     void retry();
     bool flush();
     bool pending()const;
     bool failed()const;
+    bool ghostFailed()const;
     std::string error()const;
     std::string failureSummary()const;
     bool removeCareer(const std::string&);
     bool resetHall(const NativeHallBanks&);
     void acknowledgeFailures();
 private:
-    struct Job {std::filesystem::path path;unsigned kind{};CareerBytes data;std::uint64_t serial{};};
+    struct Job {std::filesystem::path path;unsigned kind{};CareerBytes data;std::uint64_t serial{};Validator validator;};
     std::filesystem::path root_;
     Validator validator_;
     mutable std::mutex mutex_;
@@ -65,9 +70,10 @@ private:
     std::thread worker_;
     bool stopping_{},writing_{};std::uint64_t serial_{};
     std::filesystem::path careerPath(const std::string&)const;
+    std::filesystem::path ghostPath(const GhostLapKey&)const;
     static CareerRead readFile(const std::filesystem::path&,unsigned kind,const Validator& validator={});
     static bool writeFile(const Job&,std::string& error,const Validator&);
-    void submit(std::filesystem::path,unsigned,CareerBytes);
+    void submit(std::filesystem::path,unsigned,CareerBytes,Validator validator={});
     void run();
 };
 } // namespace scr::runtime

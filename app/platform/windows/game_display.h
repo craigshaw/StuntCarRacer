@@ -20,6 +20,7 @@ public:
     void paint(HDC,int width,int height,const std::vector<std::uint32_t>&,const NativeDisplayPreferences&);
     void overlay(HDC,int width,int height,const NativeDisplaySettings&,const std::wstring& error);
     void fpsOverlay(HDC,int width,int height,double framesPerSecond);
+    void ghostFeedback(HDC,int width,int height,const std::wstring&,bool warning);
 private:
     ULONG_PTR token_{};
     bool fullscreen_{};

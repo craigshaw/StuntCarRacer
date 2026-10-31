@@ -19,6 +19,7 @@
 *.scr-assets
 *.scr-save
 *.scr-save.tmp
+*.scr-ghost*
 *.pack
 *.wav
 *.ogg

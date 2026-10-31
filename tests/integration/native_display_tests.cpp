@@ -94,7 +94,10 @@ void storage(const std::filesystem::path& output){
     require(saveDisplayPreferences(file,wide)&&loadDisplayPreferences(file)==wide,"Widescreen preference did not roundtrip");
     wide.view=NativeView::Ultrawide;
     require(saveDisplayPreferences(file,wide)&&loadDisplayPreferences(file)==wide,"Ultrawide preference did not roundtrip");
+    wide.practiceGhost=false;require(saveDisplayPreferences(file,wide)&&!loadDisplayPreferences(file).practiceGhost,"Ghost toggle did not persist");
     const std::string modernFields="fullscreen=1\nscaling=fit\ninterpolate=1\ncontrols=modern\nnavigation=responsive\nfiltering=nearest\ninteger-scale=2\n";
+    {std::ofstream out(file);out<<"SCR display 8\n"<<modernFields<<"aspect=ultrawide\n";}
+    require(loadDisplayPreferences(file).practiceGhost&&loadDisplayPreferences(file).view==NativeView::Ultrawide,"Old preferences did not migrate with ghosts enabled");
     {std::ofstream out(file);out<<"SCR display 4\n"<<modernFields;}
     require(loadDisplayPreferences(file).view==NativeView::Original&&loadDisplayPreferences(file).integerScale==2,"Version 4 aspect migration lost the original view or scale");
     {std::ofstream out(file);out<<"SCR display 5\n"<<modernFields<<"view=widescreen\n";}
@@ -164,6 +167,7 @@ void navigation(){
     tap(settings,4);require(settings.preferences().view==NativeView::Widescreen,"Aspect ratio cannot select 16:9 backwards");
     tap(settings,8);require(settings.preferences().view==NativeView::Ultrawide,"Aspect ratio did not select 32:9");
     tap(settings,8);require(settings.preferences().view==NativeView::Original,"Aspect ratio did not cycle from 32:9 to Original");
+    tap(settings,2);tap(settings,8);require(!settings.preferences().practiceGhost,"Practice ghost did not toggle independently");
     tap(settings,2);settings.navigate(0);require(settings.navigate(16)&&settings.blocksGame(),"Apply did not request saving while blocking gameplay");
     settings.applied();require(!settings.blocksGame(),"Applied direct settings did not return to game");
     const auto saved=settings.preferences();settings.pause();tap(settings,2);tap(settings,16);
@@ -171,7 +175,7 @@ void navigation(){
     require(settings.page()==NativeDisplayPage::Pause&&settings.preferences()==saved,"Cancel did not restore preferences and paused state");settings.back();
     settings.openSettings();tap(settings,2);tap(settings,2);tap(settings,2);tap(settings,2);tap(settings,8);
     require(settings.preferences().controls==DriveControlPreset::Original,"Controls did not preview on reopening settings");
-    tap(settings,2);tap(settings,2);tap(settings,2);tap(settings,2);tap(settings,16);
+    tap(settings,2);tap(settings,2);tap(settings,2);tap(settings,2);tap(settings,2);tap(settings,16);
     require(!settings.blocksGame()&&settings.preferences()==saved,"Cancel row did not restore the saved control preset");
     settings.openSettings();tap(settings,8);settings.suspendRace();settings.applied();
     require(settings.page()==NativeDisplayPage::Pause,"Focus loss allowed settings to resume a race");
@@ -204,6 +208,14 @@ void gameMenu(){
     tap(menu,2);tap(menu,16);require(!menu.blocksGame()&&menu.takeAction()==NativeDisplayAction::LeaveRace,"Leave Race did not dispatch the original race-exit request");
     menu.openGameMenu(false,32);menu.navigate(32);require(menu.blocksGame(),"Held Esc immediately closed the Game menu");
     menu.navigate(0);tap(menu,32);require(!menu.blocksGame(),"Fresh Esc could not resume from the Game menu");
+    menu.setPracticeGhostContext(true,L"1:23.45",true);menu.openGameMenu(true);
+    require(menu.optionCount()==5&&menu.bestTime()==L"1:23.45","Practice menu omitted its target and clear action");
+    tap(menu,2);tap(menu,2);tap(menu,2);menu.navigate(16);menu.navigate(16);
+    require(menu.page()==NativeDisplayPage::ClearGhostConfirmation&&menu.selected()==0&&menu.takeAction()==NativeDisplayAction::None,"Held confirm cleared a ghost without confirmation");
+    tap(menu,16);require(menu.page()==NativeDisplayPage::Pause&&menu.selected()==3,"Clear Cancel did not restore its menu row");
+    tap(menu,16);tap(menu,2);tap(menu,16);
+    require(menu.page()==NativeDisplayPage::Pause&&menu.takeAction()==NativeDisplayAction::ClearGhost&&menu.takeAction()==NativeDisplayAction::None,"Confirmed ghost clear did not dispatch exactly once");
+    menu.setPracticeGhostContext(true,L"Not set",false);require(menu.optionCount()==4,"Empty target retained a clear action");
 }
 double filterMilliseconds{};
 unsigned scaling(WindowsGameDisplay& display){

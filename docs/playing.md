@@ -89,6 +89,25 @@ preview to tracks, then divisions, then main. Original track Cancel returns
 directly to main. Normal Practice exit returns to the same division's tracks;
 choosing again creates a fresh race without discarding the career or season.
 
+Your fastest completed human lap is saved automatically for each career, circuit
+and Normal/Super league. Practice and career league races share that best;
+Original and Modern controls do too. A brief new-personal-best notice confirms
+an improvement. Completed improvements survive a later loss or quit. Local
+multiplayer does not record career ghosts.
+
+In Practice, a translucent ghost follows the saved lap from the start line.
+Complete a first lap to create a target; a new best becomes the target on the
+following lap. F10 Settings → Practice ghost turns it on/off, defaulting to on.
+Recording continues while hidden, and revealing it midway through a lap keeps
+the correct elapsed position. The ghost fades near your car and after its finish.
+On Draw Bridge it temporarily fades around an incompatible crossing and shows
+“Bridge conditions differ”; the live bridge continues to follow real cars.
+
+The Practice Game menu shows your personal best. Clear best and ghost asks for
+confirmation and removes that career's target for the current circuit and league.
+It also discards the lap in progress; recording restarts at the next start-line
+crossing. Clearing does not affect the Hall of Fame or other careers.
+
 Original driving controls latch acceleration until braking. Modern accelerates
 only while gas is held and coasts on release; boost alone does not restart gas.
 Modern separates RT/LT throttle from stick/D-pad steering; Original ignores
@@ -128,7 +147,7 @@ At a finish message, release fire and press again to continue.
 Quit to Desktop starts with Cancel selected. Escape/B, P or Start cancels back
 to the Game menu. Quitting an unfinished career race resumes later at its saved
 matchup; multiplayer loses progress since its last manual save. Quitting, closing
-the window and Alt+F4 all flush career/Hall writes. If saving fails, Retry/Leave
+the window and Alt+F4 all flush career/Hall/ghost writes. If saving fails, Retry/Leave
 Without Saving/Cancel remains available; cancelling returns to the Game menu
 without resuming racing. There is no return-to-launcher action.
 
@@ -205,6 +224,7 @@ Normal launches use `%LOCALAPPDATA%/Stunt Car Racer/`:
 | `assets/` | Imported pack and provenance |
 | `settings/display.ini` | Shared preferences |
 | `careers/`, `last.scr-index`, `hall.scr-hall` | Native careers, last-used identity and shared records |
+| `ghosts/<career-id>/` | Saved personal bests and their ghost recordings |
 | `saves/stunt-car-racer.scr-save` | Manual multiplayer saves |
 
 A second launch using the same data directory brings the existing window forward.
@@ -217,7 +237,9 @@ Careers, the last-used index and shared records keep two previous valid generati
 A damaged/missing current file recovers the newest valid copy with a notice.
 With no usable copy a career stays unavailable until explicit selection/creation/deletion;
 an unrecoverable Hall offers a confirmed fresh start while preserving damaged files.
-Unsupported formats are left untouched.
+Ghost recordings also keep two recovery copies. An unavailable saved ghost can
+be explicitly cleared from the Practice Game menu; a write failure keeps the
+best in memory and the last good file. Unsupported formats are left untouched.
 Preferences also replace files atomically; invalid/missing preferences use defaults,
 while supported older versions migrate. Failed Apply offers retry.
 

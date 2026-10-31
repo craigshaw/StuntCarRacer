@@ -1,4 +1,5 @@
 #include "race/lap_recording.h"
+#include "state/native_checkpoint_io.h"
 #include <algorithm>
 #include <cmath>
 #include <stdexcept>
@@ -30,6 +31,11 @@ Sampled sample(const GhostLap& lap,std::int64_t elapsed,bool smooth,const TrigTa
 }
 bool GhostLapKey::operator<(const GhostLapKey& other)const noexcept{
     return std::tie(career,track,superLeague)<std::tie(other.career,other.track,other.superLeague);
+}
+std::uint64_t ghostTrackContentIdentity(const std::vector<std::uint8_t>& payload){
+    constexpr unsigned start=0x1ef82-0xe700,length=0x10100;
+    if(payload.size()<start+length)throw std::invalid_argument("Missing source track geometry for ghost identity");
+    return state::checkpoint::hash(payload.data()+start,length);
 }
 unsigned ghostLapHundredths(PackedLapTime time){
     const auto minutes=decimal(time.minutes),seconds=decimal(time.seconds),sub=decimal(time.subseconds);
@@ -128,6 +134,10 @@ void LapRecorder::compatibility(){
     epoch.visibility.observe(current_->microseconds/1000000.0,source.discrete->region,matches,cut);
 }
 void LapRecorder::stop(){candidate_.reset();stopped_=true;}
+void LapRecorder::clear(){
+    bests_.forget(context_.key);candidate_.reset();overflowed_=false;
+    for(auto& epoch:epochs_)epoch.target.reset();
+}
 std::optional<GhostLapPlayback> LapRecorder::playback(std::int64_t absolute,bool interpolate)const{
     const auto next=std::upper_bound(epochs_.begin(),epochs_.end(),absolute,[](auto t,const Epoch& e){return t<e.start;});
     if(next==epochs_.begin())return std::nullopt;

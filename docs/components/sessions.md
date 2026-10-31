@@ -34,6 +34,10 @@ retain their timing gates. Computer Link remains disabled and deferred.
   Only better completed competitive human times replace records; ties retain the
   holder. Practice and opponents cannot add records. Restoring or deleting a
   career cannot roll them back.
+- Personal-best ghost files belong to a career, track and Normal/Super league.
+  Practice and career races share the target while Hall eligibility stays
+  independent. The serial worker also owns their atomic writes and recovery;
+  see [ghost recording and storage](personal-best-ghosts.md#saved-files-and-player-integration).
 
 ## Storage
 

@@ -52,7 +52,7 @@ painted-track depth coverage. `proportions.png` compares the calibrated exterior
 with the recovered procedural opponent at matched footprints and distances;
 the 3D model does not claim exact original silhouettes at every view angle.
 Static boundary checks do not establish whole-feature production acceptance.
-Player settings and durable ghost recording are not implemented.
+These renderer proofs are separate from saved player acceptance below.
 See the [design and proof gates](../docs/components/personal-best-ghosts.md).
 
 ## Draw Bridge ghost proof
@@ -76,8 +76,8 @@ painted-depth coverage and full simulation/RNG isolation are checked.
 The initial approach, opponent position and phase are authored through native
 initializers/adapters before driving. Subsequent motion and bridge updates use
 normal native simulation. This is a finite crossing proof, not an earned lap or
-an original CPU comparison. Player lap recording, persistence and feedback remain
-separate work. See the [bridge proof contract](../docs/components/personal-best-ghosts.md#draw-bridge-proof).
+an original CPU comparison. Saved player acceptance is checked separately.
+See the [bridge proof contract](../docs/components/personal-best-ghosts.md#draw-bridge-proof).
 
 ## Recordings and comparisons
 
@@ -86,9 +86,10 @@ recorder, Practice playback timeline, recovery timing and session isolation.
 Its results and source/fixture/executable identities stay in
 `analysis/lap-recording/`; `--skip-build` requires a matching receipt. It uses the
 local asset pack and retained complete-race capture/controls/original trace.
-The player recorder is in memory only at this stage. Durable ghost files and
-player controls remain separate work; the development CSVs below are not that
-future recording format.
+It also checks saved league-to-Practice targets, actual player rendering, toggle,
+feedback, clear, codec/storage recovery and write failure. `practice.gif` and UI
+captures accompany the report. The development CSVs below are not player ghost
+files; those use the bounded `.scr-ghost` codec.
 
 The direct viewer writes controls/traces under ignored `analysis/live-driving/`.
 Player recordings require `--recordings-dir`. The CSV uses contiguous zero-based

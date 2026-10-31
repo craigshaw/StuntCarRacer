@@ -80,6 +80,13 @@ public:
     const NativeMemory& memory()const noexcept{return *data_.memory;}
     const RaceScene& race()const noexcept{return race_;}
     const PersonalBestLaps& personalBestLaps()const noexcept{return personalBestLaps_;}
+    void setPracticeGhostVisible(bool visible)noexcept{practiceGhostVisible_=visible;}
+    bool practiceGhostActive()const noexcept;
+    bool canClearPracticeGhost()const;
+    std::string practiceGhostTime()const;
+    bool clearPracticeGhost();
+    std::string ghostFeedback()const;
+    bool ghostFeedbackWarning()const;
     bool raceEnded()const noexcept{return page()==NativeMenuPage::Race&&(finishPending_||race_.liveTerminal());}
     bool transitioning()const noexcept{return transition_!=Transition::None;}
     void releaseInput(const NativeMenuInput& held={})noexcept;
@@ -139,6 +146,13 @@ private:
     bool saveWriting_{};
     NativeTrackPreview preview_;
     PersonalBestLaps personalBestLaps_;
+    std::optional<GhostLapKey> lapKey_;
+    CareerFileState ghostFileState_{CareerFileState::Missing};
+    unsigned lapImprovements_{},lapOverflows_{};
+    bool practiceGhostVisible_{true},ghostConditionsDiffer_{};
+    double ghostNoticeSeconds_{};
+    std::string ghostNotice_;
+    void observePersonalBest();
     RaceScene race_;
     FixedDriveClock driveClock_;
     DriveInputLatch driveLatch_;

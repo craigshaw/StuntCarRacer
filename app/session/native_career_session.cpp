@@ -293,6 +293,7 @@ bool NativeGameSession::updateCareers(double elapsed,const NativeGameInput& held
             if(choice==0)showCareerPanel(CareerPanel::Actions);
             else{const auto id=careerList_[listSelection_].id;
                 if(careerStore_->removeCareer(id)){
+                    personalBestLaps_.forgetCareer(id);
                     if(activeCareer_&&activeCareer_->id==id){activeCareer_.reset();checkpoint_.clear();suspendedSeason_.clear();}
                     if(lastCareer_==id)lastCareer_.clear();refreshCareerHome();listSelection_=0;showCareerPanel(CareerPanel::List);
                 }else{notice_="Could not delete career";returnPanel_=CareerPanel::List;showCareerPanel(CareerPanel::Notice);}}

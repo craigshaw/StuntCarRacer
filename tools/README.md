@@ -81,6 +81,15 @@ separate work. See the [bridge proof contract](../docs/components/personal-best-
 
 ## Recordings and comparisons
 
+`scripts/check_native_laps.py --verify-original` checks the career personal-best
+recorder, Practice playback timeline, recovery timing and session isolation.
+Its results and source/fixture/executable identities stay in
+`analysis/lap-recording/`; `--skip-build` requires a matching receipt. It uses the
+local asset pack and retained complete-race capture/controls/original trace.
+The player recorder is in memory only at this stage. Durable ghost files and
+player controls remain separate work; the development CSVs below are not that
+future recording format.
+
 The direct viewer writes controls/traces under ignored `analysis/live-driving/`.
 Player recordings require `--recordings-dir`. The CSV uses contiguous zero-based
 ticks and control bits 1 gas, 2 brake, 4 left, 8 right, 16 boost; optional

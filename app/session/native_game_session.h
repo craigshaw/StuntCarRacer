@@ -79,6 +79,7 @@ public:
     std::optional<NativeSaveMenuPhase> savePhase()const noexcept{return saveMenu_?std::optional{saveMenu_->phase()}:std::nullopt;}
     const NativeMemory& memory()const noexcept{return *data_.memory;}
     const RaceScene& race()const noexcept{return race_;}
+    const PersonalBestLaps& personalBestLaps()const noexcept{return personalBestLaps_;}
     bool raceEnded()const noexcept{return page()==NativeMenuPage::Race&&(finishPending_||race_.liveTerminal());}
     bool transitioning()const noexcept{return transition_!=Transition::None;}
     void releaseInput(const NativeMenuInput& held={})noexcept;
@@ -137,6 +138,7 @@ private:
     bool saveLoaded_{};
     bool saveWriting_{};
     NativeTrackPreview preview_;
+    PersonalBestLaps personalBestLaps_;
     RaceScene race_;
     FixedDriveClock driveClock_;
     DriveInputLatch driveLatch_;

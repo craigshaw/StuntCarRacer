@@ -44,12 +44,16 @@ if(TARGET native_ghost_bridge_proof)
     "${SCR_TEST_ASSET_PACK}" "${test_output}/native_ghost_bridge_proof")
 endif()
 
-foreach(target paula_mixer_tests presentation_interpolation_tests drive_input_tests ghost_car_tests ghost_bridge_tests)
+foreach(target paula_mixer_tests presentation_interpolation_tests drive_input_tests ghost_car_tests ghost_bridge_tests lap_recording_tests)
   scr_test(${target} "native;unit" "")
 endforeach()
 scr_test(software_renderer_tests "native;assets" "${SCR_TEST_PAYLOAD}" "${SCR_TEST_PAYLOAD}")
 
 if(WIN32)
+  scr_test(native_lap_recording_tests "native;assets" "${SCR_TEST_ASSET_PACK}"
+    "${SCR_TEST_ASSET_PACK}" "${test_output}/native_lap_recording_tests"
+    "${SCR_TEST_CAPTURE}" "${SCR_TEST_PAYLOAD}"
+    "${PROJECT_SOURCE_DIR}/tests/replays/laps/authored-race-1463.csv" "${SCR_TEST_GHOST_REFERENCE}")
   scr_test(native_audio_tests "native;assets;capture" "${SCR_TEST_CAPTURE}" "${SCR_TEST_CAPTURE}")
   scr_test(native_effects_interpolation_tests "native;unit" "")
   scr_test(native_save_store_tests "native;unit" "" "${test_output}/native_save_store_tests")

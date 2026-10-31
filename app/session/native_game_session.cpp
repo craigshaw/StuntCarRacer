@@ -95,6 +95,8 @@ void NativeGameSession::startRace(){
     previewPrepared_=false;
     restoreCockpit(*data_.memory);initializeNativeRace(*data_.memory);
     race_.loadNativeState(*data_.memory,data_.payload,recordings_);
+    if(activeCareer_&&!multiplayer())race_.recordPersonalBestLaps(personalBestLaps_,
+        {{activeCareer_->id,menu_->trackId(),bool((*data_.memory)[0x1c9d0])},menu_->competitive()?GhostLapSource::League:GhostLapSource::Practice});
     race_.setRunningLapHundredths(true);
     driveClock_.reset();driveLatch_.clear();endFireWait_.reset();quitPending_=false;
 }

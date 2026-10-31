@@ -3,6 +3,7 @@
 #include "presentation/presentation_interpolation.h"
 #include "input/drive_input.h"
 #include "presentation/camera_view.h"
+#include "race/lap_recording.h"
 #include "render/software_renderer.h"
 #include "render/ghost_car.h"
 #include "audio/game_audio.h"
@@ -45,6 +46,7 @@ struct RaceFrame : PresentationPose {
     // interpolation must never read the simulation's later bridge position.
     std::shared_ptr<const TrackPresentationSnapshot> movingTrack;
     unsigned tick{},controls{},restarts{},action{};
+    std::int64_t presentationMicroseconds{};
     std::uint16_t cameraYaw{};
     std::uint8_t lapCounter{},raceComplete{},boostFuel{},damage{},minutes{},seconds{},subseconds{};
     std::uint16_t gasOutput{};
@@ -78,6 +80,11 @@ public:
     void copyLiveRecords(std::array<std::uint8_t,32>& entries)const;
     void resetLive();
     bool stepLive(unsigned controls,bool quit=false,DriveControlPreset preset=DriveControlPreset::Original);
+    // In-memory career targets only. No file, settings or automatic draw path.
+    // Multiplayer and a mismatched mode/track/league cannot bind a recorder.
+    bool recordPersonalBestLaps(PersonalBestLaps&,GhostLapContext);
+    const LapRecordingStatistics* lapRecordingStatistics()const noexcept;
+    std::optional<GhostLapPlayback> lapGhostPlayback(double position,bool interpolate=true)const;
     unsigned verifyLiveReplay(const std::filesystem::path& inputs,const std::filesystem::path& reference,
         const std::filesystem::path& nativeTrace);
     const std::vector<std::uint32_t>& renderLive(double fraction,bool wireframe=false,bool interpolate=true,NativeView view=NativeView::Original);
@@ -96,8 +103,8 @@ public:
     // Independent presentation query. Default settings retain the original
     // view; alternate angles/cockpit visibility leave saved frames unchanged.
     const std::vector<std::uint32_t>& renderView(double position,const CameraViewSettings&,bool wireframe=false);
-    // Explicit developer proof query. No automatic target, persistence or player
-    // setting is enabled; normal render entry points retain their baseline path.
+    // Explicit renderer query. lapGhostPlayback observes career targets
+    // separately; this entry point does not enable player ghost controls.
     const std::vector<std::uint32_t>& renderGhostView(double position,const CameraViewSettings&,
         const GhostCarPose&,const GhostCarStyle& style={});
     const GhostCarStatistics& ghostStatistics()const noexcept{return ghostStatistics_;}

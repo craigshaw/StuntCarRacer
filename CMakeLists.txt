@@ -141,6 +141,7 @@ if(WIN32)
     app/persistence/native_career_checkpoint.cpp
     app/persistence/native_save_store.cpp
     app/race/race_scene.cpp
+    app/race/lap_recording.cpp
     app/presentation/race_render_assets.cpp
     app/presentation/presentation_interpolation.cpp
     app/presentation/ghost_bridge.cpp

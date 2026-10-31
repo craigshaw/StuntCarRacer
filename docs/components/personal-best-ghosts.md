@@ -1,8 +1,9 @@
 # Personal-best lap ghosts
 
 Status: agreed player-facing design; the static-track and Draw Bridge development
-proofs are implemented, including the painted-boundary depth fix. Lap recording,
-storage, player controls and broader production acceptance remain to be built.
+proofs are implemented, including the painted-boundary depth fix. In-memory lap
+recording, best selection and the Practice playback timeline are integrated.
+Durable storage, player controls and broader production acceptance remain.
 
 ## Player contract
 
@@ -86,6 +87,71 @@ atomic replacement. Failed writes retain the latest in-memory best and the last
 good file; do not report a completed save before the worker completes. Clearing
 must drain or invalidate pending writes so an old job cannot restore the target.
 Preserve unreadable or unsupported files rather than silently overwriting them.
+
+### In-memory recording and timing integration
+
+`app/race/lap_recording.*` owns compact movement samples, original completed
+times, career/track/league keys and immutable best targets. `NativeGameSession`
+owns the in-memory library and binds a recorder when an active career enters
+Practice or a league race. Multiplayer cannot bind one. Switching modes or
+careers keeps their separate targets for that process; this library is not part
+of a checkpoint or Hall bank and does not yet survive closing the application.
+
+The recorder observes existing native wheel/frame and timing events. The first
+human line event starts a candidate; subsequent accepted events supply the
+completed time before the running clock is cleared. A recorder attached during
+an existing lap waits for the next boundary rather than saving a partial lap.
+Completed improvements enter the library immediately, independently of later
+loss, quit or race-exit handling. Ties retain the existing recording.
+
+The supported game's clock adds 13 BCD hundredths per update while movement
+advances in 120 ms steps. Its line correction adds 0–12 further hundredths when
+applicable. Recovery executes two additional timing updates internally. These
+rules remain unchanged: ranking uses the accepted packed-decimal time, not
+sample count or movement duration. Recovery movement samples share the next
+presentation boundary and carry a cut; their extra clock updates are retained
+without inventing additional host presentation time.
+
+Neighbouring observations bracket each line event. When consecutive forward
+observations lie in adjacent segments, progression and segment length locate a
+fractional movement boundary between their poses. Recovery, missing brackets or
+other discontinuities use the observed boundary. This geometric interpolation
+does not reinterpret the original decimal correction as simulation time. Keep
+both the observed and aligned timestamps, progress, correction and recovery flag,
+plus samples on both sides of the boundary.
+
+Practice selects a shared immutable target at each aligned boundary, after
+committing any completed improvement. A short history retains the preceding
+displayed attempt across smoothing's one-update latency. `lapGhostPlayback`
+queries the same displayed timeline as the camera; repeated, paused and reverse
+queries cannot advance it. Recovery poses cut, bridge geometry is deduplicated,
+and the bridge guard/fades use recorded source regions and live frame snapshots.
+After the recorded finish, opacity reaches zero over 240 ms without looping.
+League recording creates no playback target. Ordinary player rendering remains
+unchanged until the settings/feedback stage integrates this explicit query.
+
+Samples retain position, orientation and native contact information, rather
+than `RaceFrame`, RAM or assets. Recording metadata includes source mode and a
+control-preset bitmask, including a switch during a lap. Practice/league and
+Original/Modern still share one ranking key.
+
+The current capture resource ceilings are 65,536 samples and 64 distinct bridge
+shapes per candidate. Overflow abandons only that candidate, preserves a saved
+best and resumes at the next line event. These are provisional memory bounds,
+not new lap-eligibility rules or a durable codec. The original clock holds its
+minute digit at nine, so ten minutes cannot be assumed to be a validity limit.
+The storage stage must settle file/duration bounds and failure feedback.
+
+Run `scripts/check_native_laps.py --verify-original` for focused CTest checks,
+identified fixtures/results and fresh original-code timing/race comparisons.
+Native integration covers all eight tracks in both leagues, internal recovery,
+career Practice/league handoffs, multiplayer exclusion and full-memory/RNG
+isolation. The retained complete-race fixture supplies three accepted human
+laps. A separate authored competitive variant exercises a real native opponent;
+its initial conditions are synthetic and it is not compared with the Practice
+trace. Unit timing sequences cover replacement in both directions, ties,
+partial entry, recovery cuts, bridge suppression, finish fading and overflow.
+Results stay under ignored `analysis/lap-recording/`.
 
 ## Rendering proposal and proof gate
 

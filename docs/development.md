@@ -122,6 +122,7 @@ Use `& $AmigaPython scripts/<command>` after loading `env.ps1`.
 | Recorded replay, interpolation, input clock, offline audio | `check_native_rendering.py` | `analysis/native-render/` |
 | Static-track ghost rendering proof and isolation | `check_native_ghost.py` | `analysis/ghost-proof/` |
 | Draw Bridge ghost compatibility, suppression and isolation | `check_native_ghost_bridge.py` | `analysis/ghost-bridge-proof/` |
+| Personal-best lap recording, timing and session isolation | `check_native_laps.py --verify-original` | `analysis/lap-recording/` |
 | Physics driver and supporting stages | `check_physics_update.py` | `analysis/physics-update/` |
 | Track decoding and initialization | `check_native_track_initialization.py` | `analysis/native-track-init/` |
 

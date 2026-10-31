@@ -66,6 +66,9 @@ struct RaceScene::Simulation {
     std::array<WheelAnimationState,7> wheelTimeline{};
     unsigned wheelVblanks{};
     unsigned ticks{};
+    unsigned outerRestarts{};
+    DriveControlPreset preset{};
+    std::unique_ptr<LapRecorder> laps;
     std::ofstream controls,trace;
     std::filesystem::path recording;
     std::string lastRow;
@@ -99,6 +102,24 @@ void RaceScene::initialiseMemory(const std::array<std::uint8_t,0x80000>& memory,
     simulation.native.presentation=[this,&simulation](auto stage,const auto& ram,const auto& events){
         simulation.instruments.update(stage,ram,events);
         if(stage==scr::state::replay::ReplayPresentationStage::wheels){
+            if(simulation.laps){
+                namespace a=scr::state::audio;LapMovementObservation observation;
+                observation.recovery=simulation.native.restarts!=simulation.outerRestarts;
+                observation.microseconds=(std::int64_t(simulation.ticks)+(observation.recovery?1:0))*120000;
+                for(unsigned n=0;n<3;++n)observation.pose.worldPosition[n]=a::longword(ram.data(),0x1bcd8+4*n);
+                observation.pose.pitch=a::word(ram.data(),0x1bce4);observation.pose.yaw=a::word(ram.data(),0x1bce6);observation.pose.roll=a::word(ram.data(),0x1bce8);
+                observation.pose.averageWheelVelocity=a::word(ram.data(),0x1bd38);
+                observation.segment=ram[0x1bb1c];observation.segmentLength=unsigned(ram[0x1bb6a])<<8;
+                observation.lapSegment=ram[0x1ca32];observation.segmentCount=ram[0x1ca1a];observation.progress=a::word(ram.data(),0x1bb0a);
+                observation.restarts=simulation.native.restarts;observation.preset=simulation.preset;
+                // Native contact and the road-side flag, not mesh clearance.
+                observation.grounded=observation.pose.averageWheelVelocity&&!ram[0x1bbd1];
+                if(ram[0x1ca33]==5){
+                    const auto data=scr::state::drawBridge::readData(ram);
+                    observation.bridge=captureGhostBridgeShape(simulation.native.progressData.track,scr::state::mesh::decodeTrackMesh(ram),scr::state::drawBridge::geometryDataOffset(data.geometryOffset));
+                }
+                simulation.laps->observeMovement(std::move(observation));
+            }
             if(simulation.chainRestarts!=simulation.native.restarts){
                 simulation.chains=captureNativeChainState(ram);
                 simulation.chainRestarts=simulation.native.restarts;
@@ -107,6 +128,7 @@ void RaceScene::initialiseMemory(const std::array<std::uint8_t,0x80000>& memory,
             advanceBoostFlames(ram[0x1bb62],simulation.flameFrame);
             simulation.message=captureNativeRaceMessage(ram);
         }
+        if(stage==scr::state::replay::ReplayPresentationStage::timing&&simulation.laps)simulation.laps->observeTiming(events);
         if(stage==scr::state::replay::ReplayPresentationStage::wait){
             const auto inputs=scr::state::wheelAnimation::readInputs(ram.data());
             simulation.wheels.framesToWait=ram[0x616d8];simulation.wheels.framesToWaitWhenFading=ram[0x616da];
@@ -123,7 +145,7 @@ void RaceScene::initialiseMemory(const std::array<std::uint8_t,0x80000>& memory,
 }
 RaceFrame RaceScene::captureFrame(Simulation& simulation,unsigned tick,unsigned controls){
     namespace a=scr::state::audio;auto& state=simulation.native;auto& geometry=simulation.geometry;
-    RaceFrame frame;frame.tick=tick;frame.controls=controls;
+    RaceFrame frame;frame.tick=tick;frame.controls=controls;frame.presentationMicroseconds=std::int64_t(tick)*120000;
     if(state.ram[0x1ca33]==5){
         auto track=std::make_shared<TrackPresentationSnapshot>();track->progress=state.progressData;
         track->farTrack=far_;track->farTrack.mesh=scr::state::mesh::decodeTrackMesh(state.ram);track->mesh=buildTrackMesh(track->farTrack.mesh);
@@ -189,6 +211,7 @@ void RaceScene::finishFrame(Simulation& simulation,RaceFrame& frame){
 RaceFrame RaceScene::advanceSimulation(Simulation& simulation,unsigned controls,bool quit,DriveControlPreset preset){
     if(controls>31)throw std::invalid_argument("Live controls exceed original digital mask");
     auto& state=simulation.native;
+    simulation.outerRestarts=state.restarts;simulation.preset=preset;
     simulation.wheelVblanks=0;
     simulation.wheels.framesToWait=state.ram[0x616d8];simulation.wheels.framesToWaitWhenFading=state.ram[0x616da];
     simulation.wheelTimeline.fill(simulation.wheels);
@@ -241,6 +264,7 @@ void RaceScene::loadNativeState(const std::array<std::uint8_t,0x80000>& memory,
 }
 void RaceScene::quitLive(){
     if(!simulation_)throw std::logic_error("Race quit requires a live scene");
+    if(simulation_->laps)simulation_->laps->stop();
     if(liveTerminal())return;
     namespace t=scr::state::transitions;auto& native=simulation_->native;
     auto state=t::readState(native.ram.data());
@@ -288,6 +312,7 @@ void RaceScene::beginLiveRecording(const std::filesystem::path& directory){
     auto& simulation=*simulation_;
     simulation.wheelTimeline.fill(simulation.wheels);
     const auto seed=simulation.geometry;auto frame=captureFrame(simulation,0,0);simulation.geometry=seed;finishFrame(simulation,frame);
+    frame.presentationMicroseconds=-120000;
     frames_.push_back(frame);frames_.push_back(std::move(frame));
 }
 void RaceScene::resetLive(){
@@ -315,8 +340,29 @@ bool RaceScene::stepLive(unsigned controls,bool quit,DriveControlPreset preset){
     if(!simulation.controls||!simulation.trace)throw std::runtime_error("Live input recording write failed");
     }
     frames_[0]=std::move(frames_[1]);frames_[1]=std::move(next);
+    if(liveTerminal()&&simulation.laps)simulation.laps->stop();
     if(!canInterpolatePresentation(frames_[0].restarts,frames_[1].restarts,frames_[0].action,frames_[1].action))frames_[0]=frames_[1];
     cachedFrame_=~0u;return true;
+}
+bool RaceScene::recordPersonalBestLaps(PersonalBestLaps& bests,GhostLapContext context){
+    if(!simulation_)throw std::logic_error("Lap recording requires a live scene");
+    const auto& ram=simulation_->native.ram;
+    if(ram[0x5eb76])return false;
+    if(context.key.track!=ram[0x1ca33]||context.key.superLeague!=bool(ram[0x1c9d0])||
+       (context.source==GhostLapSource::League)!=bool(ram[0x1ca22]&0x80))throw std::invalid_argument("Lap context differs from native race");
+    simulation_->laps=std::make_unique<LapRecorder>(bests,std::move(context),trig_);return true;
+}
+const LapRecordingStatistics* RaceScene::lapRecordingStatistics()const noexcept{
+    return simulation_&&simulation_->laps?&simulation_->laps->statistics():nullptr;
+}
+std::optional<GhostLapPlayback> RaceScene::lapGhostPlayback(double position,bool interpolate)const{
+    if(!std::isfinite(position)||frames_.empty())throw std::invalid_argument("Invalid ghost presentation position");
+    if(!simulation_->laps)return std::nullopt;
+    position=std::clamp(position,0.0,double(frames_.size()-1));const auto index=unsigned(position);const auto fraction=position-index;
+    const auto& from=frames_[index];auto time=from.presentationMicroseconds;
+    if(interpolate&&index+1<frames_.size()&&canInterpolatePresentation(from.restarts,frames_[index+1].restarts,from.action,frames_[index+1].action))
+        time+=std::llround((frames_[index+1].presentationMicroseconds-time)*fraction);
+    return simulation_->laps->playback(time,interpolate);
 }
 const std::vector<std::uint32_t>& RaceScene::renderLive(double fraction,bool wireframe,bool interpolate,NativeView view){
     fraction=std::clamp(fraction,0.0,1.0);lastLiveFraction_=fraction;lastLiveInterpolate_=interpolate;lastLiveView_=view;

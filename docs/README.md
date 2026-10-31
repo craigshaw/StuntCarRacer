@@ -28,8 +28,8 @@
 
 - [Personal-best lap ghosts](components/personal-best-ghosts.md): recording in
   Practice and career league races, Practice playback, rendering/Draw Bridge proof
-  gates and a future online extension. Static rendering and Draw Bridge proofs are available;
-  the player feature is not implemented.
+  gates and a future online extension. Rendering proofs and in-memory recording
+  are available; durable storage and player controls remain pending.
 
 ## Tools and research
 

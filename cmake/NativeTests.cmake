@@ -1,4 +1,9 @@
 # Included from the project root; source paths remain relative to that root.
+scr_add_test_executable(lap_recording_tests tests/unit/lap_recording_tests.cpp
+  app/race/lap_recording.cpp app/presentation/ghost_bridge.cpp app/presentation/presentation_interpolation.cpp)
+target_include_directories(lap_recording_tests PRIVATE app)
+target_link_libraries(lap_recording_tests PRIVATE scr_render)
+target_compile_features(lap_recording_tests PRIVATE cxx_std_17)
 scr_add_test_executable(ghost_bridge_tests tests/unit/ghost_bridge_tests.cpp
   app/presentation/ghost_bridge.cpp app/presentation/camera_view.cpp)
 target_include_directories(ghost_bridge_tests PRIVATE app)
@@ -21,6 +26,9 @@ target_link_libraries(drive_input_tests PRIVATE scr_render)
 target_compile_features(drive_input_tests PRIVATE cxx_std_17)
 
 if(WIN32)
+  scr_add_test_executable(native_lap_recording_tests tests/integration/native_lap_recording_tests.cpp)
+  target_link_libraries(native_lap_recording_tests PRIVATE scr_game)
+  target_compile_features(native_lap_recording_tests PRIVATE cxx_std_17)
   scr_add_test_executable(native_track_visibility_tests tests/integration/native_track_visibility_tests.cpp)
   target_link_libraries(native_track_visibility_tests PRIVATE scr_game)
   target_compile_features(native_track_visibility_tests PRIVATE cxx_std_17)
@@ -75,6 +83,7 @@ if(WIN32)
   target_compile_features(native_launcher_tests PRIVATE cxx_std_17)
 
   scr_add_test_executable(native_startup_tests tests/integration/native_startup_tests.cpp app/race/race_scene.cpp
+    app/race/lap_recording.cpp app/presentation/ghost_bridge.cpp
     app/presentation/race_render_assets.cpp app/presentation/presentation_interpolation.cpp app/input/drive_input.cpp app/audio/game_audio.cpp)
   target_include_directories(native_startup_tests PRIVATE app)
   target_link_libraries(native_startup_tests PRIVATE scr_runtime)

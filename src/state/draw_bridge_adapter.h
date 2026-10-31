@@ -10,6 +10,7 @@ inline std::uint16_t readWord(const Ram& r,unsigned a){return std::uint16_t((uns
 inline std::uint32_t readLong(const Ram& r,unsigned a){return (std::uint32_t(readWord(r,a))<<16)|readWord(r,a+2);}
 inline void writeWord(Ram& r,unsigned a,std::uint16_t value){r.at(a)=std::uint8_t(value>>8);r.at(a+1)=std::uint8_t(value);}
 inline unsigned geometryAddress(std::uint16_t encoded){return 0x1ef82+std::uint16_t(((encoded<<8)|(encoded>>8))-0xb100);}
+inline unsigned geometryDataOffset(std::uint16_t encoded){return geometryAddress(encoded)-0x1ef82;}
 inline DrawBridgeInputs readInputs(const Ram& r){return {r[0x1ca33],r[0x1bb1c],r[0x1bb1d],r[0x1bbcd]};}
 inline DrawBridgeData readData(const Ram& r){
     DrawBridgeData d;std::copy_n(r.begin()+0x5a996,16,d.angleTable.begin());

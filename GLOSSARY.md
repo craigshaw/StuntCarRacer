@@ -61,3 +61,16 @@ An earlier valid career checkpoint retained for restoring a damaged current auto
 
 **Hall of Fame**:
 The shared collection of eligible best-lap and three-lap race records, with their holder names, independent of any one career.
+
+**Personal-best lap**:
+The planned career-owned fastest eligible completed lap for one circuit and Normal/Super league, paired with its ghost regardless of whether it was set in Practice or a league race.
+
+**Lap ghost**:
+The planned visual playback of a recorded lap, used as a non-colliding target for another attempt. The first version plays the personal-best lap in Practice.
+
+**Online Hall of Fame**:
+The future collection of ranked records shared across players online, distinct from the existing local Hall of Fame.
+_Avoid_: global Hall of Fame (ambiguous with the locally shared Hall)
+
+**Online ghost**:
+A future ghost recording shared across players online.

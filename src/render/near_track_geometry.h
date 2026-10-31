@@ -5,7 +5,10 @@
 #include <cstdint>
 
 namespace scr {
-struct NearTrackVertex {std::uint16_t height{0x8000};int x{},y{};};
+struct NearTrackVertex {
+    std::uint16_t height{0x8000};int x{},y{};
+    double inverseDepth{}; // Presentation metadata; never read/written by RAM adapters.
+};
 struct NearTrackCutEdge {bool valid{};std::uint8_t fromIndex{},toIndex{};};
 struct NearTrackGeometryState {
     TrackProgressState progress;

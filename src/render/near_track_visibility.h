@@ -6,7 +6,7 @@
 #include <vector>
 
 namespace scr {
-struct NearTrackPoint {int x{},y{};};
+struct NearTrackPoint {int x{},y{};double inverseDepth{};};
 struct NearTrackEdge {
     NearTrackPoint from{},to{},clippedFrom{},clippedTo{};
     bool present{};

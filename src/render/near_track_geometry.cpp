@@ -52,6 +52,7 @@ std::uint8_t coordinateIndex(const NearTrackGeometryState& s,unsigned vertex){
 }
 void horizontal(const TrackProgressData& d,NearTrackGeometryState& s,NearTrackVertex& p,std::uint16_t x,std::uint16_t z){
     s.progress.temporaryX=x;s.progress.temporaryZ=z;
+    p.inverseDepth=renderCoordinateInverseDepth(x,z,s.progress.cameraYaw,16);
     if(s.preview&0x80){
         x=w(shr(sw(x),1));z=w(shr(sw(z),1));s.perspectiveDepth=std::uint16_t((z&255)|((b((z>>8)+0x31))<<8));
         z=w(shr(sw(z),1)+0x4900);p.x=shr(sw(w(int(polar(d,x,z).angle)-s.progress.cameraYaw)),3);
@@ -113,7 +114,7 @@ void admitLower(const TrackProgressData& d,NearTrackGeometryState& s,unsigned in
         const auto difference=w(side?point(s,index).x-int(oldX):int(oldX)-point(s,index).x);
         visible=!(difference&0x8000);
     }
-    if(visible){auto& lower=point(s,index+120);lower.height=512;lower.x=point(s,index).x;vertical(d,s,lower);rotate(lower,s.camera);}
+    if(visible){auto& lower=point(s,index+120);lower.height=512;lower.x=point(s,index).x;lower.inverseDepth=point(s,index).inverseDepth;vertical(d,s,lower);rotate(lower,s.camera);}
 }
 } // namespace
 void projectNearTrackSegment(const TrackProgressData& d,NearTrackGeometryState& s){
@@ -180,7 +181,8 @@ std::array<NearTrackCutEdge,4> prepareNearTrackCutEdges(const TrackProgressData&
         horizontal(d,s,previous,interpolate(0),interpolate(1));vertical(d,s,previous);if(!(previous.height&0x8000))rotate(previous,s.camera);
         if(nearTrackInsideX(previous.x,s.horizontalPadding)&&nearTrackInsideY(previous.y,s.topPadding,s.bottomPadding)){
             const auto dx=w(previous.x-current.x);auto dy=w(previous.y-current.y);if(!dy&&!dx)dy=1;
-            unsigned guard=0;do{previous.x=sw(w(previous.x+dx));previous.y=sw(w(previous.y+dy));if(++guard>65536)throw std::runtime_error("Near boundary ray did not exit viewport");}while(nearTrackInsideX(previous.x,s.horizontalPadding)&&nearTrackInsideY(previous.y,s.topPadding,s.bottomPadding));
+            const auto depthStep=previous.inverseDepth-current.inverseDepth;
+            unsigned guard=0;do{previous.x=sw(w(previous.x+dx));previous.y=sw(w(previous.y+dy));previous.inverseDepth=std::max(1e-9,previous.inverseDepth+depthStep);if(++guard>65536)throw std::runtime_error("Near boundary ray did not exit viewport");}while(nearTrackInsideX(previous.x,s.horizontalPadding)&&nearTrackInsideY(previous.y,s.topPadding,s.bottomPadding));
         }
     }
     return result;

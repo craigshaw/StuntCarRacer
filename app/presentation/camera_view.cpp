@@ -7,6 +7,11 @@ namespace scr::runtime {
 PresentationPose makeCameraView(const PresentationPose& source,const CameraViewSettings& settings,const TrigTable& trig){
     auto result=source;
     if(settings.hasCameraOffset()){
+        for(unsigned n=0;n<3;++n){
+            const auto value=settings.worldOffset[n];
+            if(!std::isfinite(value)||std::abs(value)>2048)throw std::invalid_argument("Invalid observer camera displacement");
+            result.pose.worldPosition[n]+=std::uint32_t(std::int64_t(std::llround(value*65536)));
+        }
         result.pose.yaw=std::uint16_t(int(result.pose.yaw)+settings.yawOffset);
         result.pose.pitch=std::uint16_t(int(result.pose.pitch)+settings.pitchOffset);
         result.pose.roll=std::uint16_t(int(result.pose.roll)+settings.rollOffset);

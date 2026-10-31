@@ -2,6 +2,7 @@
 #include "physics/motion_transforms.h"
 #include "track/track_progress.h"
 #include <cmath>
+#include <algorithm>
 #include <stdexcept>
 
 namespace scr {
@@ -75,5 +76,11 @@ RenderCameraRelative renderCameraRelative(const RenderWorldPoint& point,const Re
     const double down=double(signedWord(camera.heightBaseline))/64.0-point.y*0.5;
     const double sine=double(signedWord(camera.sinYaw))/32768.0,cosine=double(signedWord(camera.cosYaw))/32768.0;
     return {dx*cosine-dz*sine,down,dx*sine+dz*cosine};
+}
+double renderCoordinateInverseDepth(std::uint16_t x,std::uint16_t z,std::uint16_t yaw,double units) noexcept{
+    constexpr double radians=6.28318530717958647692/65536;
+    const auto angle=double(yaw)*radians;
+    const auto forward=(signedWord(x)*std::sin(angle)+signedWord(z)*std::cos(angle))/units;
+    return 1/std::max(1.0,forward);
 }
 } // namespace scr

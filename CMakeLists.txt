@@ -75,6 +75,7 @@ add_library(scr_render STATIC
   src/render/render_projection.cpp
   src/render/planar_image.cpp
   src/render/software_renderer.cpp
+  src/render/ghost_car.cpp
   src/render/track_sides.cpp
   src/render/mountain_horizon.cpp
   src/render/near_track_geometry.cpp
@@ -142,6 +143,7 @@ if(WIN32)
     app/race/race_scene.cpp
     app/presentation/race_render_assets.cpp
     app/presentation/presentation_interpolation.cpp
+    app/presentation/ghost_bridge.cpp
     app/input/drive_input.cpp
     app/audio/game_audio.cpp
   )

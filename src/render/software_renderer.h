@@ -26,7 +26,11 @@ public:
     RenderStatistics drawFrame(const TrackMesh&,const std::vector<TrackSideFace>&,
         const MountainHorizonFrame&,const RenderProjectionCamera&,
         const RenderProjectionTables&,const std::array<std::uint32_t,16>& palette,
-        std::vector<std::uint32_t>& pixels,bool wireframe=false,const NearTrackPresentation* nearTrack=nullptr,int horizontalPadding=0,bool extendedCorners=false,int bottomPadding=0);
+        std::vector<std::uint32_t>& pixels,bool wireframe=false,const NearTrackPresentation* nearTrack=nullptr,int horizontalPadding=0,bool extendedCorners=false,int bottomPadding=0,bool captureTrackDepth=false);
+    // Read-only classification of the last painted viewport: road=1, side=2,
+    // mountain=3, opponent=4. Auxiliary presentation must not alter this layer.
+    const std::vector<std::uint8_t>& worldCoverage()const noexcept{return coverage_;}
+    const std::vector<float>& worldInverseDepth()const noexcept{return inverseDepth_;}
 private:
     std::vector<float> inverseDepth_;
     std::vector<std::uint8_t> coverage_;

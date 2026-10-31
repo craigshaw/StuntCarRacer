@@ -9,7 +9,21 @@ set(SCR_TEST_CAPTURE "${PROJECT_SOURCE_DIR}/analysis/captures/race/chip-000000.b
   CACHE FILEPATH "Local captured sample state for audio integration tests")
 set(SCR_TEST_ALTERNATE_ASSET_PACK "${PROJECT_SOURCE_DIR}/analysis/assets/stunt-car-racer-woodpecker.scr-assets"
   CACHE FILEPATH "Optional second verified ADF pack for cross-disk career tests")
+set(SCR_TEST_GHOST_REFERENCE "${PROJECT_SOURCE_DIR}/analysis/native-cockpit/captured-three-lap-race/original.csv"
+  CACHE FILEPATH "Optional retained original trace for the static ghost proof")
 set(test_output "${PROJECT_BINARY_DIR}/test-output/$<CONFIG>")
+
+if(TARGET native_ghost_proof)
+  add_test(NAME native_ghost_proof COMMAND "${CMAKE_COMMAND}"
+    "-DPROOF_EXECUTABLE=$<TARGET_FILE:native_ghost_proof>"
+    "-DPROOF_CHIP=${SCR_TEST_CAPTURE}" "-DPROOF_PAYLOAD=${SCR_TEST_PAYLOAD}"
+    "-DPROOF_INPUTS=${PROJECT_SOURCE_DIR}/tests/replays/laps/authored-lap-506.csv"
+    "-DPROOF_REFERENCE=${SCR_TEST_GHOST_REFERENCE}"
+    "-DPROOF_OUTPUT=${test_output}/native_ghost_proof"
+    -P "${PROJECT_SOURCE_DIR}/cmake/RunGhostProof.cmake")
+  set_tests_properties(native_ghost_proof PROPERTIES LABELS "native;assets;capture"
+    TIMEOUT 180 SKIP_REGULAR_EXPRESSION "SKIP: missing local ghost proof input")
+endif()
 
 function(scr_test target label input)
   add_test(NAME ${target} COMMAND "${CMAKE_COMMAND}"
@@ -25,7 +39,12 @@ function(scr_test target label input)
     LABELS "${label}" TIMEOUT 600 SKIP_REGULAR_EXPRESSION "SKIP: missing local test input")
 endfunction()
 
-foreach(target paula_mixer_tests presentation_interpolation_tests drive_input_tests)
+if(TARGET native_ghost_bridge_proof)
+  scr_test(native_ghost_bridge_proof "native;assets" "${SCR_TEST_ASSET_PACK}"
+    "${SCR_TEST_ASSET_PACK}" "${test_output}/native_ghost_bridge_proof")
+endif()
+
+foreach(target paula_mixer_tests presentation_interpolation_tests drive_input_tests ghost_car_tests ghost_bridge_tests)
   scr_test(${target} "native;unit" "")
 endforeach()
 scr_test(software_renderer_tests "native;assets" "${SCR_TEST_PAYLOAD}" "${SCR_TEST_PAYLOAD}")

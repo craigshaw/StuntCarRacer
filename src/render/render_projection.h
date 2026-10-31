@@ -46,4 +46,7 @@ RenderProjectedPoint projectRenderWorldPoint(const RenderWorldPoint&,const Rende
 // pitch and screen-space roll. Near distance and polygon clipping remain
 // explicit viewer choices; no claim of original visibility-queue recovery.
 RenderCameraRelative renderCameraRelative(const RenderWorldPoint&,const RenderProjectionCamera&) noexcept;
+// Auxiliary presentation depth for already quarter-turned original coordinates.
+// Dense road uses 16 coordinate units per world unit; cached far road uses 8.
+double renderCoordinateInverseDepth(std::uint16_t x,std::uint16_t z,std::uint16_t yawResidual,double units) noexcept;
 } // namespace scr

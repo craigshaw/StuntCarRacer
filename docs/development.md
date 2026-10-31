@@ -120,6 +120,8 @@ Use `& $AmigaPython scripts/<command>` after loading `env.ps1`.
 | Opponent AI, contact and painter | `check_native_opponents.py` | `analysis/native-opponents/` |
 | Rendering, view isolation, both leagues/all tracks | `check_native_render_audit.py` | `analysis/render-audit/` |
 | Recorded replay, interpolation, input clock, offline audio | `check_native_rendering.py` | `analysis/native-render/` |
+| Static-track ghost rendering proof and isolation | `check_native_ghost.py` | `analysis/ghost-proof/` |
+| Draw Bridge ghost compatibility, suppression and isolation | `check_native_ghost_bridge.py` | `analysis/ghost-bridge-proof/` |
 | Physics driver and supporting stages | `check_physics_update.py` | `analysis/physics-update/` |
 | Track decoding and initialization | `check_native_track_initialization.py` | `analysis/native-track-init/` |
 

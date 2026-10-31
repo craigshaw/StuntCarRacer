@@ -29,6 +29,56 @@ Focus loss or controller disconnection pauses and requires explicit resume.
 The replay shortcut is `replay/Watch Native Replay.cmd`; original-game emulation
 tools live separately in [research/](research/README.md).
 
+## Static ghost rendering proof
+
+After loading `scripts/env.ps1`, run `& $AmigaPython scripts/check_native_ghost.py`.
+It builds `native_ghost_proof`, runs focused CTest checks and writes identified
+results, comparison images and two animated previews under `analysis/ghost-proof/`.
+`--skip-build` requires matching source/executable identities. Pillow is needed
+only for QA conversion; the replay wrapper's bundled image runtime is reused.
+
+The default inputs are the retained race-entry capture/payload, authored
+`tests/replays/laps/authored-lap-506.csv` and identified retained original trace.
+These are private development fixtures; the player still needs no capture.
+CTest skips this proof if its private inputs are missing. The tool records the
+native trajectory and samples that same path twelve updates ahead of the camera
+to make the ghost visible; it is not a saved personal-best feature.
+
+World-space car rendering, foreground composition, all four views, interpolation
+and simulation/RNG isolation are exercised. Original colour spans and painter
+order are retained; optional depth metadata follows the same clipped fills.
+Every retained update and quarter-update in all apertures must have complete
+painted-track depth coverage. `proportions.png` compares the calibrated exterior
+with the recovered procedural opponent at matched footprints and distances;
+the 3D model does not claim exact original silhouettes at every view angle.
+Static boundary checks do not establish whole-feature production acceptance.
+Player settings and durable ghost recording are not implemented.
+See the [design and proof gates](../docs/components/personal-best-ghosts.md).
+
+## Draw Bridge ghost proof
+
+After loading `scripts/env.ps1`, run
+`& $AmigaPython scripts/check_native_ghost_bridge.py`. The local native asset pack
+is the only private input. The wrapper builds `native_ghost_bridge_proof`, runs
+six focused CTest checks and retains source/asset/executable identities, synthetic
+seeds, controls and native traces under `analysis/ghost-bridge-proof/`.
+`--skip-build` requires matching source/executable identities. CTest skips the
+headless proof when its asset pack is absent.
+
+`matching.gif`, `mismatch.gif`, `same-shape.gif` and `comparison.png` show a native
+league trajectory against compatible and incompatible live geometry. An observer
+camera makes the coincident ghost visible without moving its recorded position.
+Captions show local suppression and opacity; their conditions indicator is QA UI.
+The real AI opponent affects recorded bridge holds, and live occupancy/release
+continues normally. All four views, exact/half updates, landing, reverse/pause,
+painted-depth coverage and full simulation/RNG isolation are checked.
+
+The initial approach, opponent position and phase are authored through native
+initializers/adapters before driving. Subsequent motion and bridge updates use
+normal native simulation. This is a finite crossing proof, not an earned lap or
+an original CPU comparison. Player lap recording, persistence and feedback remain
+separate work. See the [bridge proof contract](../docs/components/personal-best-ghosts.md#draw-bridge-proof).
+
 ## Recordings and comparisons
 
 The direct viewer writes controls/traces under ignored `analysis/live-driving/`.

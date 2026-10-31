@@ -122,21 +122,32 @@ void mountainPolygon(const MountainScreenPolygon& polygon,std::uint32_t color,
 }
 void nearPolygon(const NearTrackDrawCommand& command,std::uint32_t color,
     std::vector<std::uint32_t>& pixels,std::vector<std::uint8_t>& coverage,
-    std::vector<std::uint8_t>& highlights,const RenderCanvas& canvas) {
-    std::vector<double> crossings;crossings.reserve(command.edges.size());
+    std::vector<std::uint8_t>& highlights,const RenderCanvas& canvas,std::vector<float>* depth) {
+    struct Crossing {double x{},inverseDepth{};};
+    std::vector<Crossing> crossings;crossings.reserve(command.edges.size());
     for(int y=0;y<canvas.viewportHeight();++y){
         crossings.clear();const double scan=y+0.5-canvas.topPadding();
         for(const auto& edge:command.edges)if(edge.present){
             const auto& a=edge.from;const auto& b=edge.to;
-            if((a.y>scan)!=(b.y>scan))crossings.push_back(canvas.padding+a.x+(scan-a.y)*(double(b.x)-a.x)/(double(b.y)-a.y));
+            if((a.y>scan)!=(b.y>scan)){
+                const auto fraction=(scan-a.y)/(double(b.y)-a.y);
+                const auto inverse=a.inverseDepth>0&&b.inverseDepth>0?a.inverseDepth+(b.inverseDepth-a.inverseDepth)*fraction:0;
+                crossings.push_back({canvas.padding+a.x+(scan-a.y)*(double(b.x)-a.x)/(double(b.y)-a.y),inverse});
+            }
         }
-        std::sort(crossings.begin(),crossings.end());
+        std::sort(crossings.begin(),crossings.end(),[](const Crossing& a,const Crossing& b){return a.x<b.x;});
         for(std::size_t n=0;n+1<crossings.size();n+=2){
-            const int first=std::max(0,int(std::ceil(crossings[n]-0.5)));
-            const int last=std::min(canvas.viewportWidth()-1,int(std::ceil(crossings[n+1]-0.5))-1);
+            const auto& left=crossings[n];const auto& right=crossings[n+1];
+            const int first=std::max(0,int(std::ceil(left.x-0.5)));
+            const int last=std::min(canvas.viewportWidth()-1,int(std::ceil(right.x-0.5))-1);
             for(int x=first;x<=last;++x){
                 const auto index=canvas.viewIndex(x,y);pixels[canvas.pixelIndex(x,y)]=color;
                 coverage[index]=command.surface==NearTrackSurface::opponent?4:command.surface==NearTrackSurface::road?1:2;highlights[index]=0;
+                if(depth){
+                    const auto fraction=right.x==left.x?0:(x+0.5-left.x)/(right.x-left.x);
+                    (*depth)[index]=left.inverseDepth>0&&right.inverseDepth>0?
+                        float(std::max(0.0,left.inverseDepth+(right.inverseDepth-left.inverseDepth)*fraction)):0;
+                }
             }
         }
     }
@@ -145,7 +156,7 @@ void nearPolygon(const NearTrackDrawCommand& command,std::uint32_t color,
 RenderStatistics SoftwareRenderer::drawFrame(const TrackMesh& mesh,const std::vector<TrackSideFace>& sides,
     const MountainHorizonFrame& mountains,const RenderProjectionCamera& camera,
     const RenderProjectionTables& tables,const std::array<std::uint32_t,16>& palette,
-    std::vector<std::uint32_t>& pixels,bool wireframe,const NearTrackPresentation* nearTrack,int padding,bool extended,int bottomPadding) {
+    std::vector<std::uint32_t>& pixels,bool wireframe,const NearTrackPresentation* nearTrack,int padding,bool extended,int bottomPadding,bool captureTrackDepth) {
     if(padding<0||padding>304)throw std::invalid_argument("Invalid render viewport padding");
     const RenderCanvas canvas{padding,extended,bottomPadding};
     if(bottomPadding<0||canvas.viewportHeight()+(extended?0:16)>height)throw std::invalid_argument("Invalid render viewport height");
@@ -247,7 +258,7 @@ RenderStatistics SoftwareRenderer::drawFrame(const TrackMesh& mesh,const std::ve
         for(const auto& command:nearTrack->commands){
             if(command.color>=palette.size())throw std::invalid_argument("Near command palette index outside range");
             if(command.kind==NearTrackCommandKind::fill){
-                nearPolygon(command,palette[command.color],pixels,coverage_,highlights_,canvas);++stats.nearFillCommands;
+                nearPolygon(command,palette[command.color],pixels,coverage_,highlights_,canvas,captureTrackDepth?&inverseDepth_:nullptr);++stats.nearFillCommands;
                 stats.opponentPolygons+=command.surface==NearTrackSurface::opponent;
                 if(wireframe)for(const auto& edge:command.edges)drawEdge(edge,palette[3],false);
             }else{

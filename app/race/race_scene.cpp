@@ -420,7 +420,15 @@ NearTrackPresentation RaceScene::buildViewCommands(const PresentationPose& visua
         seed,mountains_,visual.pose.yaw,visual.camera,opponent).presentation;
 }
 const std::vector<std::uint32_t>& RaceScene::renderView(double position,const CameraViewSettings& settings,bool wireframe){
-    if(settings.view==NativeView::Original&&!settings.hasCameraOffset()&&settings.showCockpit)return renderInterpolated(position,wireframe);
+    return renderViewImpl(position,settings,wireframe,nullptr,nullptr);
+}
+const std::vector<std::uint32_t>& RaceScene::renderGhostView(double position,const CameraViewSettings& settings,
+    const GhostCarPose& ghost,const GhostCarStyle& style){
+    return renderViewImpl(position,settings,false,&ghost,&style);
+}
+const std::vector<std::uint32_t>& RaceScene::renderViewImpl(double position,const CameraViewSettings& settings,
+    bool wireframe,const GhostCarPose* ghost,const GhostCarStyle* ghostStyle){
+    if(!ghost&&settings.view==NativeView::Original&&!settings.hasCameraOffset()&&settings.showCockpit)return renderInterpolated(position,wireframe);
     if(!std::isfinite(position)||frames_.empty())throw std::invalid_argument("Invalid presentation view position");
     position=std::clamp(position,0.0,double(frames_.size()-1));const auto index=unsigned(position);
     const auto& from=frames_[index];double fraction=position-index;
@@ -428,7 +436,8 @@ const std::vector<std::uint32_t>& RaceScene::renderView(double position,const Ca
     auto visual=fraction>1e-9?interpolatePresentation(from,frames_[index+1],fraction,trig_):static_cast<const PresentationPose&>(from);
     visual=makeCameraView(visual,settings,trig_);cachedFrame_=~0u;
     if(settings.view==NativeView::Original&&!settings.hasCameraOffset()&&fraction<1e-9){
-        draw(visual,from.nearTrack,wireframe,from.movingTrack.get(),&from,0,settings.showCockpit);return pixels_;
+        draw(visual,from.nearTrack,wireframe,from.movingTrack.get(),&from,0,settings.showCockpit,
+            NativeView::Original,nullptr,ghost,ghostStyle);return pixels_;
     }
     std::optional<OpponentCarInputs> opponent;
     if(from.opponentEnabled){
@@ -437,14 +446,17 @@ const std::vector<std::uint32_t>& RaceScene::renderView(double position,const Ca
     }
     const auto commands=buildViewCommands(visual,from,opponent,viewPadding(settings.view),settings.view!=NativeView::Original?16:0,isWideView(settings.view)?56:0);
     draw(visual,commands,wireframe,from.movingTrack.get(),&from,fraction,settings.showCockpit,settings.view,
-        fraction>1e-9?&frames_[index+1]:nullptr);
+        fraction>1e-9?&frames_[index+1]:nullptr,ghost,ghostStyle);
     return pixels_;
 }
-void RaceScene::draw(const PresentationPose& frame,const NearTrackPresentation& nearTrack,bool wireframe,const TrackPresentationSnapshot* movingTrack,const RaceFrame* discrete,double fraction,bool showCockpit,NativeView view,const RaceFrame* next){
+void RaceScene::draw(const PresentationPose& frame,const NearTrackPresentation& nearTrack,bool wireframe,const TrackPresentationSnapshot* movingTrack,const RaceFrame* discrete,double fraction,bool showCockpit,NativeView view,const RaceFrame* next,const GhostCarPose* ghost,const GhostCarStyle* ghostStyle){
     const bool wide=isWideView(view),extended=view!=NativeView::Original;
     if(showCockpit&&!wide)makeRaceBackground(assets_,pixels_);else pixels_.assign(viewWidth(view)*200,0);
     const auto mountains=projectMountainHorizon(mountains_,frame.pose.yaw,frame.camera,viewPadding(view));
-    statistics_=renderer_.drawFrame(movingTrack?movingTrack->mesh:mesh_,movingTrack?movingTrack->sides:sides_,mountains,frame.camera,projection_,assets_.palette,pixels_,wireframe,&nearTrack,viewPadding(view),extended,wide?56:0);
+    statistics_=renderer_.drawFrame(movingTrack?movingTrack->mesh:mesh_,movingTrack?movingTrack->sides:sides_,mountains,frame.camera,projection_,assets_.palette,pixels_,wireframe,&nearTrack,viewPadding(view),extended,wide?56:0,ghost&&ghostStyle->occlusion);
+    ghostStatistics_={};
+    if(ghost)ghostStatistics_=ghostRenderer_.draw(*ghost,*ghostStyle,movingTrack?movingTrack->mesh:mesh_,
+        movingTrack?movingTrack->sides:sides_,frame.camera,projection_,pixels_,renderer_.worldCoverage(),viewPadding(view),extended,wide?56:0,&renderer_.worldInverseDepth());
     if(extended&&showCockpit){
         if(wide){
             cage_.assign(pixels_.size(),transparentPixel);composeWidescreenFrame(assets_,cage_);

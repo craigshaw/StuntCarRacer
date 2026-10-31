@@ -4,6 +4,7 @@
 #include "input/drive_input.h"
 #include "presentation/camera_view.h"
 #include "render/software_renderer.h"
+#include "render/ghost_car.h"
 #include "audio/game_audio.h"
 #include "render/opponent_car.h"
 #include "render/opponent_far_track.h"
@@ -95,6 +96,11 @@ public:
     // Independent presentation query. Default settings retain the original
     // view; alternate angles/cockpit visibility leave saved frames unchanged.
     const std::vector<std::uint32_t>& renderView(double position,const CameraViewSettings&,bool wireframe=false);
+    // Explicit developer proof query. No automatic target, persistence or player
+    // setting is enabled; normal render entry points retain their baseline path.
+    const std::vector<std::uint32_t>& renderGhostView(double position,const CameraViewSettings&,
+        const GhostCarPose&,const GhostCarStyle& style={});
+    const GhostCarStatistics& ghostStatistics()const noexcept{return ghostStatistics_;}
     void saveBitmap(const std::filesystem::path&) const;
     const std::vector<RaceFrame>& frames() const noexcept {return frames_;}
     const TrackMesh& mesh() const noexcept {return mesh_;}
@@ -128,6 +134,8 @@ private:
     std::array<std::uint8_t,100> segmentRenderFlags_{};
     std::vector<RaceFrame> frames_;
     SoftwareRenderer renderer_;
+    GhostCarRenderer ghostRenderer_;
+    GhostCarStatistics ghostStatistics_{};
     RenderStatistics statistics_{};
     std::vector<std::uint32_t> pixels_;
     std::vector<std::uint32_t> foreground_;
@@ -140,10 +148,13 @@ private:
     NativeView lastLiveView_{NativeView::Original};
     bool bitmapOnly_{};
     bool runningLapHundredths_{};
+    const std::vector<std::uint32_t>& renderViewImpl(double,const CameraViewSettings&,bool,
+        const GhostCarPose*,const GhostCarStyle*);
     NearTrackPresentation buildViewCommands(const PresentationPose&,const RaceFrame&,
         const std::optional<OpponentCarInputs>&,int padding=0,int topPadding=0,int bottomPadding=0)const;
     void draw(const PresentationPose&,const NearTrackPresentation&,bool wireframe,
         const TrackPresentationSnapshot* movingTrack=nullptr,const RaceFrame* discrete=nullptr,double fraction=0,
-        bool showCockpit=true,NativeView view=NativeView::Original,const RaceFrame* next=nullptr);
+        bool showCockpit=true,NativeView view=NativeView::Original,const RaceFrame* next=nullptr,
+        const GhostCarPose* ghost=nullptr,const GhostCarStyle* ghostStyle=nullptr);
 };
 } // namespace scr::runtime

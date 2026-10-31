@@ -1,5 +1,6 @@
 #pragma once
 #include "presentation/presentation_interpolation.h"
+#include <array>
 #include <cstdint>
 
 namespace scr::runtime {
@@ -15,7 +16,10 @@ struct CameraViewSettings {
     std::int16_t yawOffset{},pitchOffset{},rollOffset{};
     bool showCockpit{true};
     NativeView view{NativeView::Original};
-    bool hasCameraOffset()const noexcept{return yawOffset||pitchOffset||rollOffset;}
+    // Developer observer displacement in mesh/world units. No player setting
+    // selects this; the default view and original cockpit scale are unchanged.
+    std::array<double,3> worldOffset{};
+    bool hasCameraOffset()const noexcept{return yawOffset||pitchOffset||rollOffset||worldOffset[0]||worldOffset[1]||worldOffset[2];}
 };
 PresentationPose makeCameraView(const PresentationPose&,const CameraViewSettings&,const TrigTable&);
 

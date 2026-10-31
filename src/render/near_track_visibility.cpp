@@ -8,7 +8,7 @@ namespace {
 int sw(unsigned x){x&=65535;return x<32768?int(x):int(x)-65536;}
 int sb(unsigned x){x&=255;return x<128?int(x):int(x)-256;}
 bool valid(const NearTrackVertex& v){return !(v.height&0x8000);}
-NearTrackPoint point(const NearTrackVertex& v){return {sw(unsigned(v.x)),sw(unsigned(v.y))};}
+NearTrackPoint point(const NearTrackVertex& v){return {sw(unsigned(v.x)),sw(unsigned(v.y)),v.inverseDepth};}
 NearTrackVertex& vertex(NearTrackGeometryState& s,unsigned index){
     if(index>=0xf0||(index&1))throw std::out_of_range("Near vertex byte index outside buffers");
     return index>=0x78?s.lower[(index-0x78)/2]:s.upper[index/2];
@@ -27,6 +27,7 @@ void clipY(NearTrackPoint& a,const NearTrackPoint& b,int y){
     const int dx=sw(unsigned(b.x-a.x)),dy=sw(unsigned(b.y-a.y));
     if(!dy)throw std::out_of_range("Near clipping encountered horizontal outside edge");
     const int step=ratioStep(std::abs(dx),std::abs(dy),std::abs(y-a.y));
+    a.inverseDepth+=(b.inverseDepth-a.inverseDepth)*double(y-a.y)/dy;
     a.x=sw(unsigned(a.x+(dx<0?-step:step)));a.y=y;
 }
 unsigned lineBytes(const NearTrackEdge& e){
@@ -71,9 +72,19 @@ bool closeBoundary(std::vector<NearTrackEdge>& edges,NearTrackPoint start,NearTr
         }
     }
     if(swap)std::swap(start,target);
+    const int startPerimeter=perimeter(start,padding,topPadding,bottomPadding);
+    const int fullPerimeter=2*(256+2*padding+128+topPadding+bottomPadding);
+    const int span=(perimeter(target,padding,topPadding,bottomPadding)-startPerimeter+fullPerimeter)%fullPerimeter;
+    const auto depthAt=[&](NearTrackPoint p){
+        if(start.inverseDepth<=0||target.inverseDepth<=0)return std::max(start.inverseDepth,target.inverseDepth);
+        const auto along=(perimeter(p,padding,topPadding,bottomPadding)-startPerimeter+fullPerimeter)%fullPerimeter;
+        return start.inverseDepth+(target.inverseDepth-start.inverseDepth)*(span?double(along)/span:0);
+    };
     int savedX=start.x,side=start.x==right?0:start.x==left?2:start.y==bottom?1:start.y==top?3:-1;
     if(side<0)return false;
     const auto append=[&](NearTrackPoint a,NearTrackPoint c){
+        if(a.inverseDepth<=0)a.inverseDepth=depthAt(a);
+        if(c.inverseDepth<=0)c.inverseDepth=depthAt(c);
         // Original clipLineAndMakeEdge0x6814a admits a line at the arena's
         // exact end; its guard is strict>, unlike drawClippedLine's>= guard.
         if(lineBytes&&*lineBytes>trackPresentationLineLimit(padding,topPadding,bottomPadding))return false;
@@ -152,7 +163,7 @@ void barrierEdges(std::vector<NearTrackDrawCommand>& out,const NearTrackQueueSta
 } // namespace
 
 NearTrackEdge makeNearTrackEdge(NearTrackPoint from,NearTrackPoint to,int padding,int topPadding,int bottomPadding){
-    from={sw(unsigned(from.x)),sw(unsigned(from.y))};to={sw(unsigned(to.x)),sw(unsigned(to.y))};
+    from={sw(unsigned(from.x)),sw(unsigned(from.y)),from.inverseDepth};to={sw(unsigned(to.x)),sw(unsigned(to.y)),to.inverseDepth};
     NearTrackEdge e{};e.from=from;e.to=to;e.present=true;
     auto a=from,b=to;if(a.y<b.y){std::swap(a,b);e.clipFlags=0x40;}
     unsigned common=outcode(a,padding,topPadding,bottomPadding)&outcode(b,padding,topPadding,bottomPadding);
@@ -164,8 +175,16 @@ NearTrackEdge makeNearTrackEdge(NearTrackPoint from,NearTrackPoint to,int paddin
     if(common)e.clipFlags=std::uint8_t(e.clipFlags|0x80|common);
     const int rasterY0=std::clamp(a.y,-topPadding,128+bottomPadding),rasterY1=std::clamp(b.y,-topPadding,128+bottomPadding);
     e.storageBytes=std::uint16_t(10+2*std::abs(rasterY0-rasterY1));
-    e.clippedFrom={std::clamp(a.x,-padding,256+padding),std::clamp(a.y,-topPadding,128+bottomPadding)};
-    e.clippedTo={std::clamp(b.x,-padding,256+padding),std::clamp(b.y,-topPadding,128+bottomPadding)};return e;
+    const auto clipped=[&](const NearTrackPoint& p,const NearTrackPoint& other){
+        const auto x=std::clamp(p.x,-padding,256+padding);
+        // The recovered closure code can use a clamped endpoint from a line
+        // wholly outside the aperture. Its attribute must stay on that source
+        // segment, rather than extrapolating through zero reciprocal depth.
+        const auto fraction=other.x==p.x?0:std::clamp(double(x-p.x)/(other.x-p.x),0.0,1.0);
+        const auto depth=p.inverseDepth+(other.inverseDepth-p.inverseDepth)*fraction;
+        return NearTrackPoint{x,std::clamp(p.y,-topPadding,128+bottomPadding),std::max(0.0,depth)};
+    };
+    e.clippedFrom=clipped(a,b);e.clippedTo=clipped(b,a);return e;
 }
 void seedNearTrackCutEdges(const NearTrackGeometryState& s,const std::array<NearTrackCutEdge,4>& cuts,NearTrackQueueState& q){
     for(unsigned n=0;n<4;++n){const auto& e=cuts[n];if(e.valid)storeEdge(q,32+4*n,makeNearTrackEdge(point(vertex(s,e.fromIndex)),point(vertex(s,e.toIndex)),q.horizontalPadding,q.topPadding,q.bottomPadding));else storeEdge(q,32+4*n,absent());}

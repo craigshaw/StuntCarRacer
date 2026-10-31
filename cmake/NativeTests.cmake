@@ -1,4 +1,12 @@
 # Included from the project root; source paths remain relative to that root.
+scr_add_test_executable(ghost_bridge_tests tests/unit/ghost_bridge_tests.cpp
+  app/presentation/ghost_bridge.cpp app/presentation/camera_view.cpp)
+target_include_directories(ghost_bridge_tests PRIVATE app)
+target_link_libraries(ghost_bridge_tests PRIVATE scr_render)
+target_compile_features(ghost_bridge_tests PRIVATE cxx_std_17)
+scr_add_test_executable(ghost_car_tests tests/unit/ghost_car_tests.cpp)
+target_link_libraries(ghost_car_tests PRIVATE scr_render)
+target_compile_features(ghost_car_tests PRIVATE cxx_std_17)
 scr_add_test_executable(paula_mixer_tests tests/unit/paula_mixer_tests.cpp)
 target_link_libraries(paula_mixer_tests PRIVATE scr_audio)
 target_compile_features(paula_mixer_tests PRIVATE cxx_std_17)

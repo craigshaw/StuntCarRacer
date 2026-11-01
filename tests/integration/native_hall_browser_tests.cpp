@@ -56,7 +56,8 @@ void boards(const fs::path& pack,const fs::path& root,NativeMenuNavigation polic
     const auto old=makeNativeHallOfFameBackground(g->memory()),now=makeHallBrowserImage(g->memory(),*g->hallBrowser());
     require(old.palette==now.palette&&std::equal(old.indices.begin(),old.indices.begin()+320*54,now.indices.begin()),"Browser changed original Hall title artwork or palette");
     image(*g,root/"lap-page-1.ppm");
-    for(unsigned track=0;track<8;++track)for(unsigned league=0;league<2;++league)for(unsigned kind=0;kind<2;++kind){
+    for(unsigned ordinal=0;ordinal<8;++ordinal)for(unsigned league=0;league<2;++league)for(unsigned kind=0;kind<2;++kind){
+        const unsigned track=g->memory()[0x648c2+ordinal];
         const auto* b=g->hallBrowser();require(b&&b->board().track==track&&unsigned(b->board().league)==league&&unsigned(b->board().kind)==kind,"Board selectors display wrong records");
         require(b->entries().size()==20&&b->pages()==2,"Populated board did not retain two pages");
         if(!kind)require(b->ghost(0)&&!b->ghost(1)&&!b->ghost(2)&&!b->ghost(5),"Ghost availability trusted missing/corrupt references");
@@ -66,16 +67,18 @@ void boards(const fs::path& pack,const fs::path& root,NativeMenuNavigation polic
         tap(*g,16);require(g->page()==NativeMenuPage::HallOfFame&&!g->transitioning(),"Browse-only row confirmation launched a race");
         for(auto view:{NativeView::Original,NativeView::Extended,NativeView::Widescreen,NativeView::Ultrawide})require(g->render(true,false,view)==g->render(false,false,NativeView::Original),"Hall presentation changed with world aspect/smoothing");
         if(!track&&!league)image(*g,root/(kind?"race-page-2.ppm":"lap-page-2.ppm"));
+        if(track==1&&!league&&!kind)image(*g,root/"long-track-page-2.ppm");
         tap(*g,4);tap(*g,0,4);tap(*g);loaded(*g); // Cycle category back after each pair.
         if(kind){tap(*g,0,2);tap(*g);loaded(*g);if(league){tap(*g,0,1);tap(*g);loaded(*g);}}
     }
     require(g->memory()==*unchanged,"Browsing/read/availability queries changed native memory or RNG");
-    // Refresh preserves an ID when a new insertion moves it onto another page.
+    // Reopening refreshes records and follows an ID moved onto another page.
     tap(*g,0,4);tap(*g,2);for(unsigned n=0;n<9;++n)tap(*g,2);const auto selected=g->hallBrowser()->entries()[9].attempt.id;
     auto faster=fixture::attempt(99999,1);archive.commit({std::make_shared<const HallSubmission>(makeHallSubmission(faster))});
-    tap(*g,0,8);loaded(*g);require(g->hallBrowser()->selected()==10&&g->hallBrowser()->entries()[10].attempt.id==selected,"Shared refresh selected a different record");
+    tap(*g,0,0,true);settle(*g);open(*g);require(g->hallBrowser()->selected()==10&&g->hallBrowser()->entries()[10].attempt.id==selected,"Reopening selected a different record");
     const auto remembered=g->hallBrowser()->board();const auto selectedRow=g->hallBrowser()->selected();
-    {SharedHallLock lock(shared);const auto started=std::chrono::steady_clock::now();tap(*g,0,8);g->render();require(std::chrono::steady_clock::now()-started<std::chrono::seconds(1),"Browser performed blocking file I/O on UI thread");}
+    tap(*g,0,0,true);settle(*g);choose(*g,0);
+    {SharedHallLock lock(shared);const auto started=std::chrono::steady_clock::now();confirm(*g);g->render();require(std::chrono::steady_clock::now()-started<std::chrono::seconds(1),"Browser performed blocking file I/O on UI thread");}
     loaded(*g);tap(*g,0,0,true);settle(*g);require(g->page()==NativeMenuPage::Main&&g->hasSuspendedSeason(),"Hall Back did not return to its career");
     open(*g);require(hallBoardIndex(g->hallBrowser()->board())==hallBoardIndex(remembered)&&g->hallBrowser()->selected()==selectedRow,"Reopen lost filters/selected record");
     tap(*g,0,0,true);settle(*g);choose(*g,2);confirm(*g);
@@ -83,7 +86,7 @@ void boards(const fs::path& pack,const fs::path& root,NativeMenuNavigation polic
 }
 void states(const fs::path& pack,const fs::path& root){
     const auto shared=root/"shared";auto g=career(pack,root/"private",shared);open(*g);require(g->hallBrowser()->entries().empty()&&!g->hallBrowser()->unavailable(),"Empty archive was treated as broken");image(*g,root/"empty.ppm");
-    std::ofstream(shared/"index.scr-hall")<<"unreadable";tap(*g,0,8);loaded(*g);
+    std::ofstream(shared/"index.scr-hall")<<"unreadable";tap(*g,0,0,true);settle(*g);open(*g);
     require(g->hallBrowser()->unavailable(),"Corrupt shared archive silently appeared empty");image(*g,root/"unavailable.ppm");
     tap(*g,0,0,true);settle(*g);require(g->page()==NativeMenuPage::Main,"Unavailable Hall trapped the player");
     require(fs::file_size(shared/"index.scr-hall")==10,"Browser reset damaged data");

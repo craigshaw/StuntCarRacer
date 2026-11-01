@@ -81,17 +81,19 @@ category retains up to 20 attempts, including ties and multiple attempts by one
 name. Incomplete laps and opponents do not enter. Deleting/restoring a career or
 clearing its PB cannot remove shared records or their retained ghosts.
 
-The browser extends the original Hall artwork, colours and pixel font. It shows
-one board at a time, with ten entries per page. Up/down selects a filter, record
-or bottom control; left/right changes the selected filter or page. Enter/Space/A
-changes a selector or activates a bottom control. Escape/B returns to the career.
-Keyboard 1, 2 and 3 select track, league and category; 4 reloads the records.
+The browser extends the original Hall artwork, colours and pixel font. Track,
+league and category selectors are stacked above ten entries per page; tracks
+follow Division 4 through Division 1 in the same order as Practice. Up/down
+selects a filter, record or the bottom page control; left/right changes the
+selected filter or page. Enter/Space/A advances a selector or page. Escape/B
+returns to the career. Keyboard 1, 2 and 3 select track, league and category.
 These controls work with either navigation policy.
 
 **Ready** means a lap's retained ghost has been validated; **None** means no usable
 recording is available. Three-lap race entries have no ghost. Records reload on
-opening, changing a filter or selecting Reload. Filters and selected records are
-remembered during the session. Choosing a Hall ghost to race is still to come;
+opening or changing a filter; reopen the Hall to retry an unavailable archive.
+Filters and selected records are remembered during the session.
+Choosing a Hall ghost to race is still to come;
 ordinary Practice continues to use the career PB.
 
 ## Practice and seasons

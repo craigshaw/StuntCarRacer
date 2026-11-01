@@ -16,19 +16,24 @@ sessions; the enabled player has one shared Hall route, from an active career.
 The old multiplayer Hall option is disabled in the player.
 
 The header names All players and the active driver. Track, Normal/Super and
-lap/three-lap selectors choose one board, with ten rows per page. Competition ranks
-are derived across the whole board. The table contains rank, name, original time
+lap/three-lap selectors are stacked vertically above one board, with ten rows per
+page and a centred page control at the bottom. Track cycling follows the original
+Division 4-to-1 mapping (Little Ramp, Hump Back, Stepping Stones, Big Ramp, High
+Jump, Roller Coaster, Ski Jump, Draw Bridge); archive keys remain native track IDs.
+Competition ranks are derived across the whole board. The table contains rank,
+name, original time
 and verified ghost availability, with no result-history metadata. Race rows are
 results only. There is no challenge button until its launch/target flow exists.
 
-Up/down traverses selectors, visible rows and Page/Reload/Back. Left/right changes
-a filter or page; confirmation changes the focused selector or activates a bottom
-control. Back returns to the same career. Number keys 1/2/3 focus selectors and 4
-reloads. The existing input clock provides release gates and repeat timing in both
-navigation policies. Filters and selection survive reopening; a fresh snapshot
+Up/down traverses selectors, visible rows and Page. Left/right changes a filter
+or page; confirmation advances the focused selector or page. Escape/controller B
+returns to the same career. Number keys 1/2/3 focus selectors. There are no Reload
+or Back buttons or permanent instruction line. The existing input clock provides
+release gates and repeat timing in both navigation policies. Filters and selection
+survive reopening; a fresh snapshot
 follows the selected immutable ID, or clamps nearby if it was displaced.
 
-Open, filter changes and Reload submit one coalesced read request to the existing
+Open and filter changes submit one coalesced read request to the existing
 Hall worker. It publishes pending writes first, then reads a compatible index and
 validates referenced ghosts. A failed write does not prevent viewing the last
 valid committed archive. UI updates/rendering perform no file I/O; out-of-order
@@ -37,7 +42,8 @@ until refreshed, including when other game processes publish records.
 
 Empty, loading and unavailable states are distinct. Missing/corrupt/incompatible
 ghosts leave valid times visible as unavailable recordings. An unreadable archive
-offers Reload/Back and preserves its files; there is no reset/delete action.
+preserves its files and directs the player to reopen the Hall to retry; there is
+no reset/delete action.
 Changing filters, paging, loading and drawing do not change native RAM, earned
 league, season progression or RNG. Browser position is transient UI state, not
 part of career or shared record persistence.
@@ -221,7 +227,7 @@ old record bytes as newly earned times. Original CPU execution stays test-only.
 
 `scripts/check_native_game.py --verify-original --jobs 1` also identifies browser
 model/session coverage: all 32 boards, both navigation policies, page-boundary
-ties, real ghost validation, empty/error/reload states, stable IDs, original Hall
+ties, real ghost validation, empty/error/reopen states, stable IDs, original Hall
 art/palette and complete native RAM/RNG isolation. UI fixtures are explicitly
 synthetic and stay in disposable test roots; they never seed player data.
 

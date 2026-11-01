@@ -19,18 +19,32 @@ void navigation(){
     tap(b,8);require(b.page()==1&&b.selected()==19,"Record paging lost relative row");
     tap(b,2);require(b.focus()==HallBrowserFocus::Page,"Last row did not reach page control");
     tap(b,4);require(b.page()==0,"Page control did not change page");
-    tap(b,2);require(b.focus()==HallBrowserFocus::Reload,"Reload inaccessible to controller");
-    require(tap(b,16)==HallBrowserAction::Load,"Reload did not request storage read");
-    tap(b,2);require(tap(b,16)==HallBrowserAction::Back,"Back control did not close browser");
+    tap(b,2);require(b.focus()==HallBrowserFocus::Page,"Navigation went beyond the bottom page control");
+    require(tap(b,0,8)==HallBrowserAction::None&&b.focus()==HallBrowserFocus::Page,"Removed reload shortcut still active");
+    require(tap(b,16)==HallBrowserAction::None&&b.page()==1,"Page confirmation did not change page");
     require(tap(b,0,0,true)==HallBrowserAction::Back,"Escape/controller Back did not close browser");
 }
 void filtersAndMemory(){
-    HallBrowser b;b.open("A",{});b.apply(view());require(tap(b,4)==HallBrowserAction::Load&&b.board().track==7&&b.busy(),"Track wrap did not load previous board");
+    HallBrowser b;b.open("A",{});b.apply(view());require(tap(b,4)==HallBrowserAction::Load&&b.board().track==5&&b.busy(),"Track wrap did not load previous board");
     require(b.entries().empty(),"Stale table appeared under new track label");tap(b,0,2);tap(b,8);require(b.board().league==HallLeague::Super,"Super filter failed");
     tap(b,0,4);tap(b,16);require(b.board().kind==HallRecordKind::Race,"Race category failed");
-    b.open("Other",{2,HallLeague::Normal,HallRecordKind::Lap});require(b.driver()=="Other"&&b.board().track==7&&b.board().league==HallLeague::Super&&b.board().kind==HallRecordKind::Race,"Reopen lost filters or active driver");
+    b.open("Other",{2,HallLeague::Normal,HallRecordKind::Lap});require(b.driver()=="Other"&&b.board().track==5&&b.board().league==HallLeague::Super&&b.board().kind==HallRecordKind::Race,"Reopen lost filters or active driver");
     b.apply(view());require(b.busy(),"Out-of-order board response was accepted");
     auto empty=view(0);empty.board=b.board();b.apply(empty);require(b.entries().empty()&&b.pages()==1&&b.page()==0&&!b.unavailable(),"Empty board treated as error");
+}
+void divisionOrder(){
+    const unsigned expected[]{0,2,1,3,6,7,4,5};
+    for(unsigned league=0;league<2;++league){
+        HallBrowser b;b.open("A",{0,HallLeague(league),HallRecordKind::Lap});
+        for(unsigned n=0;n<8;++n){
+            require(b.board().track==expected[n],"Track selector does not follow Division 4 through Division 1");
+            require(tap(b,8)==HallBrowserAction::Load,"Track change did not request the actual track board");
+        }
+        require(b.board().track==0,"Forward track cycle did not wrap");
+        for(unsigned n=8;n>0;--n){tap(b,4);require(b.board().track==expected[n-1],"Reverse track cycle differs from league order");}
+    }
+    HallBrowser b;b.open("A",{6,HallLeague::Super,HallRecordKind::Lap});tap(b,8);
+    require(b.board().track==7,"Non-first initial track was treated as a display ordinal");
 }
 void stableIdentity(){
     HallBrowser b;b.open("A",{});auto initial=view();b.apply(initial);tap(b,2);tap(b,2);tap(b,2);for(unsigned n=0;n<9;++n)tap(b,2);
@@ -45,10 +59,10 @@ void stableIdentity(){
 void heldInput(){
     HallBrowser b;b.open("A",{}, {16,0,false});b.apply(view());
     require(b.update(2,{16,0,false})==HallBrowserAction::None&&b.board().track==0,"Held entry confirmation changed filter");
-    require(tap(b,16)==HallBrowserAction::Load&&b.board().track==1,"Fresh confirmation did not change selector");
+    require(tap(b,16)==HallBrowserAction::Load&&b.board().track==2,"Fresh confirmation did not change selector");
     b.block({0,0,true});require(b.update(1,{0,0,true})==HallBrowserAction::None,"Held Back crossed screen boundary");
     require(tap(b,0,0,true)==HallBrowserAction::Back,"Fresh Back failed after release");
 }
 }
-int main()try{navigation();filtersAndMemory();stableIdentity();heldInput();std::cout<<"Hall browser: "<<checks<<" checks passed\n";return 0;}
+int main()try{navigation();filtersAndMemory();divisionOrder();stableIdentity();heldInput();std::cout<<"Hall browser: "<<checks<<" checks passed\n";return 0;}
 catch(const std::exception& e){std::cerr<<e.what()<<'\n';return 1;}

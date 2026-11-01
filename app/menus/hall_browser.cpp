@@ -1,10 +1,13 @@
 #include "menus/hall_browser.h"
 
 namespace scr::runtime {
+namespace {
+// Division 4 through Division 1. Archive keys retain their native track IDs.
+constexpr std::array<unsigned,8> trackOrder{{0,2,1,3,6,7,4,5}};
+}
 void HallBrowser::open(std::string driver,HallBoardKey initial,const NativeMenuInput& held){
     (void)hallBoardIndex(initial);driver_=std::move(driver);
     if(!initialised_){board_=initial;initialised_=true;}
-    if(focus_==HallBrowserFocus::Back)focus_=HallBrowserFocus::Track;
     loading_=true;clock_.enterScreen(held);
 }
 const std::vector<HallEntry>& HallBrowser::entries()const noexcept{
@@ -17,7 +20,7 @@ void HallBrowser::selection(unsigned row){
 void HallBrowser::apply(const HallBrowserRead& read){
     if(hallBoardIndex(read.board)!=hallBoardIndex(board_))return;
     loading_=false;unavailable_=!read.error.empty()||!read.archive.hall;
-    if(unavailable_){hall_.reset();ghosts_.fill(false);if(focus_==HallBrowserFocus::Records)focus_=HallBrowserFocus::Reload;return;}
+    if(unavailable_){hall_.reset();ghosts_.fill(false);if(focus_==HallBrowserFocus::Records)focus_=HallBrowserFocus::Category;return;}
     hall_=read.archive.hall;ghosts_=read.ghosts;
     if(selectedId_){const auto& board=entries();const auto found=std::find_if(board.begin(),board.end(),[&](const auto& e){return e.attempt.id==*selectedId_;});
         if(found!=board.end()){selection(unsigned(found-board.begin()));return;}}
@@ -30,7 +33,7 @@ void HallBrowser::move(int direction){
         if(direction<0){if(selected_>first)selection(selected_-1);else focus_=HallBrowserFocus::Category;}
         else{if(selected_+1<last)selection(selected_+1);else focus_=HallBrowserFocus::Page;}return;
     }
-    const auto next=int(focus_)+direction;if(next<0||next>int(HallBrowserFocus::Back))return;
+    const auto next=int(focus_)+direction;if(next<0||next>int(HallBrowserFocus::Page))return;
     focus_=HallBrowserFocus(next);
     if(focus_==HallBrowserFocus::Records){
         if(entries().empty())focus_=direction>0?HallBrowserFocus::Page:HallBrowserFocus::Category;
@@ -46,17 +49,17 @@ HallBrowserAction HallBrowser::update(double elapsed,const NativeMenuInput& held
     if(input.numberedKeys&1)focus_=HallBrowserFocus::Track;
     if(input.numberedKeys&2)focus_=HallBrowserFocus::League;
     if(input.numberedKeys&4)focus_=HallBrowserFocus::Category;
-    if(input.numberedKeys&8){focus_=HallBrowserFocus::Reload;return HallBrowserAction::Load;}
     if(input.controls&1)move(-1);else if(input.controls&2)move(1);
     int direction=(input.controls&4)?-1:(input.controls&8)?1:0;
     if(input.controls&16){
-        if(focus_==HallBrowserFocus::Back)return HallBrowserAction::Back;
-        if(focus_==HallBrowserFocus::Reload)return HallBrowserAction::Load;
         if(focus_!=HallBrowserFocus::Records)direction=1;
     }
     if(!direction)return HallBrowserAction::None;
     switch(focus_){
-    case HallBrowserFocus::Track:board_.track=unsigned((int(board_.track)+direction+8)%8);break;
+    case HallBrowserFocus::Track:{
+        const auto ordinal=std::find(trackOrder.begin(),trackOrder.end(),board_.track)-trackOrder.begin();
+        board_.track=trackOrder[unsigned((int(ordinal)+direction+8)%8)];break;
+    }
     case HallBrowserFocus::League:board_.league=board_.league==HallLeague::Normal?HallLeague::Super:HallLeague::Normal;break;
     case HallBrowserFocus::Category:board_.kind=board_.kind==HallRecordKind::Lap?HallRecordKind::Race:HallRecordKind::Lap;break;
     case HallBrowserFocus::Records:case HallBrowserFocus::Page:changePage(direction);return HallBrowserAction::None;

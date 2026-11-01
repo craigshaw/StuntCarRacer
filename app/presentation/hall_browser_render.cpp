@@ -32,16 +32,16 @@ NativeMenuImage makeHallBrowserImage(const NativeMemory& m,const HallBrowser& b)
     std::string track(m.begin()+0x1edaa+b.board().track*16,m.begin()+0x1edaa+b.board().track*16+15);
     while(!track.empty()&&track.back()==' ')track.pop_back();
     control(m,image,b,HallBrowserFocus::Track,"1.Track: < "+track+" >",4,65,316);
-    control(m,image,b,HallBrowserFocus::League,b.board().league==HallLeague::Normal?"2.League: Normal":"2.League: Super",4,76,155);
-    control(m,image,b,HallBrowserFocus::Category,b.board().kind==HallRecordKind::Lap?"3.Type: Lap":"3.Type: 3-lap race",164,76,155);
-    rect(image,0,86,320,9,12);text(m,image,"Rk",4,86,0);text(m,image,"Driver",28,86,0);text(m,image,"Time",195,86,0);text(m,image,"Ghost",266,86,0);
-    if(b.busy()&&b.entries().empty())text(m,image,"Loading records...",90,126,15);
-    else if(b.unavailable()){text(m,image,"Hall records unavailable",62,118,15);text(m,image,"Select Reload to try again",48,134,12);}
-    else if(b.entries().empty()){text(m,image,"No records yet",111,118,15);
-        text(m,image,b.board().kind==HallRecordKind::Lap?"Complete a lap to enter":"Finish a three-lap race",83,134,12);}
+    control(m,image,b,HallBrowserFocus::League,b.board().league==HallLeague::Normal?"2.League: < Normal >":"2.League: < Super >",4,76,316);
+    control(m,image,b,HallBrowserFocus::Category,b.board().kind==HallRecordKind::Lap?"3.Type: < Lap >":"3.Type: < 3-lap race >",4,87,316);
+    rect(image,0,98,320,9,12);text(m,image,"Rk",4,98,0);text(m,image,"Driver",28,98,0);text(m,image,"Time",195,98,0);text(m,image,"Ghost",266,98,0);
+    if(b.busy()&&b.entries().empty())text(m,image,"Loading records...",90,138,15);
+    else if(b.unavailable()){text(m,image,"Hall records unavailable",62,130,15);text(m,image,"Reopen Hall to try again",83,146,12);}
+    else if(b.entries().empty()){text(m,image,"No records yet",111,130,15);
+        text(m,image,b.board().kind==HallRecordKind::Lap?"Complete a lap to enter":"Finish a three-lap race",83,146,12);}
     else{
         const auto& entries=b.entries();const auto first=b.page()*10;
-        for(unsigned n=first;n<entries.size()&&n<first+10;++n){const auto y=96+(n-first)*8;const auto& a=entries[n].attempt;
+        for(unsigned n=first;n<entries.size()&&n<first+10;++n){const auto y=108+(n-first)*8;const auto& a=entries[n].attempt;
             const bool selected=b.focus()==HallBrowserFocus::Records&&n==b.selected();
             rect(image,1,y,20,8,selected?7:4);rect(image,24,y,140,8,selected?10:9);rect(image,167,y,74,8,n%2?2:1);rect(image,244,y,74,8,n%2?2:1);
             text(m,image,std::to_string(b.rank(n)),4,y,selected?0:15);text(m,image,a.name,28,y,7);
@@ -49,8 +49,7 @@ NativeMenuImage makeHallBrowserImage(const NativeMemory& m,const HallBrowser& b)
             text(m,image,a.board.kind==HallRecordKind::Race?"-":b.ghost(n)?"Ready":"None",266,y,b.ghost(n)?15:12);
         }
     }
-    control(m,image,b,HallBrowserFocus::Page,"< Page "+std::to_string(b.page()+1)+"/"+std::to_string(b.pages())+" >",4,179,114);
-    control(m,image,b,HallBrowserFocus::Reload,b.busy()?"Loading":"4.Reload",180,179,64);control(m,image,b,HallBrowserFocus::Back,"Back",282,179,36);
-    text(m,image,"Arrows Select/change A/Enter B/Esc",4,191,12);return image;
+    control(m,image,b,HallBrowserFocus::Page,"< Page "+std::to_string(b.page()+1)+"/"+std::to_string(b.pages())+" >",104,191,114);
+    return image;
 }
 } // namespace scr::runtime

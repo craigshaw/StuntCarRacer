@@ -3,7 +3,7 @@
 #include "persistence/shared_hall_store.h"
 
 namespace scr::runtime {
-enum class HallBrowserFocus {Track,League,Category,Records,Page,Reload,Back};
+enum class HallBrowserFocus {Track,League,Category,Records,Page};
 enum class HallBrowserAction {None,Load,Back};
 // Presentation/navigation state only. No filesystem, native RAM or race rules.
 class HallBrowser {

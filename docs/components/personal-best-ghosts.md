@@ -245,9 +245,19 @@ Rejected-line endpoints used for viewport closure retain attributes within the
 source segment. A missing depth attribute remains unknown; no constant or nearby
 edge fallback can make the complete-coverage test pass.
 
+Distance-dependent drawing also omits road-height samples, including in the
+later dense passes as well as the cached far panels. On a banked bend that
+simplified surface can rise above the recorded car and falsely hide it. Fills
+retain their source segment ownership through merging. A ghost depth query
+decodes those segments' full height strips on private presentation state, using
+the current frame's track data (including Draw Bridge). Angular intersections
+use those strips within the existing painted spans; colour, coverage, painter
+order and line allocation stay unchanged. Only ghost queries perform this work.
+The ghost retains its recorded path, with no snapping to the simplified road.
+
 Depth metadata is private presentation state and is not serialized by recovered
 RAM adapters. Ordinary queries retain their colour path; the ghost consumes a
-copied depth layer and its own resolved car layer. No extra road geometry,
+copied depth layer and its own resolved car layer. No extra painted road pixels,
 original line allocation or simulation writes are required. A standalone mesh
 depth path remains available only for renderer diagnostics.
 
@@ -310,6 +320,11 @@ not a promise that legitimate foreground geometry can never hide the ghost.
 `preview-corner.gif` and `preview-jump-side.gif` show these queries; unit checks
 verify projected pitch/roll magnitude, unchanged flat proportions, suspension
 allowance, angular road depth and continued foreground-wall occlusion.
+An additional 52 following-camera queries cover a target 24 updates ahead on
+the first bend in all four apertures, requiring over 75 percent visibility.
+This catches distance-thinned road falsely hiding the entire car. Unit checks
+also place the ghost beyond either original horizontal boundary and require
+it to remain visible in the wider apertures.
 
 The proof sweeps every retained update and quarter-update presentation position
 in all four apertures, requiring zero painted road/side pixels without depth.

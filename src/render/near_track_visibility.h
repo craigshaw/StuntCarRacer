@@ -65,6 +65,9 @@ struct NearTrackDrawCommand {
     // Unmerged source strips for auxiliary depth only. The recovered painter
     // may merge many non-coplanar strips into one colour fill.
     std::vector<std::array<RenderCameraRelative,4>> depthPatches;
+    // Segment ownership survives painter merging and distance simplification.
+    // Ghost queries can recover full height samples without changing the fill.
+    std::vector<std::uint8_t> depthSegments;
 };
 struct NearTrackDrawInputs {
     std::uint16_t minimumQueueOffset{};

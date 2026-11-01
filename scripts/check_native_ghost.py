@@ -147,6 +147,8 @@ def main():
         raise RuntimeError('Ghost proof did not establish isolation and complete painted-depth coverage')
     if report.get('banked_corner_pose_queries') != 320 or report.get('jump_pose_queries') != 320:
         raise RuntimeError('Ghost proof omitted banked-corner or ramp-flight pose regressions')
+    if report.get('distant_bend_queries') != 52 or report.get('minimum_distant_bend_visibility_fraction', 0) <= .75:
+        raise RuntimeError('Ghost proof omitted or failed the distant bend visibility regression')
     if report.get('tyre_glyph_comparisons') != 48 or max(report['maximum_tyre_width_difference_pixels'], report['maximum_tyre_height_difference_pixels']) > 2:
         raise RuntimeError('Ghost proof omitted or failed the opposition tyre-size comparisons')
     qa = visuals(output)

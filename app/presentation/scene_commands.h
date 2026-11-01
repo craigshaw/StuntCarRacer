@@ -20,4 +20,8 @@ SceneCommands buildSceneCommands(const NearTrackFrame&,
     const OpponentFarTrackData&,const NearTrackGeometryState&,
     const MountainHorizonData&,std::uint16_t yaw,const RenderProjectionCamera&,
     const std::optional<OpponentCarInputs>& opponent=std::nullopt);
+// Ghost-only depth query: retain painted spans/order, but recover the height
+// samples omitted by distance-dependent road drawing. All state stays private.
+NearTrackPresentation refineGhostTrackDepth(const NearTrackPresentation&,
+    const TrackProgressData&,const RenderCameraInputs&,const RenderProjectionCamera&);
 } // namespace scr::runtime

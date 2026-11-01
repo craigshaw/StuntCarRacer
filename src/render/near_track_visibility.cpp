@@ -157,7 +157,10 @@ FillResult fill(std::vector<NearTrackDrawCommand>& output,const NearTrackQueueSt
         const auto& edge=q.entries.at(cursor/32).edges[vertical];clip&=edge.clipFlags;if(!edge.present)return {barrierOffset};front.push_back(edge);
     }
     if(clip&15)return {barrierOffset};
-    command.edges=std::move(front);command.edges.insert(command.edges.end(),back.begin(),back.end());output.push_back(std::move(command));
+    command.edges=std::move(front);command.edges.insert(command.edges.end(),back.begin(),back.end());
+    for(unsigned at=end;at>first;at-=32){const auto segment=q.entries.at(at/32).segment;
+        if(std::find(command.depthSegments.begin(),command.depthSegments.end(),segment)==command.depthSegments.end())command.depthSegments.push_back(segment);}
+    output.push_back(std::move(command));
     return {barrierOffset};
 }
 void lineCommand(std::vector<NearTrackDrawCommand>& out,const NearTrackEdge& e,unsigned color,NearTrackSurface surface,unsigned end,unsigned first){

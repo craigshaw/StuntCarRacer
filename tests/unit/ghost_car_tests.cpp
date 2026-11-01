@@ -180,6 +180,14 @@ int main()try{
         pixels.assign((256+2*padding)*200,background);coverage.assign((256+2*padding)*(144+bottom),0);
         require(renderer.draw(pose,style,{}, {},camera,tables,pixels,coverage,padding,true,bottom).visiblePixels>0,"Expanded ghost view is empty");++views;
     }
+    // Follow a car outside the original 4:3 horizontal aperture on either
+    // side. Widescreen must retain it rather than borrowing original bounds.
+    for(double offset:{-30.0,30.0}){auto beside=pose;beside.position.x+=offset;
+        pixels.assign(320*200,background);coverage.assign(256*128,0);
+        require(!renderer.draw(beside,style,{}, {},camera,tables,pixels,coverage).silhouettePixels,"Aperture fixture remained inside Original");
+        for(int padding:{88,304}){pixels.assign((256+2*padding)*200,background);coverage.assign((256+2*padding)*200,0);
+            require(renderer.draw(beside,style,{}, {},camera,tables,pixels,coverage,padding,true,56).visiblePixels>0,"Wide ghost was clipped to original screen bounds");}
+    }
     bool rejected=false;style.opacity=std::numeric_limits<double>::quiet_NaN();
     try{renderer.draw(pose,style,{}, {},camera,tables,pixels,coverage,304,true,56);}catch(const std::invalid_argument&){rejected=true;}
     require(rejected,"Nonfinite ghost opacity was accepted");

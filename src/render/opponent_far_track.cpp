@@ -34,7 +34,9 @@ NearTrackEdge line(OpponentFarTrackFrame& out,const NearTrackVertex& a,const Nea
 }
 void quad(std::vector<NearTrackDrawCommand>& out,const NearTrackQueueState& q,unsigned end,unsigned first,NearTrackSurface surface,unsigned color,std::array<const NearTrackEdge*,4> edges){
     unsigned common=15;for(const auto* e:edges){if(!e->present)return;common&=e->clipFlags;}if(common)return;
-    NearTrackDrawCommand c{};c.kind=NearTrackCommandKind::fill;c.surface=surface;c.color=std::uint8_t(color);c.originQueueOffset=std::uint16_t(end);c.firstQueueOffset=std::uint16_t(first);for(auto e:edges)c.edges.push_back(*e);out.push_back(std::move(c));(void)q;
+    NearTrackDrawCommand c{};c.kind=NearTrackCommandKind::fill;c.surface=surface;c.color=std::uint8_t(color);c.originQueueOffset=std::uint16_t(end);c.firstQueueOffset=std::uint16_t(first);for(auto e:edges)c.edges.push_back(*e);
+    c.depthSegments.push_back(q.entries.at(end/32).segment);
+    out.push_back(std::move(c));
 }
 } // namespace
 OpponentFarTrackFrame buildOpponentFarTrack(const OpponentFarTrackData& data,const RenderProjectionTables& tables,const NearTrackGeometryState& initial,const NearTrackQueueState& dense){

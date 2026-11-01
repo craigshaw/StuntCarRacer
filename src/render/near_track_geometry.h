@@ -3,6 +3,7 @@
 #include "track/track_progress.h"
 #include <array>
 #include <cstdint>
+#include <vector>
 
 namespace scr {
 struct NearTrackVertex {
@@ -34,6 +35,10 @@ inline bool nearTrackInsideX(int x,int padding){return std::uint16_t(x+padding)<
 // upper vertices and admit lower edges. State carries the original adjacent
 // segment coordinates and processed-side history. No runtime CPU dependency.
 void projectNearTrackSegment(const TrackProgressData&,NearTrackGeometryState&);
+// Full source-height strips, without visibility thinning, projection or line
+// allocation. Camera coordinates use the same native descriptor/height decode.
+std::vector<std::array<RenderCameraRelative,4>> buildDetailedTrackDepth(
+    const TrackProgressData&,const TrackProgressState&,std::uint8_t segment);
 // Queue visibility may request a ground-level side point which the initial
 // silhouette test rejected. byteIndex is the upper vertex's original index.
 void materializeNearTrackLower(const TrackProgressData&,NearTrackGeometryState&,std::uint8_t byteIndex);

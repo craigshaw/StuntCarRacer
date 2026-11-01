@@ -32,6 +32,7 @@ std::uint64_t framesHash(const std::vector<RaceFrame>& frames){
                 for(const auto& p:{edge.from.source,edge.to.source})for(double d:{p.side,p.down,p.forward}){std::uint64_t bits;std::memcpy(&bits,&d,sizeof(bits));hash=hash*1099511628211ULL+bits;}
             }
             for(const auto& patch:command.depthPatches)for(const auto& p:patch)for(double d:{p.side,p.down,p.forward}){std::uint64_t bits;std::memcpy(&bits,&d,sizeof(bits));hash=hash*1099511628211ULL+bits;}
+            for(auto segment:command.depthSegments)hash=hash*1099511628211ULL+segment;
         }
     }return hash;
 }
@@ -76,7 +77,7 @@ void ppm(const std::filesystem::path& path,const std::vector<std::uint32_t>& pix
     require(bool(out),"Cannot write proportion comparison");
 }
 struct ProportionStatistics {unsigned cases{},maximumWidthDifference{},maximumRearHeightDifference{},tyreCases{},maximumTyreWidthDifference{},maximumTyreHeightDifference{};};
-struct PoseRegressionStatistics {unsigned cornerQueries{},jumpQueries{};double minimumCornerVisibility{1};};
+struct PoseRegressionStatistics {unsigned cornerQueries{},jumpQueries{},distantQueries{};double minimumCornerVisibility{1},minimumDistantVisibility{1};};
 PoseRegressionStatistics poseRegressions(RaceScene& scene,const TrigTable& trig,const std::filesystem::path& output,bool preview){
     PoseRegressionStatistics stats;const auto& frames=scene.frames();
     // Named regressions from the retained native lap: the first banked turn
@@ -99,6 +100,21 @@ PoseRegressionStatistics poseRegressions(RaceScene& scene,const TrigTable& trig,
             require(!s.trackPixelsWithoutDepth,"Pose regression exposed a painted-depth boundary gap");
             if(preview&&aperture==NativeView::Widescreen)scene.saveBitmap(folder/(std::to_string(1000+n).substr(1)+".bmp"));
         }
+    }
+    // A following driver, with the target 2.88 seconds ahead on the first
+    // bend. Distance thinning used to hide its entire on-screen silhouette.
+    for(auto aperture:{NativeView::Original,NativeView::Extended,NativeView::Widescreen,NativeView::Ultrawide}){
+        CameraViewSettings view;view.view=aperture;
+        for(unsigned n=0;n<13;++n){const auto time=112+n*.5;
+            scene.renderGhostView(time,view,sample(frames,time+24,trig));const auto s=scene.ghostStatistics();
+            require(s.silhouettePixels>=5,("Distant bend regression left the aperture at "+std::to_string(time)+", "+viewName(aperture)+", pixels "+std::to_string(s.silhouettePixels)).c_str());
+            const auto fraction=double(s.visiblePixels)/s.silhouettePixels;
+            require(fraction>.75,"Distance-thinned road falsely hid the ghost on a bend");
+            ++stats.distantQueries;stats.minimumDistantVisibility=std::min(stats.minimumDistantVisibility,fraction);
+            require(!s.trackPixelsWithoutDepth,"Distant bend regression exposed a depth gap");
+        }
+        scene.renderGhostView(222,view,sample(frames,234,trig));const auto crest=scene.ghostStatistics();
+        require(crest.silhouettePixels>20&&!crest.visiblePixels,"Detailed depth exposed a ghost behind the ramp crest");
     }
     return stats;
 }
@@ -321,6 +337,7 @@ int main(int argc,char** argv)try{
         <<",\n  \"tyre_glyph_comparisons\":"<<proportionStats.tyreCases<<",\n  \"maximum_tyre_width_difference_pixels\":"<<proportionStats.maximumTyreWidthDifference
         <<",\n  \"maximum_tyre_height_difference_pixels\":"<<proportionStats.maximumTyreHeightDifference
         <<",\n  \"banked_corner_pose_queries\":"<<poseStats.cornerQueries<<",\n  \"jump_pose_queries\":"<<poseStats.jumpQueries
+        <<",\n  \"distant_bend_queries\":"<<poseStats.distantQueries<<",\n  \"minimum_distant_bend_visibility_fraction\":"<<poseStats.minimumDistantVisibility
         <<",\n  \"minimum_banked_corner_visibility\":"<<poseStats.minimumCornerVisibility
         <<",\n  \"depth_source\":\"angular source-strip intersections within original painter spans, with endpoint depth at fill closure\",\n  \"production_occlusion_accepted\":false"
         <<",\n  \"average_masked_render_ms\":"<<renderMilliseconds/endpointChecks<<",\n  \"maximum_masked_render_ms\":"<<maxRenderMilliseconds

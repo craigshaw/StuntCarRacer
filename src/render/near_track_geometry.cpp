@@ -119,6 +119,25 @@ void admitLower(const TrackProgressData& d,NearTrackGeometryState& s,unsigned in
     if(visible){auto& lower=point(s,index+120);lower.height=512;lower.x=point(s,index).x;lower.inverseDepth=point(s,index).inverseDepth;lower.source=point(s,index).source;vertical(d,s,lower);rotate(lower,s.camera);}
 }
 } // namespace
+std::vector<std::array<RenderCameraRelative,4>> buildDetailedTrackDepth(
+    const TrackProgressData& data,const TrackProgressState& camera,std::uint8_t segment){
+    NearTrackGeometryState state;state.progress=camera;state.progress.currentSegment=segment;
+    state.progress.segment=loadTrackSegmentConfiguration(data.track,segment);segmentBase(data,state);
+    const auto& config=state.progress.segment;
+    if(config.limitDoubled>120||config.limitDoubled<4)throw std::out_of_range("Detailed depth exceeds segment coordinate buffer");
+    state.heightDifference=b((camera.cameraRotation>>8)-config.slopeFlags);
+    state.trackOffsetBase=b(read(data,offset(config.descriptorOffset))+7);
+    if(config.reverseDirection)state.trackOffsetBase=b(state.trackOffsetBase+(config.limit-1)*4);
+    std::array<RenderCameraRelative,60> vertices{};
+    for(unsigned index=0;index<config.limitDoubled;index+=2){
+        const auto xy=coordinates(data,state,coordinateIndex(state,index));
+        auto& source=vertices[index/2];source=renderCoordinateRelative(xy[0],xy[1],camera.cameraYaw,16);
+        source.down=sw(w(int(camera.cameraHeight)-height(data,state,(index&2)!=0,index/4)))/64.0;
+    }
+    std::vector<std::array<RenderCameraRelative,4>> patches;
+    for(unsigned n=0;n+3<unsigned(config.limitDoubled)/2;n+=2)patches.push_back({vertices[n],vertices[n+1],vertices[n+3],vertices[n+2]});
+    return patches;
+}
 void projectNearTrackSegment(const TrackProgressData& d,NearTrackGeometryState& s){
     s.progress.segment=loadTrackSegmentConfiguration(d.track,s.progress.currentSegment);segmentBase(d,s);
     s.heightDifference=b((s.progress.cameraRotation>>8)-s.progress.segment.slopeFlags);

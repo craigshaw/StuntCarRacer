@@ -512,7 +512,8 @@ void RaceScene::draw(const PresentationPose& frame,const NearTrackPresentation& 
     const bool wide=isWideView(view),extended=view!=NativeView::Original;
     if(showCockpit&&!wide)makeRaceBackground(assets_,pixels_);else pixels_.assign(viewWidth(view)*200,0);
     const auto mountains=projectMountainHorizon(mountains_,frame.pose.yaw,frame.camera,viewPadding(view));
-    statistics_=renderer_.drawFrame(movingTrack?movingTrack->mesh:mesh_,movingTrack?movingTrack->sides:sides_,mountains,frame.camera,projection_,assets_.palette,pixels_,wireframe,&nearTrack,viewPadding(view),extended,wide?56:0,ghost&&ghostStyle->occlusion);
+    const auto ghostDepth=ghost&&ghostStyle->occlusion?std::optional<NearTrackPresentation>(refineGhostTrackDepth(nearTrack,movingTrack?movingTrack->progress:presentationTrack_,frame.pose,frame.camera)):std::nullopt;
+    statistics_=renderer_.drawFrame(movingTrack?movingTrack->mesh:mesh_,movingTrack?movingTrack->sides:sides_,mountains,frame.camera,projection_,assets_.palette,pixels_,wireframe,ghostDepth?&*ghostDepth:&nearTrack,viewPadding(view),extended,wide?56:0,ghost&&ghostStyle->occlusion);
     ghostStatistics_={};
     if(ghost)ghostStatistics_=ghostRenderer_.draw(*ghost,*ghostStyle,movingTrack?movingTrack->mesh:mesh_,
         movingTrack?movingTrack->sides:sides_,frame.camera,projection_,pixels_,renderer_.worldCoverage(),viewPadding(view),extended,wide?56:0,&renderer_.worldInverseDepth());

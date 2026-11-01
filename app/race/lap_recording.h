@@ -1,5 +1,6 @@
 #pragma once
 #include "input/drive_input.h"
+#include "race/ghost_lap_data.h"
 #include "presentation/ghost_bridge.h"
 #include "presentation/presentation_interpolation.h"
 #include "race/race_timing.h"
@@ -20,22 +21,6 @@ struct GhostLapKey {
 };
 struct GhostLapContext {GhostLapKey key;GhostLapSource source{};std::uint64_t trackContentIdentity{};};
 std::uint64_t ghostTrackContentIdentity(const std::vector<std::uint8_t>& payload);
-constexpr unsigned maxGhostLapSamples=65536,maxGhostLapBridgeShapes=64;
-constexpr std::uint16_t noGhostBridge=0xffff;
-struct GhostLapSample {
-    std::int64_t microseconds{};
-    RenderCameraInputs pose;
-    std::uint16_t bridge{noGhostBridge};
-    GhostBridgeRegion region{};
-    std::uint8_t segment{};
-    bool cut{};
-};
-struct GhostLapBoundary {
-    std::int64_t observedMicroseconds{},alignedMicroseconds{};
-    std::uint16_t progress{};
-    std::uint8_t correctionHundredths{};
-    bool interpolated{},recovery{};
-};
 struct GhostLap {
     GhostLapContext context;
     PackedLapTime completedTime;

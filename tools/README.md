@@ -29,7 +29,7 @@ Focus loss or controller disconnection pauses and requires explicit resume.
 The replay shortcut is `replay/Watch Native Replay.cmd`; original-game emulation
 tools live separately in [research/](research/README.md).
 
-## Shared Hall storage proof
+## Shared Hall storage proofs
 
 `scripts/check_native_hall.py` builds focused model/codec/storage CTests and
 `native_hall_storage_proof`, using disposable data under ignored `analysis/`.
@@ -44,6 +44,15 @@ Reports check distinct user SIDs and matching executable/source identities and
 remain explicitly pending until that step passes. No accounts are created and
 no credentials are collected. Full durable storage and player integration are
 outside this first proof; see the [component contract](../docs/components/shared-hall-of-fame.md).
+
+`scripts/check_native_hall_store.py` checks the durable shared store and its
+owner-neutral ghost codec, along with private PB codec/recording regressions.
+`native_hall_store_proof` runs two real merge workers starting with stale empty
+observations, then terminates owned child writers at seven transaction stages.
+It checks recovery, retry deduplication and usable referenced ghosts. Reports,
+logs and disposable data stay under `analysis/hall-of-fame/durable-store/`.
+This proof covers process interruption, not power loss or another Windows login;
+the foundation account proof remains separate. Player integration is still pending.
 
 ## Static ghost rendering proof
 

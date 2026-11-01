@@ -26,3 +26,9 @@ career-menu route, verifies ghost files on the Hall worker, and retains previews
 for visual review. Both navigation policies, all 32 boards, page-boundary ranks,
 empty/error states and native RAM/RNG isolation are covered. The original Hall
 renderer still has independent pixel comparisons in `oracle/`.
+
+`native_hall_challenge_tests` covers pinned targets, every track/league challenge
+setup under both navigation policies, preview cancel/race return, safe career
+close/resume and missing/cancelled resolution. An explicitly captured-entry
+earned-lap fixture checks visible playback, PB clear/re-record, archive collection
+and native memory/RNG isolation; it is not a fresh-start completed-lap claim.

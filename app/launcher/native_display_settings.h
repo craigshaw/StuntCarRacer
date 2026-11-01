@@ -51,10 +51,11 @@ public:
     unsigned optionCount()const noexcept;
     bool canLeaveRace()const noexcept{return canLeaveRace_;}
     NativeQuitContext quitContext()const noexcept{return quitContext_;}
-    void setPracticeGhostContext(bool active,std::wstring time={},bool canClear=false){practice_=active;bestTime_=std::move(time);clearGhost_=active&&canClear;if(page_==NativeDisplayPage::Pause&&selected_>=optionCount())selected_=0;}
+    void setPracticeGhostContext(bool active,std::wstring time={},bool canClear=false,std::wstring target=L"Career PB"){practice_=active;bestTime_=std::move(time);target_=std::move(target);clearGhost_=active&&canClear;if(page_==NativeDisplayPage::Pause&&selected_>=optionCount())selected_=0;}
     bool practiceGhostContext()const noexcept{return practice_;}
     bool canClearGhost()const noexcept{return clearGhost_;}
     const std::wstring& bestTime()const noexcept{return bestTime_;}
+    const std::wstring& practiceTarget()const noexcept{return target_;}
     NativeDisplayAction takeAction()noexcept{const auto action=action_;action_=NativeDisplayAction::None;return action;}
     void openSettings(unsigned held=0);
     void openGameMenu(bool allowLeaveRace,unsigned held=0,NativeQuitContext context=NativeQuitContext::General);
@@ -73,7 +74,7 @@ private:
     unsigned selected_{},previous_{};
     bool waitForRelease_{},canLeaveRace_{};
     bool practice_{},clearGhost_{};
-    std::wstring bestTime_;
+    std::wstring bestTime_,target_;
     NativeDisplayAction action_{NativeDisplayAction::None};
     NativeQuitContext quitContext_{NativeQuitContext::General};
 };

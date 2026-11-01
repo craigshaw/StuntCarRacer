@@ -140,6 +140,9 @@ void NativeGameSession::cancelCareerCreation(){
 }
 void NativeGameSession::saveCheckpoint(bool terminal){
     if(!activeCareer_||creatingCareer_||!menu_||(*data_.memory)[0x5eb76]||openingActive())return;
+    // A challenge is a temporary world. Persist the career's safe continuation,
+    // never its temporary league, preview RNG or Practice race state.
+    if(hallChallenge_){careerStore_->saveCareer(*activeCareer_,checkpoint_);return;}
     if(finishPending_){careerStore_->saveCareer(*activeCareer_,checkpoint_);return;}
     NativeCareerCheckpoint c;c.memory=std::make_unique<NativeMemory>(*data_.memory);c.menu=menu_->continuation();
     c.suspendedSeason=suspendedSeason_;
@@ -333,6 +336,7 @@ bool NativeGameSession::updateCareers(double elapsed,const NativeGameInput& held
     if(activeCareer_&&!openingActive()&&menu_&&!(*data_.memory)[0x5eb76]){
         const auto current=page();
         if(pulse.back){
+            if(hallChallenge_&&current==NativeMenuPage::Preview){returnHallChallenge(held.menu);return true;}
             if(current==NativeMenuPage::Preview||current==NativeMenuPage::Division||current==NativeMenuPage::Track||current==NativeMenuPage::HallOfFame){
                 menu_->setNavigation(NativeMenuNavigation::Responsive);const auto action=menu_->back();menu_->setNavigation(navigation_);
                 if(action==NativeMenuAction::LeaveHallOfFame)(*data_.memory)[0x5d724]=0x41;

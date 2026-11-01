@@ -46,10 +46,11 @@ NativeMenuImage makeHallBrowserImage(const NativeMemory& m,const HallBrowser& b)
             rect(image,1,y,20,8,selected?7:4);rect(image,24,y,140,8,selected?10:9);rect(image,167,y,74,8,n%2?2:1);rect(image,244,y,74,8,n%2?2:1);
             text(m,image,std::to_string(b.rank(n)),4,y,selected?0:15);text(m,image,a.name,28,y,7);
             const auto time=formatHallTime(a.time,a.board.kind);text(m,image,time,236-unsigned(time.size())*7,y,15);
-            text(m,image,a.board.kind==HallRecordKind::Race?"-":b.ghost(n)?"Ready":"None",266,y,b.ghost(n)?15:12);
+            text(m,image,selected&&b.busy()?"Loading":a.board.kind==HallRecordKind::Race?"-":b.ghost(n)?"Ready":"None",266,y,b.ghost(n)?15:12);
         }
     }
     control(m,image,b,HallBrowserFocus::Page,"< Page "+std::to_string(b.page()+1)+"/"+std::to_string(b.pages())+" >",104,191,114);
+    if(b.canChallenge())text(m,image,"Race ghost",4,191,7);
     return image;
 }
 } // namespace scr::runtime

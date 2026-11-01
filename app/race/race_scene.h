@@ -83,7 +83,7 @@ public:
     bool stepLive(unsigned controls,bool quit=false,DriveControlPreset preset=DriveControlPreset::Original);
     // In-memory career targets only. No file, settings or automatic draw path.
     // Multiplayer and a mismatched mode/track/league cannot bind a recorder.
-    bool recordPersonalBestLaps(PersonalBestLaps&,GhostLapContext);
+    bool recordPersonalBestLaps(PersonalBestLaps&,GhostLapContext,std::shared_ptr<const PinnedHallGhost> target={});
     void recordHallAttempts(HallAttemptId run,bool competitive);
     std::vector<HallSubmission> takeHallCompletions();
     const LapRecordingStatistics* lapRecordingStatistics()const noexcept;

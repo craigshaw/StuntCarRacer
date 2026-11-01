@@ -27,7 +27,7 @@
 ## Optional features
 
 - [Shared Hall storage](components/shared-hall-of-fame.md): bounded rankings,
-  retained ghosts, completion delivery, career-menu browser and recovery; ghost challenges pending.
+  retained ghosts, completion delivery, career-menu browser, isolated Practice challenges and recovery.
 - [Personal-best lap ghosts](components/personal-best-ghosts.md): recording in
   Practice and career league races, Practice playback, rendering/Draw Bridge proof
   gates, saved targets and player controls. A future online extension remains

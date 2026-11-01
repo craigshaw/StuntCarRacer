@@ -4,7 +4,7 @@
 
 namespace scr::runtime {
 enum class HallBrowserFocus {Track,League,Category,Records,Page};
-enum class HallBrowserAction {None,Load,Back};
+enum class HallBrowserAction {None,Load,Back,Challenge};
 // Presentation/navigation state only. No filesystem, native RAM or race rules.
 class HallBrowser {
 public:
@@ -23,6 +23,7 @@ public:
     bool ghost(unsigned row)const{return row<ghosts_.size()&&ghosts_[row];}
     bool busy()const noexcept{return loading_;}
     bool unavailable()const noexcept{return unavailable_;}
+    bool canChallenge()const{return !loading_&&focus_==HallBrowserFocus::Records&&board_.kind==HallRecordKind::Lap&&selected_<entries().size()&&ghost(selected_);}
     const std::string& driver()const noexcept{return driver_;}
 private:
     HallBoardKey board_;

@@ -303,7 +303,8 @@ private:
     }
     void syncGhostMenu(){
         if(!game_)return;const auto time=game_->practiceGhostTime();
-        settings_.setPracticeGhostContext(game_->practiceGhostActive(),std::wstring(time.begin(),time.end()),game_->canClearPracticeGhost());
+        const auto target=game_->practiceGhostTarget();
+        settings_.setPracticeGhostContext(game_->practiceGhostActive(),std::wstring(time.begin(),time.end()),game_->canClearPracticeGhost(),std::wstring(target.begin(),target.end()));
     }
     void paint(HWND window){
         // Keep the last completed image visible while rendering. Clearing the

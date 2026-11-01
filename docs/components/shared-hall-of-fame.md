@@ -1,8 +1,8 @@
 # Shared Hall storage
 
 Status: the player records new human lap/race completions into the durable shared
-archive and displays it in the career-menu browser. Selectable Hall ghost
-challenges remain pending. Private
+archive and displays it in the career-menu browser, with selectable lap ghosts
+for isolated Practice challenges. Private
 career PB files and ordinary Practice targets retain their existing format.
 
 ## Browser
@@ -23,7 +23,8 @@ Jump, Roller Coaster, Ski Jump, Draw Bridge); archive keys remain native track I
 Competition ranks are derived across the whole board. The table contains rank,
 name, original time
 and verified ghost availability, with no result-history metadata. Race rows are
-results only. There is no challenge button until its launch/target flow exists.
+results only. Confirming an available lap row requests its exact ghost; the
+contextual Race ghost label appears beside the page control for such a row.
 
 Up/down traverses selectors, visible rows and Page. Left/right changes a filter
 or page; confirmation advances the focused selector or page. Escape/controller B
@@ -47,6 +48,41 @@ no reset/delete action.
 Changing filters, paging, loading and drawing do not change native RAM, earned
 league, season progression or RNG. Browser position is transient UI state, not
 part of career or shared record persistence.
+
+## Practice challenges
+
+The existing Hall worker re-reads the current board and validates the selected
+immutable attempt ID before publishing a `PinnedHallGhost`. It copies only the
+owner-neutral movement and retains the rival's name, original time and content/
+rules identity. Removed rows or unusable objects refresh the browser without
+launching another row's ghost. Back cancels a pending resolution; a later worker
+response cannot launch it. There is no file read on the menu presentation thread.
+
+`LapRecorder` chooses between an automatic career PB and an explicit pinned Hall
+target. The latter is fixed at construction for the whole Practice session. Each
+aligned player crossing starts a fresh playback epoch from that same recording;
+PB improvements, clearing and archive eviction cannot replace it. Ordinary
+Practice continues selecting the latest PB on each new lap. Both paths use the
+same pure sampling, recovery cuts, finish fade and Draw Bridge guard.
+
+`NativeGameSession` captures a full in-memory career/menu continuation before
+configuring the challenge's track and complete native league context (0 or 11).
+The normal preview/player/track/race initializers run on this temporary world.
+Its menu is Practice-only. New private PBs and Hall laps use the actual temporary
+track/league, while no Practice three-lap total can qualify as a race record.
+The active career metadata and its suspended season remain unchanged.
+
+Preview Back and race exit restore the full career memory, menu and preview
+continuation before refreshing the remembered Hall board/ID. Saving or closing
+during a challenge writes the existing normal career checkpoint and drains PB/
+Hall writes; the temporary league, progression, preview RNG and race exit cannot
+overwrite it. Challenges themselves are not resumed after restart.
+
+The preview identifies rival/name/time/league in the native pixel font. The host
+pause menu distinguishes the selected target from the career PB. Clear career PB
+removes only the private record and suppresses that partial lap's PB eligibility;
+Hall capture and the selected rival continue. Visibility and smoothing do not
+reset the target. No Hall qualification/rank notifications are added to driving.
 
 ## Completion delivery
 
@@ -224,6 +260,11 @@ partial entry, repeated recovery timestamps, competitive totals, local drivers,
 PB clearing/deletion, no legacy imports, write retry and full RAM/RNG isolation.
 Authored captured-entry fixtures exercise accepted crossings rather than treating
 old record bytes as newly earned times. Original CPU execution stays test-only.
+It also runs `native_hall_challenge_tests`: both navigation policies, all sixteen
+track/league challenge setups, preview cancel, race return, safe close/resume,
+missing objects/cancelled resolution, pinned ownership after collection, rendered
+earned-lap playback and full native memory/RNG isolation. Fresh native routes and
+the separately identified captured-entry playback fixture have distinct scopes.
 
 `scripts/check_native_game.py --verify-original --jobs 1` also identifies browser
 model/session coverage: all 32 boards, both navigation policies, page-boundary

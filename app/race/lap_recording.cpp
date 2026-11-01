@@ -13,7 +13,7 @@ unsigned decimal(std::uint8_t value){
     return (value>>4)*10+(value&15);
 }
 struct Sampled {RenderCameraInputs pose;const GhostLapSample* discrete;double opacity;};
-Sampled sample(const GhostLap& lap,std::int64_t elapsed,bool smooth,const TrigTable& trig){
+Sampled sample(const LapRecording& lap,std::int64_t elapsed,bool smooth,const TrigTable& trig){
     const auto at=std::min(elapsed,lap.durationMicroseconds);
     const auto next=std::upper_bound(lap.samples.begin(),lap.samples.end(),at,
         [](auto t,const GhostLapSample& s){return t<s.microseconds;});
@@ -53,9 +53,13 @@ bool PersonalBestLaps::accept(GhostLap lap){
     if(old&&old->hundredths<=lap.hundredths)return false;
     const auto key=lap.context.key;bests_[key]=std::make_shared<const GhostLap>(std::move(lap));return true;
 }
-LapRecorder::LapRecorder(PersonalBestLaps& bests,GhostLapContext context,const TrigTable& trig):
-    bests_(&bests),context_(std::move(context)),trig_(trig){
+LapRecorder::LapRecorder(PersonalBestLaps& bests,GhostLapContext context,const TrigTable& trig,std::shared_ptr<const PinnedHallGhost> target):
+    bests_(&bests),context_(std::move(context)),hallTarget_(std::move(target)),trig_(trig){
     if(context_.key.career.empty()||context_.key.track>=8)throw std::invalid_argument("Invalid lap recording context");
+    if(hallTarget_&&(context_.source!=GhostLapSource::Practice||hallTarget_->attempt.board.track!=context_.key.track||
+       (hallTarget_->attempt.board.league==HallLeague::Super)!=context_.key.superLeague||
+       hallTarget_->catalog.trackContent!=context_.trackContentIdentity||hallTarget_->catalog.rules!=1))
+        throw std::invalid_argument("Hall target differs from Practice context");
 }
 LapRecorder::LapRecorder(unsigned track,const TrigTable& trig):trig_(trig){
     if(track>=8)throw std::invalid_argument("Invalid lap recording track");context_.key.track=track;
@@ -132,7 +136,8 @@ void LapRecorder::observeTiming(const RaceTimingEffects& effects,const LapComple
     if(previous_)append(*previous_,false);
     append(*current_,previous_&&previous_->restarts!=current_->restarts);++statistics_.starts;
     Epoch epoch;epoch.start=line.alignedMicroseconds;
-    if(bests_&&context_.source==GhostLapSource::Practice)epoch.target=bests_->best(context_.key);
+    if(hallTarget_)epoch.target=std::shared_ptr<const LapRecording>(hallTarget_,&hallTarget_->recording);
+    else if(bests_&&context_.source==GhostLapSource::Practice)epoch.target=bests_->best(context_.key);
     epochs_.push_back(std::move(epoch));while(epochs_.size()>4)epochs_.pop_front();compatibility();
 }
 void LapRecorder::compatibility(){
@@ -149,7 +154,7 @@ void LapRecorder::compatibility(){
 void LapRecorder::stop(){candidate_.reset();observedStart_=false;stopped_=true;}
 void LapRecorder::clear(){
     if(bests_)bests_->forget(context_.key);pbEligible_=false;
-    for(auto& epoch:epochs_)epoch.target.reset();
+    if(!hallTarget_)for(auto& epoch:epochs_)epoch.target.reset();
 }
 std::optional<GhostLapPlayback> LapRecorder::playback(std::int64_t absolute,bool interpolate)const{
     const auto next=std::upper_bound(epochs_.begin(),epochs_.end(),absolute,[](auto t,const Epoch& e){return t<e.start;});
@@ -157,6 +162,6 @@ std::optional<GhostLapPlayback> LapRecorder::playback(std::int64_t absolute,bool
     const auto& epoch=*(next-1);if(!epoch.target)return std::nullopt;
     const auto elapsed=absolute-epoch.start;const auto source=sample(*epoch.target,elapsed,interpolate,trig_);
     return GhostLapPlayback{makeGhostCarPose(source.pose),source.opacity*epoch.visibility.alphaAt(absolute/1000000.0),
-        epoch.visibility.conditionsDifferAt(absolute/1000000.0),elapsed>epoch.target->durationMicroseconds,elapsed,epoch.target};
+        epoch.visibility.conditionsDifferAt(absolute/1000000.0),elapsed>epoch.target->durationMicroseconds,elapsed,epoch.target,hallTarget_};
 }
 } // namespace scr::runtime

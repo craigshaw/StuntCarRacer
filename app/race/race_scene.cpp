@@ -351,7 +351,7 @@ bool RaceScene::stepLive(unsigned controls,bool quit,DriveControlPreset preset){
     if(!canInterpolatePresentation(frames_[0].restarts,frames_[1].restarts,frames_[0].action,frames_[1].action))frames_[0]=frames_[1];
     cachedFrame_=~0u;return true;
 }
-bool RaceScene::recordPersonalBestLaps(PersonalBestLaps& bests,GhostLapContext context){
+bool RaceScene::recordPersonalBestLaps(PersonalBestLaps& bests,GhostLapContext context,std::shared_ptr<const PinnedHallGhost> target){
     if(!simulation_)throw std::logic_error("Lap recording requires a live scene");
     const auto& ram=simulation_->native.ram;
     if(ram[0x5eb76])return false;
@@ -359,7 +359,7 @@ bool RaceScene::recordPersonalBestLaps(PersonalBestLaps& bests,GhostLapContext c
        (context.source==GhostLapSource::League)!=bool(ram[0x1ca22]&0x80))throw std::invalid_argument("Lap context differs from native race");
     if(context.trackContentIdentity&&context.trackContentIdentity!=trackContentIdentity_)throw std::invalid_argument("Ghost track identity differs from native data");
     context.trackContentIdentity=trackContentIdentity_;
-    simulation_->laps=std::make_unique<LapRecorder>(bests,std::move(context),trig_);return true;
+    simulation_->laps=std::make_unique<LapRecorder>(bests,std::move(context),trig_,std::move(target));return true;
 }
 const LapRecordingStatistics* RaceScene::lapRecordingStatistics()const noexcept{
     return simulation_&&simulation_->laps?&simulation_->laps->statistics():nullptr;

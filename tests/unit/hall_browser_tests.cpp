@@ -63,6 +63,14 @@ void heldInput(){
     b.block({0,0,true});require(b.update(1,{0,0,true})==HallBrowserAction::None,"Held Back crossed screen boundary");
     require(tap(b,0,0,true)==HallBrowserAction::Back,"Fresh Back failed after release");
 }
+void challenge(){
+    HallBrowser b;b.open("A",{});auto snapshot=view();snapshot.ghosts[0]=true;b.apply(snapshot);
+    tap(b,2);tap(b,2);tap(b,2);require(b.canChallenge()&&tap(b,16)==HallBrowserAction::Challenge,"Available lap row did not request its ghost");
+    b.loading();require(!b.canChallenge()&&tap(b,16)==HallBrowserAction::None,"Loading row dispatched another challenge");
+    b.apply(snapshot);tap(b,2);require(!b.canChallenge()&&tap(b,16)==HallBrowserAction::None,"Time-only row requested a challenge");
+    tap(b,0,4);tap(b,16);snapshot.board=b.board();snapshot.ghosts.fill(true);b.apply(snapshot);tap(b,2);
+    require(!b.canChallenge()&&tap(b,16)==HallBrowserAction::None,"Race result offered a ghost challenge");
 }
-int main()try{navigation();filtersAndMemory();divisionOrder();stableIdentity();heldInput();std::cout<<"Hall browser: "<<checks<<" checks passed\n";return 0;}
+}
+int main()try{navigation();filtersAndMemory();divisionOrder();stableIdentity();heldInput();challenge();std::cout<<"Hall browser: "<<checks<<" checks passed\n";return 0;}
 catch(const std::exception& e){std::cerr<<e.what()<<'\n';return 1;}

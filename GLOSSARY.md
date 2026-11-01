@@ -60,13 +60,19 @@ A saved point in a career containing its progression and continuation stage. It 
 An earlier valid career checkpoint retained for restoring a damaged current autosave.
 
 **Hall of Fame**:
-The shared collection of eligible best-lap and three-lap race records, with their holder names, independent of any one career.
+The installation-wide rankings of eligible human lap and three-lap race attempts, shared by all players using that installation and independent of any one career.
 
 **Personal-best lap**:
-The planned career-owned fastest eligible completed lap for one circuit and Normal/Super league, paired with its ghost regardless of whether it was set in Practice or a league race.
+The career-owned fastest eligible completed lap for one circuit and Normal/Super league, paired with its ghost regardless of whether it was set in Practice or a league race.
 
 **Lap ghost**:
-The planned visual playback of a recorded lap, used as a non-colliding target for another attempt. The first version plays the personal-best lap in Practice.
+The visual playback of a recorded lap, used as a non-colliding target in Practice. Its source is the career's personal best or a selected Hall rival.
+
+**Hall rival**:
+A specific Hall lap ghost selected as the fixed target for a Practice challenge.
+
+**Hall challenge**:
+A Practice session against a chosen Hall rival on its track and league, separate from earned career progression.
 
 **Online Hall of Fame**:
 The future collection of ranked records shared across players online, distinct from the existing local Hall of Fame.

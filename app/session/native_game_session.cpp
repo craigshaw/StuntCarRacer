@@ -111,7 +111,7 @@ void NativeGameSession::startRace(){
         else if(saved.state==CareerFileState::Unsupported||saved.state==CareerFileState::Corrupt){ghostNotice_="Saved ghost unavailable. Clear it in the Practice game menu.";ghostNoticeSeconds_=5;}
         const auto retained=personalBestLaps_.best(*lapKey_);
         if(retained&&(saved.state!=CareerFileState::Valid||retained->hundredths<diskTime))careerStore_->saveGhost(*retained);
-        race_.recordPersonalBestLaps(personalBestLaps_,{*lapKey_,menu_->competitive()?GhostLapSource::League:GhostLapSource::Practice,content});
+        race_.recordPersonalBestLaps(personalBestLaps_,{*lapKey_,menu_->competitive()?GhostLapSource::League:GhostLapSource::Practice,content},hallChallenge_?hallChallenge_->target:nullptr);
     }
     if(sharedHallStore_)race_.recordHallAttempts(newHallRunId(),menu_->competitive());
     race_.setRunningLapHundredths(true);
@@ -133,11 +133,17 @@ std::string NativeGameSession::practiceGhostTime()const{
     const auto best=personalBestLaps_.best(*lapKey_);if(!best)return "Not set";
     std::ostringstream text;text<<best->hundredths/6000<<':'<<std::setw(2)<<std::setfill('0')<<(best->hundredths/100)%60<<'.'<<std::setw(2)<<best->hundredths%100;return text.str();
 }
+std::string NativeGameSession::practiceGhostTarget()const{
+    if(!practiceGhostActive())return {};
+    if(!hallChallenge_)return "Career PB";
+    const auto& a=hallChallenge_->target->attempt;
+    return "Hall rival: "+a.name+" "+formatHallTime(a.time,HallRecordKind::Lap);
+}
 bool NativeGameSession::clearPracticeGhost(){
     if(!practiceGhostActive()||!careerStore_)return false;
     if(!careerStore_->clearGhost(*lapKey_)){ghostNotice_="Could not clear the ghost. Please try again.";ghostNoticeSeconds_=5;return false;}
     personalBestLaps_.forget(*lapKey_);race_.clearPersonalBestLap();ghostFileState_=CareerFileState::Missing;ghostConditionsDiffer_=false;
-    ghostNotice_="Personal best and ghost cleared.";ghostNoticeSeconds_=2.5;return true;
+    ghostNotice_=hallChallenge_?"Career PB cleared. Hall rival retained.":"Career PB and ghost cleared.";ghostNoticeSeconds_=2.5;return true;
 }
 void NativeGameSession::observePersonalBest(){
     if(!lapKey_||!careerStore_)return;
@@ -175,13 +181,16 @@ void NativeGameSession::advanceTransition(double elapsed,NativeGameUpdate& resul
     fade_.advance(elapsed);if(fade_.active())return;
     switch(transition_){
     case Transition::OutPreview:
-        preparePreview();transitionIndices_.assign(preview_.indices().begin(),preview_.indices().end());
+        preparePreview();
+        if(hallChallenge_){const auto image=hallPreviewImage();transitionIndices_.assign(image.indices.begin(),image.indices.end());}
+        else transitionIndices_.assign(preview_.indices().begin(),preview_.indices().end());
         fade_.animateTo(readNativePalette(*data_.memory,0x2b974));transition_=Transition::InPreview;break;
     case Transition::OutRace:
         startRace();transitionIndices_=race_.captureLiveIndices(false,presentationView_);
         raceDelay_=nativeMenuDelaySeconds(3);transition_=Transition::RaceDelay;break;
     case Transition::OutMenu:{
         race_.finishLiveExit(*data_.memory);
+        if(hallChallenge_){returnHallChallenge();result.raceExited=true;break;}
         menu_->returnFromRace();const auto image=menuImage();
         transitionIndices_.assign(image.indices.begin(),image.indices.end());
         fade_.animateTo(imagePalette(image));
@@ -367,7 +376,9 @@ NativeGameUpdate NativeGameSession::updateImpl(double elapsed,const NativeGameIn
     }else if(action==NativeMenuAction::RotatePreview){
         preview_.load(*data_.memory,(*data_.memory)[0x1bb57]);
     }else if(action==NativeMenuAction::StartPractice||action==NativeMenuAction::StartRace){
-        transitionIndices_.assign(preview_.indices().begin(),preview_.indices().end());fade_.fadeToColor(0);transition_=Transition::OutRace;
+        if(hallChallenge_){const auto image=hallPreviewImage();transitionIndices_.assign(image.indices.begin(),image.indices.end());}
+        else transitionIndices_.assign(preview_.indices().begin(),preview_.indices().end());
+        fade_.fadeToColor(0);transition_=Transition::OutRace;
     }else if(action==NativeMenuAction::ShowCompetitionPage){
         transitionIndices_.assign(previous.indices.begin(),previous.indices.end());
         fade_.fadeToColor(0);transition_=Transition::OutCompetition;
@@ -522,7 +533,7 @@ const std::vector<std::uint32_t>& NativeGameSession::render(bool interpolate,boo
         }
         return pixels_;
     }
-    if(page()==NativeMenuPage::Preview)return preview_.pixels();
+    if(page()==NativeMenuPage::Preview){if(hallChallenge_){packNativeMenuPixels(hallPreviewImage(),pixels_);return pixels_;}return preview_.pixels();}
     if(page()==NativeMenuPage::Race){
         const bool ghost=practiceGhostVisible_&&practiceGhostActive()&&!race_.liveTerminal();
         if(ghost){const auto playback=race_.lapGhostPlayback(interpolate?driveClock_.fraction():1,interpolate);ghostConditionsDiffer_=playback&&!playback->finished&&playback->conditionsDiffer;}

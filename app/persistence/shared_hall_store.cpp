@@ -228,28 +228,31 @@ bool SharedHallStore::flush(){std::unique_lock<std::mutex> lock(mutex_);idle_.wa
 bool SharedHallStore::pending()const{std::lock_guard<std::mutex> lock(mutex_);return writing_||checkRequested_||!pending_.empty();}
 bool SharedHallStore::failed()const{std::lock_guard<std::mutex> lock(mutex_);return blocked_;}
 std::string SharedHallStore::error()const{std::lock_guard<std::mutex> lock(mutex_);return error_;}
-std::uint64_t SharedHallStore::requestBrowser(HallBoardKey board){
+std::uint64_t SharedHallStore::requestBrowser(HallBoardKey board,std::optional<HallAttemptId> challenge){
     (void)hallBoardIndex(board);std::lock_guard<std::mutex> lock(mutex_);
-    browserRequest_=board;changed_.notify_one();return ++browserSerial_;
+    browserRequest_=board;browserChallenge_=challenge;changed_.notify_one();return ++browserSerial_;
 }
 std::shared_ptr<const HallBrowserRead> SharedHallStore::browserRead()const{std::lock_guard<std::mutex> lock(mutex_);return browserRead_;}
 void SharedHallStore::cancelBrowser(){std::lock_guard<std::mutex> lock(mutex_);browserRequest_.reset();++browserSerial_;}
 void SharedHallStore::run(){
     for(;;){
-        std::optional<HallBoardKey> board;std::uint64_t request{};
+        std::optional<HallBoardKey> board;std::optional<HallAttemptId> challenge;std::uint64_t request{};
         {std::unique_lock<std::mutex> lock(mutex_);changed_.wait(lock,[&]{return stopping_||browserRequest_||(!blocked_&&(!pending_.empty()||checkRequested_));});if(stopping_)return;
             // Publish pending attempts before reading a menu snapshot. A failed
             // write must not prevent browsing the last valid committed archive.
             if(!blocked_&&(!pending_.empty()||checkRequested_)){active_=pending_;checkRequested_=false;writing_=true;}
-            else{board=browserRequest_;browserRequest_.reset();request=browserSerial_;}
+            else{board=browserRequest_;challenge=browserChallenge_;browserRequest_.reset();request=browserSerial_;}
         }
         if(board){
-            auto result=std::make_shared<HallBrowserRead>();result->board=*board;result->request=request;
+            auto result=std::make_shared<HallBrowserRead>();result->board=*board;result->request=request;result->challenge=challenge;
             try{result->archive=archive_.read();
                 if(result->archive.hall){const auto& entries=result->archive.hall->entries(*board);
                     for(unsigned n=0;n<entries.size();++n){
                         {std::lock_guard<std::mutex> lock(mutex_);if(stopping_||request!=browserSerial_)break;}
-                        result->ghosts[n]=entries[n].attempt.ghost&&archive_.readGhost(entries[n].attempt).state==HallGhostState::Valid;
+                        const auto& attempt=entries[n].attempt;
+                        const auto ghost=attempt.ghost?archive_.readGhost(attempt):HallGhostRead{};
+                        result->ghosts[n]=ghost.state==HallGhostState::Valid;
+                        if(challenge&&attempt.id==*challenge&&ghost.ghost)result->target=pinHallGhost(attempt,*ghost.ghost,catalog_);
                     }
                 }
             }catch(const std::exception& e){result->error=e.what();}

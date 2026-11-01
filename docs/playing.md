@@ -93,8 +93,19 @@ These controls work with either navigation policy.
 recording is available. Three-lap race entries have no ghost. Records reload on
 opening or changing a filter; reopen the Hall to retry an unavailable archive.
 Filters and selected records are remembered during the session.
-Choosing a Hall ghost to race is still to come;
-ordinary Practice continues to use the career PB.
+
+Select a lap with a **Ready** ghost and press Enter/Space/A to race it. The usual
+track preview identifies the rival, time and league; Back cancels. The challenge
+uses that track and complete Normal/Super configuration, even if your career is
+in the other league. It follows Practice rules and cannot advance your season.
+Leaving returns to the same Hall board and record. Closing resumes your normal
+career, with any suspended season intact.
+
+The selected rival stays fixed for the whole challenge, including after a faster
+lap, clearing your career PB or displacement of its Hall record. New laps can
+still improve your career PB and enter the Hall. Pause shows the target and the
+separate career PB; **Clear career PB** leaves Hall records and rivals intact.
+Ordinary Practice continues to chase your career PB automatically.
 
 ## Practice and seasons
 
@@ -118,11 +129,12 @@ the correct elapsed position. The ghost fades near your car and after its finish
 On Draw Bridge it temporarily fades around an incompatible crossing and shows
 “Bridge conditions differ”; the live bridge continues to follow real cars.
 
-The Practice Game menu shows your personal best. Clear best and ghost asks for
-confirmation and removes that career's target for the current circuit and league.
+The Practice Game menu shows your current target and separate career PB.
+Clear career PB asks for confirmation and removes that career's best time and
+recording for the current circuit and league.
 The lap in progress cannot replace that PB; PB recording becomes eligible again
 at the next start-line crossing. Hall recording continues through the clear.
-Clearing does not affect Hall records, their ghosts or other careers.
+Clearing does not affect a selected Hall rival, Hall records or other careers.
 
 Original driving controls latch acceleration until braking. Modern accelerates
 only while gas is held and coasts on release; boost alone does not restart gas.

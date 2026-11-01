@@ -22,7 +22,7 @@ future work; finite checks do not imply universal rendering equivalence.
   display is off. An incomplete attempt cannot replace a best; a later race loss
   or quit does not discard an already accepted completed improvement. Observe
   completion while racing rather than waiting for a successful race exit.
-- Playback remains Practice-only in the first version. Select its target at
+- Playback remains Practice-only. Ordinary Practice selects its target at
   each lap boundary and keep it fixed throughout that attempt. An improvement
   becomes the target on the following lap. Fade after the ghost's recorded
   finish; restart at the player's next lap boundary, without looping or waiting
@@ -38,23 +38,25 @@ Ghost bests are independent of Hall of Fame ranking. Every eligible completed
 human lap from Practice or a league race can now enter the shared archive even
 when it is slower than the private PB. Local multiplayer has Hall capture without
 career PB ownership. See [shared Hall completion delivery](shared-hall-of-fame.md#completion-delivery).
+The Hall browser can also pin an exact rival for a whole isolated Practice
+challenge; that target is independent of the private best and its lifecycle.
 Recording must not invoke scoring, progression or legacy save encoding.
 
 ## Settings and feedback
 
 Ghost display defaults to on in Practice, with a persistent toggle in the
-existing host settings. The Practice pause menu shows the target time and a
-confirmed action to clear that career's best for the current circuit and league.
+existing host settings. The Practice pause menu shows the target and separate
+career PB, with a confirmed Clear career PB action for the current circuit/league.
 Clear removes both the best time and its recording, regardless of which mode
-produced them. During a lap it also removes the active ghost, cancels that lap's
-recording candidate and starts a fresh candidate at the next normal lap boundary.
-This explicit reset is the exception to keeping an attempt's target fixed.
+produced them. In ordinary Practice it removes the active PB ghost; a pinned Hall
+rival remains. It suppresses that partial lap's PB eligibility until the next
+normal boundary, while owner-neutral Hall capture continues.
 
 Show the same brief new-personal-best notice after an improvement in Practice or
 a career league race. League races record laps without displaying a ghost. Keep
 feedback in host presentation rather than changing original cockpit artwork.
-A continuously displayed ahead/behind delta, recording browser and manual target
-selection are deferred. Recording remains automatic independently of display
+A continuously displayed ahead/behind delta and mid-Practice target changes are
+deferred. Hall rivals are chosen through the Hall browser. Recording remains automatic independently of display
 visibility.
 
 ## Recording and playback
@@ -124,13 +126,17 @@ does not reinterpret the original decimal correction as simulation time. Keep
 both the observed and aligned timestamps, progress, correction and recovery flag,
 plus samples on both sides of the boundary.
 
-Practice selects a shared immutable target at each aligned boundary, after
+Ordinary Practice selects a shared immutable target at each aligned boundary, after
 committing any completed improvement. A short history retains the preceding
 displayed attempt across smoothing's one-update latency. `lapGhostPlayback`
 queries the same displayed timeline as the camera; repeated, paused and reverse
 queries cannot advance it. Recovery poses cut, bridge geometry is deduplicated,
 and the bridge guard/fades use recorded source regions and live frame snapshots.
 After the recorded finish, opacity reaches zero over 240 ms without looping.
+For a Hall challenge, every epoch aliases the same pinned owner-neutral recording
+instead of consulting `PersonalBestLaps::best()`. Clearing a PB cannot clear its
+epochs or bridge visibility history. No Hall recording is adapted into a private
+`GhostLap`, imported as a PB or stored in a career checkpoint.
 League recording creates no playback target. Practice rendering consumes this
 query when the ghost setting is enabled; hiding it retains baseline world pixels.
 

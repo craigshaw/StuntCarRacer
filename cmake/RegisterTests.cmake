@@ -50,6 +50,10 @@ endforeach()
 scr_test(software_renderer_tests "native;assets" "${SCR_TEST_PAYLOAD}" "${SCR_TEST_PAYLOAD}")
 
 if(WIN32)
+  scr_test(native_hall_challenge_tests "native;assets;capture" "${SCR_TEST_ASSET_PACK}"
+    "${SCR_TEST_ASSET_PACK}" "${test_output}/native_hall_challenge_tests" "${SCR_TEST_CAPTURE}" "${SCR_TEST_PAYLOAD}"
+    "${PROJECT_SOURCE_DIR}/tests/replays/laps/authored-race-1463.csv")
+  set_tests_properties(native_hall_challenge_tests PROPERTIES RUN_SERIAL TRUE)
   scr_test(native_hall_browser_tests "native;assets" "${SCR_TEST_ASSET_PACK}" "${SCR_TEST_ASSET_PACK}" "${test_output}/native_hall_browser_tests")
   set_tests_properties(native_hall_browser_tests PROPERTIES RUN_SERIAL TRUE)
   scr_test(native_hall_completion_tests "native;assets;capture" "${SCR_TEST_ASSET_PACK}"

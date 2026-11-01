@@ -1,5 +1,6 @@
 #pragma once
 #include "persistence/hall_ghost_codec.h"
+#include "race/practice_ghost_target.h"
 #include <condition_variable>
 #include <filesystem>
 #include <functional>
@@ -33,6 +34,8 @@ struct HallBrowserRead {
     std::array<bool,hallEntriesPerBoard> ghosts{};
     std::uint64_t request{};
     std::string error;
+    std::optional<HallAttemptId> challenge;
+    std::shared_ptr<const PinnedHallGhost> target;
 };
 // Optional transaction observer for diagnostics and interrupted-write proofs.
 enum class HallWriteStage {GhostFlushed,GhostPublished,BackupFlushed,BackupPublished,HeadFlushed,HeadPublished,Collected};
@@ -78,7 +81,7 @@ public:
     HallArchiveRead read()const{return archive_.read();}
     HallGhostRead readGhost(const HallAttempt& a)const{return archive_.readGhost(a);}
     // A coalesced menu read on this same worker; no UI-thread file I/O.
-    std::uint64_t requestBrowser(HallBoardKey);
+    std::uint64_t requestBrowser(HallBoardKey,std::optional<HallAttemptId> challenge={});
     std::shared_ptr<const HallBrowserRead> browserRead()const;
     void cancelBrowser();
 private:
@@ -91,6 +94,7 @@ private:
     std::string error_;
     bool stopping_{},writing_{},blocked_{},checkRequested_{};
     std::optional<HallBoardKey> browserRequest_;
+    std::optional<HallAttemptId> browserChallenge_;
     std::uint64_t browserSerial_{};
     std::shared_ptr<const HallBrowserRead> browserRead_;
     std::thread worker_;

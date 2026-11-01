@@ -85,6 +85,7 @@ public:
     bool practiceGhostActive()const noexcept;
     bool canClearPracticeGhost()const;
     std::string practiceGhostTime()const;
+    std::string practiceGhostTarget()const;
     bool clearPracticeGhost();
     std::string ghostFeedback()const;
     bool ghostFeedbackWarning()const;
@@ -104,11 +105,19 @@ private:
     std::unique_ptr<NativeCareerStore> careerStore_;
     std::unique_ptr<SharedHallStore> sharedHallStore_;
     HallBrowser hallBrowser_;
-    bool hallBrowserActive_{};
+    bool hallBrowserActive_{},hallResolving_{};
     std::uint64_t hallBrowserRequest_{},hallBrowserApplied_{};
+    struct HallChallenge {
+        NativeCareerCheckpoint continuation;
+        std::shared_ptr<const PinnedHallGhost> target;
+    };
+    std::optional<HallChallenge> hallChallenge_;
     void openHallBrowser(const NativeMenuInput&);
     bool updateHallBrowser(double,const NativeGameInput&,NativeGameUpdate&);
     void requestHallBrowser();
+    void startHallChallenge(std::shared_ptr<const PinnedHallGhost>,const NativeMenuInput&);
+    void returnHallChallenge(const NativeMenuInput& held={});
+    NativeMenuImage hallPreviewImage()const;
     bool creatingCareer_{},finishPending_{},closeReady_{},errorAcknowledged_{},multiplayerSetup_{};
     CareerPanel careerPanel_{CareerPanel::None},returnPanel_{CareerPanel::None},departureReturnPanel_{CareerPanel::None};
     Departure departure_{Departure::None};

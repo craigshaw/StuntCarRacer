@@ -100,7 +100,7 @@ target_include_directories(scr_state INTERFACE "${PROJECT_SOURCE_DIR}/src")
 target_compile_features(scr_state INTERFACE cxx_std_17)
 
 # Shared Hall models/codecs remain independent of live simulation state.
-add_library(scr_records STATIC app/records/hall_of_fame.cpp app/persistence/hall_table_codec.cpp app/persistence/hall_ghost_codec.cpp)
+add_library(scr_records STATIC app/records/hall_of_fame.cpp app/persistence/hall_table_codec.cpp app/persistence/hall_ghost_codec.cpp app/race/practice_ghost_target.cpp)
 target_include_directories(scr_records PUBLIC app src)
 target_compile_features(scr_records PUBLIC cxx_std_17)
 if(MSVC)

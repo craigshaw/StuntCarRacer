@@ -138,7 +138,7 @@ void WindowsGameDisplay::overlay(HDC dc,int width,int height,const NativeDisplay
     const bool menu=settings.page()==NativeDisplayPage::Settings;
     const bool clear=settings.page()==NativeDisplayPage::ClearGhostConfirmation;
     const bool confirmation=settings.page()==NativeDisplayPage::QuitConfirmation||clear;
-    const int rows=confirmation?166:!menu&&settings.practiceGhostContext()?88:64;
+    const int rows=confirmation?166:!menu&&settings.practiceGhostContext()?112:64;
     const int help=menu?64+int(settings.optionCount())*36+18:confirmation?262:rows+int(settings.optionCount())*36+18;
     const int baseHeight=menu?help+132:confirmation?334:help+94;
     const double scale=std::max(0.3,std::min({1.5,double(width)/800,double(height)/(baseHeight+24)}));
@@ -150,16 +150,19 @@ void WindowsGameDisplay::overlay(HDC dc,int width,int height,const NativeDisplay
     const auto font=CreateFontW(-px(19),0,0,0,FW_NORMAL,FALSE,FALSE,FALSE,DEFAULT_CHARSET,OUT_DEFAULT_PRECIS,CLIP_DEFAULT_PRECIS,CLEARTYPE_QUALITY,DEFAULT_PITCH,L"Segoe UI");
     const auto old=SelectObject(dc,font);SetBkMode(dc,TRANSPARENT);
     const auto text=[&](int x,int y,const wchar_t* value,COLORREF colour){SetTextColor(dc,colour);TextOutW(dc,left+px(x),top+px(y),value,int(wcslen(value)));};
-    text(24,18,menu?L"Settings":clear?L"Clear personal best?":confirmation?L"Quit to Desktop?":L"Game menu",RGB(245,247,250));
+    text(24,18,menu?L"Settings":clear?L"Clear career PB?":confirmation?L"Quit to Desktop?":L"Game menu",RGB(245,247,250));
     std::vector<const wchar_t*> actions{L"Resume",L"Settings"};
     if(settings.canLeaveRace())actions.push_back(L"Leave Race");
-    if(settings.canClearGhost())actions.push_back(L"Clear best and ghost...");actions.push_back(L"Quit to Desktop");
-    const wchar_t* confirmActions[]{L"Cancel",clear?L"Clear best and ghost":L"Quit to Desktop"};
-    const auto best=L"Personal best: "+settings.bestTime();
-    if(!menu&&!confirmation&&settings.practiceGhostContext())text(24,48,best.c_str(),RGB(148,213,243));
+    if(settings.canClearGhost())actions.push_back(L"Clear career PB...");actions.push_back(L"Quit to Desktop");
+    const wchar_t* confirmActions[]{L"Cancel",clear?L"Clear career PB":L"Quit to Desktop"};
+    const auto best=L"Career PB: "+settings.bestTime();
+    if(!menu&&!confirmation&&settings.practiceGhostContext()){
+        const auto target=L"Target: "+settings.practiceTarget();text(24,48,target.c_str(),RGB(148,213,243));
+        text(24,72,best.c_str(),RGB(148,213,243));
+    }
     if(confirmation){
         const wchar_t* message=L"Close Stunt Car Racer?";
-        if(clear)message=L"Remove your best time and ghost for this circuit and league?\nThe lap in progress will not replace it.";
+        if(clear)message=L"Remove this career's PB and ghost for this circuit and league?\nThe lap in progress will not replace it.\nHall records and selected rivals stay unchanged.";
         else if(settings.quitContext()==NativeQuitContext::Career)message=L"Your career, records and ghosts will be saved before closing.";
         else if(settings.quitContext()==NativeQuitContext::CareerRace)message=L"Your career and best laps will be saved.\nThis unfinished race will restart from its matchup.";
         else if(settings.quitContext()==NativeQuitContext::Multiplayer)message=L"Progress since your last manual save will be lost.";

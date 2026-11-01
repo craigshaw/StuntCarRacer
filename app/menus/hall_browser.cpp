@@ -52,6 +52,7 @@ HallBrowserAction HallBrowser::update(double elapsed,const NativeMenuInput& held
     if(input.controls&1)move(-1);else if(input.controls&2)move(1);
     int direction=(input.controls&4)?-1:(input.controls&8)?1:0;
     if(input.controls&16){
+        if(canChallenge())return HallBrowserAction::Challenge;
         if(focus_!=HallBrowserFocus::Records)direction=1;
     }
     if(!direction)return HallBrowserAction::None;

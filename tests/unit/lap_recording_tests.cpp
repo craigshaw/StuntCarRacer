@@ -1,4 +1,5 @@
 #include "race/lap_recording.h"
+#include "hall_ghost_fixture.h"
 #include <algorithm>
 #include <cmath>
 #include <iostream>
@@ -11,7 +12,7 @@ struct Drive {
     TrigTable trig{};LapRecorder recorder;RaceTimingInputs input;RaceTimingState state;
     std::int64_t time{};unsigned restarts{},serial{};bool recovery{};
     std::optional<GhostBridgeShape> bridge;
-    Drive(PersonalBestLaps& bests,GhostLapContext context):recorder(bests,std::move(context),trig){
+    Drive(PersonalBestLaps& bests,GhostLapContext context,std::shared_ptr<const PinnedHallGhost> target={}):recorder(bests,std::move(context),trig,std::move(target)){
         input.numberOfTrackSegments=64;input.lapLineSegment=1;input.finishLineSegment=32;input.maximumLaps=255;input.currentPlayerId=11;
         input.selectedTrackInDivision=recorder.context().source==GhostLapSource::League?0x80:0;input.segmentIndex[1]=32;
         state.times.fill({9,0x59,0x99});state.times[0]=state.times[1]={};
@@ -30,6 +31,34 @@ struct Drive {
     void finish(unsigned progress=255){step(32);step(0,900);step(1,progress);}
 };
 const GhostLapKey key{"career-a",0,false};
+void pinnedTarget(){
+    namespace fixture=scr::test::hall;
+    const auto attempt=fixture::attempt(99,1000);const auto ghost=fixture::ghost(attempt);
+    auto target=pinHallGhost(attempt,ghost,fixture::catalog);const auto* identity=target.get();
+    PersonalBestLaps bests;GhostLapContext context{key,GhostLapSource::Practice,fixture::catalog.trackContent};
+    Drive drive(bests,context,target);target.reset();drive.start();
+    auto first=drive.recorder.playback(drive.time-120000);require(first&&first->hallTarget.get()==identity,"Pinned rival did not start at the observed line");
+    require(!drive.recorder.playback(0),"Hall target appeared before the first observed crossing");
+    drive.finish();require(bool(bests.best(key)),"Hall target prevented career PB recording");
+    auto current=drive.recorder.playback(drive.time-120000);require(current&&current->hallTarget.get()==identity,"Beating a Hall target replaced it with a career PB");
+    drive.recorder.clear();require(!bests.best(key)&&drive.recorder.playback(drive.time-120000)->hallTarget.get()==identity,"Clearing a career PB removed the rival");
+    drive.finish();require(!bests.best(key),"Clearing restored the in-progress PB candidate");
+    drive.finish();require(bool(bests.best(key)),"Fresh Hall challenge lap did not resume PB recording");
+    bests.forgetCareer(key.career);require(drive.recorder.playback(drive.time-120000)->hallTarget.get()==identity,"Career PB removal invalidated a pinned rival");
+    const auto at=drive.time-120000;
+    const auto baseline=drive.recorder.playback(at+360000);
+    for(auto query:{at+120000,at,at+360000,at+120000}){
+        auto repeat=drive.recorder.playback(query);require(repeat&&repeat->hallTarget.get()==identity,"Repeated/reverse queries changed the rival");
+    }
+    require(drive.recorder.playback(at+360000)->opacity==baseline->opacity,"Paused/reverse queries advanced finish fade");
+    require(drive.recorder.playback(at+480000)->opacity==0,"Hall rival looped after its finish");
+    for(unsigned mismatch=0;mismatch<4;++mismatch){
+        auto bad=context;if(mismatch==0)bad.key.track=1;if(mismatch==1)bad.key.superLeague=true;
+        if(mismatch==2)bad.trackContentIdentity++;if(mismatch==3)bad.source=GhostLapSource::League;
+        bool rejected=false;try{Drive invalid(bests,bad,first->hallTarget);}catch(const std::invalid_argument&){rejected=true;}
+        require(rejected,"Mismatched track/league/content/mode accepted a Hall target");
+    }
+}
 void rankingAndTargets(){
     PersonalBestLaps bests;Drive practice(bests,{key,GhostLapSource::Practice});practice.start();practice.finish(32);
     auto first=bests.best(key);require(bool(first),"First completed lap was not retained");
@@ -93,10 +122,20 @@ void bridgePlayback(){
         require(repeat->opacity==result->opacity,"Bridge visibility advanced during rendering");
     }
     require(suppressed&&returned,"Recorded bridge guard did not suppress and return locally");
+    namespace fixture=scr::test::hall;auto attempt=fixture::attempt(171,lap->hundredths,{5,HallLeague::Normal,HallRecordKind::Lap});
+    auto ghost=fixture::ghost(attempt);ghost.time=lap->completedTime;ghost.durationMicroseconds=lap->durationMicroseconds;ghost.start=lap->start;ghost.finish=lap->finish;ghost.samples=lap->samples;ghost.bridges=lap->bridges;
+    const auto pinned=pinHallGhost(attempt,ghost,fixture::catalog);
+    Drive rival(bests,{bridgeKey,GhostLapSource::Practice,fixture::catalog.trackContent},pinned);rival.bridge=shape;rival.start();
+    suppressed=returned=finishedGuard=false;
+    for(unsigned n=0;n<14;++n){rival.step(32);const auto before=rival.recorder.playback(rival.time-120000);if(n==4)rival.recorder.clear();const auto after=rival.recorder.playback(rival.time-120000);
+        require(before&&after&&before->opacity==after->opacity&&before->conditionsDiffer==after->conditionsDiffer,"PB clear reset a Hall rival's bridge guard");
+        suppressed|=after->conditionsDiffer&&after->opacity==0;finishedGuard|=suppressed&&!after->conditionsDiffer;returned|=finishedGuard&&after->opacity>0;
+    }
+    require(suppressed&&returned,"Pinned Hall bridge guard did not suppress and return locally");
     const auto saved=bests.best(bridgeKey);Drive bounded(bests,{bridgeKey,GhostLapSource::Practice});bounded.bridge=shape;bounded.start();
     for(unsigned n=0;n<maxGhostLapBridgeShapes+1;++n){shape.nearGeometry[1]=std::uint8_t(n);bounded.bridge=shape;bounded.step(32);}
     bounded.finish();require(bounded.recorder.statistics().overflowCandidates==1&&bests.best(bridgeKey)==saved,"Bridge shape overflow damaged an existing target");
 }
 }
-int main()try{rankingAndTargets();partialRecoveryAndBounds();bridgePlayback();std::cout<<"Lap recording timing, ranking, target, recovery and bounds checks passed\n";return 0;}
+int main()try{pinnedTarget();rankingAndTargets();partialRecoveryAndBounds();bridgePlayback();std::cout<<"Lap recording timing, ranking, target, recovery and bounds checks passed\n";return 0;}
 catch(const std::exception& error){std::cerr<<error.what()<<'\n';return 1;}

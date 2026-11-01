@@ -15,7 +15,7 @@ target_compile_features(ghost_lap_codec_tests PRIVATE cxx_std_17)
 scr_add_test_executable(lap_recording_tests tests/unit/lap_recording_tests.cpp
   app/race/lap_recording.cpp app/presentation/ghost_bridge.cpp app/presentation/presentation_interpolation.cpp)
 target_include_directories(lap_recording_tests PRIVATE app)
-target_link_libraries(lap_recording_tests PRIVATE scr_render)
+target_link_libraries(lap_recording_tests PRIVATE scr_render scr_records)
 target_compile_features(lap_recording_tests PRIVATE cxx_std_17)
 scr_add_test_executable(ghost_bridge_tests tests/unit/ghost_bridge_tests.cpp
   app/presentation/ghost_bridge.cpp app/presentation/camera_view.cpp)
@@ -39,6 +39,8 @@ target_link_libraries(drive_input_tests PRIVATE scr_render)
 target_compile_features(drive_input_tests PRIVATE cxx_std_17)
 
 if(WIN32)
+  scr_add_test_executable(native_hall_challenge_tests tests/integration/native_hall_challenge_tests.cpp)
+  target_link_libraries(native_hall_challenge_tests PRIVATE scr_game scr_host_ui)
   scr_add_test_executable(native_hall_browser_tests tests/integration/native_hall_browser_tests.cpp)
   target_link_libraries(native_hall_browser_tests PRIVATE scr_game)
   scr_add_test_executable(native_hall_completion_tests tests/integration/native_hall_completion_tests.cpp)

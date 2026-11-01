@@ -1,6 +1,7 @@
 #pragma once
 #include "input/drive_input.h"
 #include "race/ghost_lap_data.h"
+#include "race/practice_ghost_target.h"
 #include "presentation/ghost_bridge.h"
 #include "presentation/presentation_interpolation.h"
 #include "race/race_timing.h"
@@ -59,7 +60,8 @@ struct GhostLapPlayback {
     double opacity{1};
     bool conditionsDiffer{},finished{};
     std::int64_t elapsedMicroseconds{};
-    std::shared_ptr<const GhostLap> target;
+    std::shared_ptr<const LapRecording> target;
+    std::shared_ptr<const PinnedHallGhost> hallTarget;
 };
 struct LapRecordingStatistics {
     unsigned movements{},timingUpdates{},recoveryTimingUpdates{},starts{},completions{},recordedLaps{},improvements{},overflowCandidates{};
@@ -68,7 +70,7 @@ struct LapRecordingStatistics {
 // A new recorder waits for an observed crossing; a partial entry lap is skipped.
 class LapRecorder {
 public:
-    LapRecorder(PersonalBestLaps&,GhostLapContext,const TrigTable&);
+    LapRecorder(PersonalBestLaps&,GhostLapContext,const TrigTable&,std::shared_ptr<const PinnedHallGhost> target={});
     LapRecorder(unsigned track,const TrigTable&);
     void observeMovement(LapMovementObservation);
     void observeTiming(const RaceTimingEffects&,const LapCompletionSink& sink={});
@@ -80,12 +82,13 @@ public:
 private:
     struct Epoch {
         std::int64_t start{};
-        std::shared_ptr<const GhostLap> target;
+        std::shared_ptr<const LapRecording> target;
         GhostBridgeVisibility visibility;
         std::optional<std::int64_t> lastCut;
     };
     PersonalBestLaps* bests_{};
     GhostLapContext context_;
+    std::shared_ptr<const PinnedHallGhost> hallTarget_;
     const TrigTable& trig_;
     std::optional<LapMovementObservation> previous_,current_;
     std::optional<LapRecording> candidate_;

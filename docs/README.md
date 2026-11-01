@@ -26,6 +26,8 @@
 
 ## Optional features
 
+- [Shared Hall foundations](components/shared-hall-of-fame.md): bounded attempt
+  ranking/codec and isolated Windows storage proofs, not yet a player feature.
 - [Personal-best lap ghosts](components/personal-best-ghosts.md): recording in
   Practice and career league races, Practice playback, rendering/Draw Bridge proof
   gates, saved targets and player controls. A future online extension remains

@@ -123,6 +123,7 @@ Use `& $AmigaPython scripts/<command>` after loading `env.ps1`.
 | Static-track ghost rendering proof and isolation | `check_native_ghost.py` | `analysis/ghost-proof/` |
 | Draw Bridge ghost compatibility, suppression and isolation | `check_native_ghost_bridge.py` | `analysis/ghost-bridge-proof/` |
 | Saved ghosts, Practice rendering, controls, lap timing and isolation | `check_native_laps.py --verify-original` | `analysis/lap-recording/` |
+| Shared Hall model/codec and isolated storage foundations | `check_native_hall.py` | `analysis/hall-of-fame/foundations/` |
 | Physics driver and supporting stages | `check_physics_update.py` | `analysis/physics-update/` |
 | Track decoding and initialization | `check_native_track_initialization.py` | `analysis/native-track-init/` |
 

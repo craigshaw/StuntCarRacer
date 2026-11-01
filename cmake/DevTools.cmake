@@ -1,5 +1,11 @@
 # Optional development entry points reuse the player's production libraries.
 if(WIN32)
+  add_executable(native_hall_storage_proof tools/replay/native_hall_storage_proof.cpp)
+  target_link_libraries(native_hall_storage_proof PRIVATE scr_records scr_hall_storage bcrypt)
+  target_compile_features(native_hall_storage_proof PRIVATE cxx_std_17)
+  if(MSVC)
+    target_compile_options(native_hall_storage_proof PRIVATE /W4 /WX /permissive-)
+  endif()
   add_executable(native_ghost_bridge_proof tools/replay/native_ghost_bridge_proof.cpp)
   target_link_libraries(native_ghost_bridge_proof PRIVATE scr_game)
   target_compile_features(native_ghost_bridge_proof PRIVATE cxx_std_17)

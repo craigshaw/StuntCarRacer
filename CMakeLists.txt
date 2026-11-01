@@ -99,8 +99,25 @@ add_library(scr_state INTERFACE)
 target_include_directories(scr_state INTERFACE "${PROJECT_SOURCE_DIR}/src")
 target_compile_features(scr_state INTERFACE cxx_std_17)
 
+# The shared Hall foundations are not connected to the player yet.
+add_library(scr_records STATIC app/records/hall_of_fame.cpp app/persistence/hall_table_codec.cpp)
+target_include_directories(scr_records PUBLIC app src)
+target_compile_features(scr_records PUBLIC cxx_std_17)
+if(MSVC)
+  target_compile_options(scr_records PRIVATE /W4 /WX /permissive-)
+else()
+  target_compile_options(scr_records PRIVATE -Wall -Wextra -Werror -pedantic)
+endif()
+
 if(WIN32)
   include(cmake/WindowsVersion.cmake)
+  add_library(scr_hall_storage STATIC app/platform/windows/shared_hall_storage.cpp)
+  target_include_directories(scr_hall_storage PUBLIC app)
+  target_compile_features(scr_hall_storage PUBLIC cxx_std_17)
+  target_link_libraries(scr_hall_storage PRIVATE advapi32 bcrypt shell32 ole32)
+  if(MSVC)
+    target_compile_options(scr_hall_storage PRIVATE /W4 /WX /permissive-)
+  endif()
   add_library(scr_runtime STATIC
     app/assets/local_asset_pack.cpp
     app/assets/native_startup.cpp

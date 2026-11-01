@@ -29,6 +29,22 @@ Focus loss or controller disconnection pauses and requires explicit resume.
 The replay shortcut is `replay/Watch Native Replay.cmd`; original-game emulation
 tools live separately in [research/](research/README.md).
 
+## Shared Hall storage proof
+
+`scripts/check_native_hall.py` builds focused model/codec/storage CTests and
+`native_hall_storage_proof`, using disposable data under ignored `analysis/`.
+The proof launches two hidden writers, checks retry deduplication and lost
+updates, and verifies OS lock release after terminating its own lock-holder
+child. No real Hall, career, settings or asset files are read or written.
+
+The generated `run-as-second-user.cmd` must additionally be run while logged
+into another Windows account for a real cross-account check. Then run
+`scripts/check_native_hall.py --collect-account-proof` from the original account.
+Reports check distinct user SIDs and matching executable/source identities and
+remain explicitly pending until that step passes. No accounts are created and
+no credentials are collected. Full durable storage and player integration are
+outside this first proof; see the [component contract](../docs/components/shared-hall-of-fame.md).
+
 ## Static ghost rendering proof
 
 After loading `scripts/env.ps1`, run `& $AmigaPython scripts/check_native_ghost.py`.

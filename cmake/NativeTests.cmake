@@ -37,6 +37,10 @@ target_link_libraries(drive_input_tests PRIVATE scr_render)
 target_compile_features(drive_input_tests PRIVATE cxx_std_17)
 
 if(WIN32)
+  scr_add_test_executable(native_hall_completion_tests tests/integration/native_hall_completion_tests.cpp)
+  target_link_libraries(native_hall_completion_tests PRIVATE scr_game)
+  scr_add_test_executable(hall_completion_tests tests/unit/hall_completion_tests.cpp)
+  target_link_libraries(hall_completion_tests PRIVATE scr_game)
   scr_add_test_executable(shared_hall_store_tests tests/integration/shared_hall_store_tests.cpp)
   target_link_libraries(shared_hall_store_tests PRIVATE scr_hall_storage)
   scr_add_test_executable(shared_hall_storage_tests tests/integration/shared_hall_storage_tests.cpp)
@@ -104,10 +108,10 @@ if(WIN32)
   target_compile_features(native_launcher_tests PRIVATE cxx_std_17)
 
   scr_add_test_executable(native_startup_tests tests/integration/native_startup_tests.cpp app/race/race_scene.cpp
-    app/race/lap_recording.cpp app/presentation/ghost_bridge.cpp
+    app/race/lap_recording.cpp app/race/hall_race_recording.cpp app/presentation/ghost_bridge.cpp
     app/presentation/race_render_assets.cpp app/presentation/presentation_interpolation.cpp app/input/drive_input.cpp app/audio/game_audio.cpp)
   target_include_directories(native_startup_tests PRIVATE app)
-  target_link_libraries(native_startup_tests PRIVATE scr_runtime)
+  target_link_libraries(native_startup_tests PRIVATE scr_runtime scr_hall_storage)
   target_compile_features(native_startup_tests PRIVATE cxx_std_17)
   scr_add_test_executable(native_audio_tests tests/integration/native_audio_tests.cpp app/audio/game_audio.cpp app/platform/windows/audio_output.cpp)
   target_include_directories(native_audio_tests PRIVATE app)

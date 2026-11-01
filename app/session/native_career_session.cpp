@@ -23,31 +23,25 @@ std::string description(const NativeCareerInfo& info){
     std::ostringstream text;text<<"D"<<4-info.division<<(info.league?" Super ":" Normal ")<<std::put_time(&time,"%d/%m/%y %H:%M");return text.str();
 }
 }
-void NativeGameSession::enableCareers(const std::filesystem::path& root){
+void NativeGameSession::enableCareers(const std::filesystem::path& root,const std::filesystem::path& sharedRoot){
     if(careerStore_||!openingActive()||opening_->page()!=NativeOpeningPage::Mode)throw std::logic_error("Careers must start at the mode chooser");
     careerBaseline_=std::make_unique<NativeMemory>(*data_.memory);careerStore_=std::make_unique<NativeCareerStore>(root,[this](const CareerBytes& data){
         try{CareerBytes bytes;(void)decodeCareerInfo(data,&bytes);(void)decodeNativeCheckpoint(*careerBaseline_,bytes);return CareerFileState::Valid;}
         catch(const UnsupportedNativeCheckpoint&){return CareerFileState::Unsupported;}
         catch(...){return CareerFileState::Corrupt;}
     });
-    std::copy_n(data_.memory->begin()+0x7a61a,512,hall_.begin());
-    const auto hall=careerStore_->readHall();lastCareer_=careerStore_->lastUsed();
-    if(hall.state==CareerFileState::Valid||hall.state==CareerFileState::Recovered){
-        std::copy(hall.data.begin(),hall.data.end(),hall_.begin());mergeHallInto(*data_.memory);
-        if(hall.state==CareerFileState::Recovered){notice_="Hall recovery copy restored";returnPanel_=CareerPanel::None;showCareerPanel(CareerPanel::Notice);}
-    }else if(hall.state!=CareerFileState::Missing){
-        hallWritable_=false;notice_=hall.state==CareerFileState::Unsupported?"Unsupported Hall version":"Hall files are damaged";
-        showCareerPanel(CareerPanel::HallRecovery);
-    }else careerStore_->saveHall(hall_);
+    lastCareer_=careerStore_->lastUsed();
+    sharedHallStore_=std::make_unique<SharedHallStore>(sharedRoot.empty()?root/"shared-hall":sharedRoot,
+        HallCatalog{ghostTrackContentIdentity(data_.payload),1},HallWriteObserver{},hallCapturePendingMaximumBytes);
+    sharedHallStore_->retry(); // Check/open off-thread; a failure cannot block career loading.
     if(careerPanel_==CareerPanel::None&&careerStore_->lastUsedState()==CareerFileState::Recovered){
         notice_="Last career recovery restored";returnPanel_=CareerPanel::None;showCareerPanel(CareerPanel::Notice);
     }
 }
-void NativeGameSession::mergeHallInto(NativeMemory& memory)const{std::copy(hall_.begin(),hall_.end(),memory.begin()+0x7a61a);}
 std::string NativeGameSession::saveStatus()const{
     if(!careerStore_)return {};
-    if(careerStore_->failed()||!hallWritable_)return "NOT SAVED";
-    return careerStore_->pending()?"Saving...":"Saved";
+    if(storesFailed())return "NOT SAVED";
+    return careerStore_->pending()||(sharedHallStore_&&sharedHallStore_->pending())?"Saving...":"Saved";
 }
 void NativeGameSession::refreshCareerHome(){
     careerList_=careerStore_->list();homeActions_.clear();recentCareerName_.clear();
@@ -109,16 +103,15 @@ NativeMenuImage NativeGameSession::careerImage()const{
     case CareerPanel::Actions:heading=careerList_[listSelection_].name;detail=description(careerList_[listSelection_]);rows={"Continue","Delete Career","Back"};break;
     case CareerPanel::Delete:heading="Delete "+careerList_[listSelection_].name+"?";detail="Career and recovery copies";rows={"Cancel","Delete permanently"};break;
     case CareerPanel::Notice:heading="Career notice";detail=notice_;rows={"OK"};break;
-    case CareerPanel::SaveError:heading=careerStore_->failureSummary();detail="Check storage and permissions";rows={"Retry","Continue without saving"};break;
+    case CareerPanel::SaveError:heading=storeFailureSummary();detail="Check storage and permissions";rows={"Retry","Continue without saving"};break;
     case CareerPanel::CreateError:heading="Career not created";detail="A first save is required";rows={"Retry","Cancel"};break;
-    case CareerPanel::Departure:heading=careerStore_->failureSummary();detail="Leave loses unsaved changes";rows={"Retry","Leave unsaved","Cancel"};break;
-    case CareerPanel::HallRecovery:heading=notice_;detail="Damaged files will be kept";rows={"Retry","Start fresh Hall","Continue without saving"};break;
+    case CareerPanel::Departure:heading=storeFailureSummary();detail="Leave loses unsaved changes";rows={"Retry","Leave unsaved","Cancel"};break;
     default:rows={"Back"};break;
     }
     return makeNativeChoiceImage(*data_.memory,heading,rows,selected,detail,saveStatus());
 }
 void NativeGameSession::beginCareer(){
-    *data_.memory=careerDraft_?*careerDraft_:*careerBaseline_;mergeHallInto(*data_.memory);menu_.reset();opening_=std::make_unique<NativeOpeningFlow>(*data_.memory);
+    *data_.memory=careerDraft_?*careerDraft_:*careerBaseline_;menu_.reset();opening_=std::make_unique<NativeOpeningFlow>(*data_.memory);
     opening_->setNavigation(navigation_);nameLengths_.fill(0);if(careerDraft_)nameLengths_[0]=draftNameLength_;creatingCareer_=true;finishPending_=false;previewPrepared_=false;suspendedSeason_.clear();
     careerPanel_=CareerPanel::None;transition_=Transition::None;fade_.reset(readNativePalette(*data_.memory,0x23c32));NativeGameUpdate ignored;
     handleOpeningAction(opening_->beginSingleName(),makeNativeMenuFrame(*data_.memory,(*data_.memory)[0x1c9ce]),ignored);
@@ -163,12 +156,12 @@ void NativeGameSession::saveCheckpoint(bool terminal){
         // all career fields. No Practice race or selection journey is resumed.
         NativeMenuFlow main(*c.memory);main.setMainRowCount(3);main.setNavigation(navigation_);c.menu=main.continuation();c.previewPrepared=false;
     }else if(c.menu.page==NativeMenuPage::HallOfFame){NativeMenuFlow main(*c.memory);main.setMainRowCount(3);c.menu=main.continuation();}
-    mergeHallInto(*c.memory);checkpoint_=encodeNativeCheckpoint(*careerBaseline_,c);
+    checkpoint_=encodeNativeCheckpoint(*careerBaseline_,c);
     activeCareer_->division=(*c.memory)[0x1c9ce];activeCareer_->league=(*c.memory)[0x1c9d0];
     careerStore_->retry();careerStore_->saveCareer(*activeCareer_,checkpoint_);
 }
 void NativeGameSession::restoreCheckpoint(const CareerBytes& bytes){
-    auto c=decodeNativeCheckpoint(*careerBaseline_,bytes);mergeHallInto(*c.memory);*data_.memory=*c.memory;
+    auto c=decodeNativeCheckpoint(*careerBaseline_,bytes);*data_.memory=*c.memory;
     opening_.reset();saveMenu_.reset();saveReturn_=SaveReturn::None;menu_=std::make_unique<NativeMenuFlow>(*data_.memory,c.menu);menu_->setMainRowCount(3);menu_->setNavigation(navigation_);
     suspendedSeason_=std::move(c.suspendedSeason);
     previewPrepared_=c.previewPrepared;preparedTrack_=c.preparedTrack;preparedLeague_=c.preparedLeague;preparedCompetitive_=c.menu.competitive;
@@ -192,7 +185,7 @@ bool NativeGameSession::loadCareer(const std::string& id){
 bool NativeGameSession::depart(Departure action,const std::string& id){
     if(action==Departure::LoadCareer&&activeCareer_&&id==activeCareer_->id&&!checkpoint_.empty())return loadCareer(id);
     departure_=action;loadCareer_=id;departureReturnPanel_=careerPanel_;
-    careerStore_->retry();if(!careerStore_->flush()){showCareerPanel(CareerPanel::Departure);return false;}
+    if(!flushStores(true)){showCareerPanel(CareerPanel::Departure);return false;}
     completeDeparture();return true;
 }
 void NativeGameSession::completeDeparture(){
@@ -201,7 +194,7 @@ void NativeGameSession::completeDeparture(){
     if(action==Departure::NewCareer){beginCareer();return;}
     if(action==Departure::LoadCareer){(void)loadCareer(loadCareer_);return;}
     if(action==Departure::Multiplayer){
-        *data_.memory=*careerBaseline_;mergeHallInto(*data_.memory);menu_.reset();opening_=std::make_unique<NativeOpeningFlow>(*data_.memory);
+        *data_.memory=*careerBaseline_;menu_.reset();opening_=std::make_unique<NativeOpeningFlow>(*data_.memory);
         opening_->setNavigation(navigation_);multiplayerSetup_=true;creatingCareer_=false;finishPending_=false;previewPrepared_=false;suspendedSeason_.clear();
         careerPanel_=CareerPanel::None;transition_=Transition::None;fade_.reset(readNativePalette(*data_.memory,0x23c32));nameLengths_.fill(0);NativeGameUpdate ignored;
         handleOpeningAction(opening_->beginMultiplayerName(),makeNativeMenuFrame(*data_.memory,(*data_.memory)[0x1c9ce]),ignored);releaseInput();
@@ -213,41 +206,50 @@ bool NativeGameSession::requestClose(){
     if(!transitioning()&&careerPanel_==CareerPanel::None&&!openingActive())saveCheckpoint(raceEnded());
     (void)depart(Departure::Close);return closeReady_;
 }
-void NativeGameSession::observeHall(){
-    if(!careerStore_||!menu_||!menu_->competitive()||finishPending_||menu_->page()!=NativeMenuPage::Race||!race_.liveTicks())return;
-    std::array<std::uint8_t,32> entries{};race_.copyLiveRecords(entries);
-    auto candidate=hall_;const unsigned track=(*data_.memory)[0x1ca33],league=(*data_.memory)[0x1c9d0];
-    const unsigned ordinal=(*data_.memory)[0x648c2+track]+(league?8:0);
-    for(unsigned kind=0;kind<2;++kind)std::copy_n(entries.begin()+kind*16,16,candidate.begin()+kind*256+ordinal*16);
-    if(validNativeHall(candidate)&&mergeNativeHall(hall_,candidate)){
-        if(hallWritable_)careerStore_->saveHall(hall_);
-        mergeHallInto(*data_.memory);
+void NativeGameSession::observeHallCompletions(){
+    if(!sharedHallStore_)return;
+    for(const auto& completed:race_.takeHallCompletions()){
+        // The live budget fits every possible pending top-20 capture. Rejection
+        // as dominated is safe; Full would indicate a broken capture bound.
+        if(sharedHallStore_->submit(completed)==HallSubmitResult::Full)throw std::logic_error("Hall capture allocation bound exceeded");
     }
 }
+HallArchiveRead NativeGameSession::sharedHall()const{
+    if(!sharedHallStore_)throw std::logic_error("Shared Hall is not enabled");return sharedHallStore_->read();
+}
+bool NativeGameSession::storesFailed()const{return (careerStore_&&careerStore_->failed())||(sharedHallStore_&&sharedHallStore_->failed());}
+std::string NativeGameSession::storeFailureSummary()const{
+    if(sharedHallStore_&&sharedHallStore_->failed())return careerStore_&&careerStore_->failed()?"Progress and Hall not saved":"Hall records not saved";
+    return careerStore_?careerStore_->failureSummary():std::string{};
+}
+bool NativeGameSession::flushStores(bool retry){
+    if(retry){if(careerStore_)careerStore_->retry();if(sharedHallStore_)sharedHallStore_->retry();}
+    const bool a=!careerStore_||careerStore_->flush();const bool b=!sharedHallStore_||sharedHallStore_->flush();return a&&b;
+}
+bool NativeGameSession::flushRecords(){return flushStores();}
 void NativeGameSession::observeCareerState(NativeMenuPage previous){
     if(!careerStore_)return;
-    observeHall();
     if(careerPanel_!=CareerPanel::None||openingActive()||!menu_)return;
     if(activeCareer_&&!(*data_.memory)[0x5eb76])menu_->setMainRowCount(3);
     if(page()!=previous&&page()!=NativeMenuPage::Race)saveCheckpoint();
     checkSaveFailure();
 }
 void NativeGameSession::checkSaveFailure(){
-    if(careerStore_->failed()&&!errorAcknowledged_&&!transitioning()&&careerPanel_==CareerPanel::None&&
+    if(storesFailed()&&!errorAcknowledged_&&!transitioning()&&careerPanel_==CareerPanel::None&&
        !(page()==NativeMenuPage::Race&&!raceEnded()&&race_.liveTicks()!=0)&&!creatingCareer_){returnPanel_=CareerPanel::None;showCareerPanel(CareerPanel::SaveError);}
-    if(!careerStore_->failed())errorAcknowledged_=false;
+    if(!storesFailed())errorAcknowledged_=false;
 }
 bool NativeGameSession::updateCareers(double elapsed,const NativeGameInput& held,NativeGameUpdate& result){
     if(!careerStore_)return false;
-    if(!careerStore_->failed())errorAcknowledged_=false;
-    if(careerStore_->failed()&&!errorAcknowledged_&&(careerPanel_==CareerPanel::Home||careerPanel_==CareerPanel::List||careerPanel_==CareerPanel::Actions)){
+    if(!storesFailed())errorAcknowledged_=false;
+    if(storesFailed()&&!errorAcknowledged_&&(careerPanel_==CareerPanel::Home||careerPanel_==CareerPanel::List||careerPanel_==CareerPanel::Actions)){
         returnPanel_=careerPanel_;showCareerPanel(CareerPanel::SaveError);careerClock_.enterScreen(held.menu);return true;
     }
     if(careerPanel_!=CareerPanel::None){
         const auto input=careerClock_.sample(held.menu,elapsed);unsigned count=1;
         switch(careerPanel_){
         case CareerPanel::Home:count=unsigned(homeActions_.size());break;
-        case CareerPanel::Actions:case CareerPanel::Departure:case CareerPanel::HallRecovery:count=3;break;
+        case CareerPanel::Actions:case CareerPanel::Departure:count=3;break;
         case CareerPanel::Delete:case CareerPanel::SaveError:case CareerPanel::CreateError:count=2;break;
         case CareerPanel::List:count=unsigned(careerList_.size());break;default:break;}
         if(careerPanel_==CareerPanel::List){
@@ -300,20 +302,15 @@ bool NativeGameSession::updateCareers(double elapsed,const NativeGameInput& held
             break;
         case CareerPanel::Notice:showCareerPanel(returnPanel_);break;
         case CareerPanel::SaveError:
-            if(choice==0){careerStore_->retry();if(careerStore_->flush())showCareerPanel(returnPanel_);}
+            if(choice==0){if(flushStores(true))showCareerPanel(returnPanel_);}
             else{errorAcknowledged_=true;showCareerPanel(returnPanel_);}break;
         case CareerPanel::CreateError:
             if(choice==0){careerStore_->retry();completeCareerCreation();}
             else cancelCareerCreation();break;
         case CareerPanel::Departure:
-            if(choice==0){careerStore_->retry();if(careerStore_->flush())completeDeparture();}
-            else if(choice==1){careerStore_->acknowledgeFailures();completeDeparture();}
+            if(choice==0){if(flushStores(true))completeDeparture();}
+            else if(choice==1){careerStore_->acknowledgeFailures();errorAcknowledged_=true;completeDeparture();}
             else{departure_=Departure::None;showCareerPanel(departureReturnPanel_);}break;
-        case CareerPanel::HallRecovery:
-            if(choice==0){const auto saved=careerStore_->readHall();if(saved.state==CareerFileState::Valid||saved.state==CareerFileState::Recovered){std::copy(saved.data.begin(),saved.data.end(),hall_.begin());hallWritable_=true;mergeHallInto(*data_.memory);showCareerPanel(CareerPanel::None);}}
-            else if(choice==1){if(careerStore_->resetHall(hall_)){hallWritable_=true;showCareerPanel(CareerPanel::None);}
-                else{notice_="Cannot replace this Hall file";returnPanel_=CareerPanel::HallRecovery;showCareerPanel(CareerPanel::Notice);}}
-            else showCareerPanel(CareerPanel::None);break;
         default:break;
         }
         careerClock_.enterScreen(held.menu);navigationClock_.enterScreen(held.menu);return true;

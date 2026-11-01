@@ -9,6 +9,7 @@
 #include "platform/windows/drive_input.h"
 #include "platform/windows/audio_output.h"
 #include "platform/windows/game_display.h"
+#include "platform/windows/shared_hall_storage.h"
 #include <algorithm>
 #include <array>
 #include <chrono>
@@ -25,6 +26,7 @@ using namespace scr::runtime;
 struct Options {
     NativeLaunchPaths paths;
     std::optional<bool> interpolate,fullscreen;
+    bool isolatedHall{};
 };
 Options parse(){
     int count=0;auto args=CommandLineToArgvW(GetCommandLineW(),&count);
@@ -40,7 +42,7 @@ Options parse(){
         else if(key==L"--recordings-dir")options.paths.recordings=args[n];
         else if(key==L"--save-file")options.paths.save=args[n];
         else if(key==L"--settings-file")options.paths.settings=args[n];
-        else if(key==L"--data-dir")options.paths.dataRoot=args[n];
+        else if(key==L"--data-dir"){options.paths.dataRoot=args[n];options.isolatedHall=true;}
         else throw std::runtime_error("Unknown native game argument");
     }}catch(...){LocalFree(args);throw;}
     LocalFree(args);
@@ -49,7 +51,7 @@ Options parse(){
 class GameWindow {
 public:
     explicit GameWindow(const Options& options):launcher_(options.paths,options.fullscreen,options.interpolate),
-        settingsFile_(options.paths.settings),settings_(launcher_.preferences()){}
+        settingsFile_(options.paths.settings),settings_(launcher_.preferences()),isolatedHall_(options.isolatedHall){}
     ~GameWindow(){game_.reset();if(timer_)CloseHandle(timer_);if(instanceLock_)CloseHandle(instanceLock_);}
     int run(HINSTANCE instance,int show){
         const auto root=std::filesystem::weakly_canonical(launcher_.paths().dataRoot).wstring();
@@ -113,6 +115,7 @@ private:
     std::wstring settingsError_;
     bool muted_{},focused_{true},suppressInput_{},freshGame_{},showFps_{},displayEditing_{};
     bool leaveRaceRequested_{},closeFromMenu_{};
+    bool isolatedHall_{};
     HANDLE timer_{};
     HANDLE instanceLock_{};
     std::wstring instanceName_;
@@ -133,7 +136,11 @@ private:
         try{
             const auto& paths=launcher_.paths();
             auto started=std::make_unique<NativeGameSession>(paths.pack,paths.recordings,NativeGameStart::OriginalOpening,paths.save);
-            started->enableCareers(paths.dataRoot);
+            auto hallRoot=paths.dataRoot/L"shared-hall";
+            if(!isolatedHall_){std::wstring executable(32768,L'\0');const auto count=GetModuleFileNameW(nullptr,executable.data(),DWORD(executable.size()));
+                if(!count||count>=executable.size())throw std::runtime_error("Cannot locate this game installation");executable.resize(count);
+                hallRoot=sharedHallPaths(std::filesystem::path(executable).parent_path()).root;}
+            started->enableCareers(paths.dataRoot,hallRoot);
             started->setNavigation(launcher_.preferences().navigation);
             settings_=NativeDisplaySettings(launcher_.preferences());
             game_=std::move(started);launcherView_.visible(false);display_.apply(window,settings_.preferences());SetFocus(window);clearGameInput();

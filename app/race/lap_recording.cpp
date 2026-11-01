@@ -54,8 +54,11 @@ bool PersonalBestLaps::accept(GhostLap lap){
     const auto key=lap.context.key;bests_[key]=std::make_shared<const GhostLap>(std::move(lap));return true;
 }
 LapRecorder::LapRecorder(PersonalBestLaps& bests,GhostLapContext context,const TrigTable& trig):
-    bests_(bests),context_(std::move(context)),trig_(trig){
+    bests_(&bests),context_(std::move(context)),trig_(trig){
     if(context_.key.career.empty()||context_.key.track>=8)throw std::invalid_argument("Invalid lap recording context");
+}
+LapRecorder::LapRecorder(unsigned track,const TrigTable& trig):trig_(trig){
+    if(track>=8)throw std::invalid_argument("Invalid lap recording track");context_.key.track=track;
 }
 void LapRecorder::append(const LapMovementObservation& movement,bool cut){
     if(!candidate_||overflowed_)return;
@@ -71,7 +74,7 @@ void LapRecorder::append(const LapMovementObservation& movement,bool cut){
     }
     const auto region=context_.key.track==5?region_.observe(movement.segment,movement.grounded,cut):GhostBridgeRegion::outside;
     lap.samples.push_back({movement.microseconds-lap.start.alignedMicroseconds,movement.pose,bridge,region,std::uint8_t(movement.segment),cut});
-    if(movement.microseconds>=lap.start.alignedMicroseconds)lap.controlPresets|=movement.preset==DriveControlPreset::Modern?2u:1u;
+    if(movement.microseconds>=lap.start.alignedMicroseconds)candidatePresets_|=movement.preset==DriveControlPreset::Modern?2u:1u;
 }
 void LapRecorder::observeMovement(LapMovementObservation movement){
     if(stopped_)return;
@@ -96,7 +99,7 @@ GhostLapBoundary LapRecorder::boundary(bool first)const{
     }
     return result;
 }
-void LapRecorder::observeTiming(const RaceTimingEffects& effects){
+void LapRecorder::observeTiming(const RaceTimingEffects& effects,const LapCompletionSink& sink){
     if(stopped_||!current_)return;
     ++statistics_.timingUpdates;statistics_.recoveryTimingUpdates+=current_->recovery;
     const RaceTimingEvent* crossing=nullptr;const RaceTimingEvent* completed=nullptr;
@@ -108,18 +111,28 @@ void LapRecorder::observeTiming(const RaceTimingEffects& effects){
     const bool first=crossing->value==1;const auto line=boundary(first);
     if(!first){
         ++statistics_.completions;
-        if(candidate_&&completed&&line.alignedMicroseconds>candidate_->start.alignedMicroseconds){
-            auto lap=std::move(*candidate_);lap.finish=line;lap.durationMicroseconds=line.alignedMicroseconds-lap.start.alignedMicroseconds;
-            lap.completedTime=completed->time;lap.hundredths=ghostLapHundredths(completed->time);
-            ++statistics_.recordedLaps;
-            if(bests_.accept(std::move(lap)))++statistics_.improvements;
+        if(observedStart_&&crossing->value==std::uint8_t(lastCounter_+1)&&completed){
+            LapCompletion result;result.counter=crossing->value;result.time=completed->time;
+            const auto hundredths=ghostLapHundredths(completed->time);
+            if(candidate_&&line.alignedMicroseconds>candidate_->start.alignedMicroseconds){
+                candidate_->finish=line;candidate_->durationMicroseconds=line.alignedMicroseconds-candidate_->start.alignedMicroseconds;
+                candidate_->completedTime=completed->time;result.recording=std::make_unique<LapRecording>(std::move(*candidate_));++statistics_.recordedLaps;
+                if(bests_&&pbEligible_){const auto old=bests_->best(context_.key);
+                    if(!old||hundredths<old->hundredths){GhostLap lap;
+                        if(sink)static_cast<LapRecording&>(lap)=*result.recording;else static_cast<LapRecording&>(lap)=std::move(*result.recording);
+                        lap.context=context_;lap.hundredths=hundredths;lap.controlPresets=candidatePresets_;
+                        if(bests_->accept(std::move(lap)))++statistics_.improvements;}
+                }
+            }
+            if(sink)sink(std::move(result));
         }
     }
-    candidate_.emplace();candidate_->context=context_;candidate_->start=line;overflowed_=false;region_=GhostBridgeRegionTracker{};
+    observedStart_=true;lastCounter_=crossing->value;pbEligible_=true;candidatePresets_=0;
+    candidate_.emplace();candidate_->start=line;overflowed_=false;region_=GhostBridgeRegionTracker{};
     if(previous_)append(*previous_,false);
     append(*current_,previous_&&previous_->restarts!=current_->restarts);++statistics_.starts;
     Epoch epoch;epoch.start=line.alignedMicroseconds;
-    if(context_.source==GhostLapSource::Practice)epoch.target=bests_.best(context_.key);
+    if(bests_&&context_.source==GhostLapSource::Practice)epoch.target=bests_->best(context_.key);
     epochs_.push_back(std::move(epoch));while(epochs_.size()>4)epochs_.pop_front();compatibility();
 }
 void LapRecorder::compatibility(){
@@ -133,9 +146,9 @@ void LapRecorder::compatibility(){
     if(cut)epoch.lastCut=source.discrete->microseconds;
     epoch.visibility.observe(current_->microseconds/1000000.0,source.discrete->region,matches,cut);
 }
-void LapRecorder::stop(){candidate_.reset();stopped_=true;}
+void LapRecorder::stop(){candidate_.reset();observedStart_=false;stopped_=true;}
 void LapRecorder::clear(){
-    bests_.forget(context_.key);candidate_.reset();overflowed_=false;
+    if(bests_)bests_->forget(context_.key);pbEligible_=false;
     for(auto& epoch:epochs_)epoch.target.reset();
 }
 std::optional<GhostLapPlayback> LapRecorder::playback(std::int64_t absolute,bool interpolate)const{

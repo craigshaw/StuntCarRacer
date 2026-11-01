@@ -8,6 +8,7 @@
 #include "presentation/native_hall_of_fame.h"
 #include "state/draw_bridge_adapter.h"
 #include "persistence/ghost_lap_codec.h"
+#include "platform/windows/shared_hall_storage.h"
 #include <iomanip>
 #include <sstream>
 #include <algorithm>
@@ -94,7 +95,7 @@ void NativeGameSession::preparePreview(){
 void NativeGameSession::startRace(){
     // Commit the prepared fixture while still in the menu handoff. Active
     // driving never waits for disk I/O; a failure is offered before tick one.
-    if(careerStore_)(void)careerStore_->flush();
+    if(careerStore_)(void)flushStores();
     previewPrepared_=false;
     restoreCockpit(*data_.memory);initializeNativeRace(*data_.memory);
     race_.loadNativeState(*data_.memory,data_.payload,recordings_);
@@ -109,6 +110,7 @@ void NativeGameSession::startRace(){
         if(retained&&(saved.state!=CareerFileState::Valid||retained->hundredths<diskTime))careerStore_->saveGhost(*retained);
         race_.recordPersonalBestLaps(personalBestLaps_,{*lapKey_,menu_->competitive()?GhostLapSource::League:GhostLapSource::Practice,content});
     }
+    if(sharedHallStore_)race_.recordHallAttempts(newHallRunId(),menu_->competitive());
     race_.setRunningLapHundredths(true);
     driveClock_.reset();driveLatch_.clear();endFireWait_.reset();quitPending_=false;
 }
@@ -300,7 +302,7 @@ NativeGameUpdate NativeGameSession::updateImpl(double elapsed,const NativeGameIn
     if(page()==NativeMenuPage::Race){
         if(input.leaveRace){
             race_.quitLive();
-            if(careerStore_){saveCheckpoint(true);(void)careerStore_->flush();}
+            if(careerStore_){saveCheckpoint(true);(void)flushStores();}
             leaveRace();return result;
         }
         if(race_.liveTerminal()){
@@ -318,13 +320,13 @@ NativeGameUpdate NativeGameSession::updateImpl(double elapsed,const NativeGameIn
             race_.stepLive(driveLatch_.consume(input.drivePreset),quitPending_,input.drivePreset);quitPending_=input.quit;
             result.audio.push_back(race_.frames().back().audio);
             observePersonalBest();
-            observeHall();
+            observeHallCompletions();
             if(race_.liveTerminal()){
                 if(careerStore_){
                     saveCheckpoint(true);
                     // Driving has stopped. Commit the outcome before exposing
                     // its acknowledgement screen, or report the failed write.
-                    (void)careerStore_->flush();
+                    (void)flushStores();
                 }
                 if(race_.frames().back().action==unsigned(RaceTransitionAction::quit)){
                     leaveRace();

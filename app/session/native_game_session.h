@@ -40,7 +40,7 @@ public:
     NativeGameSession(const std::filesystem::path& pack,const std::filesystem::path& recordings,
         NativeGameStart start=NativeGameStart::OriginalOpening,const std::filesystem::path& saveFile={});
     NativeGameUpdate update(double elapsed,const NativeGameInput&);
-    void enableCareers(const std::filesystem::path& dataRoot);
+    void enableCareers(const std::filesystem::path& dataRoot,const std::filesystem::path& sharedHallRoot={});
     bool requestClose();
     bool closeReady()const noexcept{return closeReady_;}
     bool closePending()const noexcept{return departure_==Departure::Close;}
@@ -87,19 +87,21 @@ public:
     bool clearPracticeGhost();
     std::string ghostFeedback()const;
     bool ghostFeedbackWarning()const;
+    HallArchiveRead sharedHall()const;
+    bool flushRecords();
     bool raceEnded()const noexcept{return page()==NativeMenuPage::Race&&(finishPending_||race_.liveTerminal());}
     bool transitioning()const noexcept{return transition_!=Transition::None;}
     void releaseInput(const NativeMenuInput& held={})noexcept;
 private:
-    enum class CareerPanel {None,Home,List,Actions,Delete,Notice,SaveError,CreateError,HallRecovery,Departure};
+    enum class CareerPanel {None,Home,List,Actions,Delete,Notice,SaveError,CreateError,Departure};
     enum class Departure {None,Close,NewCareer,LoadCareer,Multiplayer};
     enum class HomeAction {Continue,NewCareer,Browse};
     std::unique_ptr<NativeMemory> careerBaseline_;
     std::unique_ptr<NativeMemory> careerDraft_;
     unsigned draftNameLength_{};
     std::unique_ptr<NativeCareerStore> careerStore_;
-    NativeHallBanks hall_{};
-    bool hallWritable_{true},creatingCareer_{},finishPending_{},closeReady_{},errorAcknowledged_{},multiplayerSetup_{};
+    std::unique_ptr<SharedHallStore> sharedHallStore_;
+    bool creatingCareer_{},finishPending_{},closeReady_{},errorAcknowledged_{},multiplayerSetup_{};
     CareerPanel careerPanel_{CareerPanel::None},returnPanel_{CareerPanel::None},departureReturnPanel_{CareerPanel::None};
     Departure departure_{Departure::None};
     unsigned careerSelection_{},listSelection_{};
@@ -126,8 +128,10 @@ private:
     void registerCareer();
     void completeCareerCreation();
     void cancelCareerCreation();
-    void mergeHallInto(NativeMemory&)const;
-    void observeHall();
+    void observeHallCompletions();
+    bool storesFailed()const;
+    bool flushStores(bool retry=false);
+    std::string storeFailureSummary()const;
     bool depart(Departure,const std::string& id={});
     void completeDeparture();
     void checkSaveFailure();

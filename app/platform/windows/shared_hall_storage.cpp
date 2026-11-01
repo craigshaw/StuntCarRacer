@@ -5,6 +5,7 @@
 #include <bcrypt.h>
 #include <shlobj.h>
 #include "platform/windows/shared_hall_storage.h"
+#include <algorithm>
 #include <array>
 #include <iomanip>
 #include <sstream>
@@ -103,6 +104,23 @@ bool sharedHallUsersAccess(const std::filesystem::path& root){
         if(!known)return false;
     }
     return users;
+}
+HallAttemptId newHallRunId(){
+    HallAttemptId id{};
+    if(BCryptGenRandom(nullptr,id.data(),ULONG(id.size()),BCRYPT_USE_SYSTEM_PREFERRED_RNG)<0)throw std::runtime_error("Cannot create Hall run identity");
+    return id;
+}
+HallAttemptId hallCompletionId(const HallAttemptId& run,std::uint64_t crossing,HallRecordKind kind){
+    std::array<UCHAR,25> input{};std::copy(run.begin(),run.end(),input.begin());
+    for(unsigned n=0;n<8;++n)input[16+n]=std::uint8_t(crossing>>(n*8));input[24]=std::uint8_t(kind);
+    BCRYPT_ALG_HANDLE algorithm{};BCRYPT_HASH_HANDLE hash{};
+    if(BCryptOpenAlgorithmProvider(&algorithm,BCRYPT_SHA256_ALGORITHM,nullptr,0)<0)throw std::runtime_error("Cannot open Hall attempt hash");
+    auto status=BCryptCreateHash(algorithm,&hash,nullptr,0,nullptr,0,0);std::array<UCHAR,32> bytes{};
+    if(status>=0)status=BCryptHashData(hash,input.data(),ULONG(input.size()),0);
+    if(status>=0)status=BCryptFinishHash(hash,bytes.data(),ULONG(bytes.size()),0);
+    if(hash)BCryptDestroyHash(hash);BCryptCloseAlgorithmProvider(algorithm,0);
+    if(status<0)throw std::runtime_error("Cannot derive Hall attempt identity");
+    HallAttemptId id{};std::copy_n(bytes.begin(),id.size(),id.begin());return id;
 }
 struct SharedHallLock::Impl {Handle file;OVERLAPPED overlap{};bool locked{};~Impl(){if(locked)UnlockFileEx(file.value,0,1,0,&overlap);}};
 SharedHallLock::SharedHallLock(const std::filesystem::path& root,std::chrono::milliseconds timeout):impl_(std::make_unique<Impl>()){

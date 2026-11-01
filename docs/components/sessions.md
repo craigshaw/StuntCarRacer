@@ -30,10 +30,11 @@ retain their timing gates. Computer Link remains disabled and deferred.
 - Capture/restore must not invoke gameplay handlers or the legacy save encoder,
   which consumes RNG. Validate the complete checkpoint before applying it;
   preserve supported older versions and reject nested suspended seasons.
-- Shared normal/Super Hall banks are authoritative across careers and multiplayer.
-  Only better completed competitive human times replace records; ties retain the
-  holder. Practice and opponents cannot add records. Restoring or deleting a
-  career cannot roll them back.
+- The installation-wide Hall archive receives newly accepted human laps from
+  Practice, career races and local multiplayer, independently of private PBs.
+  Three-lap entries require three observed completed competitive laps. Legacy
+  winning banks and restored files never seed it. See [shared Hall](shared-hall-of-fame.md)
+  for ranking, ownership, completion identity and the remaining browser work.
 - Personal-best ghost files belong to a career, track and Normal/Super league.
   Practice and career races share the target while Hall eligibility stays
   independent. The serial worker also owns their atomic writes and recovery;
@@ -41,7 +42,7 @@ retain their timing gates. Computer Link remains disabled and deferred.
 
 ## Storage
 
-Career/Hall/index files use bounded, checksummed, versioned envelopes. A serial
+Private career/index files use bounded, checksummed, versioned envelopes. A serial
 worker writes immutable jobs to a flushed temporary file, atomically replaces
 the head and retains two valid recovery generations. Ignore stale temporary
 files, preserve unknown formats and validate checkpoint bodies during recovery.
@@ -52,6 +53,9 @@ Write failure retains the latest RAM state and last good disk copy. Retry at saf
 boundaries; switching careers and closing must drain writes or offer an explicit
 unsaved exit/cancel. Never silently reset damaged or unsupported progress.
 A per-data-directory mutex prevents competing player writers.
+The separate shared Hall worker merges against the latest index under a short
+cross-account file lock. Its immutable objects and recovery indexes are independent
+of career deletion/PB replacement; both workers participate in departure checks.
 
 Multiplayer manual saves retain the original thirty-slot codec and separate
 atomic file replacement. Stage decoding on a private copy before committing;

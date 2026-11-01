@@ -1,6 +1,7 @@
 #pragma once
 #include "presentation/ghost_bridge.h"
 #include "render/render_projection.h"
+#include "race/race_timing.h"
 #include <cstdint>
 #include <vector>
 
@@ -20,5 +21,12 @@ struct GhostLapBoundary {
     std::uint16_t progress{};
     std::uint8_t correctionHundredths{};
     bool interpolated{},recovery{};
+};
+struct LapRecording {
+    PackedLapTime completedTime{};
+    std::int64_t durationMicroseconds{};
+    GhostLapBoundary start,finish;
+    std::vector<GhostLapSample> samples;
+    std::vector<GhostBridgeShape> bridges;
 };
 } // namespace scr::runtime

@@ -34,10 +34,11 @@ future work; finite checks do not imply universal rendering equivalence.
   recorded trajectory and live bridge behaviour; temporarily suppress the ghost
   around an incompatible crossing, as described below.
 
-Ghost bests are independent of Hall of Fame eligibility. A faster Practice lap
-can replace the saved ghost without adding a Hall entry. League laps continue
-through the existing competitive Hall rules independently of ghost replacement;
-recording must not invoke scoring, progression or legacy save encoding.
+Ghost bests are independent of Hall of Fame ranking. Every eligible completed
+human lap from Practice or a league race can now enter the shared archive even
+when it is slower than the private PB. Local multiplayer has Hall capture without
+career PB ownership. See [shared Hall completion delivery](shared-hall-of-fame.md#completion-delivery).
+Recording must not invoke scoring, progression or legacy save encoding.
 
 ## Settings and feedback
 
@@ -93,16 +94,19 @@ Preserve unreadable or unsupported files rather than silently overwriting them.
 `app/race/lap_recording.*` owns compact movement samples, original completed
 times, career/track/league keys and immutable best targets. `NativeGameSession`
 owns the in-memory library and binds a recorder when an active career enters
-Practice or a league race. Multiplayer cannot bind one. Switching modes or
+Practice or a league race. Multiplayer cannot bind a private PB adapter. Switching modes or
 careers keeps their separate targets. The library is not part of a checkpoint or
 Hall bank; separate ghost files restore its targets on race entry.
 
 The recorder observes existing native wheel/frame and timing events. The first
 human line event starts a candidate; subsequent accepted events supply the
-completed time before the running clock is cleared. A recorder attached during
+completed-time snapshot captured before the running clock was cleared. A recorder attached during
 an existing lap waits for the next boundary rather than saving a partial lap.
 Completed improvements enter the library immediately, independently of later
 loss, quit or race-exit handling. Ties retain the existing recording.
+The owner-neutral completion is also delivered to the Hall independently of this
+filter. PB clearing leaves that capture running and suppresses only the current
+partial lap's PB eligibility until the next boundary.
 
 The supported game's clock adds 13 BCD hundredths per update while movement
 advances in 120 ms steps. Its line correction adds 0–12 further hundredths when

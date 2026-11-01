@@ -99,7 +99,7 @@ add_library(scr_state INTERFACE)
 target_include_directories(scr_state INTERFACE "${PROJECT_SOURCE_DIR}/src")
 target_compile_features(scr_state INTERFACE cxx_std_17)
 
-# The shared Hall foundations are not connected to the player yet.
+# Shared Hall models/codecs remain independent of live simulation state.
 add_library(scr_records STATIC app/records/hall_of_fame.cpp app/persistence/hall_table_codec.cpp app/persistence/hall_ghost_codec.cpp)
 target_include_directories(scr_records PUBLIC app src)
 target_compile_features(scr_records PUBLIC cxx_std_17)
@@ -159,6 +159,7 @@ if(WIN32)
     app/persistence/native_career_checkpoint.cpp
     app/persistence/native_save_store.cpp
     app/race/race_scene.cpp
+    app/race/hall_race_recording.cpp
     app/race/lap_recording.cpp
     app/presentation/race_render_assets.cpp
     app/presentation/presentation_interpolation.cpp
@@ -167,7 +168,7 @@ if(WIN32)
     app/audio/game_audio.cpp
   )
   target_include_directories(scr_game PUBLIC app)
-  target_link_libraries(scr_game PUBLIC scr_runtime)
+  target_link_libraries(scr_game PUBLIC scr_runtime scr_hall_storage)
   target_compile_features(scr_game PUBLIC cxx_std_17)
   add_library(scr_host_ui STATIC
     app/launcher/native_display_settings.cpp

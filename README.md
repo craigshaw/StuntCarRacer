@@ -10,7 +10,7 @@
 - **Original racing.** All eight tracks, including Draw Bridge, both leagues,
   Practice and championships, retaining the original physics, AI and race rules.
 - **Careers and records.** Multiple single-player careers, autosave, Resume Season
-  and a shared Hall of Fame.
+  and an installation-wide record archive. Its enhanced Hall browser is in development.
 - **Personal-best ghosts.** Save best laps from Practice or career races and
   chase them in Practice, with an optional translucent ghost.
 - **Local multiplayer.** Championships for 2–8 drivers taking turns, with thirty
@@ -57,6 +57,7 @@ Original controls latch acceleration; Modern uses held gas. **Esc / controller
 Start** opens the Game menu while racing; **F10** opens Settings.
 
 Assets, settings and saves live in `%LOCALAPPDATA%/Stunt Car Racer/`.
+The shared record archive uses `%PROGRAMDATA%/Stunt Car Racer/instances/`.
 See the [player guide](docs/playing.md) for full controls and save recovery.
 
 ## Build

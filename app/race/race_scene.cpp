@@ -9,6 +9,7 @@
 #include "state/near_track_geometry_adapter.h"
 #include "state/opponent_car_adapter.h"
 #include "state/wheel_animation_adapter.h"
+#include "race/hall_race_recording.h"
 #include <algorithm>
 #include <cmath>
 #include <chrono>
@@ -69,6 +70,7 @@ struct RaceScene::Simulation {
     unsigned outerRestarts{};
     DriveControlPreset preset{};
     std::unique_ptr<LapRecorder> laps;
+    std::unique_ptr<HallRaceRecording> hall;
     std::ofstream controls,trace;
     std::filesystem::path recording;
     std::string lastRow;
@@ -129,7 +131,11 @@ void RaceScene::initialiseMemory(const std::array<std::uint8_t,0x80000>& memory,
             advanceBoostFlames(ram[0x1bb62],simulation.flameFrame);
             simulation.message=captureNativeRaceMessage(ram);
         }
-        if(stage==scr::state::replay::ReplayPresentationStage::timing&&simulation.laps)simulation.laps->observeTiming(events);
+        if(stage==scr::state::replay::ReplayPresentationStage::timing&&simulation.laps){
+            if(simulation.hall)simulation.laps->observeTiming(events,[&](LapCompletion completion){
+                if(const auto human=state::readHumanRaceRecord(ram.data()))simulation.hall->complete(std::move(completion),*human);
+            });else simulation.laps->observeTiming(events);
+        }
         if(stage==scr::state::replay::ReplayPresentationStage::wait){
             const auto inputs=scr::state::wheelAnimation::readInputs(ram.data());
             simulation.wheels.framesToWait=ram[0x616d8];simulation.wheels.framesToWaitWhenFading=ram[0x616da];
@@ -357,6 +363,15 @@ bool RaceScene::recordPersonalBestLaps(PersonalBestLaps& bests,GhostLapContext c
 }
 const LapRecordingStatistics* RaceScene::lapRecordingStatistics()const noexcept{
     return simulation_&&simulation_->laps?&simulation_->laps->statistics():nullptr;
+}
+void RaceScene::recordHallAttempts(HallAttemptId run,bool competitive){
+    if(!simulation_||simulation_->hall)throw std::logic_error("Hall capture requires a new live scene");
+    const auto& ram=simulation_->native.ram;const unsigned track=ram[0x1ca33];
+    if(!simulation_->laps)simulation_->laps=std::make_unique<LapRecorder>(track,trig_);
+    simulation_->hall=std::make_unique<HallRaceRecording>(run,HallBoardKey{track,ram[0x1c9d0]?HallLeague::Super:HallLeague::Normal,HallRecordKind::Lap},HallCatalog{trackContentIdentity_,1},competitive);
+}
+std::vector<HallSubmission> RaceScene::takeHallCompletions(){
+    return simulation_&&simulation_->hall?simulation_->hall->take():std::vector<HallSubmission>{};
 }
 void RaceScene::clearPersonalBestLap(){if(simulation_&&simulation_->laps)simulation_->laps->clear();}
 const std::vector<std::uint32_t>& RaceScene::renderPracticeGhost(double fraction,bool interpolate,NativeView view){

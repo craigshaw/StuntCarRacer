@@ -1,4 +1,5 @@
 #pragma once
+#include "records/hall_of_fame.h"
 #include <chrono>
 #include <filesystem>
 #include <memory>
@@ -16,6 +17,8 @@ SharedHallPaths sharedHallPaths(const std::filesystem::path& installationDirecto
 // and Administrators/System full access. Never call on private career folders.
 void prepareSharedHallDirectory(const std::filesystem::path& root);
 bool sharedHallUsersAccess(const std::filesystem::path& root);
+HallAttemptId newHallRunId();
+HallAttemptId hallCompletionId(const HallAttemptId& run,std::uint64_t crossing,HallRecordKind);
 // Short transaction lock; file sharing prevents lock-file replacement while
 // held. The OS releases the byte-range lock when a process exits.
 class SharedHallLock {

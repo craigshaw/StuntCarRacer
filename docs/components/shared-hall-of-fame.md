@@ -1,8 +1,40 @@
 # Shared Hall storage
 
-Status: ranking, bounded codecs and a durable Windows shared store are implemented
-and exercised through isolated tests/proof tools. They are not connected to the
-player. The existing Hall and career PB feature continue to run unchanged.
+Status: the player records new human lap/race completions into the durable shared
+archive. The enhanced browser and selectable Hall ghost challenges are still
+pending; the existing Hall screen displays the native record banks. Private
+career PB files and ordinary Practice targets retain their existing format.
+
+## Completion delivery
+
+`LapRecorder` captures owner-neutral `LapRecording` data and delivers accepted
+full laps independently of private PB filtering. It tracks an observed start independently
+of its movement buffer: sample/bridge overflow yields an eligible time-only
+attempt, while attaching during a partial lap cannot manufacture a full lap.
+Clearing a private PB skips PB replacement for that partial lap, while Hall
+capture continues. Private PBs still accept only strict improvements.
+
+`HallRaceRecording` binds every newly delivered attempt to its actual native
+roster name, track, league and accepted original time. It creates a fresh host
+run identity using Windows randomness; SHA-256 of that identity, the crossing
+sequence and category supplies a retry-stable 128-bit attempt ID. Timestamps and
+gameplay RNG are not used. Every actual re-drive gets a new run identity.
+
+The timing callback consumes the corrected `lapTimerHud` event snapshot, not the
+already-cleared running clock. `state/human_record_adapter.h` reads the current
+human name and cumulative time through a const recovered-layout boundary. Only
+three consecutively observed full laps ending at counter 4 can produce a race
+entry, and only in competitive play. Winning is not an extra condition. Practice,
+league and local multiplayer all deliver individual laps; multiplayer has no
+private career PB owner.
+
+The session drains completions after each live step, before terminal checkpoint
+handling. Restored PBs, native winning banks, checkpoints, finish acknowledgements
+and manual-save encoders never mint attempts. The player no longer loads/writes
+the old per-user `hall.scr-hall`, polls winning banks or offers its reset/recovery
+flow. Old corrupt/future Hall files cannot seed or block careers or the new Hall.
+Native working banks and their original routines remain for gameplay and oracle
+contracts; archive reads/writes do not rewrite simulation RAM.
 
 `app/records/hall_of_fame.*` owns 32 boards: eight tracks, Normal/Super and
 lap/three-lap race. Each retains 20 attempts, including multiple attempts from one
@@ -82,13 +114,21 @@ candidate cannot qualify after those attempts merge. IDs, names and times are
 never rewritten during a retry. Concurrent processes merge against the latest
 index while holding the file lock, rather than writing stale local snapshots.
 
-The pending set is bounded to 640 attempts and **64 MiB of payload plus entry
-accounting**. One in-flight batch can retain another such set while new attempts
-arrive; payload/accounting is thus bounded to 128 MiB, plus bounded codec/I/O
-scratch and container overhead. `Full` explicitly leaves ownership with the
-caller, which must retain and retry the attempt. It does not mean saved. The
-recording factory encodes immutable data; file I/O and merging run on the worker.
-Player completion/backpressure integration is a later stage.
+The pending set is bounded to 640 attempts. The general encoded-submission API
+defaults to **64 MiB of payload plus entry accounting**, and returns `Full` when
+its budget cannot accept another qualifying attempt. The caller must retain its
+original submission until ownership is accepted; `Full` does not mean saved.
+
+Live captures use the same worker and queue, passing immutable movement data
+without encoding on the driving loop. Their lazy budget is derived from all 320
+possible pending lap recordings at the existing sample/bridge allocation limits,
+plus 640 entry allowances (`hallCapturePendingMaximumBytes`). This admits every
+valid pending top-20 candidate without an additional producer queue or dropping
+healthy recordings on failure. The ceiling is not reserved up front. An in-flight
+snapshot can retain one further batch while newer attempts arrive, so the bound
+is twice that budget plus container overhead, one active capture and codec/I/O
+scratch. The writer encodes/hashes captures, then re-encodes only retained objects
+one at a time to avoid a second entire encoded batch in memory.
 
 `flush()` returns true only after acknowledgement of all queued attempts. Failure
 keeps the pending data, exposes an error and waits for `retry()`; it does not
@@ -104,13 +144,20 @@ default location is under common Windows application data, with an injectable
 common root for tests. It creates missing Hall directories with inherited local
 Users modification rights and never re-permissions existing ancestors. Its bounded
 byte-range transaction lock prevents replacement of an active lock file and is
-released by process exit. No production launch path invokes these primitives yet.
+released by process exit.
+
+Normal player launches now use that common root. An explicit `--data-dir` keeps
+the Hall under its isolated `shared-hall/` subtree. `enableCareers(privateRoot,
+sharedRoot)` also supports separate private roots using one injected archive.
+Directory creation and initial validation happen on the existing writer. Hall
+failures share the safe-boundary Retry/Continue/unsaved-departure flow with career
+writes, never a new notice during driving. Closing drains both stores.
 
 The foundation proof tests competing read/merge/write processes, retry IDs,
 publication and lock release after an owned child exits abruptly. The durable
 store proof runs two actual store workers with stale initial observations and
 terminates owned writers at seven flush/publication/collection boundaries.
-Capture and player/browser/challenge integration remain later work.
+Browser/challenge integration remains later work.
 Real cross-account evidence must come from distinct process-user SIDs, not merely
 two processes or an ACL inspection.
 
@@ -127,6 +174,13 @@ reports remain under ignored `analysis/hall-of-fame/durable-store/`. The durable
 proof uses disposable roots and does not itself test another Windows account or
 real player data; the earlier distinct-account proof covers the shared path/ACL/
 lock primitives. Keep those evidence scopes separate.
+
+`scripts/check_native_laps.py --verify-original` also runs completion delivery
+and player ingestion tests, including slower-than-PB laps, both overflow cases,
+partial entry, repeated recovery timestamps, competitive totals, local drivers,
+PB clearing/deletion, no legacy imports, write retry and full RAM/RNG isolation.
+Authored captured-entry fixtures exercise accepted crossings rather than treating
+old record bytes as newly earned times. Original CPU execution stays test-only.
 
 Windows API contracts: [byte-range locks](https://learn.microsoft.com/en-us/windows/win32/api/fileapi/nf-fileapi-lockfileex)
 and [access-entry inheritance](https://learn.microsoft.com/en-us/windows/win32/secauthz/ace-inheritance).

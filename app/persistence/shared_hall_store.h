@@ -9,9 +9,15 @@
 
 namespace scr::runtime {
 using HallBytes=state::checkpoint::Bytes;
-struct HallSubmission {HallAttempt attempt;HallBytes ghost;};
+struct HallSubmission {
+    HallAttempt attempt;
+    HallBytes ghost;
+    // Live captures are encoded/hashed on the existing writer, not the drive loop.
+    std::shared_ptr<const HallGhost> recording;
+};
 // Encodes and binds an optional recording; a time-only attempt has no reference.
 HallSubmission makeHallSubmission(HallAttempt,const HallGhost* ghost=nullptr);
+HallSubmission captureHallSubmission(HallAttempt,std::shared_ptr<const HallGhost>);
 std::string hallObjectName(const HallAttemptId&);
 enum class HallArchiveState {Missing,Valid,Recovered,Corrupt,Unsupported};
 struct HallArchiveRead {
@@ -40,6 +46,13 @@ private:
 };
 enum class HallSubmitResult {Queued,Duplicate,OutsideTable,Full};
 constexpr std::size_t hallPendingMaximumBytes=64*1024*1024;
+constexpr std::size_t hallCaptureMaximumBytes=sizeof(HallGhost)+maxGhostLapSamples*sizeof(GhostLapSample)+
+    maxGhostLapBridgeShapes*(sizeof(GhostBridgeShape)+512*sizeof(std::uint16_t));
+// A lazy ceiling for all 320 possible pending lap recordings plus time-only rows.
+// The live producer uses this bound so every valid top-20 candidate fits; no
+// memory is reserved up front. Smaller budgets retain the explicit Full API.
+constexpr std::size_t hallCapturePendingMaximumBytes=hallBoardCount*hallEntriesPerBoard*128+
+    (hallBoardCount/2)*hallEntriesPerBoard*hallCaptureMaximumBytes;
 // Off-thread publication. At most 20 pending attempts per board, with explicit
 // backpressure. Full means the caller must retain the immutable attempt.
 class SharedHallStore {
@@ -65,7 +78,7 @@ private:
     std::condition_variable changed_,idle_;
     std::vector<std::shared_ptr<const HallSubmission>> pending_,active_;
     std::string error_;
-    bool stopping_{},writing_{},blocked_{};
+    bool stopping_{},writing_{},blocked_{},checkRequested_{};
     std::thread worker_;
     void run();
 };

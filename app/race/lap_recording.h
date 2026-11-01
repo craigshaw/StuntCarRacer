@@ -9,6 +9,7 @@
 #include <map>
 #include <memory>
 #include <optional>
+#include <functional>
 #include <string>
 
 namespace scr::runtime {
@@ -21,15 +22,16 @@ struct GhostLapKey {
 };
 struct GhostLapContext {GhostLapKey key;GhostLapSource source{};std::uint64_t trackContentIdentity{};};
 std::uint64_t ghostTrackContentIdentity(const std::vector<std::uint8_t>& payload);
-struct GhostLap {
+struct GhostLap : LapRecording {
     GhostLapContext context;
-    PackedLapTime completedTime;
     unsigned hundredths{},controlPresets{};
-    std::int64_t durationMicroseconds{};
-    GhostLapBoundary start,finish;
-    std::vector<GhostLapSample> samples;
-    std::vector<GhostBridgeShape> bridges;
 };
+struct LapCompletion {
+    std::uint8_t counter{};
+    PackedLapTime time{};
+    std::unique_ptr<LapRecording> recording;
+};
+using LapCompletionSink=std::function<void(LapCompletion)>;
 // Ranking always uses original packed-decimal time, never movement duration.
 unsigned ghostLapHundredths(PackedLapTime);
 class PersonalBestLaps {
@@ -67,8 +69,9 @@ struct LapRecordingStatistics {
 class LapRecorder {
 public:
     LapRecorder(PersonalBestLaps&,GhostLapContext,const TrigTable&);
+    LapRecorder(unsigned track,const TrigTable&);
     void observeMovement(LapMovementObservation);
-    void observeTiming(const RaceTimingEffects&);
+    void observeTiming(const RaceTimingEffects&,const LapCompletionSink& sink={});
     void stop();
     void clear();
     std::optional<GhostLapPlayback> playback(std::int64_t absoluteMicroseconds,bool interpolate=true)const;
@@ -81,15 +84,17 @@ private:
         GhostBridgeVisibility visibility;
         std::optional<std::int64_t> lastCut;
     };
-    PersonalBestLaps& bests_;
+    PersonalBestLaps* bests_{};
     GhostLapContext context_;
     const TrigTable& trig_;
     std::optional<LapMovementObservation> previous_,current_;
-    std::optional<GhostLap> candidate_;
+    std::optional<LapRecording> candidate_;
     std::deque<Epoch> epochs_;
     GhostBridgeRegionTracker region_;
     LapRecordingStatistics statistics_;
-    bool stopped_{},overflowed_{};
+    bool stopped_{},overflowed_{},observedStart_{},pbEligible_{true};
+    std::uint8_t lastCounter_{};
+    unsigned candidatePresets_{};
     GhostLapBoundary boundary(bool first)const;
     void append(const LapMovementObservation&,bool cut);
     void compatibility();

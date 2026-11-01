@@ -60,7 +60,9 @@ def main():
     fixture_paths = (assets, chip, payload, controls, reference)
     fixtures = [identity(path) for path in fixture_paths]
     before = source_records()
-    targets = ('lap_recording_tests', 'ghost_lap_codec_tests', 'native_ghost_store_tests', 'native_practice_ghost_tests',
+    targets = ('hall_completion_tests', 'native_hall_completion_tests', 'hall_of_fame_tests', 'hall_table_codec_tests',
+               'hall_ghost_codec_tests', 'shared_hall_store_tests', 'shared_hall_storage_tests',
+               'lap_recording_tests', 'ghost_lap_codec_tests', 'native_ghost_store_tests', 'native_practice_ghost_tests',
                'native_lap_recording_tests', 'native_lap_timer_tests', 'native_display_tests', 'native_launcher_tests', 'native_game_session_tests',
                'native_career_session_tests', 'native_multiplayer_session_tests', 'native_autosave_tests',
                'presentation_interpolation_tests', 'ghost_bridge_tests', 'native_opponent_driving_tests',
@@ -94,6 +96,11 @@ def main():
     player = json.loads((NATIVE_BUILD / 'test-output/Release/native_practice_ghost_tests/results.json').read_text())
     if player['view_mask'] != 15 or not player['visible_player_queries'] or not player['simulation_and_rng_unchanged']:
         raise RuntimeError('Saved player ghost acceptance omitted visibility or isolation')
+    hall = json.loads((NATIVE_BUILD / 'test-output/Release/native_hall_completion_tests/results.json').read_text())
+    if (hall['practice_laps'] != 3 or hall['competitive_laps'] != 3 or hall['multiplayer_laps'] != 3
+            or hall['competitive_races'] != 2 or not hall['legacy_not_imported'] or not hall['private_pb_independent']
+            or not hall['full_memory_and_rng_isolation']):
+        raise RuntimeError('Shared Hall completion acceptance is incomplete')
     originals = {}
     if args.verify_original:
         originals['timing'] = run_json([executables['race_timing_oracle'], payload, 'lap-recording', chip], output / 'timing-original.json')
@@ -102,11 +109,11 @@ def main():
     if source_records() != before or [identity(path) for path in fixture_paths] != fixtures:
         raise RuntimeError('Lap recording sources or fixtures changed during verification')
     qa = visuals(output)
-    result = {'status': 'passed', 'scope': 'saved personal-best ghosts, Practice rendering, controls and feedback',
+    result = {'status': 'passed', 'scope': 'private PBs and newly accepted shared Hall lap/race completions; no Hall browser/challenges yet',
               'durable_ghost_storage': True, 'player_ghost_controls': True,
               'seconds': time.perf_counter() - started, 'sources': before, 'fixtures': fixtures,
               'executables': {name: identity(path) for name, path in executables.items()},
-              'checks': checks, 'player_checks': player, 'visuals': qa, 'original_cpu_executed': args.verify_original, 'original_comparisons': originals}
+              'checks': checks, 'player_checks': player, 'hall_completion_checks': hall, 'visuals': qa, 'original_cpu_executed': args.verify_original, 'original_comparisons': originals}
     (output / 'check-results.json').write_text(json.dumps(result, indent=2) + '\n')
     print(json.dumps({'status': 'passed', 'report': str(output / 'check-results.json'), 'checks': checks}, indent=2))
 

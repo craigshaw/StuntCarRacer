@@ -52,7 +52,9 @@ observations, then terminates owned child writers at seven transaction stages.
 It checks recovery, retry deduplication and usable referenced ghosts. Reports,
 logs and disposable data stay under `analysis/hall-of-fame/durable-store/`.
 This proof covers process interruption, not power loss or another Windows login;
-the foundation account proof remains separate. Player integration is still pending.
+the foundation account proof remains separate. Player completion delivery is
+checked by `scripts/check_native_laps.py --verify-original`; enhanced Hall browser
+and challenge integration remain pending.
 
 ## Static ghost rendering proof
 

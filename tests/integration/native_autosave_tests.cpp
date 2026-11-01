@@ -121,7 +121,7 @@ void careerFlow(const std::filesystem::path& pack,const std::filesystem::path& r
     require(finishImage.size()==320*200,"Ultrawide changed the persisted career finish image codec");
     require(game->requestClose(),"Finish checkpoint did not flush");
     const auto pending=root/"pending-finish";CareerBytes finishCheckpoint;NativeCareerInfo finishInfo;
-    {NativeCareerStore source(root),target(pending);finishInfo=decodeCareerInfo(source.readCareer(first).data,&finishCheckpoint);target.saveCareer(finishInfo,finishCheckpoint);target.setLastUsed(first);const auto hall=source.readHall();NativeHallBanks banks;std::copy(hall.data.begin(),hall.data.end(),banks.begin());target.saveHall(banks);require(target.flush(),"Cannot retain pending-finish comparison fixture");}
+    {NativeCareerStore source(root),target(pending);finishInfo=decodeCareerInfo(source.readCareer(first).data,&finishCheckpoint);target.saveCareer(finishInfo,finishCheckpoint);target.setLastUsed(first);require(target.flush(),"Cannot retain pending-finish comparison fixture");}
     tap(*game);const auto scored=progress(game->memory());const auto scoredImage=game->render();
     {auto restored=start(pack,pending);continueLast(*restored,true);require(restored->raceEnded(),"Comparison fixture lost terminal stage");tap(*restored);
         require(progress(restored->memory())==scored&&restored->render()==scoredImage,"Restored finish differed from uninterrupted exit/scoring");}
@@ -240,7 +240,7 @@ void seasonEndings(const std::filesystem::path& pack,const std::filesystem::path
         game=reload(std::move(game),pack,folder);choose(*game,2);tap(*game);require(game->page()==NativeMenuPage::Matchup,"Next season did not continue after restored ending");
     }
 }
-void earnedRecords(const std::filesystem::path& pack,const std::filesystem::path& root){
+void legacyRecordsNotImported(const std::filesystem::path& pack,const std::filesystem::path& root){
     namespace timing=scr::state::timing;
     for(unsigned league:{0u,11u})for(bool multiplayer:{false,true}){
         const auto folder=root/(std::to_string(league)+(multiplayer?"-multi":"-single"));auto game=start(pack,folder);
@@ -264,10 +264,10 @@ void earnedRecords(const std::filesystem::path& pack,const std::filesystem::path
         state.lapCounter[0]=3;state.crossingArmed[0]=0;state.times[0]={0,0x20,0x10};state.times[human+12]={0,0x40,0};state.times[15]={9,0x59,0x99};
         (void)scr::updateRaceTiming(in,state);timing::writeInputs(memory->data(),in);timing::writeState(memory->data(),state);
         const_cast<RaceScene&>(game->race()).loadNativeState(*memory,data.payload,{});game->update(.12,{});require(game->requestClose(),"Three-lap record did not flush");game.reset();
-        NativeCareerStore store(folder);const auto saved=store.readHall();require(saved.state==CareerFileState::Valid,"Earned Hall record missing on disk");
-        require(std::equal(expected.begin(),expected.end(),saved.data.begin()+ordinal*16)&&saved.data[ordinal*16+12]==0&&saved.data[ordinal*16+13]==0x20,"Unfinished race lost its eligible human lap record");
-        require(std::equal(expected.begin(),expected.end(),saved.data.begin()+256+ordinal*16)&&saved.data[256+ordinal*16+12]==1&&saved.data[256+ordinal*16+13]==0,"Three-lap record was not persisted");
-        if(!multiplayer){const auto careers=store.list();require(careers.size()==1&&store.removeCareer(careers[0].id),"Record career deletion failed");require(store.readHall().data==saved.data,"Deleting a career removed shared records");}
+        NativeCareerStore store(folder);require(store.readHall().state==CareerFileState::Missing,"Player recreated the legacy Hall");
+        SharedHallArchive shared(folder/"shared-hall",{ghostTrackContentIdentity(data.payload),1});const auto saved=shared.read();
+        require(saved.state==HallArchiveState::Missing,"Injected old winning banks were imported as new attempts");
+        (void)expected;(void)ordinal;
         require(human<=11,"Record holder is not a human driver");
     }
 }
@@ -296,6 +296,6 @@ void checkpointContexts(const std::filesystem::path& pack){
 int main(int argc,char** argv)try{
     if(argc!=3&&argc!=4)throw std::invalid_argument("native_autosave_tests pack output [alternate-pack]");const std::filesystem::path root=argv[2];
     if(argc==4)diskVariants(argv[1],argv[3],root/"disk-variants");
-    std::filesystem::create_directories(root);storage(root/"storage");checkpointContexts(argv[1]);careerFlow(argv[1],root/"flow");failures(argv[1],root/"failures");practicePolicies(argv[1],root/"policies");leaveRacePersistence(argv[1],root/"leave-race");paging(argv[1],root/"paging");draftsAndRecovery(argv[1],root/"recovery");seasonEndings(argv[1],root/"endings");earnedRecords(argv[1],root/"records");
-    std::cout<<"{\"status\":\"passed\",\"checkpoint_contexts\":8,\"checkpoint_phases\":9,\"season_ending_contexts\":8,\"practice_policy_cases\":4,\"listed_careers\":36,\"record_mode_league_cases\":4,\"finish_before_acknowledgement\":true,\"finish_scoring_matches_uninterrupted\":true,\"interrupted_fixture\":true,\"duplicate_names\":true,\"delete\":true,\"recovery\":true,\"write_retry\":true,\"record_merge\":true,\"three_lap_records\":true,\"setup_draft\":true,\"conditional_entry_rows\":true,\"three_row_main_menu\":true,\"continue_opens_main_menu\":true,\"resume_season\":true,\"practice_preserves_suspended_season\":true,\"existing_native_careers\":true,\"career_switch_isolation\":true}\n";return 0;
+    std::filesystem::create_directories(root);storage(root/"storage");checkpointContexts(argv[1]);careerFlow(argv[1],root/"flow");failures(argv[1],root/"failures");practicePolicies(argv[1],root/"policies");leaveRacePersistence(argv[1],root/"leave-race");paging(argv[1],root/"paging");draftsAndRecovery(argv[1],root/"recovery");seasonEndings(argv[1],root/"endings");legacyRecordsNotImported(argv[1],root/"records");
+    std::cout<<"{\"status\":\"passed\",\"checkpoint_contexts\":8,\"checkpoint_phases\":9,\"season_ending_contexts\":8,\"practice_policy_cases\":4,\"listed_careers\":36,\"legacy_record_mode_league_cases\":4,\"finish_before_acknowledgement\":true,\"finish_scoring_matches_uninterrupted\":true,\"interrupted_fixture\":true,\"duplicate_names\":true,\"delete\":true,\"recovery\":true,\"write_retry\":true,\"record_merge\":true,\"legacy_records_not_imported\":true,\"setup_draft\":true,\"conditional_entry_rows\":true,\"three_row_main_menu\":true,\"continue_opens_main_menu\":true,\"resume_season\":true,\"practice_preserves_suspended_season\":true,\"existing_native_careers\":true,\"career_switch_isolation\":true}\n";return 0;
 }catch(const std::exception& e){std::cerr<<e.what()<<'\n';return 1;}

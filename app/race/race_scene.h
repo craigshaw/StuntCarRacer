@@ -6,6 +6,7 @@
 #include "race/lap_recording.h"
 #include "render/software_renderer.h"
 #include "render/ghost_car.h"
+#include "persistence/shared_hall_store.h"
 #include "audio/game_audio.h"
 #include "render/opponent_car.h"
 #include "render/opponent_far_track.h"
@@ -83,6 +84,8 @@ public:
     // In-memory career targets only. No file, settings or automatic draw path.
     // Multiplayer and a mismatched mode/track/league cannot bind a recorder.
     bool recordPersonalBestLaps(PersonalBestLaps&,GhostLapContext);
+    void recordHallAttempts(HallAttemptId run,bool competitive);
+    std::vector<HallSubmission> takeHallCompletions();
     const LapRecordingStatistics* lapRecordingStatistics()const noexcept;
     std::optional<GhostLapPlayback> lapGhostPlayback(double position,bool interpolate=true)const;
     void clearPersonalBestLap();

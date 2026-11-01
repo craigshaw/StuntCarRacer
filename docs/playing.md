@@ -73,13 +73,17 @@ result before acknowledgement, so restoring it cannot score twice. Practice
 cannot replace or advance a suspended season, including when interrupted.
 There is no single-player manual save/load/Replay route or legacy HALL import.
 
-Hall of Fame shows the current league's lap and three-lap records for all eight
-tracks. In Original navigation, release fire then press Enter/Space/A again to
-return; Responsive also accepts Escape/B. Eligible competitive human records
-save automatically across careers and multiplayer. An earned lap can survive
-closing during the rest of its race. Practice, incomplete laps and opponents
-cannot add records; ties keep the holder. Deleting/restoring a career cannot
-remove or roll back shared records.
+The enhanced Hall of Fame is being added in stages. New completed human laps from
+Practice, career races and local multiplayer now save into one installation-wide
+archive, together with completed competitive three-lap races. Each track/league/
+category retains up to 20 attempts, including ties and multiple attempts by one
+name. Incomplete laps and opponents do not enter. Deleting/restoring a career or
+clearing its PB cannot remove shared records or their retained ghosts.
+
+The existing Hall screen still shows the native game's record banks; the new
+ranked browser and selected-ghost challenges are not available yet. In Original
+navigation, release fire then press Enter/Space/A again to return; Responsive also
+accepts Escape/B.
 
 ## Practice and seasons
 
@@ -105,8 +109,9 @@ On Draw Bridge it temporarily fades around an incompatible crossing and shows
 
 The Practice Game menu shows your personal best. Clear best and ghost asks for
 confirmation and removes that career's target for the current circuit and league.
-It also discards the lap in progress; recording restarts at the next start-line
-crossing. Clearing does not affect the Hall of Fame or other careers.
+The lap in progress cannot replace that PB; PB recording becomes eligible again
+at the next start-line crossing. Hall recording continues through the clear.
+Clearing does not affect Hall records, their ghosts or other careers.
 
 Original driving controls latch acceleration until braking. Modern accelerates
 only while gas is held and coasts on release; boost alone does not restart gas.
@@ -223,9 +228,16 @@ Normal launches use `%LOCALAPPDATA%/Stunt Car Racer/`:
 | --- | --- |
 | `assets/` | Imported pack and provenance |
 | `settings/display.ini` | Shared preferences |
-| `careers/`, `last.scr-index`, `hall.scr-hall` | Native careers, last-used identity and shared records |
+| `careers/`, `last.scr-index` | Native careers and last-used identity |
 | `ghosts/<career-id>/` | Saved personal bests and their ghost recordings |
 | `saves/stunt-car-racer.scr-save` | Manual multiplayer saves |
+
+The shared archive uses `%PROGRAMDATA%/Stunt Car Racer/instances/<installation-id>/hall/`
+and is shared across Windows accounts using that installation directory. Replacing
+the executable in place keeps it; another installation directory has a separate
+archive. Old per-user `hall.scr-hall` files remain untouched and are not imported.
+Development launches with `--data-dir` use an isolated `shared-hall/` below that
+directory instead.
 
 A second launch using the same data directory brings the existing window forward.
 Saving/Saved appears in menus/pause; Not saved persists after failure. Retry or
@@ -235,8 +247,9 @@ if needed. Leaving unsaved can lose progress since the last successful write.
 
 Careers, the last-used index and shared records keep two previous valid generations.
 A damaged/missing current file recovers the newest valid copy with a notice.
-With no usable copy a career stays unavailable until explicit selection/creation/deletion;
-an unrecoverable Hall offers a confirmed fresh start while preserving damaged files.
+With no usable copy a career stays unavailable until explicit selection/creation/deletion.
+An unreadable or unsupported shared archive is preserved and reports a save
+failure; there is no Hall reset or individual delete action.
 Ghost recordings also keep two recovery copies. An unavailable saved ghost can
 be explicitly cleared from the Practice Game menu; a write failure keeps the
 best in memory and the last good file. Unsupported formats are left untouched.

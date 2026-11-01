@@ -1,9 +1,46 @@
 # Shared Hall storage
 
 Status: the player records new human lap/race completions into the durable shared
-archive. The enhanced browser and selectable Hall ghost challenges are still
-pending; the existing Hall screen displays the native record banks. Private
+archive and displays it in the career-menu browser. Selectable Hall ghost
+challenges remain pending. Private
 career PB files and ordinary Practice targets retain their existing format.
+
+## Browser
+
+`menus/hall_browser.*` owns filters, focus, two-page navigation and selected record
+identity outside native RAM. `presentation/hall_browser_render.*` reuses the
+original Hall's title/background artwork, 16-colour palette and seven-pixel font.
+Its denser table retains the red name fields, grey time fields and blue markers.
+The legacy renderer remains available to original-code tests and development
+sessions; the enabled player has one shared Hall route, from an active career.
+The old multiplayer Hall option is disabled in the player.
+
+The header names All players and the active driver. Track, Normal/Super and
+lap/three-lap selectors choose one board, with ten rows per page. Competition ranks
+are derived across the whole board. The table contains rank, name, original time
+and verified ghost availability, with no result-history metadata. Race rows are
+results only. There is no challenge button until its launch/target flow exists.
+
+Up/down traverses selectors, visible rows and Page/Reload/Back. Left/right changes
+a filter or page; confirmation changes the focused selector or activates a bottom
+control. Back returns to the same career. Number keys 1/2/3 focus selectors and 4
+reloads. The existing input clock provides release gates and repeat timing in both
+navigation policies. Filters and selection survive reopening; a fresh snapshot
+follows the selected immutable ID, or clamps nearby if it was displaced.
+
+Open, filter changes and Reload submit one coalesced read request to the existing
+Hall worker. It publishes pending writes first, then reads a compatible index and
+validates referenced ghosts. A failed write does not prevent viewing the last
+valid committed archive. UI updates/rendering perform no file I/O; out-of-order
+responses are ignored, and leaving cancels pending reads. The snapshot is stable
+until refreshed, including when other game processes publish records.
+
+Empty, loading and unavailable states are distinct. Missing/corrupt/incompatible
+ghosts leave valid times visible as unavailable recordings. An unreadable archive
+offers Reload/Back and preserves its files; there is no reset/delete action.
+Changing filters, paging, loading and drawing do not change native RAM, earned
+league, season progression or RNG. Browser position is transient UI state, not
+part of career or shared record persistence.
 
 ## Completion delivery
 
@@ -157,7 +194,7 @@ The foundation proof tests competing read/merge/write processes, retry IDs,
 publication and lock release after an owned child exits abruptly. The durable
 store proof runs two actual store workers with stale initial observations and
 terminates owned writers at seven flush/publication/collection boundaries.
-Browser/challenge integration remains later work.
+Challenge integration remains later work.
 Real cross-account evidence must come from distinct process-user SIDs, not merely
 two processes or an ACL inspection.
 
@@ -181,6 +218,12 @@ partial entry, repeated recovery timestamps, competitive totals, local drivers,
 PB clearing/deletion, no legacy imports, write retry and full RAM/RNG isolation.
 Authored captured-entry fixtures exercise accepted crossings rather than treating
 old record bytes as newly earned times. Original CPU execution stays test-only.
+
+`scripts/check_native_game.py --verify-original --jobs 1` also identifies browser
+model/session coverage: all 32 boards, both navigation policies, page-boundary
+ties, real ghost validation, empty/error/reload states, stable IDs, original Hall
+art/palette and complete native RAM/RNG isolation. UI fixtures are explicitly
+synthetic and stay in disposable test roots; they never seed player data.
 
 Windows API contracts: [byte-range locks](https://learn.microsoft.com/en-us/windows/win32/api/fileapi/nf-fileapi-lockfileex)
 and [access-entry inheritance](https://learn.microsoft.com/en-us/windows/win32/secauthz/ace-inheritance).

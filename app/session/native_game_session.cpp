@@ -6,6 +6,7 @@
 #include "presentation/native_competition_render.h"
 #include "presentation/native_multiplayer_render.h"
 #include "presentation/native_hall_of_fame.h"
+#include "presentation/hall_browser_render.h"
 #include "state/draw_bridge_adapter.h"
 #include "persistence/ghost_lap_codec.h"
 #include "platform/windows/shared_hall_storage.h"
@@ -53,7 +54,7 @@ NativeMenuImage NativeGameSession::menuImage()const{
     if(saveReturn_==SaveReturn::Roster)return makeNativeCompetitionImage(*data_.memory,NativeMenuPage::Roster,(*data_.memory)[0x1c9ce]);
     if(saveReturn_==SaveReturn::Standings)return makeNativeOpeningStandingsImage(*data_.memory);
     if(saveMenu_)return saveMenu_->image();
-    if(page()==NativeMenuPage::HallOfFame)return makeNativeHallOfFameImage(*data_.memory);
+    if(page()==NativeMenuPage::HallOfFame)return hallBrowserActive_?makeHallBrowserImage(*data_.memory,hallBrowser_):makeNativeHallOfFameImage(*data_.memory);
     if(openingActive()){
         switch(opening_->page()){
         case NativeOpeningPage::Name:return nameScreen_->image();
@@ -68,7 +69,9 @@ NativeMenuImage NativeGameSession::menuImage()const{
     if(careerStore_&&activeCareer_&&!(*data_.memory)[0x5eb76]&&page()==NativeMenuPage::Main)
         return makeNativeChoiceImage(*data_.memory,"Division "+std::to_string(4-(*data_.memory)[0x1c9ce]),
             {"Hall of Fame","Practise",hasSuspendedSeason()?"Resume Season":"Start Season"},menu_->renderState().selected,{},{});
-    return makeNativeMenuImage(*data_.memory,menu_->renderState());
+    auto state=menu_->renderState();
+    if(careerStore_&&page()==NativeMenuPage::Main&&(!activeCareer_||multiplayer()))state.disabledRows|=1;
+    return makeNativeMenuImage(*data_.memory,state);
 }
 NativeGameSession::NativeGameSession(const std::filesystem::path& pack,const std::filesystem::path& recordings,NativeGameStart start,const std::filesystem::path& saveFile):
     data_(menuStartup(pack,start)),nameEntry_(*data_.memory),saveStore_(saveFile),recordings_(recordings){
@@ -196,13 +199,13 @@ void NativeGameSession::advanceTransition(double elapsed,NativeGameUpdate& resul
         fade_.animateTo(imagePalette(image));transition_=Transition::InOpening;break;
     }
     case Transition::OutHall:{
-        prepareNativeHallOfFame(*data_.memory);const auto image=menuImage();
+        if(!hallBrowserActive_)prepareNativeHallOfFame(*data_.memory);const auto image=menuImage();
         transitionIndices_.assign(image.indices.begin(),image.indices.end());
-        fade_.animateTo(readNativePalette(*data_.memory,0x30bd0));transition_=Transition::InHall;break;
+        fade_.animateTo(imagePalette(image));transition_=Transition::InHall;break;
     }
     case Transition::OutHallMenu:{
         (*data_.memory)[0x5d724]=0x41;
-        const auto image=makeNativeMenuFrame(*data_.memory,(*data_.memory)[0x1c9ce]);
+        const auto image=careerStore_&&activeCareer_&&!multiplayer()?menuImage():makeNativeMenuFrame(*data_.memory,(*data_.memory)[0x1c9ce]);
         transitionIndices_.assign(image.indices.begin(),image.indices.end());
         fade_.animateTo(readNativePalette(*data_.memory,0x23c32));transition_=Transition::InHallMenu;break;
     }
@@ -256,6 +259,7 @@ void NativeGameSession::finishResponsiveTransitions(NativeGameUpdate& result){
 NativeGameUpdate NativeGameSession::update(double elapsed,const NativeGameInput& held){
     if(!std::isfinite(elapsed)||elapsed<0)throw std::invalid_argument("Invalid native game elapsed time");
     ghostNoticeSeconds_=std::max(0.0,ghostNoticeSeconds_-elapsed);
+    if(careerStore_&&menu_)menu_->setHallEnabled(activeCareer_.has_value()&&!multiplayer());
     NativeGameUpdate managed;if(updateCareers(elapsed,held,managed))return managed;
     const auto oldPage=page();
     if(navigation_==NativeMenuNavigation::Original){const auto screen=navigationScreen();auto result=updateImpl(elapsed,held);observeCareerState(oldPage);if(screen!=navigationScreen())careerClock_.enterScreen(held.menu);return result;}
@@ -351,6 +355,7 @@ NativeGameUpdate NativeGameSession::updateImpl(double elapsed,const NativeGameIn
     }else if(action==NativeMenuAction::ReplayGame){
         replayGame(previous);
     }else if(action==NativeMenuAction::ShowHallOfFame){
+        if(careerStore_)openHallBrowser(input.menu);
         transitionIndices_.assign(previous.indices.begin(),previous.indices.end());
         fade_.fadeToColor(readNativePalette(*data_.memory,0x30bd0)[0]);transition_=Transition::OutHall;
     }else if(action==NativeMenuAction::LeaveHallOfFame){
@@ -372,6 +377,7 @@ NativeGameUpdate NativeGameSession::updateImpl(double elapsed,const NativeGameIn
     return result;
 }
 void NativeGameSession::releaseInput(const NativeMenuInput& held)noexcept{
+    if(hallBrowserActive_)hallBrowser_.block(held);
     driveLatch_.clear();quitPending_=false;
     navigationClock_.clear();navigationClock_.enterScreen(held);
     careerClock_.clear();careerClock_.enterScreen(held);

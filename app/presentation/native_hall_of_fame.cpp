@@ -18,12 +18,16 @@ void time(const NativeMemory& m,NativeMenuImage& image,NativeMenuTextCursor& c,u
     bcd(m[record+1]);glyph(m,image,c,'.');bcd(m[record+2]);
 }
 }
-NativeMenuImage makeNativeHallOfFameImage(const NativeMemory& m){
+NativeMenuImage makeNativeHallOfFameBackground(const NativeMemory& m){
     NativeMenuImage image;
     for(unsigned i=0;i<16;++i)image.palette[i]=originalPaletteRgb(std::uint16_t(word(m,0x30bd0+i*2)));
     const auto decoded=decodePlanarRle(m.data()+0x30bf0,m.size()-0x30bf0,320,200,4);
     const auto background=decodePlanarImage(decoded.planes.data(),decoded.planes.size(),320,200,4);
     std::copy(background.pixels.begin(),background.pixels.end(),image.indices.begin());
+    return image;
+}
+NativeMenuImage makeNativeHallOfFameImage(const NativeMemory& m){
+    auto image=makeNativeHallOfFameBackground(m);
     NativeMenuTextCursor cursor;
     cursor.yOffset=8;cursor.horizontalOffset=2;
     if(m[0x1c9d0]){

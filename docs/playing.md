@@ -73,17 +73,26 @@ result before acknowledgement, so restoring it cannot score twice. Practice
 cannot replace or advance a suspended season, including when interrupted.
 There is no single-player manual save/load/Replay route or legacy HALL import.
 
-The enhanced Hall of Fame is being added in stages. New completed human laps from
-Practice, career races and local multiplayer now save into one installation-wide
+Open **Hall of Fame** from an active career's main menu to browse **All players**.
+**Driving as** identifies the open career. Completed human laps from
+Practice, career races and local multiplayer save into one installation-wide
 archive, together with completed competitive three-lap races. Each track/league/
 category retains up to 20 attempts, including ties and multiple attempts by one
 name. Incomplete laps and opponents do not enter. Deleting/restoring a career or
 clearing its PB cannot remove shared records or their retained ghosts.
 
-The existing Hall screen still shows the native game's record banks; the new
-ranked browser and selected-ghost challenges are not available yet. In Original
-navigation, release fire then press Enter/Space/A again to return; Responsive also
-accepts Escape/B.
+The browser extends the original Hall artwork, colours and pixel font. It shows
+one board at a time, with ten entries per page. Up/down selects a filter, record
+or bottom control; left/right changes the selected filter or page. Enter/Space/A
+changes a selector or activates a bottom control. Escape/B returns to the career.
+Keyboard 1, 2 and 3 select track, league and category; 4 reloads the records.
+These controls work with either navigation policy.
+
+**Ready** means a lap's retained ghost has been validated; **None** means no usable
+recording is available. Three-lap race entries have no ghost. Records reload on
+opening, changing a filter or selecting Reload. Filters and selected records are
+remembered during the session. Choosing a Hall ghost to race is still to come;
+ordinary Practice continues to use the career PB.
 
 ## Practice and seasons
 

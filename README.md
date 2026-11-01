@@ -10,7 +10,7 @@
 - **Original racing.** All eight tracks, including Draw Bridge, both leagues,
   Practice and championships, retaining the original physics, AI and race rules.
 - **Careers and records.** Multiple single-player careers, autosave, Resume Season
-  and an installation-wide record archive. Its enhanced Hall browser is in development.
+  and an installation-wide top-20 Hall of Fame, with track/league filters and ghost availability.
 - **Personal-best ghosts.** Save best laps from Practice or career races and
   chase them in Practice, with an optional translucent ghost.
 - **Local multiplayer.** Championships for 2–8 drivers taking turns, with thirty

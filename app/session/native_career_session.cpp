@@ -317,6 +317,7 @@ bool NativeGameSession::updateCareers(double elapsed,const NativeGameInput& held
     }
     // Modern Back is independent of the timing policy. Let the original drive
     // loop retain Escape/View's deliberate Leave Race behaviour while moving.
+    if(hallBrowserActive_)return updateHallBrowser(elapsed,held,result);
     if(transitioning())return false;
     const auto pulse=careerClock_.sample(held.menu,elapsed);
     if(creatingCareer_&&enteringName()&&pulse.back){

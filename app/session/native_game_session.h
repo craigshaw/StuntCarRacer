@@ -13,6 +13,7 @@
 #include "persistence/native_save_state.h"
 #include "persistence/native_save_store.h"
 #include "persistence/native_career_checkpoint.h"
+#include "menus/hall_browser.h"
 #include <optional>
 
 namespace scr::runtime {
@@ -89,6 +90,7 @@ public:
     bool ghostFeedbackWarning()const;
     HallArchiveRead sharedHall()const;
     bool flushRecords();
+    const HallBrowser* hallBrowser()const noexcept{return hallBrowserActive_?&hallBrowser_:nullptr;}
     bool raceEnded()const noexcept{return page()==NativeMenuPage::Race&&(finishPending_||race_.liveTerminal());}
     bool transitioning()const noexcept{return transition_!=Transition::None;}
     void releaseInput(const NativeMenuInput& held={})noexcept;
@@ -101,6 +103,12 @@ private:
     unsigned draftNameLength_{};
     std::unique_ptr<NativeCareerStore> careerStore_;
     std::unique_ptr<SharedHallStore> sharedHallStore_;
+    HallBrowser hallBrowser_;
+    bool hallBrowserActive_{};
+    std::uint64_t hallBrowserRequest_{},hallBrowserApplied_{};
+    void openHallBrowser(const NativeMenuInput&);
+    bool updateHallBrowser(double,const NativeGameInput&,NativeGameUpdate&);
+    void requestHallBrowser();
     bool creatingCareer_{},finishPending_{},closeReady_{},errorAcknowledged_{},multiplayerSetup_{};
     CareerPanel careerPanel_{CareerPanel::None},returnPanel_{CareerPanel::None},departureReturnPanel_{CareerPanel::None};
     Departure departure_{Departure::None};

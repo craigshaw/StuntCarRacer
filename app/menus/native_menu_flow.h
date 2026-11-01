@@ -50,6 +50,7 @@ public:
     NativeMenuAction update(const NativeMenuInput&,double elapsedSeconds);
     void setNavigation(NativeMenuNavigation mode)noexcept{navigation_=mode;}
     void setMainRowCount(unsigned count);
+    void setHallEnabled(bool enabled)noexcept{hallEnabled_=enabled;}
     NativeMenuAction back();
     void returnFromRace();
     void cancelPreview();
@@ -71,6 +72,7 @@ private:
     std::uint8_t previewReleaseMask_{0x1f};
     unsigned unsupported_{};
     unsigned mainRowCount_{4};
+    bool hallEnabled_{true};
     bool competitive_{};
     bool multiplayerTrackEnd_{};
     unsigned competitionDivision_{};

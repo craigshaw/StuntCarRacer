@@ -131,6 +131,7 @@ NativeMenuRenderState NativeMenuFlow::renderState()const{
     state.menuOffset=memory_[0x1bb8b];state.count=unsigned(memory_[maxIndex])+1;
     state.selected=memory_[selection];state.division=memory_[0x1c9ce];state.selectedDivision=memory_[0x5eb7c];
     state.menuStrings=(memory_[0x5eb75]&0x80)!=0;state.confirmed=memory_[highlight]!=0;
+    if(page_==NativeMenuPage::Main&&!hallEnabled_)state.disabledRows|=1;
     return state;
 }
 NativeMenuAction NativeMenuFlow::confirm(){
@@ -138,6 +139,7 @@ NativeMenuAction NativeMenuFlow::confirm(){
     const unsigned selected=memory_[selection];
     if(page_==NativeMenuPage::Main){
         if(selected==0){
+            if(!hallEnabled_){memory_[highlight]=0;phase_=Phase::Input;return NativeMenuAction::None;}
             memory_[0x5d724]=0x42;page_=NativeMenuPage::HallOfFame;competitionFire_.reset();
             return NativeMenuAction::ShowHallOfFame;
         }
@@ -289,7 +291,7 @@ NativeMenuAction NativeMenuFlow::update(const NativeMenuInput& input,double elap
         return NativeMenuAction::None;
         }
     }
-    if(!applyNativeMenuInput(memory_,input))return NativeMenuAction::None;
+    if(!applyNativeMenuInput(memory_,input,page_==NativeMenuPage::Main&&!hallEnabled_?1u:0u))return NativeMenuAction::None;
     if(responsive){
         rememberSelection();
         if(memory_[highlight]){

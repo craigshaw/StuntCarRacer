@@ -125,9 +125,18 @@ void denied(const fs::path& root){
     const auto handle=CreateFileW(head.c_str(),GENERIC_READ,0,nullptr,OPEN_EXISTING,FILE_ATTRIBUTE_NORMAL,nullptr);
     require(handle!=INVALID_HANDLE_VALUE,"Cannot hold fixture exclusively");rejected([&]{archive.read();});CloseHandle(handle);
 }
+void browserReads(const fs::path& root){
+    SharedHallStore store(root,catalog);for(unsigned n=1;n<=10;++n)store.submit(*submission(n));
+    store.requestBrowser({1,HallLeague::Super,HallRecordKind::Race});const auto request=store.requestBrowser({});
+    const auto until=std::chrono::steady_clock::now()+std::chrono::seconds(5);std::shared_ptr<const HallBrowserRead> result;
+    do{result=store.browserRead();if(result&&result->request==request)break;Sleep(1);}while(std::chrono::steady_clock::now()<until);
+    require(result&&result->request==request&&result->error.empty()&&count(result->archive)==10,"Browser read ran before queued writes or returned a stale request");
+    require(result->ghosts[0]&&result->ghosts[9],"Browser read omitted healthy ghost validation");
+    store.cancelBrowser();require(store.flush()&&count(store.read())==10,"Canceling a menu read lost pending attempts");
+}
 }
 int main(int argc,char** argv)try{
     require(argc==2,"Usage: shared_hall_store_tests isolated-output");const auto root=fs::absolute(argv[1])/std::to_string(GetCurrentProcessId());
-    basic(root/"basic");preservation(root/"preserve");collection(root/"collect");interrupted(root/"interrupt");worker(root/"worker");arrivals(root/"arrivals");denied(root/"denied");
+    basic(root/"basic");preservation(root/"preserve");collection(root/"collect");interrupted(root/"interrupt");worker(root/"worker");arrivals(root/"arrivals");denied(root/"denied");browserReads(root/"browser");
     std::cout<<"Shared Hall store: "<<checks<<" checks passed\n";return 0;
 }catch(const std::exception& e){std::cerr<<e.what()<<'\n';return 1;}

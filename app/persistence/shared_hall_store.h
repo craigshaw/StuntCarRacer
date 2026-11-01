@@ -27,6 +27,13 @@ struct HallArchiveRead {
 };
 enum class HallGhostState {Missing,Valid,Corrupt,Unsupported,Unavailable};
 struct HallGhostRead {HallGhostState state{HallGhostState::Missing};std::shared_ptr<const HallGhost> ghost;};
+struct HallBrowserRead {
+    HallBoardKey board;
+    HallArchiveRead archive;
+    std::array<bool,hallEntriesPerBoard> ghosts{};
+    std::uint64_t request{};
+    std::string error;
+};
 // Optional transaction observer for diagnostics and interrupted-write proofs.
 enum class HallWriteStage {GhostFlushed,GhostPublished,BackupFlushed,BackupPublished,HeadFlushed,HeadPublished,Collected};
 using HallWriteObserver=std::function<void(HallWriteStage)>;
@@ -70,6 +77,10 @@ public:
     std::string error()const;
     HallArchiveRead read()const{return archive_.read();}
     HallGhostRead readGhost(const HallAttempt& a)const{return archive_.readGhost(a);}
+    // A coalesced menu read on this same worker; no UI-thread file I/O.
+    std::uint64_t requestBrowser(HallBoardKey);
+    std::shared_ptr<const HallBrowserRead> browserRead()const;
+    void cancelBrowser();
 private:
     SharedHallArchive archive_;
     HallCatalog catalog_;
@@ -79,6 +90,9 @@ private:
     std::vector<std::shared_ptr<const HallSubmission>> pending_,active_;
     std::string error_;
     bool stopping_{},writing_{},blocked_{},checkRequested_{};
+    std::optional<HallBoardKey> browserRequest_;
+    std::uint64_t browserSerial_{};
+    std::shared_ptr<const HallBrowserRead> browserRead_;
     std::thread worker_;
     void run();
 };

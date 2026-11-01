@@ -112,7 +112,7 @@ Use `& $AmigaPython scripts/<command>` after loading `env.ps1`.
 
 | Changed area | Command | Receipt directory |
 | --- | --- | --- |
-| Game flow, settings, launcher, persistence | `check_native_game.py` | `analysis/native-game/` |
+| Game flow, Hall browser, settings, launcher, persistence | `check_native_game.py` | `analysis/native-game/` |
 | Same routes against original rules, screens and driving | `check_native_game.py --verify-original` | `analysis/native-game/` |
 | Fresh track/race state and steering | `check_native_startup.py --verify-original` | `analysis/native-startup/` |
 | Opening, raw keyboard/name editor, startup pixels | `check_native_opening.py` | `analysis/native-opening/` |

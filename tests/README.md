@@ -19,3 +19,10 @@ captured-entry trajectories, private PB independence, local drivers, failed writ
 and full native memory/RNG isolation. Injected old record banks are tested only
 as excluded imports, never described as newly driven completions. See the
 [shared Hall contract](../docs/components/shared-hall-of-fame.md).
+
+`hall_browser_tests` exercises UI navigation and identity retention without assets.
+`native_hall_browser_tests` loads isolated synthetic boards through the actual
+career-menu route, verifies ghost files on the Hall worker, and retains previews
+for visual review. Both navigation policies, all 32 boards, page-boundary ranks,
+empty/error states and native RAM/RNG isolation are covered. The original Hall
+renderer still has independent pixel comparisons in `oracle/`.

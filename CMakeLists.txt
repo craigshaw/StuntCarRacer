@@ -153,6 +153,9 @@ if(WIN32)
   include(cmake/AssetSources.cmake)
   add_library(scr_game STATIC
     app/session/native_game_session.cpp
+    app/session/native_hall_session.cpp
+    app/menus/hall_browser.cpp
+    app/presentation/hall_browser_render.cpp
     app/session/native_career_session.cpp
     app/persistence/native_career_store.cpp
     app/persistence/ghost_lap_codec.cpp

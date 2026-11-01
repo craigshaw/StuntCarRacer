@@ -25,6 +25,8 @@ def sources():
     paths.add(ROOT / 'tests/integration/native_launcher_tests.cpp')
     paths.add(ROOT / 'tests/integration/native_navigation_tests.cpp')
     paths.add(ROOT / 'tests/integration/native_autosave_tests.cpp')
+    paths.add(ROOT / 'tests/integration/native_hall_browser_tests.cpp')
+    paths.add(ROOT / 'tests/unit/hall_browser_tests.cpp')
     paths.add(ROOT / 'tests/unit/drive_input_tests.cpp')
     paths.add(ROOT / 'tests/integration/native_opening_session_tests.cpp')
     paths.add(ROOT / 'tests/integration/native_opponent_session_tests.cpp')
@@ -113,12 +115,14 @@ def main():
     launcher_test = binary_dir / 'Release/native_launcher_tests.exe'
     navigation_test = binary_dir / 'Release/native_navigation_tests.exe'
     autosave_test = binary_dir / 'Release/native_autosave_tests.exe'
+    browser_test = binary_dir / 'Release/native_hall_browser_tests.exe'
+    browser_model_test = binary_dir / 'Release/hall_browser_tests.exe'
     artwork = identity(ROOT / 'logo.png') if (ROOT / 'logo.png').exists() else None
     receipt = output / 'build-receipt.json'
     records = sources()
     executables = {'game': executable, 'test': test, 'opening_test': opening_test, 'startup_test': startup_test,
                    'bridge_test': bridge_test, 'season_test': season_test, 'multiplayer_test': multiplayer_test,
-                   'career_test': career_test, 'save_test': save_test, 'store_test': store_test, 'display_test': display_test, 'controls_test': controls_test, 'launcher_test': launcher_test, 'navigation_test': navigation_test, 'autosave_test': autosave_test}
+                   'career_test': career_test, 'save_test': save_test, 'store_test': store_test, 'display_test': display_test, 'controls_test': controls_test, 'launcher_test': launcher_test, 'navigation_test': navigation_test, 'autosave_test': autosave_test, 'browser_test': browser_test, 'browser_model_test': browser_model_test}
     if args.skip_build:
         old = json.loads(receipt.read_text())
         if old['sources'] != records or old.get('artwork') != artwork or any(old.get(key) != identity(path) for key, path in executables.items()):
@@ -128,7 +132,7 @@ def main():
                ['cmake', '--build', binary_dir, '--config', 'Release', '--target',
                 'native_game', 'native_game_session_tests', 'native_opening_session_tests', 'native_startup_tests', 'draw_bridge_driving_tests',
                 'native_opponent_session_tests', 'native_multiplayer_session_tests', 'native_career_session_tests',
-                'native_save_session_tests', 'native_save_store_tests', 'native_display_tests', 'native_launcher_tests', 'native_navigation_tests', 'native_autosave_tests', 'drive_input_tests', '--parallel', str(max(1,args.jobs)), '--', '/nr:false']], output / 'build.log')
+                'native_save_session_tests', 'native_save_store_tests', 'native_display_tests', 'native_launcher_tests', 'native_navigation_tests', 'native_autosave_tests', 'native_hall_browser_tests', 'hall_browser_tests', 'drive_input_tests', '--parallel', str(max(1,args.jobs)), '--', '/nr:false']], output / 'build.log')
         receipt.write_text(json.dumps({'sources': records, 'artwork': artwork, **{key: identity(path) for key, path in executables.items()}}, indent=2) + '\n')
     launcher_args = [launcher_test, pack, output / 'launcher']
     disk = args.adf or ROOT / 'Stunt Car Racer (MicroStyle).adf'
@@ -141,6 +145,12 @@ def main():
     build([['ctest', '--preset', 'windows-release', '-R', '^native_autosave_tests$', '--output-on-failure']], output / 'autosave.log')
     autosave = json.loads((binary_dir / 'test-output/Release/native_autosave_tests/stdout.txt').read_text())
     (output / 'autosave-results.json').write_text(json.dumps(autosave, indent=2) + '\n')
+    build([['ctest', '--preset', 'windows-release', '-R', '^(hall_browser_tests|native_hall_browser_tests)$', '--output-on-failure']], output / 'hall-browser.log')
+    browser = json.loads((binary_dir / 'test-output/Release/native_hall_browser_tests/results.json').read_text())
+    if (browser.get('status') != 'passed' or browser.get('boards') != 32 or browser.get('navigation_policies') != 2
+            or browser.get('world_view_mask') != 15 or any(browser.get(key) is not True for key in
+                ('original_header_and_palette', 'full_memory_and_rng_isolation', 'verified_ghost_availability'))):
+        raise RuntimeError('Shared Hall browser acceptance is incomplete')
     if (autosave.get('status') != 'passed' or autosave.get('checkpoint_contexts') != 8
             or any(autosave.get(key) is not True for key in ('conditional_entry_rows', 'three_row_main_menu',
                    'continue_opens_main_menu', 'resume_season', 'practice_preserves_suspended_season',
@@ -309,7 +319,7 @@ def main():
     report = {'status': 'passed', 'capture_input': False, 'rom_input': False, 'cpu_emulation': False,
               'pack': identity(pack), 'game': identity(staged), 'build_game': identity(executable), 'sources': records, 'artwork': artwork, 'release': release, 'launcher_disk': disk_fixture, 'launcher': launcher,
               'integration': integration, 'navigation': navigation, 'opening': opening, 'startup': startup, 'bridge_driving': bridge,
-              'season': season, 'multiplayer': multiplayer, 'career': career, 'autosave': autosave, 'saves': saves, 'save_store': storage, 'display': display, 'controls': controls, 'original_comparisons': original}
+              'season': season, 'multiplayer': multiplayer, 'career': career, 'autosave': autosave, 'hall_browser': browser, 'saves': saves, 'save_store': storage, 'display': display, 'controls': controls, 'original_comparisons': original}
     (output / 'check-results.json').write_text(json.dumps(report, indent=2) + '\n')
     if original:
         (output / 'original-check-results.json').write_text(json.dumps(report, indent=2) + '\n')

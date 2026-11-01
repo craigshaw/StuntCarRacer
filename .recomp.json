@@ -1,0 +1,11 @@
+{
+  "$schema": "https://recomp.fyi/schema/v1.json",
+  "game": "Stunt Car Racer",
+  "wikidata": "Q1421623",
+  "system": "Amiga",
+  "type": "port",
+  "project": "Stunt Car Racer",
+  "status": "released",
+  "targets": ["Windows"],
+  "tags": ["racing", "widescreen", "ultrawide"]
+}

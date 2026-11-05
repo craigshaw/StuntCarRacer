@@ -124,7 +124,10 @@ void mountainPolygon(const MountainScreenPolygon& polygon,std::uint32_t color,
 // for depth: one plane fitted to the merged boundary is not its road surface.
 // Coefficients below yield inverse forward depth and barycentric numerators
 // directly from an angular camera ray, without a per-pixel matrix inversion.
-struct AngularDepthTriangle {RenderCameraRelative depth,u,v;double left{},right{},top{},bottom{};};
+struct AngularDepthTriangle {
+    RenderCameraRelative depth,u,v;double left{},right{},top{},bottom{};
+    std::array<TrackTextureCoordinate,3> texture{};
+};
 RenderCameraRelative cross(const RenderCameraRelative& a,const RenderCameraRelative& b){return {a.down*b.forward-a.forward*b.down,a.forward*b.side-a.side*b.forward,a.side*b.down-a.down*b.side};}
 double dot(const RenderCameraRelative& a,const RenderCameraRelative& b){return a.side*b.side+a.down*b.down+a.forward*b.forward;}
 RenderCameraRelative subtract(const RenderCameraRelative& a,const RenderCameraRelative& b){return {a.side-b.side,a.down-b.down,a.forward-b.forward};}
@@ -144,11 +147,15 @@ std::vector<AngularDepthTriangle> depthTriangles(const NearTrackDrawCommand& com
     constexpr double angleUnits=65536/6.28318530717958647692;
     const auto word=[](std::uint16_t v){return v<0x8000?double(v):double(int(v)-65536);};
     const auto cosine=word(camera.cosRoll)/32768,sine=word(camera.sinRoll)/32768;
-    for(const auto& patch:command.depthPatches)for(unsigned n=1;n<3;++n){
+    const bool textured=!command.texturePatches.empty();
+    const auto count=textured?command.texturePatches.size():command.depthPatches.size();
+    for(std::size_t index=0;index<count;++index)for(unsigned n=1;n<3;++n){
+        const auto& patch=textured?command.texturePatches[index].vertices:command.depthPatches[index];
         const auto& a=patch[0];const auto& b=patch[n];const auto& c=patch[n+1];
         const auto e=subtract(b,a),f=subtract(c,a),normal=cross(e,f);
         const auto area=dot(normal,normal),distance=dot(normal,a);if(area<1e-12||std::abs(distance)<1e-8)continue;
         AngularDepthTriangle t;t.depth=scale(normal,1/distance);
+        if(textured){const auto& uv=command.texturePatches[index].coordinates;t.texture={uv[0],uv[n],uv[n+1]};}
         const auto u=scale(cross(f,normal),1/area),v=scale(cross(normal,e),1/area);
         t.u=subtract(u,scale(t.depth,dot(u,a)));t.v=subtract(v,scale(t.depth,dot(v,a)));
         t.left=t.top=1e9;t.right=t.bottom=-1e9;
@@ -164,8 +171,10 @@ std::vector<AngularDepthTriangle> depthTriangles(const NearTrackDrawCommand& com
 }
 void nearPolygon(const NearTrackDrawCommand& command,std::uint32_t color,
     std::vector<std::uint32_t>& pixels,std::vector<std::uint8_t>& coverage,
-    std::vector<std::uint8_t>& highlights,const RenderCanvas& canvas,std::vector<float>* depth,const RenderProjectionCamera& camera) {
-    const auto triangles=depth?depthTriangles(command,camera):std::vector<AngularDepthTriangle>{};
+    std::vector<std::uint8_t>& highlights,const RenderCanvas& canvas,std::vector<float>* depth,const RenderProjectionCamera& camera,
+    unsigned& textureSamples) {
+    const bool textured=!command.texturePatches.empty();
+    const auto triangles=depth||textured?depthTriangles(command,camera):std::vector<AngularDepthTriangle>{};
     struct Crossing {double x{},inverseDepth{};};
     std::vector<Crossing> crossings;crossings.reserve(command.edges.size());
     for(int y=0;y<canvas.viewportHeight();++y){
@@ -186,23 +195,48 @@ void nearPolygon(const NearTrackDrawCommand& command,std::uint32_t color,
             for(int x=first;x<=last;++x){
                 const auto index=canvas.viewIndex(x,y);pixels[canvas.pixelIndex(x,y)]=color;
                 coverage[index]=command.surface==NearTrackSurface::opponent?4:command.surface==NearTrackSurface::road?1:2;highlights[index]=0;
-                if(depth){
+                if(depth||textured){
                     const auto fraction=right.x==left.x?0:(x+0.5-left.x)/(right.x-left.x);
                     auto inverse=left.inverseDepth>0&&right.inverseDepth>0?left.inverseDepth+(right.inverseDepth-left.inverseDepth)*fraction:0;
                     if(!triangles.empty()){
                         const auto px=x+0.5-canvas.padding;const auto r=angularRay(px,scan,camera);const RenderCameraRelative ray{r[0],r[1],1};double nearest=0;
-                        for(const auto& t:triangles)if(px>=t.left&&px<=t.right&&scan>=t.top&&scan<=t.bottom){
+                        const AngularDepthTriangle* mapped=nullptr;const AngularDepthTriangle* fallback=nullptr;
+                        double penalty=std::numeric_limits<double>::max();
+                        for(const auto& t:triangles)if(textured||(px>=t.left&&px<=t.right&&scan>=t.top&&scan<=t.bottom)){
                             const auto d=dot(t.depth,ray),u=dot(t.u,ray),v=dot(t.v,ray);
-                            if(d>0&&u>=-1e-8&&v>=-1e-8&&u+v<=d+1e-8)nearest=std::max(nearest,d);
+                            if(d>0&&u>=-1e-8&&v>=-1e-8&&u+v<=d+1e-8&&d>nearest){nearest=d;mapped=&t;}
+                            if(textured&&d>1e-10){
+                                const auto outside=std::max(0.0,-u/d)+std::max(0.0,-v/d)+std::max(0.0,(u+v)/d-1);
+                                if(outside<penalty){penalty=outside;fallback=&t;}
+                            }
                         }
                         if(nearest>0)inverse=nearest;
+                        // Original straight fill boundaries can extend beyond
+                        // the angular triangles. Extend the nearest source UV
+                        // plane only within those already painted spans.
+                        if(textured&&(mapped||fallback)){
+                            const auto& t=*(mapped?mapped:fallback);
+                            const auto coordinate=[&](const RenderCameraRelative& direction){
+                                const auto d=dot(t.depth,direction);
+                                if(d<=1e-10)return TrackTextureCoordinate{1e6,1e6};
+                                const auto u=dot(t.u,direction)/d,v=dot(t.v,direction)/d;
+                                return TrackTextureCoordinate{t.texture[0].u+(t.texture[1].u-t.texture[0].u)*u+(t.texture[2].u-t.texture[0].u)*v,
+                                    t.texture[0].v+(t.texture[1].v-t.texture[0].v)*u+(t.texture[2].v-t.texture[0].v)*v};
+                            };
+                            const auto uv=coordinate(ray);
+                            const auto rx=angularRay(px+1,scan,camera),ry=angularRay(px,scan+1,camera);
+                            const auto ux=coordinate({rx[0],rx[1],1}),uy=coordinate({ry[0],ry[1],1});
+                            pixels[canvas.pixelIndex(x,y)]=sampleTrackMaterial(command.surface==NearTrackSurface::road,color,uv,
+                                {ux.u-uv.u,ux.v-uv.v},{uy.u-uv.u,uy.v-uv.v});
+                            ++textureSamples;
+                        }
                     }
                     // The recovered straight-edged fill and viewport closure
                     // can paint beyond the exact angular source triangles.
                     // Keep their endpoint depth there, including genuine
                     // unknowns, so colour/depth coverage and painter order stay
                     // identical. Source geometry never paints extra pixels.
-                    (*depth)[index]=float(std::max(0.0,inverse));
+                    if(depth)(*depth)[index]=float(std::max(0.0,inverse));
                 }
             }
         }
@@ -314,7 +348,7 @@ RenderStatistics SoftwareRenderer::drawFrame(const TrackMesh& mesh,const std::ve
         for(const auto& command:nearTrack->commands){
             if(command.color>=palette.size())throw std::invalid_argument("Near command palette index outside range");
             if(command.kind==NearTrackCommandKind::fill){
-                nearPolygon(command,palette[command.color],pixels,coverage_,highlights_,canvas,captureTrackDepth?&inverseDepth_:nullptr,camera);++stats.nearFillCommands;
+                nearPolygon(command,palette[command.color],pixels,coverage_,highlights_,canvas,captureTrackDepth?&inverseDepth_:nullptr,camera,stats.trackTextureSamples);++stats.nearFillCommands;
                 stats.opponentPolygons+=command.surface==NearTrackSurface::opponent;
                 if(wireframe)for(const auto& edge:command.edges)drawEdge(edge,palette[3],false);
             }else{

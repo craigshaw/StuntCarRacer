@@ -23,9 +23,20 @@ Focus loss or controller disconnection pauses and requires explicit resume.
 | Reset / seek | R or controller Back/View: fresh race | Left/Right: tick; Home/End: start/end; timeline: scrub |
 | Smoothing | I | I |
 | Wireframe | F2 | W |
+| Track texture prototype | F3 | F3 |
 | Audio | M toggles mute | Silent playback |
 
 `-Track` accepts 0–7. Replay supports `-Paused -StartTick 272` and `-ExactTicks`.
+Start the optional track-material experiment with
+`.\scripts\start-native-race.ps1 -Track 0 -Textured`. F3 switches between
+original graphics and the prototype at the same pose, including while paused.
+Road asphalt/edge paint and sidewall panels are procedural, mipmapped textures
+attached to the original track sections. Cars and cockpit keep their artwork.
+This experiment uses the existing low-resolution canvas and is not a saved
+player setting. All four apertures are exercised by `native_track_texture_tests`;
+the direct viewer retains its Original aperture. Test comparison bitmaps are
+written under the build's `test-output/Release/native_track_texture_tests/`.
+Use `-Jobs 1` if parallel MSBuild workers are unavailable.
 The replay shortcut is `replay/Watch Native Replay.cmd`; original-game emulation
 tools live separately in [research/](research/README.md).
 

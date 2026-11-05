@@ -38,6 +38,19 @@ coverage check instead of borrowing an arbitrary depth from another edge.
 
 ## Views
 
+The development-only track texture prototype is selected explicitly through
+`CameraViewSettings::texturedTrack`. A private command copy carries UVs for
+full source-height strips, with fixed segment/section coordinates on moving
+Draw Bridge geometry. Angular-ray interpolation samples deterministic asphalt
+and panel bitmaps with mip filtering; original fill coverage, painter order,
+edge highlights and foreground artwork remain in place. No gameplay RNG is
+used. Default commands carry no texture patches and retain their colour path.
+This is a low-resolution materials experiment, not a high-resolution renderer
+or a player preference; [viewer controls](../../tools/README.md#viewers) describe
+the toggle. `native_track_texture_tests` covers all tracks/apertures, repeat
+queries, baseline restoration, world coverage and complete simulation/RNG memory
+against a twin scene that never enables the prototype.
+
 Original and Extended use a 320×200 canvas. The 16:9 and 32:9 canvases are
 432×200 and 864×200, with the original car centred at unchanged scale. Host
 presentation corrects the original pixel proportions; wide apertures crop only

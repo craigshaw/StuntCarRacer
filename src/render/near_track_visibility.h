@@ -1,5 +1,6 @@
 #pragma once
 #include "render/near_track_geometry.h"
+#include "render/track_material.h"
 #include <array>
 #include <cstdint>
 #include <functional>
@@ -68,6 +69,8 @@ struct NearTrackDrawCommand {
     // Segment ownership survives painter merging and distance simplification.
     // Ghost queries can recover full height samples without changing the fill.
     std::vector<std::uint8_t> depthSegments;
+    // Empty in the faithful path. Optional UVs belong only to copied commands.
+    std::vector<TrackTexturePatch> texturePatches;
 };
 struct NearTrackDrawInputs {
     std::uint16_t minimumQueueOffset{};

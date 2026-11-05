@@ -22,7 +22,7 @@ using Scene=scr::runtime::RaceScene;
 struct Options {
     std::filesystem::path chip,payload,assetPack,inputs,reference,trace,report,framesDirectory,audioWav,recordingsDirectory=L"analysis/live-driving";
     std::vector<unsigned> snapshots;std::vector<double> smoothSnapshots;
-    unsigned startTick{},track{},startupSteps=256;bool headless{},paused{},interpolate{true},live{};
+    unsigned startTick{},track{},startupSteps=256;bool headless{},paused{},interpolate{true},live{},textures{};
 };
 struct ExportedFrame {unsigned tick{};std::filesystem::path path;scr::RenderStatistics statistics{};};
 struct ExportedSmoothFrame {double position{};std::filesystem::path path;};
@@ -30,6 +30,10 @@ struct InterpolationCheck {unsigned samples{},changedSamples{},exactEndpoints{},
 std::uint64_t pixelHash(const std::vector<std::uint32_t>& pixels){
     std::uint64_t hash=14695981039346656037ULL;
     for(auto pixel:pixels){hash^=pixel;hash*=1099511628211ULL;}return hash;
+}
+const std::vector<std::uint32_t>& renderAt(Scene& scene,const Options& options,double position){
+    scr::runtime::CameraViewSettings view;view.texturedTrack=options.textures;
+    return scene.renderView(position,view);
 }
 struct RenderCoverage {
     unsigned nearFrames{},highlightFrames{};
@@ -55,6 +59,7 @@ Options parse(){
         const std::wstring key=args[n];
         if(key==L"--headless"){o.headless=true;continue;}if(key==L"--paused"){o.paused=true;continue;}
         if(key==L"--no-interpolation"){o.interpolate=false;continue;}
+        if(key==L"--textures"){o.textures=true;continue;}
         if(key==L"--live"){o.live=true;o.paused=true;continue;}
         if(n+1==count)throw std::runtime_error("Missing command-line value");const std::wstring value=args[++n];
         if(key==L"--chip")o.chip=value;else if(key==L"--payload")o.payload=value;else if(key==L"--inputs")o.inputs=value;
@@ -79,6 +84,7 @@ void report(const Options& o,const Scene* scene,const std::vector<ExportedFrame>
     out<<"{\n  \"status\":\""<<(error.empty()?"passed":"failed")<<"\",\n  \"traceMatched\":"<<(error.empty()&&o.assetPack.empty()&&(!o.live||o.headless)?"true":"false")
        <<",\n  \"capture_input\":"<<(o.assetPack.empty()?"true":"false")
        <<",\n  \"mode\":\""<<(o.live?"live":"replay")<<"\",\n  \"cpu_emulation\":false,\n  \"ticks\":"<<(scene?(o.live?scene->liveTicks():scene->frames().size()):0)
+       <<",\n  \"track_textures\":"<<(o.textures?"true":"false")
        <<",\n  \"mesh_vertices\":"<<(scene?scene->mesh().vertices.size():0)<<",\n  \"mesh_faces\":"<<(scene?scene->mesh().faces.size():0)
        <<",\n  \"side_mesh_faces\":"<<(scene?scene->sideFaceCount():0)
        <<",\n  \"mountain_shapes\":"<<(scene?scene->mountainShapeCount():0)
@@ -133,7 +139,7 @@ void text(HDC dc,RECT r,const std::wstring& value,HFONT font,COLORREF color,UINT
 }
 class Window {
 public:
-    Window(Scene& scene,const Options& options):scene_(scene),position_(std::min(options.startTick,unsigned(scene.frames().size()-1))),paused_(options.paused),interpolate_(options.interpolate),live_(options.live){
+    Window(Scene& scene,const Options& options):scene_(scene),position_(std::min(options.startTick,unsigned(scene.frames().size()-1))),paused_(options.paused),interpolate_(options.interpolate),live_(options.live),textures_(options.textures){
         titleFont_=makeFont(22,FW_SEMIBOLD);bodyFont_=makeFont(15);smallFont_=makeFont(13);buttonFont_=makeFont(15,FW_SEMIBOLD);
         if(live_)audio_=std::make_unique<scr::runtime::WindowsAudioOutput>(scene_.audioSeed());
     }
@@ -180,7 +186,7 @@ public:
         }
     }
 private:
-    Scene& scene_;double position_{};bool paused_{},dragging_{},wireframe_{},interpolate_{true},live_{};unsigned speedIndex_=1;
+    Scene& scene_;double position_{};bool paused_{},dragging_{},wireframe_{},interpolate_{true},live_{},textures_{};unsigned speedIndex_=1;
     scr::runtime::WindowsDriveInput driveInput_;
     scr::runtime::PolledDrivePad drivePad_;
     scr::runtime::DriveInputLatch driveLatch_;
@@ -240,7 +246,9 @@ private:
         else if(framesPerSecond_==0)performance<<L"— FPS";
         else performance<<std::fixed<<std::setprecision(1)<<framesPerSecond_<<L" FPS";
         text(dc,{client.right-220,37,client.right-30,58},performance.str(),smallFont_,rgb(158,175,186),DT_RIGHT|DT_SINGLELINE|DT_VCENTER);
-        const auto& pixels=live_?scene_.renderLive(driveClock_.fraction(),wireframe_,interpolate_):(interpolate_?scene_.renderInterpolated(position_,wireframe_):scene_.render(index(),wireframe_));
+        scr::runtime::CameraViewSettings view;view.texturedTrack=textures_;
+        const auto position=live_?(interpolate_?driveClock_.fraction():1.0):(interpolate_?position_:double(index()));
+        const auto& pixels=live_?scene_.renderLive(driveClock_.fraction(),wireframe_,interpolate_,scr::runtime::NativeView::Original,textures_):textures_?scene_.renderView(position,view,wireframe_):(interpolate_?scene_.renderInterpolated(position_,wireframe_):scene_.render(index(),wireframe_));
         BITMAPINFO info{};info.bmiHeader.biSize=sizeof(BITMAPINFOHEADER);info.bmiHeader.biWidth=320;info.bmiHeader.biHeight=-200;info.bmiHeader.biPlanes=1;info.bmiHeader.biBitCount=32;info.bmiHeader.biCompression=BI_RGB;
         SetStretchBltMode(dc,COLORONCOLOR);StretchDIBits(dc,image_.left,image_.top,image_.right-image_.left,image_.bottom-image_.top,0,0,320,200,pixels.data(),&info,DIB_RGB_COLORS,SRCCOPY);
         if(frame.action==2){
@@ -258,8 +266,9 @@ private:
             const auto error=audio_->error();
             details<<L"Update "<<scene_.liveTicks()<<L"   ·   "<<(error.empty()?(muted_?L"Muted":L"Sound on"):L"Audio unavailable");
         }else details<<L"Update "<<index()+1<<L" / "<<scene_.frames().size()<<L"   ·   "<<frame.restarts<<L" restarts";
+        details<<(textures_?L"   ·   Textured prototype":L"   ·   Original graphics");
         text(dc,{480,buttons_[0].top,client.right-32,buttons_[0].bottom},details.str(),smallFont_,rgb(157,175,188),DT_RIGHT|DT_SINGLELINE|DT_VCENTER);
-        text(dc,{32,client.bottom-24,client.right-32,client.bottom-5},live_?L"ARROWS / WASD drive    SPACE boost    P pause    R reset    M mute    I smooth    F2 wireframe":L"SPACE play / pause     ← → step     HOME restart     I interpolation     W wireframe",smallFont_,rgb(120,140,153));
+        text(dc,{32,client.bottom-24,client.right-32,client.bottom-5},live_?L"ARROWS / WASD drive   SPACE boost   P pause   R reset   M mute   I smooth   F2 wire   F3 textures":L"SPACE play / pause   ← → step   HOME restart   I interpolation   W wireframe   F3 textures",smallFont_,rgb(120,140,153));
         BitBlt(target,0,0,client.right,client.bottom,dc,0,0,SRCCOPY);SelectObject(dc,oldBitmap);DeleteObject(bitmap);DeleteDC(dc);EndPaint(window,&ps);
         if(!paused_){
             ++presentedFrames_;const auto now=std::chrono::steady_clock::now();
@@ -286,7 +295,7 @@ private:
             if(live_){
                 if(w<keys_.size())keys_[w]=true;
                 if(!(l&0x40000000)){
-                    if(w=='P'||w==VK_ESCAPE)toggle();else if(w=='R')resetLive();else if(w=='I')interpolate_=!interpolate_;else if(w==VK_F2)wireframe_=!wireframe_;
+                    if(w=='P'||w==VK_ESCAPE)toggle();else if(w=='R')resetLive();else if(w=='I')interpolate_=!interpolate_;else if(w==VK_F2)wireframe_=!wireframe_;else if(w==VK_F3)textures_=!textures_;
                     else if(w=='M'){muted_=!muted_;audio_->setMuted(muted_);}
                 }
                 if(!paused_)driveLatch_.sample(driveMask());InvalidateRect(window,nullptr,FALSE);return 0;
@@ -295,6 +304,7 @@ private:
             else if(w==VK_LEFT){paused_=true;position_=std::max(0.0,std::floor(position_)-1);}else if(w==VK_HOME)position_=0;
             else if(w==VK_END){paused_=true;position_=double(scene_.frames().size()-1);}else if(w=='W')wireframe_=!wireframe_;
             else if(w=='I')interpolate_=!interpolate_;
+            else if(w==VK_F3&&!(l&0x40000000))textures_=!textures_;
             InvalidateRect(window,nullptr,FALSE);return 0;
         case WM_LBUTTONDOWN:{const POINT p{int(short(LOWORD(l))),int(short(HIWORD(l)))};
             if(live_){
@@ -333,7 +343,7 @@ int WINAPI wWinMain(HINSTANCE instance,HINSTANCE,PWSTR,int show){
                 if(options.assetPack.empty())presentations=scene->verifyLiveReplay(options.inputs,options.reference,options.trace);
                 else for(unsigned tick=0;tick<options.startupSteps;++tick){
                     if(!scene->stepLive(tick<options.startupSteps*3/4?1:2))break;
-                    scene->renderLive(0.5);++presentations;if(scene->liveTerminal())break;
+                    renderAt(*scene,options,0.5);++presentations;if(scene->liveTerminal())break;
                 }
             }
             report(options,scene.get(),{},presentations);
@@ -348,23 +358,23 @@ int WINAPI wWinMain(HINSTANCE instance,HINSTANCE,PWSTR,int show){
         unsigned renderedFrames=0;RenderCoverage coverage;InterpolationCheck smooth;
         if(options.headless){
             std::vector<std::uint64_t> exactHashes;
-            for(unsigned tick=0;tick<scene->frames().size();++tick){exactHashes.push_back(pixelHash(scene->render(tick)));coverage.add(scene->statistics());++renderedFrames;}
+            for(unsigned tick=0;tick<scene->frames().size();++tick){exactHashes.push_back(pixelHash(renderAt(*scene,options,tick)));coverage.add(scene->statistics());++renderedFrames;}
             const auto started=std::chrono::steady_clock::now();
             const auto last=double(scene->frames().size()-1);
             const auto intervals=unsigned(std::ceil(last*scr::runtime::gameplayTickSeconds*scr::runtime::presentationHz-1e-9));
             std::vector<std::pair<double,std::uint64_t>> seekChecks;
             for(unsigned sample=0;sample<=intervals;++sample){
                 const double position=std::min(last,double(sample)/(scr::runtime::gameplayTickSeconds*scr::runtime::presentationHz));
-                const auto hash=pixelHash(scene->renderInterpolated(position));++smooth.samples;
+                const auto hash=pixelHash(renderAt(*scene,options,position));++smooth.samples;
                 if(sample%37==0)seekChecks.push_back({position,hash});
                 if(hash!=exactHashes[unsigned(position)]&&hash!=exactHashes[std::min(unsigned(position)+1,unsigned(last))])++smooth.changedSamples;
             }
             for(auto sample=seekChecks.rbegin();sample!=seekChecks.rend();++sample){
-                if(pixelHash(scene->renderInterpolated(sample->first))!=sample->second)throw std::runtime_error("Interpolated replay depends on seek order");
+                if(pixelHash(renderAt(*scene,options,sample->first))!=sample->second)throw std::runtime_error("Interpolated replay depends on seek order");
                 ++smooth.seekSamples;
             }
             for(unsigned tick=0;tick<scene->frames().size();++tick){
-                if(pixelHash(scene->renderInterpolated(tick))!=exactHashes[tick])throw std::runtime_error("Interpolated rendering changed an exact verified frame");
+                if(pixelHash(renderAt(*scene,options,tick))!=exactHashes[tick])throw std::runtime_error("Interpolated rendering changed an exact verified frame");
                 ++smooth.exactEndpoints;
             }
             smooth.milliseconds=std::chrono::duration<double,std::milli>(std::chrono::steady_clock::now()-started).count();
@@ -373,7 +383,7 @@ int WINAPI wWinMain(HINSTANCE instance,HINSTANCE,PWSTR,int show){
         if(!options.snapshots.empty()){
             if(options.framesDirectory.empty())throw std::runtime_error("Frame export requires --frames-dir");
             std::filesystem::create_directories(options.framesDirectory);
-            for(auto tick:options.snapshots){if(tick>=scene->frames().size())throw std::runtime_error("Requested snapshot exceeds replay");scene->render(tick);
+            for(auto tick:options.snapshots){if(tick>=scene->frames().size())throw std::runtime_error("Requested snapshot exceeds replay");renderAt(*scene,options,tick);
                 std::ostringstream name;name<<"frame-"<<std::setw(4)<<std::setfill('0')<<tick<<".bmp";const auto path=options.framesDirectory/name.str();scene->saveBitmap(path);images.push_back({tick,path,scene->statistics()});}
         }
         std::vector<ExportedSmoothFrame> smoothImages;
@@ -382,7 +392,7 @@ int WINAPI wWinMain(HINSTANCE instance,HINSTANCE,PWSTR,int show){
             std::filesystem::create_directories(options.framesDirectory);
             for(auto position:options.smoothSnapshots){
                 if(!std::isfinite(position)||position<0||position>scene->frames().size()-1)throw std::runtime_error("Interpolated snapshot exceeds replay");
-                scene->renderInterpolated(position);std::ostringstream name;name<<"interpolated-"<<std::fixed<<std::setprecision(3)<<position<<".bmp";
+                renderAt(*scene,options,position);std::ostringstream name;name<<"interpolated-"<<std::fixed<<std::setprecision(3)<<position<<".bmp";
                 const auto path=options.framesDirectory/name.str();scene->saveBitmap(path);smoothImages.push_back({position,path});
             }
         }

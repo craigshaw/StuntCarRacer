@@ -16,6 +16,8 @@ struct CameraViewSettings {
     std::int16_t yawOffset{},pitchOffset{},rollOffset{};
     bool showCockpit{true};
     NativeView view{NativeView::Original};
+    // Development prototype; never saved as a player preference.
+    bool texturedTrack{};
     // Developer observer displacement in mesh/world units. No player setting
     // selects this; the default view and original cockpit scale are unchanged.
     std::array<double,3> worldOffset{};

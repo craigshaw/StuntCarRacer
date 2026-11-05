@@ -31,6 +31,7 @@ def main():
     parser.add_argument('--pack', type=Path, default=DEFAULT_PACK)
     parser.add_argument('--adf', type=Path, help='Import this original disk before checking')
     parser.add_argument('--skip-build', action='store_true')
+    parser.add_argument('--jobs', type=int, default=4, help='Native build worker count')
     parser.add_argument('--verify-original', action='store_true', help='Also run test-only68000 comparisons from every fresh seed')
     args = parser.parse_args()
     pack = args.pack.resolve()
@@ -49,7 +50,7 @@ def main():
     else:
         commands = [configure_command(oracle=False),
                     ['cmake', '--build', str(build), '--config', 'Release', '--target',
-                     'native_replay_viewer', 'native_startup_tests', '--parallel', '4']]
+                     'native_replay_viewer', 'native_startup_tests', '--parallel', str(max(1, args.jobs)), '--', '/nr:false']]
         with (output / 'build.log').open('w') as log:
             for command in commands:
                 subprocess.run(command, check=True, cwd=ROOT, stdout=log, stderr=subprocess.STDOUT)
@@ -68,7 +69,7 @@ def main():
     if args.verify_original:
         oracle_build = ORACLE_BUILD
         commands = [configure_command(oracle=True),
-                    ['cmake', '--build', str(oracle_build), '--config', 'Release', '--target', 'driving_replay_oracle', '--parallel', '4']]
+                    ['cmake', '--build', str(oracle_build), '--config', 'Release', '--target', 'driving_replay_oracle', '--parallel', str(max(1, args.jobs)), '--', '/nr:false']]
         with (output / 'oracle-build.log').open('w') as log:
             for command in commands:
                 subprocess.run(command, check=True, cwd=ROOT, stdout=log, stderr=subprocess.STDOUT)

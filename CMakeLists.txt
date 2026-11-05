@@ -75,6 +75,7 @@ add_library(scr_render STATIC
   src/render/render_projection.cpp
   src/render/planar_image.cpp
   src/render/software_renderer.cpp
+  src/render/track_material.cpp
   src/render/ghost_car.cpp
   src/render/track_sides.cpp
   src/render/mountain_horizon.cpp
@@ -146,6 +147,7 @@ if(WIN32)
     app/presentation/native_multiplayer_render.cpp
     app/presentation/camera_view.cpp
     app/presentation/scene_commands.cpp
+    app/presentation/track_textures.cpp
   )
   target_include_directories(scr_runtime PUBLIC app)
   target_link_libraries(scr_runtime PUBLIC scr_render scr_audio scr_state bcrypt)

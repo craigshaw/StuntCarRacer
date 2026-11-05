@@ -14,6 +14,7 @@ struct RenderStatistics {
     unsigned clippedFaces{},triangles{},roadPixels{},sidePixels{},mountainPixels{};
     unsigned nearQueueEntries{},nearFillCommands{},edgeHighlightCommands{},edgeHighlightPixels{};
     unsigned opponentPolygons{},opponentPixels{};
+    unsigned trackTextureSamples{}; // Includes painter overdraw, prototype only.
 };
 // Native presentation backend for recovered, ordered scene commands. The
 // generic mesh path remains available for isolated diagnostics. Line and

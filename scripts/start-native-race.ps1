@@ -3,6 +3,8 @@ param(
     [string]$AssetPack = 'analysis/assets/stunt-car-racer.scr-assets',
     [ValidateRange(0,7)][int]$Track = 0,
     [switch]$ExactTicks,
+    [switch]$Textured,
+    [ValidateRange(1,64)][int]$Jobs = 4,
     [switch]$SkipBuild
 )
 $ErrorActionPreference = 'Stop'
@@ -10,7 +12,7 @@ $taskRoot = Split-Path -Parent $PSScriptRoot
 . (Join-Path $PSScriptRoot 'env.ps1')
 $pythonTool = Get-ScrPython
 if (-not [System.IO.Path]::IsPathRooted($AssetPack)) { $AssetPack = Join-Path $taskRoot $AssetPack }
-$checkArguments = @((Join-Path $PSScriptRoot 'check_native_startup.py'), '--pack', $AssetPack)
+$checkArguments = @((Join-Path $PSScriptRoot 'check_native_startup.py'), '--pack', $AssetPack, '--jobs', [string]$Jobs)
 if ($Adf) { $checkArguments += @('--adf', $Adf) }
 if ($SkipBuild) { $checkArguments += '--skip-build' }
 Push-Location -LiteralPath $taskRoot
@@ -26,6 +28,7 @@ try {
         '--report', (Join-Path $taskRoot 'analysis/native-startup/window-report.json'),
         '--recordings-dir', (Join-Path $taskRoot 'analysis/live-driving'))
     if ($ExactTicks) { $arguments += '--no-interpolation' }
+    if ($Textured) { $arguments += '--textures' }
     $quotedArguments = ($arguments | ForEach-Object { '"' + $_ + '"' }) -join ' '
     Start-Process -FilePath $executable -ArgumentList $quotedArguments -WorkingDirectory $taskRoot -WindowStyle Normal | Out-Null
 }

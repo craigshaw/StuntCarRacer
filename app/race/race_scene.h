@@ -92,7 +92,7 @@ public:
     const std::vector<std::uint32_t>& renderPracticeGhost(double fraction,bool interpolate,NativeView);
     unsigned verifyLiveReplay(const std::filesystem::path& inputs,const std::filesystem::path& reference,
         const std::filesystem::path& nativeTrace);
-    const std::vector<std::uint32_t>& renderLive(double fraction,bool wireframe=false,bool interpolate=true,NativeView view=NativeView::Original);
+    const std::vector<std::uint32_t>& renderLive(double fraction,bool wireframe=false,bool interpolate=true,NativeView view=NativeView::Original,bool texturedTrack=false);
     const std::vector<std::uint32_t>& renderLiveMessage(unsigned index,unsigned mode,bool includeGhost=false);
     // Original 0..15 indices; wide upper-cage samples additionally encode
     // palette pairs for presentationColor. Persistence uses Original.
@@ -168,6 +168,6 @@ private:
     void draw(const PresentationPose&,const NearTrackPresentation&,bool wireframe,
         const TrackPresentationSnapshot* movingTrack=nullptr,const RaceFrame* discrete=nullptr,double fraction=0,
         bool showCockpit=true,NativeView view=NativeView::Original,const RaceFrame* next=nullptr,
-        const GhostCarPose* ghost=nullptr,const GhostCarStyle* ghostStyle=nullptr);
+        const GhostCarPose* ghost=nullptr,const GhostCarStyle* ghostStyle=nullptr,bool texturedTrack=false);
 };
 } // namespace scr::runtime

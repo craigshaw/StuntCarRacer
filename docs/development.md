@@ -119,6 +119,7 @@ Use `& $AmigaPython scripts/<command>` after loading `env.ps1`.
 | Cockpit events, wheel state, first/repeated races, three-lap fixture | `check_native_cockpit.py` | `analysis/native-cockpit/` |
 | Opponent AI, contact and painter | `check_native_opponents.py` | `analysis/native-opponents/` |
 | Rendering, view isolation, both leagues/all tracks | `check_native_render_audit.py` | `analysis/render-audit/` |
+| Optional track-material prototype | CTest `native_track_texture_tests` plus rendering audit | `build/windows/test-output/Release/native_track_texture_tests/` |
 | Recorded replay, interpolation, input clock, offline audio | `check_native_rendering.py` | `analysis/native-render/` |
 | Static-track ghost rendering proof and isolation | `check_native_ghost.py` | `analysis/ghost-proof/` |
 | Draw Bridge ghost compatibility, suppression and isolation | `check_native_ghost_bridge.py` | `analysis/ghost-bridge-proof/` |
@@ -132,7 +133,7 @@ Choose checks for the changed contract. Gameplay changes require relevant
 original-code comparisons. Presentation changes require simulation/RNG isolation
 checks and visual inspection; interactive devices/windows also need manual checks.
 Documentation-only edits need link, command-reference and source-policy checks.
-The game wrapper and rendering audit accept `--jobs 1` if parallel MSBuild workers are unavailable.
+The game/startup wrappers and rendering audit accept `--jobs 1` if parallel MSBuild workers are unavailable.
 
 CTest skips tests with missing private inputs. `ctest --preset windows-release -L unit`
 runs the asset-free native subset. Configure-time `SCR_TEST_ASSET_PACK`,

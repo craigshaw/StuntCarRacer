@@ -1,4 +1,5 @@
 #include "race/race_scene.h"
+#include "presentation/track_textures.h"
 #include "session/native_multiplayer_state.h"
 #include "presentation/scene_commands.h"
 #include "state/track_mesh_adapter.h"
@@ -390,11 +391,11 @@ std::optional<GhostLapPlayback> RaceScene::lapGhostPlayback(double position,bool
         time+=std::llround((frames_[index+1].presentationMicroseconds-time)*fraction);
     return simulation_->laps->playback(time,interpolate);
 }
-const std::vector<std::uint32_t>& RaceScene::renderLive(double fraction,bool wireframe,bool interpolate,NativeView view){
+const std::vector<std::uint32_t>& RaceScene::renderLive(double fraction,bool wireframe,bool interpolate,NativeView view,bool texturedTrack){
     fraction=std::clamp(fraction,0.0,1.0);lastLiveFraction_=fraction;lastLiveInterpolate_=interpolate;lastLiveView_=view;
-    if(view!=NativeView::Original){CameraViewSettings settings;settings.view=view;return renderView(interpolate?fraction:1,settings,wireframe);}
+    if(view!=NativeView::Original||(interpolate&&texturedTrack)){CameraViewSettings settings;settings.view=view;settings.texturedTrack=texturedTrack;return renderView(interpolate?fraction:1,settings,wireframe);}
     if(interpolate)return renderInterpolated(fraction,wireframe);
-    const auto& frame=frames_[1];draw(frame,frame.nearTrack,wireframe,frame.movingTrack.get(),&frame,fraction);
+    const auto& frame=frames_[1];draw(frame,frame.nearTrack,wireframe,frame.movingTrack.get(),&frame,fraction,true,NativeView::Original,nullptr,nullptr,nullptr,texturedTrack);
     cachedFrame_=~0u;return pixels_;
 }
 const std::vector<std::uint32_t>& RaceScene::renderLiveMessage(unsigned index,unsigned mode,bool includeGhost){
@@ -502,7 +503,7 @@ const std::vector<std::uint32_t>& RaceScene::renderGhostView(double position,con
 }
 const std::vector<std::uint32_t>& RaceScene::renderViewImpl(double position,const CameraViewSettings& settings,
     bool wireframe,const GhostCarPose* ghost,const GhostCarStyle* ghostStyle){
-    if(!ghost&&settings.view==NativeView::Original&&!settings.hasCameraOffset()&&settings.showCockpit)return renderInterpolated(position,wireframe);
+    if(!ghost&&!settings.texturedTrack&&settings.view==NativeView::Original&&!settings.hasCameraOffset()&&settings.showCockpit)return renderInterpolated(position,wireframe);
     if(!std::isfinite(position)||frames_.empty())throw std::invalid_argument("Invalid presentation view position");
     position=std::clamp(position,0.0,double(frames_.size()-1));const auto index=unsigned(position);
     const auto& from=frames_[index];double fraction=position-index;
@@ -511,7 +512,7 @@ const std::vector<std::uint32_t>& RaceScene::renderViewImpl(double position,cons
     visual=makeCameraView(visual,settings,trig_);cachedFrame_=~0u;
     if(settings.view==NativeView::Original&&!settings.hasCameraOffset()&&fraction<1e-9){
         draw(visual,from.nearTrack,wireframe,from.movingTrack.get(),&from,0,settings.showCockpit,
-            NativeView::Original,nullptr,ghost,ghostStyle);return pixels_;
+            NativeView::Original,nullptr,ghost,ghostStyle,settings.texturedTrack);return pixels_;
     }
     std::optional<OpponentCarInputs> opponent;
     if(from.opponentEnabled){
@@ -520,15 +521,17 @@ const std::vector<std::uint32_t>& RaceScene::renderViewImpl(double position,cons
     }
     const auto commands=buildViewCommands(visual,from,opponent,viewPadding(settings.view),settings.view!=NativeView::Original?16:0,isWideView(settings.view)?56:0);
     draw(visual,commands,wireframe,from.movingTrack.get(),&from,fraction,settings.showCockpit,settings.view,
-        fraction>1e-9?&frames_[index+1]:nullptr,ghost,ghostStyle);
+        fraction>1e-9?&frames_[index+1]:nullptr,ghost,ghostStyle,settings.texturedTrack);
     return pixels_;
 }
-void RaceScene::draw(const PresentationPose& frame,const NearTrackPresentation& nearTrack,bool wireframe,const TrackPresentationSnapshot* movingTrack,const RaceFrame* discrete,double fraction,bool showCockpit,NativeView view,const RaceFrame* next,const GhostCarPose* ghost,const GhostCarStyle* ghostStyle){
+void RaceScene::draw(const PresentationPose& frame,const NearTrackPresentation& nearTrack,bool wireframe,const TrackPresentationSnapshot* movingTrack,const RaceFrame* discrete,double fraction,bool showCockpit,NativeView view,const RaceFrame* next,const GhostCarPose* ghost,const GhostCarStyle* ghostStyle,bool texturedTrack){
     const bool wide=isWideView(view),extended=view!=NativeView::Original;
     if(showCockpit&&!wide)makeRaceBackground(assets_,pixels_);else pixels_.assign(viewWidth(view)*200,0);
     const auto mountains=projectMountainHorizon(mountains_,frame.pose.yaw,frame.camera,viewPadding(view));
     const auto ghostDepth=ghost&&ghostStyle->occlusion?std::optional<NearTrackPresentation>(refineGhostTrackDepth(nearTrack,movingTrack?movingTrack->progress:presentationTrack_,frame.pose,frame.camera)):std::nullopt;
-    statistics_=renderer_.drawFrame(movingTrack?movingTrack->mesh:mesh_,movingTrack?movingTrack->sides:sides_,mountains,frame.camera,projection_,assets_.palette,pixels_,wireframe,ghostDepth?&*ghostDepth:&nearTrack,viewPadding(view),extended,wide?56:0,ghost&&ghostStyle->occlusion);
+    const auto textured=texturedTrack?std::optional<NearTrackPresentation>(textureTrackPresentation(ghostDepth?*ghostDepth:nearTrack,
+        movingTrack?movingTrack->progress:presentationTrack_,frame.pose,frame.camera)):std::nullopt;
+    statistics_=renderer_.drawFrame(movingTrack?movingTrack->mesh:mesh_,movingTrack?movingTrack->sides:sides_,mountains,frame.camera,projection_,assets_.palette,pixels_,wireframe,textured?&*textured:ghostDepth?&*ghostDepth:&nearTrack,viewPadding(view),extended,wide?56:0,ghost&&ghostStyle->occlusion);
     ghostStatistics_={};
     if(ghost)ghostStatistics_=ghostRenderer_.draw(*ghost,*ghostStyle,movingTrack?movingTrack->mesh:mesh_,
         movingTrack?movingTrack->sides:sides_,frame.camera,projection_,pixels_,renderer_.worldCoverage(),viewPadding(view),extended,wide?56:0,&renderer_.worldInverseDepth());

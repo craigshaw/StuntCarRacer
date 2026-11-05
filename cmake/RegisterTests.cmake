@@ -81,7 +81,7 @@ if(WIN32)
   foreach(target native_game_session_tests native_opening_session_tests native_startup_tests
       draw_bridge_driving_tests native_opponent_driving_tests native_opponent_session_tests
       native_multiplayer_session_tests native_career_session_tests native_save_session_tests
-      native_display_tests native_launcher_tests native_navigation_tests native_autosave_tests native_extended_view_tests native_lap_timer_tests native_track_visibility_tests)
+      native_display_tests native_launcher_tests native_navigation_tests native_autosave_tests native_extended_view_tests native_lap_timer_tests native_track_visibility_tests native_track_texture_tests)
     set(alternate_pack)
     if(target STREQUAL "native_autosave_tests" AND EXISTS "${SCR_TEST_ALTERNATE_ASSET_PACK}")
       list(APPEND alternate_pack "${SCR_TEST_ALTERNATE_ASSET_PACK}")

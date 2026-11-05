@@ -170,7 +170,7 @@ void WindowsGameDisplay::overlay(HDC dc,int width,int height,const NativeDisplay
         DrawTextW(dc,message,-1,&warning,DT_LEFT|DT_TOP|DT_WORDBREAK|DT_NOPREFIX);
     }
     const auto& prefs=settings.preferences();
-    const wchar_t* labels[]{L"Display mode",L"Image sizing",prefs.scaling==NativeScaling::Integer?L"Integer scale":L"Filtering",L"60 FPS smoothing",L"Driving controls",L"Menu navigation",L"Aspect ratio",L"Practice ghost",L"Apply and back",L"Cancel"};
+    const wchar_t* labels[]{L"Display mode",L"Image sizing",prefs.scaling==NativeScaling::Integer?L"Integer scale":L"Filtering",L"60 FPS smoothing",L"Driving controls",L"Menu navigation",L"Aspect ratio",L"Practice ghost",L"Track textures",L"Apply and back",L"Cancel"};
     auto detail=prefs.scaling==NativeScaling::Integer?integerScaleName(prefs.integerScale):std::wstring(filteringName(prefs.filtering));
     if(prefs.scaling==NativeScaling::Integer){
         const auto actual=unsigned(displayRectangle(width,height,prefs).height/originalDisplayHeight);
@@ -178,12 +178,12 @@ void WindowsGameDisplay::overlay(HDC dc,int width,int height,const NativeDisplay
         else if(actual!=prefs.integerScale)detail+=L" (using "+integerScaleName(actual)+L")";
     }
     const wchar_t* values[]{prefs.fullscreen?L"Borderless fullscreen":L"Windowed",scalingName(prefs.scaling),detail.c_str(),prefs.interpolate?L"On":L"Off",
-        prefs.controls==DriveControlPreset::Original?L"Original":L"Modern",prefs.navigation==NativeMenuNavigation::Responsive?L"Responsive":L"Original",viewName(prefs.view),prefs.practiceGhost?L"On":L"Off"};
+        prefs.controls==DriveControlPreset::Original?L"Original":L"Modern",prefs.navigation==NativeMenuNavigation::Responsive?L"Responsive":L"Original",viewName(prefs.view),prefs.practiceGhost?L"On":L"Off",prefs.trackTextures?L"On":L"Off"};
     for(unsigned n=0;n<settings.optionCount();++n){
         const int y=rows+int(n)*36;
         if(n==settings.selected())fill({left+px(16),top+px(y-3),left+panelWidth-px(16),top+px(y+30)},RGB(35,65,91));
         text(28,y,menu?labels[n]:confirmation?confirmActions[n]:actions[n],RGB(237,242,247));
-        if(menu&&n<8)text(250,y,values[n],RGB(148,213,243));
+        if(menu&&n<displayPreferenceRowCount)text(250,y,values[n],RGB(148,213,243));
     }
     text(24,help,menu?L"Arrows / D-pad: select and change":L"Arrows / D-pad: select",RGB(167,180,197));
     text(24,help+25,confirmation?L"Enter / A: confirm    Esc / B: cancel":L"Enter / A: confirm    Esc / B: back",RGB(167,180,197));

@@ -38,18 +38,27 @@ coverage check instead of borrowing an arbitrary depth from another edge.
 
 ## Views
 
-The development-only track texture prototype is selected explicitly through
-`CameraViewSettings::texturedTrack`. A private command copy carries UVs for
+Optional track textures are selected through the in-game Settings menu and
+passed explicitly to presentation through `CameraViewSettings::texturedTrack`.
+A private command copy carries UVs for
 full source-height strips, with fixed segment/section coordinates on moving
 Draw Bridge geometry. Angular-ray interpolation samples deterministic asphalt
 and panel bitmaps with mip filtering; original fill coverage, painter order,
 edge highlights and foreground artwork remain in place. No gameplay RNG is
 used. Default commands carry no texture patches and retain their colour path.
-This is a low-resolution materials experiment, not a high-resolution renderer
-or a player preference; [viewer controls](../../tools/README.md#viewers) describe
-the toggle. `native_track_texture_tests` covers all tracks/apertures, repeat
+The preference defaults to off, persists independently of aspect/smoothing/ghost
+choices, and follows the existing preview/Apply/Cancel contract. Settings versions
+1–9 migrate with textures off; version 10 adds `track-textures`. Pause and live
+finish panels retain the chosen materials, including ghost occlusion. Original
+indexed palette-transition and saved career-finish captures use the baseline
+colour path and restore the live material selection afterward.
+This stage retains the original rendering resolution. The development viewer
+also has a [comparison toggle](../../tools/README.md#viewers).
+`native_track_texture_tests` covers all tracks/apertures, repeat
 queries, baseline restoration, world coverage and complete simulation/RNG memory
-against a twin scene that never enables the prototype.
+against a twin scene that never enables textures. Native display tests cover
+preference migration, Apply/Cancel, paused preview and cockpit/wheel independence;
+Practice ghost acceptance checks both material modes.
 
 Original and Extended use a 320×200 canvas. The 16:9 and 32:9 canvases are
 432×200 and 864×200, with the original car centred at unchanged scale. Host

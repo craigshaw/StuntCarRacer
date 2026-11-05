@@ -18,7 +18,7 @@
 - **Widescreen and ultrawide.** Original and Extended 4:3, 16:9 and 32:9 views,
   keeping the original car artwork at the same scale.
 - **Display options.** Optional 60 FPS smoothing, fullscreen, integer scaling
-  and nearest-neighbour or bilinear filtering.
+  and nearest-neighbour or bilinear filtering, plus optional track textures.
 - **Keyboard and controller.** XInput support, Original and Modern driving
   presets, responsive menus and in-game Settings.
 - **Original sights and sounds.** Cockpit instruments, animated wheels, engine

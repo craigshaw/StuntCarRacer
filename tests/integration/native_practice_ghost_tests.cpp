@@ -83,10 +83,10 @@ void player(const std::filesystem::path& pack,const std::filesystem::path& root,
     WindowsGameDisplay display;NativeDisplaySettings menu;std::filesystem::create_directories(output/"frames");unsigned imageIndex=0;
     for(unsigned tick=0;tick<250;++tick){
         drive(*game,plan.at(tick));baseline->stepLive(plan[tick].controls,plan[tick].quit);
-        if(tick%12==0)for(auto view:{NativeView::Original,NativeView::Extended,NativeView::Widescreen,NativeView::Ultrawide})for(bool smooth:{false,true}){
-            game->setPracticeGhostVisible(true);const auto shown=game->render(smooth,false,view);const auto before=game->race().lapGhostPlayback(1);
-            game->setPracticeGhostVisible(false);const auto hidden=game->render(smooth,false,view);
-            game->setPracticeGhostVisible(true);require(game->render(smooth,false,view)==shown,"Re-enabling the ghost changed its playback position");
+        if(tick%12==0)for(auto view:{NativeView::Original,NativeView::Extended,NativeView::Widescreen,NativeView::Ultrawide})for(bool smooth:{false,true})for(bool textures:{false,true}){
+            game->setPracticeGhostVisible(true);const auto shown=game->render(smooth,false,view,textures);const auto before=game->race().lapGhostPlayback(1);
+            game->setPracticeGhostVisible(false);const auto hidden=game->render(smooth,false,view,textures);
+            game->setPracticeGhostVisible(true);require(game->render(smooth,false,view,textures)==shown,"Re-enabling the ghost changed its playback position");
             const auto after=game->race().lapGhostPlayback(1);require(bool(before)==bool(after)&&(!before||before->elapsedMicroseconds==after->elapsedMicroseconds),"Toggle reset playback");++counts.toggleChecks;
             if(shown!=hidden){++counts.visibleQueries;counts.viewMask|=1u<<unsigned(view);}
         }
@@ -95,7 +95,7 @@ void player(const std::filesystem::path& pack,const std::filesystem::path& root,
     require(counts.visibleQueries&&counts.viewMask==15,"Ghost was not visible through all four player apertures");
     NativeDisplaySettings settings;settings.openSettings();for(unsigned n=0;n<7;++n)tap(settings,2);image(*game,display,settings,output/"settings.ppm");
     const auto bestTime=game->practiceGhostTime();menu.setPracticeGhostContext(true,std::wstring(bestTime.begin(),bestTime.end()),true);
-    menu.openGameMenu(true);const auto paused=game->render(true,true,NativeView::Widescreen);require(game->render(true,true,NativeView::Widescreen)==paused,"Paused ghost advanced");
+    menu.openGameMenu(true);const auto paused=game->render(true,true,NativeView::Widescreen,true);require(game->render(true,true,NativeView::Widescreen,true)==paused,"Paused textured ghost advanced");
     image(*game,display,menu,output/"pause.ppm");tap(menu,2);tap(menu,2);tap(menu,2);tap(menu,16);
     require(menu.page()==NativeDisplayPage::ClearGhostConfirmation,"Practice clear confirmation missing");image(*game,display,menu,output/"clear-confirmation.ppm");
     tap(menu,16);require(bool(game->personalBestLaps().best(key)),"Cancelling clear removed the target");

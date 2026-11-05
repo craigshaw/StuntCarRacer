@@ -53,6 +53,11 @@ void preferences(const std::filesystem::path& root){
     NativeLauncher overridden(files,true,true);require(overridden.preferences().fullscreen&&overridden.preferences().interpolate,"Launch override not visible");
     require(overridden.saveForPlay()&&loadDisplayPreferences(files.settings)==faithful,"Play persisted a launch-only override");
     overridden.change(2);overridden.change(2);require(overridden.saveForPlay()&&loadDisplayPreferences(files.settings).interpolate,"Explicit preference edit did not override launch policy");
+    auto textured=loadDisplayPreferences(files.settings);textured.trackTextures=true;
+    require(saveDisplayPreferences(files.settings,textured),"Cannot seed in-game texture preference");
+    NativeLauncher retained(files);retained.change(0);
+    require(retained.preferences().trackTextures&&retained.saveForPlay()&&loadDisplayPreferences(files.settings).trackTextures,"Launcher Play lost the in-game texture selection");
+    retained.resetPreferences();require(!retained.preferences().trackTextures,"Original defaults retained enhanced materials");
     require(defaultNativeLaunchPaths().pack.is_absolute()&&defaultNativeLaunchPaths().recordings.empty(),"Player defaults depend on working directory or enable recording");
 }
 void recording(const std::filesystem::path& pack,const std::filesystem::path& root){

@@ -520,7 +520,7 @@ void NativeGameSession::updateOpening(const NativeGameInput& input,double elapse
     }
     handleOpeningAction(opening_->update(input.menu,elapsed),previous,result);
 }
-const std::vector<std::uint32_t>& NativeGameSession::render(bool interpolate,bool paused,NativeView view){
+const std::vector<std::uint32_t>& NativeGameSession::render(bool interpolate,bool paused,NativeView view,bool trackTextures){
     ghostConditionsDiffer_=false;
     presentationView_=view;
     if(careerPanel_!=CareerPanel::None){packNativeMenuPixels(careerImage(),pixels_);return pixels_;}
@@ -538,11 +538,11 @@ const std::vector<std::uint32_t>& NativeGameSession::render(bool interpolate,boo
         const bool ghost=practiceGhostVisible_&&practiceGhostActive()&&!race_.liveTerminal();
         if(ghost){const auto playback=race_.lapGhostPlayback(interpolate?driveClock_.fraction():1,interpolate);ghostConditionsDiffer_=playback&&!playback->finished&&playback->conditionsDiffer;}
         // Set the presentation view even when paused or at the terminal panel.
-        if(race_.liveTerminal()||paused)race_.renderLive(driveClock_.fraction(),false,interpolate,view);
+        if(race_.liveTerminal()||paused)race_.renderLive(driveClock_.fraction(),false,interpolate,view,trackTextures);
         if(race_.liveTerminal())return race_.renderLiveMessage(0x3c,4);
         if(paused)return race_.renderLiveMessage(0x4c,2,ghost);
-        if(ghost)return race_.renderPracticeGhost(driveClock_.fraction(),interpolate,view);
-        return race_.renderLive(driveClock_.fraction(),false,interpolate,view);
+        if(ghost)return race_.renderPracticeGhost(driveClock_.fraction(),interpolate,view,trackTextures);
+        return race_.renderLive(driveClock_.fraction(),false,interpolate,view,trackTextures);
     }
     packNativeMenuPixels(menuImage(),pixels_);return pixels_;
 }

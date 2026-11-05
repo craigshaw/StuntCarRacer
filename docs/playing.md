@@ -221,6 +221,14 @@ held controls must be released before resuming, and the fractional tick survives
 | Driving controls | Original or Modern |
 | Menu navigation | Responsive (default) or Original |
 | Aspect ratio | 4:3 Original (default), 4:3 Extended, 16:9 or 32:9 |
+| Practice ghost | On (default) or Off; lap recording continues while hidden |
+| Track textures | Off (default) keeps original flat colours; On adds asphalt, painted shoulders and panelled sidewalls |
+
+Track textures can be changed during a race with F10 or Game menu → Settings.
+They preview behind the menu; Apply remembers the choice for the next launch,
+and Cancel restores the previous view. The option works with every aspect ratio
+and smoothing choice, including Practice ghosts, and keeps the original car
+artwork and gameplay. The track continues to use the original rendering resolution.
 
 Integer uses 240-pixel display-height steps. Fixed scales resize the windowed
 game area and centre fullscreen output; 3× gives 960×720 in 4:3, 1280×720 in

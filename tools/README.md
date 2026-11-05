@@ -32,8 +32,9 @@ Start the optional track-material experiment with
 original graphics and the prototype at the same pose, including while paused.
 Road asphalt/edge paint and sidewall panels are procedural, mipmapped textures
 attached to the original track sections. Cars and cockpit keep their artwork.
-This experiment uses the existing low-resolution canvas and is not a saved
-player setting. All four apertures are exercised by `native_track_texture_tests`;
+This viewer uses the existing low-resolution canvas. The player exposes the
+same materials through F10 Settings → Track textures, with Apply/Cancel and
+saved preferences. All four apertures are exercised by `native_track_texture_tests`;
 the direct viewer retains its Original aperture. Test comparison bitmaps are
 written under the build's `test-output/Release/native_track_texture_tests/`.
 Use `-Jobs 1` if parallel MSBuild workers are unavailable.

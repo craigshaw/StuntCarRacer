@@ -375,11 +375,11 @@ std::vector<HallSubmission> RaceScene::takeHallCompletions(){
     return simulation_&&simulation_->hall?simulation_->hall->take():std::vector<HallSubmission>{};
 }
 void RaceScene::clearPersonalBestLap(){if(simulation_&&simulation_->laps)simulation_->laps->clear();}
-const std::vector<std::uint32_t>& RaceScene::renderPracticeGhost(double fraction,bool interpolate,NativeView view){
+const std::vector<std::uint32_t>& RaceScene::renderPracticeGhost(double fraction,bool interpolate,NativeView view,bool texturedTrack){
     const auto playback=lapGhostPlayback(interpolate?fraction:1,interpolate);
-    if(!playback||playback->opacity<=0)return renderLive(fraction,false,interpolate,view);
-    lastLiveFraction_=fraction;lastLiveInterpolate_=interpolate;lastLiveView_=view;
-    CameraViewSettings camera;camera.view=view;GhostCarStyle style;style.opacity*=playback->opacity;
+    if(!playback||playback->opacity<=0)return renderLive(fraction,false,interpolate,view,texturedTrack);
+    lastLiveFraction_=fraction;lastLiveInterpolate_=interpolate;lastLiveView_=view;lastLiveTexturedTrack_=texturedTrack;
+    CameraViewSettings camera;camera.view=view;camera.texturedTrack=texturedTrack;GhostCarStyle style;style.opacity*=playback->opacity;
     return renderGhostView(interpolate?fraction:1,camera,playback->pose,style);
 }
 std::optional<GhostLapPlayback> RaceScene::lapGhostPlayback(double position,bool interpolate)const{
@@ -392,7 +392,7 @@ std::optional<GhostLapPlayback> RaceScene::lapGhostPlayback(double position,bool
     return simulation_->laps->playback(time,interpolate);
 }
 const std::vector<std::uint32_t>& RaceScene::renderLive(double fraction,bool wireframe,bool interpolate,NativeView view,bool texturedTrack){
-    fraction=std::clamp(fraction,0.0,1.0);lastLiveFraction_=fraction;lastLiveInterpolate_=interpolate;lastLiveView_=view;
+    fraction=std::clamp(fraction,0.0,1.0);lastLiveFraction_=fraction;lastLiveInterpolate_=interpolate;lastLiveView_=view;lastLiveTexturedTrack_=texturedTrack;
     if(view!=NativeView::Original||(interpolate&&texturedTrack)){CameraViewSettings settings;settings.view=view;settings.texturedTrack=texturedTrack;return renderView(interpolate?fraction:1,settings,wireframe);}
     if(interpolate)return renderInterpolated(fraction,wireframe);
     const auto& frame=frames_[1];draw(frame,frame.nearTrack,wireframe,frame.movingTrack.get(),&frame,fraction,true,NativeView::Original,nullptr,nullptr,nullptr,texturedTrack);
@@ -402,8 +402,8 @@ const std::vector<std::uint32_t>& RaceScene::renderLiveMessage(unsigned index,un
     // Repaint the final snapshot before overlaying the original panel, so a
     // pause message never becomes part of a later interpolated race image.
     cachedFrame_=~0u;
-    if(includeGhost)renderPracticeGhost(lastLiveFraction_,lastLiveInterpolate_,lastLiveView_);
-    else renderLive(lastLiveFraction_,false,lastLiveInterpolate_,lastLiveView_);
+    if(includeGhost)renderPracticeGhost(lastLiveFraction_,lastLiveInterpolate_,lastLiveView_,lastLiveTexturedTrack_);
+    else renderLive(lastLiveFraction_,false,lastLiveInterpolate_,lastLiveView_,lastLiveTexturedTrack_);
     const auto& memory=simulation_->native.ram;
     const auto cockpit=captureCockpitFrame(memory.data(),memory.size());
     const bool wide=isWideView(lastLiveView_);
@@ -417,6 +417,7 @@ const std::vector<std::uint32_t>& RaceScene::renderLiveMessage(unsigned index,un
 std::vector<std::uint16_t> RaceScene::captureLiveIndices(bool endMessage,NativeView view){
     const auto saved=assets_.palette;
     const auto savedView=lastLiveView_;lastLiveView_=view;
+    const auto savedTextures=lastLiveTexturedTrack_;lastLiveTexturedTrack_=false;
     // Original fades use the four bitmap planes. The independent hardware
     // sprites have their own OCS palette and Sprite DMA is off for race fades.
     bitmapOnly_=true;
@@ -432,8 +433,8 @@ std::vector<std::uint16_t> RaceScene::captureLiveIndices(bool endMessage,NativeV
             if(pixel>=16&&(!isWideView(view)||pixel<0x100||pixel>=0x300))throw std::logic_error("Native race renderer emitted a non-palette pixel");
             indices.push_back(std::uint16_t(pixel));
         }
-        assets_.palette=saved;lastLiveView_=savedView;bitmapOnly_=false;cachedFrame_=~0u;return indices;
-    }catch(...){assets_.palette=saved;lastLiveView_=savedView;bitmapOnly_=false;cachedFrame_=~0u;throw;}
+        assets_.palette=saved;lastLiveView_=savedView;lastLiveTexturedTrack_=savedTextures;bitmapOnly_=false;cachedFrame_=~0u;return indices;
+    }catch(...){assets_.palette=saved;lastLiveView_=savedView;lastLiveTexturedTrack_=savedTextures;bitmapOnly_=false;cachedFrame_=~0u;throw;}
 }
 unsigned RaceScene::verifyLiveReplay(const std::filesystem::path& inputs,const std::filesystem::path& referencePath,const std::filesystem::path& tracePath){
     namespace replay=scr::state::replay;const auto input=replay::loadInputs(inputs.string().c_str());

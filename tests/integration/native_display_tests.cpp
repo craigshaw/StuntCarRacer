@@ -95,7 +95,16 @@ void storage(const std::filesystem::path& output){
     wide.view=NativeView::Ultrawide;
     require(saveDisplayPreferences(file,wide)&&loadDisplayPreferences(file)==wide,"Ultrawide preference did not roundtrip");
     wide.practiceGhost=false;require(saveDisplayPreferences(file,wide)&&!loadDisplayPreferences(file).practiceGhost,"Ghost toggle did not persist");
+    wide.trackTextures=true;
+    require(saveDisplayPreferences(file,wide)&&loadDisplayPreferences(file)==wide,"Track textures did not persist independently of ghost/aspect settings");
     const std::string modernFields="fullscreen=1\nscaling=fit\ninterpolate=1\ncontrols=modern\nnavigation=responsive\nfiltering=nearest\ninteger-scale=2\n";
+    {std::ofstream out(file);out<<"SCR display 9\n"<<modernFields<<"aspect=ultrawide\npractice-ghost=0\n";}
+    const auto migrated=loadDisplayPreferences(file);
+    require(!migrated.trackTextures&&!migrated.practiceGhost&&migrated.view==NativeView::Ultrawide&&migrated.interpolate&&migrated.controls==DriveControlPreset::Modern,"Version 9 migration changed an existing preference or enabled textures");
+    for(const auto suffix:{"","track-textures=2\n","track-textures=1\nextra=1\n"}){
+        {std::ofstream out(file);out<<"SCR display 10\n"<<modernFields<<"aspect=ultrawide\npractice-ghost=0\n"<<suffix;}
+        require(loadDisplayPreferences(file)==NativeDisplayPreferences{},"Malformed track texture preferences were applied");
+    }
     {std::ofstream out(file);out<<"SCR display 8\n"<<modernFields<<"aspect=ultrawide\n";}
     require(loadDisplayPreferences(file).practiceGhost&&loadDisplayPreferences(file).view==NativeView::Ultrawide,"Old preferences did not migrate with ghosts enabled");
     {std::ofstream out(file);out<<"SCR display 4\n"<<modernFields;}
@@ -168,6 +177,10 @@ void navigation(){
     tap(settings,8);require(settings.preferences().view==NativeView::Ultrawide,"Aspect ratio did not select 32:9");
     tap(settings,8);require(settings.preferences().view==NativeView::Original,"Aspect ratio did not cycle from 32:9 to Original");
     tap(settings,2);tap(settings,8);require(!settings.preferences().practiceGhost,"Practice ghost did not toggle independently");
+    tap(settings,2);tap(settings,8);require(settings.preferences().trackTextures&&!settings.preferences().practiceGhost,"Track textures did not toggle independently");
+    settings.navigate(8);require(!settings.preferences().trackTextures,"Fresh texture toggle was ignored");
+    settings.navigate(8);require(!settings.preferences().trackTextures,"Held texture toggle repeated");settings.navigate(0);
+    tap(settings,16);require(settings.preferences().trackTextures,"Confirm did not enable track textures");
     tap(settings,2);settings.navigate(0);require(settings.navigate(16)&&settings.blocksGame(),"Apply did not request saving while blocking gameplay");
     settings.applied();require(!settings.blocksGame(),"Applied direct settings did not return to game");
     const auto saved=settings.preferences();settings.pause();tap(settings,2);tap(settings,16);
@@ -175,7 +188,7 @@ void navigation(){
     require(settings.page()==NativeDisplayPage::Pause&&settings.preferences()==saved,"Cancel did not restore preferences and paused state");settings.back();
     settings.openSettings();tap(settings,2);tap(settings,2);tap(settings,2);tap(settings,2);tap(settings,8);
     require(settings.preferences().controls==DriveControlPreset::Original,"Controls did not preview on reopening settings");
-    tap(settings,2);tap(settings,2);tap(settings,2);tap(settings,2);tap(settings,2);tap(settings,16);
+    while(settings.selected()!=settings.optionCount()-1)tap(settings,2);tap(settings,16);
     require(!settings.blocksGame()&&settings.preferences()==saved,"Cancel row did not restore the saved control preset");
     settings.openSettings();tap(settings,8);settings.suspendRace();settings.applied();
     require(settings.page()==NativeDisplayPage::Pause,"Focus loss allowed settings to resume a race");
@@ -358,6 +371,51 @@ void leaveRaceOutcomes(const std::filesystem::path& pack){
         require(*actual==*memory,"Host quit changed damage, RNG or state outside the normal quit/cleanup writes");
     }
 }
+void textureSettings(const std::filesystem::path& pack,const std::filesystem::path& output,WindowsGameDisplay& display){
+    auto game=std::make_unique<NativeGameSession>(pack,std::filesystem::path{},NativeGameStart::EstablishedMenu);
+    auto twin=std::make_unique<NativeGameSession>(pack,std::filesystem::path{},NativeGameStart::EstablishedMenu);
+    settle(*game);settle(*twin);
+    const auto menu=game->render();
+    require(game->render(false,false,NativeView::Original,true)==menu,"Track materials changed the main menu");
+    start(*game);start(*twin);
+    for(unsigned n=0;n<128;++n){NativeGameInput input;input.driveControls=1;game->update(.12,input);twin->update(.12,input);}
+    NativeDisplaySettings settings;settings.openGameMenu(true);tap(settings,2);tap(settings,16);
+    for(unsigned n=0;n<8;++n)tap(settings,2);
+    const auto ticks=game->race().liveTicks();
+    const auto original=game->render(true,true,NativeView::Widescreen);
+    tap(settings,8);
+    const auto preview=game->render(true,true,NativeView::Widescreen,settings.preferences().trackTextures);
+    require(preview!=original&&settings.preferences().trackTextures,"In-game texture selection did not preview on the paused road");
+    require(game->render(true,true,NativeView::Widescreen,true)==preview&&game->race().liveTicks()==ticks,"Texture preview advanced the paused game");
+    settings.back();require(!settings.preferences().trackTextures&&settings.page()==NativeDisplayPage::Pause,"Cancel did not restore texture mode and Game menu");
+    require(game->render(true,true,NativeView::Widescreen,settings.preferences().trackTextures)==original,"Cancel did not restore original road pixels");
+    tap(settings,16);for(unsigned n=0;n<8;++n)tap(settings,2);tap(settings,16);
+    for(const auto size:{std::pair<int,int>{640,480},{960,720},{1920,1080}}){
+        Surface surface(size.first,size.second);auto prefs=settings.preferences();prefs.scaling=NativeScaling::Fit;prefs.view=NativeView::Widescreen;
+        display.paint(surface.dc,size.first,size.second,game->render(true,true,prefs.view,prefs.trackTextures),prefs);
+        display.overlay(surface.dc,size.first,size.second,settings,L"");GdiFlush();
+        surface.save(output/("track-textures-settings-"+std::to_string(size.first)+".bmp"));
+    }
+    tap(settings,2);settings.navigate(0);
+    require(settings.navigate(16),"Texture Apply did not request saving");
+    const auto file=output/"track-textures.ini";
+    require(saveDisplayPreferences(file,settings.preferences()),"Cannot apply texture setting");settings.applied();
+    require(settings.page()==NativeDisplayPage::Pause&&loadDisplayPreferences(file).trackTextures,"Applying textures did not save and return to the Game menu");
+    for(auto view:{NativeView::Original,NativeView::Extended,NativeView::Widescreen,NativeView::Ultrawide})for(bool smooth:{false,true}){
+        const auto baseline=game->render(smooth,false,view);
+        require(game->render(smooth,false,view,true)!=baseline,"Saved texture mode was lost in a display/smoothing combination");
+        require(game->render(smooth,false,view)==baseline,"Texture query contaminated the original frame");
+    }
+    for(unsigned n=0;n<32;++n){
+        NativeGameInput input;input.driveControls=1;game->update(.12,input);twin->update(.12,input);
+        game->render(true,false,NativeView::Widescreen,true);
+        require(game->render()==twin->render(),"Texture settings changed later game output");
+    }
+    auto a=std::make_unique<NativeMemory>(),b=std::make_unique<NativeMemory>();
+    auto& race=const_cast<RaceScene&>(game->race());auto& control=const_cast<RaceScene&>(twin->race());
+    race.quitLive();control.quitLive();race.copyLiveExit(*a);control.copyLiveExit(*b);
+    require(*a==*b,"Texture settings changed simulation, RNG or final memory");
+}
 void timing(const std::filesystem::path& pack,const std::filesystem::path& output,WindowsGameDisplay& display){
     NativeGameSession viewed(pack,output/"viewed",NativeGameStart::EstablishedMenu),twin(pack,output/"twin",NativeGameStart::EstablishedMenu);start(viewed);start(twin);
     NativeDisplaySettings settings;Surface surface(800,500);
@@ -394,9 +452,10 @@ int main(int argc,char** argv)try{
     const std::filesystem::path output=argv[2];std::filesystem::create_directories(output);
     storage(output);navigation();gameMenu();WindowsGameDisplay display;const auto cases=scaling(display);
     widescreenDisplay(display,argv[1],output,NativeView::Widescreen);widescreenDisplay(display,argv[1],output,NativeView::Ultrawide);
-    fullscreen(display);leaveRaceStates(argv[1]);leaveRaceOutcomes(argv[1]);timing(argv[1],output,display);
+    fullscreen(display);leaveRaceStates(argv[1]);leaveRaceOutcomes(argv[1]);textureSettings(argv[1],output,display);timing(argv[1],output,display);
     std::cout<<"{\"status\":\"passed\",\"preference_roundtrips\":384,\"corrupt_preferences\":17,\"legacy_preferences_migrated\":true,\"control_preset_navigation\":true,\"game_menu\":true,\"quit_confirmation\":true,\"leave_race_equivalence\":true,\"atomic_failure_checked\":true,\"controller_navigation\":true,\"scaling_cases\":"<<cases
         <<",\"leave_race_state_cases\":32,\"leave_race_outcome_cases\":32,\"leave_race_without_physics_tick\":true"
+        <<",\"track_texture_preference\":true,\"track_texture_preview_cancel_apply\":true,\"track_texture_simulation_isolation\":true"
         <<",\"fullscreen_roundtrips\":4,\"paused_presentations\":120,\"changing_1080p_filter_ms\":"<<filterMilliseconds
         <<",\"changing_5120x1440_filter_ms\":"<<ultrawideFilterMilliseconds<<",\"wide_aspect_modes\":2,\"ultrawide_car_scale_preserved\":true,\"ultrawide_preference_roundtrip\":true,\"ultrawide_window_cancel\":true,\"original_tick_phase_preserved\":true,\"final_simulation_memory_identical\":true}\n";return 0;
 }catch(const std::exception& error){std::cerr<<error.what()<<'\n';return 1;}

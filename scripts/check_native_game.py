@@ -224,6 +224,7 @@ def main():
             or display.get('legacy_preferences_migrated') is not True or display.get('control_preset_navigation') is not True
             or display.get('fullscreen_roundtrips') != 4 or display.get('paused_presentations') != 120
             or display.get('original_tick_phase_preserved') is not True
+            or any(display.get(key) is not True for key in ('track_texture_preference', 'track_texture_preview_cancel_apply', 'track_texture_simulation_isolation'))
             or display.get('final_simulation_memory_identical') is not True):
         raise RuntimeError('Native display preferences or pause isolation regression failed')
     controls = run_json([controls_test], output / 'controls-results.json')

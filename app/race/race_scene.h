@@ -89,7 +89,7 @@ public:
     const LapRecordingStatistics* lapRecordingStatistics()const noexcept;
     std::optional<GhostLapPlayback> lapGhostPlayback(double position,bool interpolate=true)const;
     void clearPersonalBestLap();
-    const std::vector<std::uint32_t>& renderPracticeGhost(double fraction,bool interpolate,NativeView);
+    const std::vector<std::uint32_t>& renderPracticeGhost(double fraction,bool interpolate,NativeView,bool texturedTrack=false);
     unsigned verifyLiveReplay(const std::filesystem::path& inputs,const std::filesystem::path& reference,
         const std::filesystem::path& nativeTrace);
     const std::vector<std::uint32_t>& renderLive(double fraction,bool wireframe=false,bool interpolate=true,NativeView view=NativeView::Original,bool texturedTrack=false);
@@ -158,6 +158,7 @@ private:
     bool cachedWireframe_{};
     double lastLiveFraction_{};
     bool lastLiveInterpolate_{true};
+    bool lastLiveTexturedTrack_{};
     NativeView lastLiveView_{NativeView::Original};
     bool bitmapOnly_{};
     bool runningLapHundredths_{};

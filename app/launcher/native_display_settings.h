@@ -20,8 +20,9 @@ struct NativeDisplayPreferences {
     unsigned integerScale{}; // Zero selects the largest fitting integer scale.
     NativeView view{NativeView::Original};
     bool practiceGhost{true};
+    bool trackTextures{};
     bool operator==(const NativeDisplayPreferences& other)const noexcept {
-        return fullscreen==other.fullscreen&&interpolate==other.interpolate&&scaling==other.scaling&&controls==other.controls&&navigation==other.navigation&&filtering==other.filtering&&integerScale==other.integerScale&&view==other.view&&practiceGhost==other.practiceGhost;
+        return fullscreen==other.fullscreen&&interpolate==other.interpolate&&scaling==other.scaling&&controls==other.controls&&navigation==other.navigation&&filtering==other.filtering&&integerScale==other.integerScale&&view==other.view&&practiceGhost==other.practiceGhost&&trackTextures==other.trackTextures;
     }
 };
 NativeDisplayPreferences loadDisplayPreferences(const std::filesystem::path&);
@@ -33,7 +34,8 @@ const wchar_t* viewName(NativeView)noexcept;
 int displayWidthAtScale(NativeView,unsigned scale)noexcept;
 PresentationRectangle displayRectangle(int width,int height,const NativeDisplayPreferences&,int sourceWidth=0);
 // Existing preference row identities stay stable; aspect ratio follows navigation.
-constexpr unsigned displayRowOrder[]{0,1,5,2,3,4,6,7};
+constexpr unsigned displayRowOrder[]{0,1,5,2,3,4,6,7,8};
+constexpr unsigned displayPreferenceRowCount=sizeof(displayRowOrder)/sizeof(displayRowOrder[0]);
 void changeDisplayPreference(NativeDisplayPreferences&,unsigned row,int direction=1);
 // Bits shared by keyboard and controller navigation: up/down/left/right/A/B.
 unsigned displayPadNavigation(const DrivePad&)noexcept;

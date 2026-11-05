@@ -310,7 +310,7 @@ private:
         // Keep the last completed image visible while rendering. Clearing the
         // window before game_->render exposed black frames to the compositor.
         if(game_)game_->setPracticeGhostVisible(settings_.preferences().practiceGhost);
-        const std::vector<std::uint32_t>* pixels=game_?&game_->render(settings_.preferences().interpolate,settings_.blocksGame(),settings_.preferences().view):nullptr;
+        const std::vector<std::uint32_t>* pixels=game_?&game_->render(settings_.preferences().interpolate,settings_.blocksGame(),settings_.preferences().view,settings_.preferences().trackTextures):nullptr;
         syncGhostMenu();
         PAINTSTRUCT painting{};auto target=BeginPaint(window,&painting);RECT client{};GetClientRect(window,&client);
         if(client.right<=0||client.bottom<=0){EndPaint(window,&painting);return;}

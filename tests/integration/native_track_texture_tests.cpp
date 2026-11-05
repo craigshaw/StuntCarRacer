@@ -79,6 +79,15 @@ int main(int argc,char** argv)try{
                 const auto before=retainedHash(*viewed);
                 coverageSamples+=coverageCheck(*viewed,startup);
                 for(auto aperture:{NativeView::Original,NativeView::Extended,NativeView::Widescreen,NativeView::Ultrawide}){
+                    if(tick==64){
+                        viewed->renderLive(.5,false,true,aperture);
+                        const auto indices=viewed->captureLiveIndices(true,aperture);
+                        viewed->renderLive(.5,false,true,aperture,true);
+                        const auto panel=viewed->renderLiveMessage(0x3c,4);
+                        require(viewed->captureLiveIndices(true,aperture)==indices,"Textures leaked into original indexed fade/finish captures");
+                        require(viewed->renderLiveMessage(0x3c,4)==panel,"Indexed capture lost the selected texture mode");
+                        queries+=5;
+                    }
                     CameraViewSettings original;original.view=aperture;
                     auto textured=original;textured.texturedTrack=true;
                     for(double fraction:{0.0,0.5,1.0}){

@@ -23,6 +23,24 @@
       "sha256": "f5d33316aea6945a591dcc0a8a6b8ce697862d4f0e2128ecec8c309a29e83262",
       "width": 2560,
       "height": 720
+    },
+    {
+      "path": "docs/screenshots/careers.png",
+      "sha256": "6a1ca3530ffd5423c7709a4d2f38b89d11fb350bf50e8a19edcd0ed6039fd014",
+      "width": 1280,
+      "height": 720
+    },
+    {
+      "path": "docs/screenshots/hall-of-fame.png",
+      "sha256": "09835604ea0fde1ae87ead1d88996a3df7672ba82435a2fb48c5205c4cde81bd",
+      "width": 1280,
+      "height": 720
+    },
+    {
+      "path": "docs/screenshots/lap-ghost.png",
+      "sha256": "385aac0bf0f27c7432e603640115d3c97beb63fbff3e24b35d3534f96ee8d5aa",
+      "width": 1280,
+      "height": 720
     }
   ]
 }

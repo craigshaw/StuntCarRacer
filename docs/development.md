@@ -190,6 +190,6 @@ source policy and synthetic Python tests on Linux. Windows CI uses the Release
 presets to build the player/tools, run asset-free CTest checks and validate the
 staged release without local artwork. Original-code checks use local fixtures.
 Original media, packs, saves, extracted data, built binaries and RE databases
-stay local. Only the four pinned README screenshots may be tracked; the launcher
+stay local. Only the pinned README screenshots may be tracked; the launcher
 logo exception applies to the release EXE, not to tracking its PNG.
 See [third-party notices](../THIRD_PARTY_NOTICES.md) for provenance and licence scope.

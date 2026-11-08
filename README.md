@@ -9,9 +9,10 @@
 
 - **Original racing.** All eight tracks, including Draw Bridge, both leagues,
   Practice and championships, retaining the original physics, AI and race rules.
-- **Careers and records.** Multiple single-player careers, autosave, Resume Season
-  and an installation-wide top-20 Hall of Fame, with track/league filters and ghost availability.
-- **Lap ghosts.** Chase your career best or a selected Hall of Fame rival in
+- **[Careers](#careers) and [records](#hall-of-fame).** Multiple single-player
+  careers, autosave, Resume Season and an installation-wide top-20 Hall of Fame,
+  with track/league filters and ghost availability.
+- **[Lap ghosts](#lap-ghosts).** Chase your career best or a selected Hall of Fame rival in
   Practice, with an optional translucent ghost. Practice and career races save best laps.
 - **Local multiplayer.** Championships for 2–8 drivers taking turns, with thirty
   manual save slots.
@@ -43,6 +44,36 @@ The same frame in Original 4:3, 16:9 and 32:9. The car keeps its original scale.
 <p align="center">
   <a href="docs/screenshots/ultrawide.png"><img src="docs/screenshots/ultrawide.png" width="100%" alt="32:9 ultrawide view of the same frame"></a><br>
   <em>32:9</em>
+</p>
+
+### Careers
+
+Switch between autosaved single-player careers and pick up a season where you
+left off.
+
+<p align="center">
+  <a href="docs/screenshots/careers.png"><img src="docs/screenshots/careers.png" width="100%" alt="Browse Careers menu with three saved drivers and the selected driver's division, league and last-played date"></a><br>
+  <em>Browse saved careers</em>
+</p>
+
+### Hall of Fame
+
+Browse the top 20 laps or three-lap races for each track and league. Select a
+lap marked Ready to race its ghost.
+
+<p align="center">
+  <a href="docs/screenshots/hall-of-fame.png"><img src="docs/screenshots/hall-of-fame.png" width="100%" alt="Hall of Fame lap leaderboard with track, league and record filters and a ghost ready to race"></a><br>
+  <em>Choose a rival from the Hall of Fame</em>
+</p>
+
+### Lap ghosts
+
+Chase your career best or a Hall of Fame rival in Practice. The translucent car
+follows the recorded lap.
+
+<p align="center">
+  <a href="docs/screenshots/lap-ghost.png"><img src="docs/screenshots/lap-ghost.png" width="100%" alt="Widescreen cockpit view chasing a translucent Hall of Fame ghost on the track"></a><br>
+  <em>Chase a Hall of Fame ghost on Little Ramp</em>
 </p>
 
 ## Play

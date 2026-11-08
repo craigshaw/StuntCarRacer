@@ -37,7 +37,7 @@ outputs can leave an apparently playable state with disabled or incorrect rules.
 ## Source-control safeguards
 
 Keep original media, extracted assets, packs and captures outside Git, including
-data disguised as source arrays or encoded text. The four README screenshots
+data disguised as source arrays or encoded text. The README screenshots
 are a hash-pinned exception in [the screenshot registry](../../setup/screenshots.json).
 Preserve source hashes and offsets with derived files under ignored `analysis/`.
 

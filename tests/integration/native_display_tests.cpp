@@ -35,6 +35,68 @@ struct Surface {
         out.write(reinterpret_cast<const char*>(pixels),std::streamsize(width*height*4));require(bool(out),"Cannot save native display capture");
     }
 };
+void backBuffer(WindowsGameDisplay& display){
+    WindowsBackBuffer buffer;
+    Surface actual(800,500),reference(800,500),resized(960,540);
+    std::vector<std::uint32_t> source(320*200,0x204080);
+    NativeDisplayPreferences prefs;
+    NativeDisplaySettings settings;
+    settings.openSettings();
+    const auto draw=[&](HDC dc,bool overlay){
+        display.paint(dc,actual.width,actual.height,source,prefs);
+        if(overlay)display.overlay(dc,actual.width,actual.height,settings,L"");
+    };
+    const auto compare=[&]{
+        GdiFlush();
+        require(std::equal(actual.pixels,actual.pixels+actual.width*actual.height,reference.pixels,
+            [](auto a,auto b){return ((a^b)&0xffffff)==0;}),"Reused back buffer changed presented colours");
+    };
+    HDC cached{};
+    HGDIOBJ bitmap{};
+    draw(reference.dc,true);
+    buffer.paint(actual.dc,actual.width,actual.height,[&](HDC dc){
+        cached=dc;bitmap=GetCurrentObject(dc,OBJ_BITMAP);
+        require(bitmap!=nullptr,"Back buffer is missing its selected bitmap");
+        draw(dc,true);
+    });
+    compare();
+
+    bool failed=false;
+    try{
+        buffer.paint(actual.dc,actual.width,actual.height,[](HDC dc){
+            SetBkMode(dc,TRANSPARENT);
+            PatBlt(dc,0,0,800,500,BLACKNESS);
+            throw std::logic_error("Synthetic interrupted paint");
+        });
+    }catch(const std::logic_error&){failed=true;}
+    require(failed,"Paint callback failure was swallowed");
+    compare(); // The interrupted frame was never presented.
+
+    source.assign(source.size(),0xa04818);
+    draw(reference.dc,false);
+    buffer.paint(actual.dc,actual.width,actual.height,[&](HDC dc){
+        require(dc==cached&&GetCurrentObject(dc,OBJ_BITMAP)==bitmap,"Same-sized paint replaced GDI resources");
+        require(GetBkMode(dc)==OPAQUE,"Previous paint leaked DC state");
+        draw(dc,false);
+    });
+    compare();
+
+    const auto resources=GetGuiResources(GetCurrentProcess(),GR_GDIOBJECTS);
+    buffer.paint(resized.dc,resized.width,resized.height,[&](HDC dc){
+        const auto resizedBitmap=GetCurrentObject(dc,OBJ_BITMAP);
+        BITMAP bounds{};
+        require(GetObjectW(resizedBitmap,sizeof(bounds),&bounds)==sizeof(bounds)&&
+            bounds.bmWidth==resized.width&&bounds.bmHeight==resized.height,"Back buffer missed the client resize");
+        display.paint(dc,resized.width,resized.height,source,prefs);
+    });
+    GdiFlush();
+    require(GetGuiResources(GetCurrentProcess(),GR_GDIOBJECTS)==resources,"Resizing leaked GDI resources");
+    buffer.reset(); // Display and monitor changes release both resources.
+    GdiFlush();
+    require(GetGuiResources(GetCurrentProcess(),GR_GDIOBJECTS)+2==resources,"Back buffer reset leaked GDI resources");
+    buffer.paint(actual.dc,actual.width,actual.height,[&](HDC dc){draw(dc,false);});
+    compare();
+}
 void widescreenDisplay(WindowsGameDisplay& display,const std::filesystem::path& pack,const std::filesystem::path& output,NativeView view){
     const bool ultra=view==NativeView::Ultrawide;const int host=ultra?3840:1920,target=ultra?2560:1280;
     const unsigned width=unsigned(viewWidth(view)),offset=(width-320)/2;
@@ -392,11 +454,11 @@ void timing(const std::filesystem::path& pack,const std::filesystem::path& outpu
 int main(int argc,char** argv)try{
     if(argc!=3)throw std::invalid_argument("native_display_tests asset-pack output-directory");
     const std::filesystem::path output=argv[2];std::filesystem::create_directories(output);
-    storage(output);navigation();gameMenu();WindowsGameDisplay display;const auto cases=scaling(display);
+    storage(output);navigation();gameMenu();WindowsGameDisplay display;backBuffer(display);const auto cases=scaling(display);
     widescreenDisplay(display,argv[1],output,NativeView::Widescreen);widescreenDisplay(display,argv[1],output,NativeView::Ultrawide);
     fullscreen(display);leaveRaceStates(argv[1]);leaveRaceOutcomes(argv[1]);timing(argv[1],output,display);
     std::cout<<"{\"status\":\"passed\",\"preference_roundtrips\":384,\"corrupt_preferences\":17,\"legacy_preferences_migrated\":true,\"control_preset_navigation\":true,\"game_menu\":true,\"quit_confirmation\":true,\"leave_race_equivalence\":true,\"atomic_failure_checked\":true,\"controller_navigation\":true,\"scaling_cases\":"<<cases
         <<",\"leave_race_state_cases\":32,\"leave_race_outcome_cases\":32,\"leave_race_without_physics_tick\":true"
-        <<",\"fullscreen_roundtrips\":4,\"paused_presentations\":120,\"changing_1080p_filter_ms\":"<<filterMilliseconds
+        <<",\"back_buffer_reuse\":true,\"fullscreen_roundtrips\":4,\"paused_presentations\":120,\"changing_1080p_filter_ms\":"<<filterMilliseconds
         <<",\"changing_5120x1440_filter_ms\":"<<ultrawideFilterMilliseconds<<",\"wide_aspect_modes\":2,\"ultrawide_car_scale_preserved\":true,\"ultrawide_preference_roundtrip\":true,\"ultrawide_window_cancel\":true,\"original_tick_phase_preserved\":true,\"final_simulation_memory_identical\":true}\n";return 0;
 }catch(const std::exception& error){std::cerr<<error.what()<<'\n';return 1;}

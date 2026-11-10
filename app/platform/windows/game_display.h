@@ -5,6 +5,41 @@
 #include <vector>
 
 namespace scr::runtime {
+class WindowsBackBuffer {
+public:
+    WindowsBackBuffer()=default;
+    ~WindowsBackBuffer();
+    WindowsBackBuffer(const WindowsBackBuffer&)=delete;
+    WindowsBackBuffer& operator=(const WindowsBackBuffer&)=delete;
+
+    template<class Draw> void paint(HDC target,int width,int height,Draw draw){
+        const auto dc=acquire(target,width,height);
+        {
+            const PaintState state(dc);
+            draw(dc);
+        }
+        present(target);
+    }
+    void reset() noexcept;
+private:
+    class PaintState {
+    public:
+        explicit PaintState(HDC);
+        ~PaintState();
+        PaintState(const PaintState&)=delete;
+        PaintState& operator=(const PaintState&)=delete;
+    private:
+        HDC dc_;
+        int saved_;
+    };
+    HDC acquire(HDC target,int width,int height);
+    void present(HDC target) const;
+    HDC dc_{};
+    HBITMAP bitmap_{};
+    HGDIOBJ stockBitmap_{};
+    int width_{},height_{};
+};
+
 class WindowsGameDisplay {
 public:
     WindowsGameDisplay();

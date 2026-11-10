@@ -11,6 +11,43 @@
 #include <stdexcept>
 
 namespace scr::runtime {
+WindowsBackBuffer::PaintState::PaintState(HDC dc):dc_(dc),saved_(SaveDC(dc)){
+    if(!saved_)throw std::runtime_error("Cannot save native game paint state");
+}
+WindowsBackBuffer::PaintState::~PaintState(){RestoreDC(dc_,saved_);}
+
+WindowsBackBuffer::~WindowsBackBuffer(){reset();}
+void WindowsBackBuffer::reset() noexcept{
+    if(stockBitmap_)SelectObject(dc_,stockBitmap_);
+    if(dc_)DeleteDC(dc_);
+    if(bitmap_)DeleteObject(bitmap_);
+    dc_=nullptr;
+    bitmap_=nullptr;
+    stockBitmap_=nullptr;
+    width_=height_=0;
+}
+HDC WindowsBackBuffer::acquire(HDC target,int width,int height){
+    if(dc_&&width_==width&&height_==height)return dc_;
+    if(width<=0||height<=0)throw std::invalid_argument("Invalid native game presentation size");
+    reset();
+    dc_=CreateCompatibleDC(target);
+    if(dc_)bitmap_=CreateCompatibleBitmap(target,width,height);
+    const auto previous=bitmap_?SelectObject(dc_,bitmap_):nullptr;
+    if(!previous||previous==HGDI_ERROR){
+        reset();
+        throw std::runtime_error("Cannot allocate native game presentation buffer");
+    }
+    stockBitmap_=previous;
+    width_=width;
+    height_=height;
+    return dc_;
+}
+void WindowsBackBuffer::present(HDC target) const{
+    // Background, letterboxing and game pixels become visible together.
+    if(!BitBlt(target,0,0,width_,height_,dc_,0,0,SRCCOPY))
+        throw std::runtime_error("Cannot present the native game frame");
+}
+
 WindowsGameDisplay::WindowsGameDisplay(){Gdiplus::GdiplusStartupInput input;if(Gdiplus::GdiplusStartup(&token_,&input,nullptr)!=Gdiplus::Ok)throw std::runtime_error("Cannot initialise display filtering");}
 WindowsGameDisplay::~WindowsGameDisplay(){Gdiplus::GdiplusShutdown(token_);}
 void WindowsGameDisplay::fullscreen(HWND window,bool enabled){

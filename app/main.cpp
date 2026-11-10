@@ -48,6 +48,12 @@ Options parse(){
     LocalFree(args);
     return options;
 }
+struct WindowPaint {
+    HWND window;
+    PAINTSTRUCT state{};
+    HDC target{BeginPaint(window,&state)};
+    ~WindowPaint(){if(target)EndPaint(window,&state);}
+};
 class GameWindow {
 public:
     explicit GameWindow(const Options& options):launcher_(options.paths,options.fullscreen,options.interpolate),
@@ -111,6 +117,8 @@ private:
     std::filesystem::path settingsFile_;
     NativeDisplaySettings settings_;
     WindowsGameDisplay display_;
+    WindowsBackBuffer backBuffer_;
+    HMONITOR bufferMonitor_{};
     WindowsLauncher launcherView_;
     std::wstring settingsError_;
     bool muted_{},focused_{true},suppressInput_{},freshGame_{},showFps_{},displayEditing_{};
@@ -312,27 +320,21 @@ private:
         if(game_)game_->setPracticeGhostVisible(settings_.preferences().practiceGhost);
         const std::vector<std::uint32_t>* pixels=game_?&game_->render(settings_.preferences().interpolate,settings_.blocksGame(),settings_.preferences().view):nullptr;
         syncGhostMenu();
-        PAINTSTRUCT painting{};auto target=BeginPaint(window,&painting);RECT client{};GetClientRect(window,&client);
-        if(client.right<=0||client.bottom<=0){EndPaint(window,&painting);return;}
-        auto dc=CreateCompatibleDC(target);
-        auto surface=CreateCompatibleBitmap(target,client.right,client.bottom);
-        if(!dc||!surface){
-            if(surface)DeleteObject(surface);if(dc)DeleteDC(dc);EndPaint(window,&painting);
-            throw std::runtime_error("Cannot allocate native game presentation buffer");
+        {
+            const WindowPaint painting{window};
+            if(!painting.target)throw std::runtime_error("Cannot begin native game paint");
+            RECT client{};GetClientRect(window,&client);
+            if(client.right<=0||client.bottom<=0)return;
+            backBuffer_.paint(painting.target,client.right,client.bottom,[&](HDC dc){
+                if(pixels){
+                    display_.paint(dc,client.right,client.bottom,*pixels,settings_.preferences());
+                    display_.overlay(dc,client.right,client.bottom,settings_,settingsError_);
+                    if(settings_.page()!=NativeDisplayPage::Settings){const auto feedback=game_->ghostFeedback();display_.ghostFeedback(dc,client.right,client.bottom,std::wstring(feedback.begin(),feedback.end()),game_->ghostFeedbackWarning());}
+                    if(showFps_)display_.fpsOverlay(dc,client.right,client.bottom,fps_);
+                }
+                else launcherView_.paint(dc,client.right,client.bottom,launcher_);
+            });
         }
-        const auto previous=SelectObject(dc,surface);
-        if(pixels){
-            display_.paint(dc,client.right,client.bottom,*pixels,settings_.preferences());
-            display_.overlay(dc,client.right,client.bottom,settings_,settingsError_);
-            if(settings_.page()!=NativeDisplayPage::Settings){const auto feedback=game_->ghostFeedback();display_.ghostFeedback(dc,client.right,client.bottom,std::wstring(feedback.begin(),feedback.end()),game_->ghostFeedbackWarning());}
-            if(showFps_)display_.fpsOverlay(dc,client.right,client.bottom,fps_);
-        }
-        else launcherView_.paint(dc,client.right,client.bottom,launcher_);
-        // Background, letterboxing and game pixels become visible together.
-        const bool presented=BitBlt(target,0,0,client.right,client.bottom,dc,0,0,SRCCOPY)!=0;
-        SelectObject(dc,previous);DeleteObject(surface);DeleteDC(dc);
-        EndPaint(window,&painting);
-        if(!presented)throw std::runtime_error("Cannot present the native game frame");
         if(pixels&&!IsIconic(window))++frames_;
     }
     LRESULT message(HWND window,UINT kind,WPARAM key,LPARAM data){
@@ -343,7 +345,10 @@ private:
             if(game_){RECT client{0,0,320,originalDisplayHeight};AdjustWindowRectExForDpi(&client,DWORD(GetWindowLongPtrW(window,GWL_STYLE)),FALSE,DWORD(GetWindowLongPtrW(window,GWL_EXSTYLE)),GetDpiForWindow(window));minimum={client.right-client.left,client.bottom-client.top};}
             reinterpret_cast<MINMAXINFO*>(data)->ptMinTrackSize=minimum;return 0;
         }
-        case WM_DPICHANGED:{const auto suggested=reinterpret_cast<const RECT*>(data);SetWindowPos(window,nullptr,suggested->left,suggested->top,suggested->right-suggested->left,suggested->bottom-suggested->top,SWP_NOZORDER|SWP_NOACTIVATE);if(game_)display_.apply(window,settings_.preferences(),true);return 0;}
+        case WM_DPICHANGED:{
+            backBuffer_.reset();
+            const auto suggested=reinterpret_cast<const RECT*>(data);SetWindowPos(window,nullptr,suggested->left,suggested->top,suggested->right-suggested->left,suggested->bottom-suggested->top,SWP_NOZORDER|SWP_NOACTIVATE);if(game_)display_.apply(window,settings_.preferences(),true);return 0;
+        }
         case WM_COMMAND:
             if(!game_&&(HIWORD(key)==BN_CLICKED||HIWORD(key)==CBN_SELCHANGE))launcherAction(window,launcherView_.command(LOWORD(key),launcher_));return 0;
         case WM_DRAWITEM:if(!game_){launcherView_.drawButton(*reinterpret_cast<DRAWITEMSTRUCT*>(data));return TRUE;}break;
@@ -412,7 +417,12 @@ private:
             if(const auto raw=nativeAmigaRawKey(unsigned(key),(unsigned(data)>>16)&255,(data&0x01000000)!=0))rawKeys_.push_back({*raw,false});
             update(window,0);return 0;
         case WM_SIZE:if(!game_)launcherView_.layout(window);InvalidateRect(window,nullptr,FALSE);return 0;
-        case WM_DISPLAYCHANGE:display_.monitorChanged(window);if(game_)display_.apply(window,settings_.preferences(),true);InvalidateRect(window,nullptr,FALSE);return 0;
+        case WM_WINDOWPOSCHANGED:{
+            const auto monitor=MonitorFromWindow(window,MONITOR_DEFAULTTONEAREST);
+            if(monitor!=bufferMonitor_){bufferMonitor_=monitor;backBuffer_.reset();}
+            return DefWindowProcW(window,kind,key,data);
+        }
+        case WM_DISPLAYCHANGE:backBuffer_.reset();display_.monitorChanged(window);if(game_)display_.apply(window,settings_.preferences(),true);InvalidateRect(window,nullptr,FALSE);return 0;
         case WM_PAINT:paint(window);return 0;
         case WM_CLOSE:closeApplication(window);return 0;
         case WM_DESTROY:PostQuitMessage(0);return 0;

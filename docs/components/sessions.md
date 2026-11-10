@@ -33,8 +33,9 @@ retain their timing gates. Computer Link remains disabled and deferred.
 - The installation-wide Hall archive receives newly accepted human laps from
   Practice, career races and local multiplayer, independently of private PBs.
   Three-lap entries require three observed completed competitive laps. Legacy
-  winning banks and restored files never seed it. See [shared Hall](shared-hall-of-fame.md)
-  for ranking, ownership, completion identity and the remaining browser work.
+  winning banks and restored files never seed it. The career-menu browser
+  displays the rankings and lets the player select a retained lap ghost for an
+  isolated Practice challenge. See [shared Hall](shared-hall-of-fame.md).
 - Personal-best ghost files belong to a career, track and Normal/Super league.
   Practice and career races share the target while Hall eligibility stays
   independent. The serial worker also owns their atomic writes and recovery;

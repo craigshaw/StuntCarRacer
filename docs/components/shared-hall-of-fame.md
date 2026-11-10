@@ -236,7 +236,6 @@ The foundation proof tests competing read/merge/write processes, retry IDs,
 publication and lock release after an owned child exits abruptly. The durable
 store proof runs two actual store workers with stale initial observations and
 terminates owned writers at seven flush/publication/collection boundaries.
-Challenge integration remains later work.
 Real cross-account evidence must come from distinct process-user SIDs, not merely
 two processes or an ACL inspection.
 

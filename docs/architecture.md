@@ -13,8 +13,10 @@ only to separate verification executables.
 | `scr_audio` | `src/audio/engine_audio.*`, `paula_mixer.*` | Engine interrupt state and four-channel mixing |
 | `scr_render` | `src/render/` | Geometry, projection, planar decoding and rasterization |
 | `scr_state` | `src/state/` | Recovered-layout adapters, race-stage order, checkpoint/replay I/O |
+| `scr_records` | `app/records/`, `app/persistence/hall_*_codec.*`, `app/race/practice_ghost_target.*` | Hall rankings, table and ghost formats, pinned Practice targets |
+| `scr_hall_storage` | `app/persistence/shared_hall_store.*`, `app/platform/windows/shared_hall_storage.*` | Installation-scoped archive, file locking, recovery and background reads and writes |
 | `scr_runtime` | `app/assets/`, `menus/`, `presentation/`, shared rule adapters | Initialization, original menus/text/screens and competition helpers |
-| `scr_game` | `app/session/`, `race/`, `persistence/`, `input/`, `audio/` | Session handoff, career storage, gameplay orchestration, snapshots and recordings |
+| `scr_game` | `app/session/`, `race/`, `persistence/`, `input/`, `audio/`, Hall browser in `menus/` and `presentation/` | Session handoff, career storage, gameplay orchestration, snapshots, lap recording and Hall completion delivery |
 | `scr_host_ui` | `app/launcher/`, Windows launcher/display adapters | Setup, preferences, overlays, image scaling and fullscreen |
 | Windows host | `app/main.cpp`, `app/platform/windows/` | Window/event loop, keyboard, XInput and audio device lifetime |
 

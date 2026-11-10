@@ -1,5 +1,6 @@
 #include "session/native_game_session.h"
 #include "render/planar_image.h"
+#include "state/race_selection_adapter.h"
 #include <algorithm>
 
 namespace scr::runtime {
@@ -8,7 +9,9 @@ void NativeGameSession::requestHallBrowser(){
 }
 void NativeGameSession::openHallBrowser(const NativeMenuInput& held){
     if(!activeCareer_||multiplayer()||!sharedHallStore_)throw std::logic_error("Hall browser requires an active career");
-    HallBoardKey initial{unsigned((*data_.memory)[0x1ca33])%8,activeCareer_->league?HallLeague::Super:HallLeague::Normal,HallRecordKind::Lap};
+    const auto track=state::raceSelection::trackId(*data_.memory)%state::raceSelection::trackCount;
+    const auto league=activeCareer_->league?HallLeague::Super:HallLeague::Normal;
+    HallBoardKey initial{track,league,HallRecordKind::Lap};
     hallBrowser_.open(activeCareer_->name,initial,held);hallBrowserActive_=true;requestHallBrowser();
 }
 bool NativeGameSession::updateHallBrowser(double elapsed,const NativeGameInput& input,NativeGameUpdate& result){
@@ -46,13 +49,9 @@ void NativeGameSession::startHallChallenge(std::shared_ptr<const PinnedHallGhost
     const auto previous=menuImage();HallChallenge challenge;challenge.target=std::move(target);
     auto& c=challenge.continuation;c.memory=std::make_unique<NativeMemory>(*data_.memory);c.menu=menu_->continuation();
     c.suspendedSeason=suspendedSeason_;c.previewPrepared=previewPrepared_;c.preparedTrack=preparedTrack_;c.preparedLeague=preparedLeague_;
+    auto& m=*data_.memory;const auto board=challenge.target->attempt.board;
+    state::raceSelection::preparePracticePreview(m,board.track,board.league==HallLeague::Super);
     hallChallenge_=std::move(challenge);hallBrowserActive_=false;sharedHallStore_->cancelBrowser();
-    auto& m=*data_.memory;const auto board=hallChallenge_->target->attempt.board;
-    unsigned ordinal=0;while(ordinal<8&&m[0x648c2+ordinal]!=board.track)++ordinal;
-    if(ordinal==8)throw std::logic_error("Hall track is absent from the Practice division map");
-    m[0x1c9d0]=board.league==HallLeague::Super?11:0;m[0x1c9ce]=m[0x5eb7c]=std::uint8_t(ordinal/2);
-    m[0x1ca33]=std::uint8_t(board.track);m[0x1ca22]=std::uint8_t(ordinal%2);
-    m[0x1ca21]=m[0x648ca+(ordinal^(m[0x1c9d0]?1u:0u))];m[0x5eb7d]=1;m[0x5eb75]=0;m[0x57c62]=0x12;
     NativeMenuContinuation flow;flow.page=NativeMenuPage::Preview;
     menu_=std::make_unique<NativeMenuFlow>(m,flow);menu_->setMainRowCount(3);menu_->setNavigation(navigation_);
     previewPrepared_=false;releaseInput(held);

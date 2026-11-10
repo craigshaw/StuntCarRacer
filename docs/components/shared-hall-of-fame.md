@@ -99,8 +99,8 @@ run identity using Windows randomness; SHA-256 of that identity, the crossing
 sequence and category supplies a retry-stable 128-bit attempt ID. Timestamps and
 gameplay RNG are not used. Every actual re-drive gets a new run identity.
 
-The timing callback consumes the corrected `lapTimerHud` event snapshot, not the
-already-cleared running clock. `state/human_record_adapter.h` reads the current
+The timing routine captures the corrected completion time in a human lap crossing
+before clearing the running clock. `state/human_record_adapter.h` reads the current
 human name and cumulative time through a const recovered-layout boundary. Only
 three consecutively observed full laps ending at counter 4 can produce a race
 entry, and only in competitive play. Winning is not an extra condition. Practice,

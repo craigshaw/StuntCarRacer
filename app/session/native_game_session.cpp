@@ -8,6 +8,7 @@
 #include "presentation/native_hall_of_fame.h"
 #include "presentation/hall_browser_render.h"
 #include "state/draw_bridge_adapter.h"
+#include "state/race_selection_adapter.h"
 #include "persistence/ghost_lap_codec.h"
 #include "platform/windows/shared_hall_storage.h"
 #include <iomanip>
@@ -104,7 +105,7 @@ void NativeGameSession::startRace(){
     race_.loadNativeState(*data_.memory,data_.payload,recordings_);
     lapKey_.reset();lapImprovements_=lapOverflows_=0;ghostConditionsDiffer_=false;ghostNotice_.clear();ghostNoticeSeconds_=0;
     if(activeCareer_&&!multiplayer()){
-        lapKey_=GhostLapKey{activeCareer_->id,menu_->trackId(),bool((*data_.memory)[0x1c9d0])};
+        lapKey_=GhostLapKey{activeCareer_->id,menu_->trackId(),state::raceSelection::superLeague(*data_.memory)};
         const auto content=ghostTrackContentIdentity(data_.payload);const auto saved=careerStore_->readGhost(*lapKey_,content);ghostFileState_=saved.state;
         unsigned diskTime=~0u;
         if(saved.state==CareerFileState::Valid||saved.state==CareerFileState::Recovered){auto lap=decodeGhostLap(saved.data,*lapKey_,content);diskTime=lap.hundredths;personalBestLaps_.restore(std::move(lap));}

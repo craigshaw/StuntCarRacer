@@ -93,7 +93,12 @@ void crossing(unsigned player,const RaceTimingInputs& in,RaceTimingState& s,Race
     }
     // togglePlayerContext returns immediately in the supported local mode.
     if(!player){
-        if(s.lapCounter[0]!=1){records(in,s);s.lapDisplayDuration=0x1b;timerHud(s,e);s.networkTimeBuffer=s.times[0];}
+        auto& humanCrossing=e.humanLapCrossing.emplace();
+        humanCrossing.counter=s.lapCounter[0];
+        if(humanCrossing.counter!=1){
+            humanCrossing.completedTime=s.times[0];
+            records(in,s);s.lapDisplayDuration=0x1b;timerHud(s,e);s.networkTimeBuffer=s.times[0];
+        }
         s.savedPlayerScratch=0;event(e,RaceTimingEventKind::lapCounterHud,s.lapCounter[0]);
     }
     if(s.lapCounter[player]!=1&&compareCopy(player,2,s)){

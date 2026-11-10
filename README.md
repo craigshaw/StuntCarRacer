@@ -68,7 +68,7 @@ lap marked Ready to race its ghost.
 
 ### Lap ghosts
 
-Chase your career best or a Hall of Fame rival in Practice. The translucent car
+Chase your career best or a Hall of Fame rival in Practice. The ghost car
 follows the recorded lap.
 
 <p align="center">

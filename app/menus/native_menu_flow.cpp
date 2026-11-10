@@ -1,6 +1,7 @@
 #include "menus/native_menu_flow.h"
 #include "race/native_race_initialization.h"
 #include "session/native_multiplayer_state.h"
+#include "state/race_selection_adapter.h"
 #include <algorithm>
 #include <stdexcept>
 
@@ -168,11 +169,7 @@ NativeMenuAction NativeMenuFlow::confirm(){
     if(page_==NativeMenuPage::Track){
         memory_[0x5eb75]=0;
         if(selected>=2){if(navigation_==NativeMenuNavigation::Responsive)return back();openMain();return NativeMenuAction::Changed;}
-        memory_[0x1ca22]=std::uint8_t(selected);memory_[0x5eb7d]=1;
-        const unsigned ordinal=unsigned(memory_[0x5eb7c])*2+selected;
-        if(ordinal>=8)throw std::runtime_error("Invalid original Practice division");
-        memory_[0x1ca33]=memory_[0x648c2+ordinal];
-        memory_[0x1ca21]=memory_[0x648ca+(ordinal^(memory_[0x1c9d0]?1u:0u))];
+        state::raceSelection::selectPracticeTrack(memory_,selected);
         phase_=Phase::TrackDelay;startDelay(20);
         return NativeMenuAction::None;
     }

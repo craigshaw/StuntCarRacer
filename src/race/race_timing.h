@@ -1,6 +1,7 @@
 #pragma once
 #include <array>
 #include <cstdint>
+#include <optional>
 
 namespace scr {
 struct PackedLapTime {
@@ -38,9 +39,15 @@ struct RaceTimingEvent {
     PackedLapTime time{};
     std::uint8_t visibility{},displayPosition{},timeSlot{};
 };
+struct HumanLapCrossing {
+    std::uint8_t counter{};
+    // The first crossing starts the clock. Later crossings retain the corrected time.
+    std::optional<PackedLapTime> completedTime;
+};
 struct RaceTimingEffects {
     std::array<RaceTimingEvent,12> events{};
     unsigned count{};
+    std::optional<HumanLapCrossing> humanLapCrossing;
 };
 // Original local-mode scheduler [0x5db34,0x5dc38), including lap crossing,
 // records and finish state. Graphics become ordered events. Network transport

@@ -103,24 +103,19 @@ GhostLapBoundary LapRecorder::boundary(bool first)const{
     }
     return result;
 }
-void LapRecorder::observeTiming(const RaceTimingEffects& effects,const LapCompletionSink& sink){
+void LapRecorder::observeTiming(const std::optional<HumanLapCrossing>& crossing,const LapCompletionSink& sink){
     if(stopped_||!current_)return;
     ++statistics_.timingUpdates;statistics_.recoveryTimingUpdates+=current_->recovery;
-    const RaceTimingEvent* crossing=nullptr;const RaceTimingEvent* completed=nullptr;
-    for(unsigned n=0;n<effects.count;++n){const auto& event=effects.events[n];
-        if(event.kind==RaceTimingEventKind::lapCounterHud)crossing=&event;
-        if(event.kind==RaceTimingEventKind::lapTimerHud&&event.visibility==0x80&&event.timeSlot==0)completed=&event;
-    }
     if(!crossing)return;
-    const bool first=crossing->value==1;const auto line=boundary(first);
-    if(!first){
+    const auto line=boundary(!crossing->completedTime);
+    if(crossing->completedTime){
         ++statistics_.completions;
-        if(observedStart_&&crossing->value==std::uint8_t(lastCounter_+1)&&completed){
-            LapCompletion result;result.counter=crossing->value;result.time=completed->time;
-            const auto hundredths=ghostLapHundredths(completed->time);
+        if(observedStart_&&crossing->counter==std::uint8_t(lastCounter_+1)){
+            LapCompletion result;result.counter=crossing->counter;result.time=*crossing->completedTime;
+            const auto hundredths=ghostLapHundredths(result.time);
             if(candidate_&&line.alignedMicroseconds>candidate_->start.alignedMicroseconds){
                 candidate_->finish=line;candidate_->durationMicroseconds=line.alignedMicroseconds-candidate_->start.alignedMicroseconds;
-                candidate_->completedTime=completed->time;result.recording=std::make_unique<LapRecording>(std::move(*candidate_));++statistics_.recordedLaps;
+                candidate_->completedTime=result.time;result.recording=std::make_unique<LapRecording>(std::move(*candidate_));++statistics_.recordedLaps;
                 if(bests_&&pbEligible_){const auto old=bests_->best(context_.key);
                     if(!old||hundredths<old->hundredths){GhostLap lap;
                         if(sink)static_cast<LapRecording&>(lap)=*result.recording;else static_cast<LapRecording&>(lap)=std::move(*result.recording);
@@ -131,7 +126,7 @@ void LapRecorder::observeTiming(const RaceTimingEffects& effects,const LapComple
             if(sink)sink(std::move(result));
         }
     }
-    observedStart_=true;lastCounter_=crossing->value;pbEligible_=true;candidatePresets_=0;
+    observedStart_=true;lastCounter_=crossing->counter;pbEligible_=true;candidatePresets_=0;
     candidate_.emplace();candidate_->start=line;overflowed_=false;region_=GhostBridgeRegionTracker{};
     if(previous_)append(*previous_,false);
     append(*current_,previous_&&previous_->restarts!=current_->restarts);++statistics_.starts;

@@ -25,7 +25,7 @@ struct Drive {
         movement.pose.worldPosition={std::uint32_t((100+serial*10)<<16),40u<<16,512u<<16};++serial;
         movement.pose.averageWheelVelocity=1;recorder.observeMovement(movement);
         input.segmentIndex[0]=std::uint8_t(segment);input.trackProgress[0]=std::uint16_t(progress);
-        recorder.observeTiming(updateRaceTiming(input,state));if(advance)time+=120000;
+        recorder.observeTiming(updateRaceTiming(input,state).humanLapCrossing);if(advance)time+=120000;
     }
     void start(){step(0,900);step(1,100);}
     void finish(unsigned progress=255){step(32);step(0,900);step(1,progress);}

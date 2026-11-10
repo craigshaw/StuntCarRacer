@@ -73,7 +73,7 @@ public:
     LapRecorder(PersonalBestLaps&,GhostLapContext,const TrigTable&,std::shared_ptr<const PinnedHallGhost> target={});
     LapRecorder(unsigned track,const TrigTable&);
     void observeMovement(LapMovementObservation);
-    void observeTiming(const RaceTimingEffects&,const LapCompletionSink& sink={});
+    void observeTiming(const std::optional<HumanLapCrossing>&,const LapCompletionSink& sink={});
     void stop();
     void clear();
     std::optional<GhostLapPlayback> playback(std::int64_t absoluteMicroseconds,bool interpolate=true)const;

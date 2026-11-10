@@ -6,6 +6,7 @@
 #include "assets/native_startup.h"
 #include "presentation/native_menu_render.h"
 #include "state/replay_io.h"
+#include "state/race_selection_adapter.h"
 #include "state/near_track_geometry_adapter.h"
 #include "state/opponent_car_adapter.h"
 #include "state/wheel_animation_adapter.h"
@@ -30,6 +31,14 @@ std::vector<std::string> columns(std::string line) {
     if(!line.empty()&&line.back()=='\r')line.pop_back();
     std::vector<std::string> values;std::istringstream stream(line);std::string value;
     while(std::getline(stream,value,','))values.push_back(value);return values;
+}
+void writeTraceRow(std::ostream& out,const state::replay::Ram& ram,const RaceFrame& frame,bool quit) {
+    state::replay::traceRow(out,ram,frame.tick,frame.controls,0,frame.action,frame.restarts,quit);
+}
+std::string formatTraceRow(const state::replay::Ram& ram,const RaceFrame& frame,bool quit) {
+    std::ostringstream row;
+    writeTraceRow(row,ram,frame,quit);
+    return row.str();
 }
 void littleWord(std::ostream& out,std::uint16_t value){out.put(char(value));out.put(char(value>>8));}
 void littleLong(std::ostream& out,std::uint32_t value){littleWord(out,std::uint16_t(value));littleWord(out,std::uint16_t(value>>16));}
@@ -73,7 +82,6 @@ struct RaceScene::Simulation {
     std::unique_ptr<HallRaceRecording> hall;
     std::ofstream controls,trace;
     std::filesystem::path recording;
-    std::string lastRow;
     explicit Simulation(const scr::state::replay::Ram& capture):initial(capture),native(capture),geometry(scr::state::nearGeometry::readState(capture)),instruments(capture),message(captureNativeRaceMessage(capture)),flameFrame(capture[0x1bb69]),wheels(scr::state::wheelAnimation::readState(capture.data())){}
 };
 RaceScene::RaceScene()=default;
@@ -102,8 +110,8 @@ void RaceScene::initialiseMemory(const std::array<std::uint8_t,0x80000>& memory,
         auto initialChains=simulation.chains;
         simulation.chainDraws=advanceNativeChains(1,initialChains,captureCockpitFrame(memory.data(),memory.size()));
     }
-    simulation.native.presentation=[this,&simulation](auto stage,const auto& ram,const auto& events){
-        simulation.instruments.update(stage,ram,events);
+    simulation.native.presentation=[this,&simulation](auto stage,const auto& ram,const auto& timing){
+        simulation.instruments.update(stage,ram,timing);
         if(stage==scr::state::replay::ReplayPresentationStage::wheels){
             if(simulation.laps){
                 namespace a=scr::state::audio;LapMovementObservation observation;
@@ -132,9 +140,9 @@ void RaceScene::initialiseMemory(const std::array<std::uint8_t,0x80000>& memory,
             simulation.message=captureNativeRaceMessage(ram);
         }
         if(stage==scr::state::replay::ReplayPresentationStage::timing&&simulation.laps){
-            if(simulation.hall)simulation.laps->observeTiming(events,[&](LapCompletion completion){
+            if(simulation.hall)simulation.laps->observeTiming(timing.humanLapCrossing,[&](LapCompletion completion){
                 if(const auto human=state::readHumanRaceRecord(ram.data()))simulation.hall->complete(std::move(completion),*human);
-            });else simulation.laps->observeTiming(events);
+            });else simulation.laps->observeTiming(timing.humanLapCrossing);
         }
         if(stage==scr::state::replay::ReplayPresentationStage::wait){
             const auto inputs=scr::state::wheelAnimation::readInputs(ram.data());
@@ -231,8 +239,8 @@ RaceFrame RaceScene::advanceSimulation(Simulation& simulation,unsigned controls,
     // Original rendering boundary: before effects, timing and outer transitions.
     auto frame=captureFrame(simulation,simulation.ticks,controls);
     state.groundStage();state.wheelsStage();state.bridgeStage();state.speedometerStage();state.damageStage();state.timingStage();state.distanceStage();state.outerStage();finishFrame(simulation,frame);
-    std::ostringstream row;scr::state::replay::traceRow(row,state.ram,simulation.ticks,controls,0,unsigned(state.outerAction),state.restarts,quit);
-    simulation.lastRow=row.str();++simulation.ticks;return frame;
+    ++simulation.ticks;
+    return frame;
 }
 void RaceScene::load(const std::filesystem::path& chip,const std::filesystem::path& payload,
     const std::filesystem::path& inputs,const std::filesystem::path& referenceTrace,const std::filesystem::path& nativeTrace){
@@ -246,12 +254,13 @@ void RaceScene::load(const std::filesystem::path& chip,const std::filesystem::pa
     frames_.reserve(input.size());
     for(unsigned tick=0;tick<input.size();++tick){
         auto frame=advanceSimulation(*simulation_,input[tick].controls,input[tick].quit);
-        const auto values=columns(simulation_->lastRow.substr(0,simulation_->lastRow.size()-1));
+        const auto row=formatTraceRow(simulation_->native.ram,frame,input[tick].quit);
+        const auto values=columns(row.substr(0,row.size()-1));
         if(!std::getline(reference,line))throw std::runtime_error("Original trace ends before native replay");const auto expected=columns(line);
         if(expected.size()!=values.size())throw std::runtime_error("Malformed original trace row");
         for(unsigned n=0;n<values.size();++n)if(nativeHeader[n]!="original_instructions"&&values[n]!=expected[n])
             throw std::runtime_error("Viewer replay differs from original at tick "+std::to_string(tick)+", field "+nativeHeader[n]);
-        trace<<simulation_->lastRow;frames_.push_back(std::move(frame));
+        trace<<row;frames_.push_back(std::move(frame));
         if(liveTerminal()&&tick+1<input.size())throw std::runtime_error("Replay controls continue after the race exit");
     }
     if(std::getline(reference,line))throw std::runtime_error("Original trace contains extra rows");
@@ -342,9 +351,10 @@ bool RaceScene::stepLive(unsigned controls,bool quit,DriveControlPreset preset){
     if(liveTerminal())return false;
     auto next=advanceSimulation(*simulation_,controls,quit,preset);auto& simulation=*simulation_;
     if(!recordingsDirectory_.empty()){
-    simulation.controls<<next.tick<<','<<controls<<','<<(quit?1:0)<<','<<(preset==DriveControlPreset::Modern?1:0)<<'\n';simulation.trace<<simulation.lastRow;
-    simulation.controls.flush();simulation.trace.flush();
-    if(!simulation.controls||!simulation.trace)throw std::runtime_error("Live input recording write failed");
+        simulation.controls<<next.tick<<','<<controls<<','<<(quit?1:0)<<','<<(preset==DriveControlPreset::Modern?1:0)<<'\n';
+        writeTraceRow(simulation.trace,simulation.native.ram,next,quit);
+        simulation.controls.flush();simulation.trace.flush();
+        if(!simulation.controls||!simulation.trace)throw std::runtime_error("Live input recording write failed");
     }
     frames_[0]=std::move(frames_[1]);frames_[1]=std::move(next);
     if(liveTerminal()&&simulation.laps)simulation.laps->stop();
@@ -355,8 +365,8 @@ bool RaceScene::recordPersonalBestLaps(PersonalBestLaps& bests,GhostLapContext c
     if(!simulation_)throw std::logic_error("Lap recording requires a live scene");
     const auto& ram=simulation_->native.ram;
     if(ram[0x5eb76])return false;
-    if(context.key.track!=ram[0x1ca33]||context.key.superLeague!=bool(ram[0x1c9d0])||
-       (context.source==GhostLapSource::League)!=bool(ram[0x1ca22]&0x80))throw std::invalid_argument("Lap context differs from native race");
+    if(context.key.track!=state::raceSelection::trackId(ram)||context.key.superLeague!=state::raceSelection::superLeague(ram)||
+       (context.source==GhostLapSource::League)!=state::raceSelection::competitive(ram))throw std::invalid_argument("Lap context differs from native race");
     if(context.trackContentIdentity&&context.trackContentIdentity!=trackContentIdentity_)throw std::invalid_argument("Ghost track identity differs from native data");
     context.trackContentIdentity=trackContentIdentity_;
     simulation_->laps=std::make_unique<LapRecorder>(bests,std::move(context),trig_,std::move(target));return true;
@@ -366,9 +376,10 @@ const LapRecordingStatistics* RaceScene::lapRecordingStatistics()const noexcept{
 }
 void RaceScene::recordHallAttempts(HallAttemptId run,bool competitive){
     if(!simulation_||simulation_->hall)throw std::logic_error("Hall capture requires a new live scene");
-    const auto& ram=simulation_->native.ram;const unsigned track=ram[0x1ca33];
+    const auto& ram=simulation_->native.ram;const auto track=state::raceSelection::trackId(ram);
+    const auto league=state::raceSelection::superLeague(ram)?HallLeague::Super:HallLeague::Normal;
     if(!simulation_->laps)simulation_->laps=std::make_unique<LapRecorder>(track,trig_);
-    simulation_->hall=std::make_unique<HallRaceRecording>(run,HallBoardKey{track,ram[0x1c9d0]?HallLeague::Super:HallLeague::Normal,HallRecordKind::Lap},HallCatalog{trackContentIdentity_,1},competitive);
+    simulation_->hall=std::make_unique<HallRaceRecording>(run,HallBoardKey{track,league,HallRecordKind::Lap},HallCatalog{trackContentIdentity_,1},competitive);
 }
 std::vector<HallSubmission> RaceScene::takeHallCompletions(){
     return simulation_&&simulation_->hall?simulation_->hall->take():std::vector<HallSubmission>{};
@@ -445,11 +456,12 @@ unsigned RaceScene::verifyLiveReplay(const std::filesystem::path& inputs,const s
         const auto steps=clock.advance(1.0/presentationHz);
         for(unsigned n=0;n<steps&&liveTicks()<input.size();++n){
             const auto tick=liveTicks();if(!stepLive(input[tick].controls,input[tick].quit))throw std::runtime_error("Live verification stopped before its last input");
-            const auto values=columns(simulation_->lastRow.substr(0,simulation_->lastRow.size()-1));
+            const auto row=formatTraceRow(simulation_->native.ram,frames_.back(),input[tick].quit);
+            const auto values=columns(row.substr(0,row.size()-1));
             if(!std::getline(reference,line))throw std::runtime_error("Live reference ended early");const auto expected=columns(line);
             if(values.size()!=expected.size())throw std::runtime_error("Malformed live reference row");
             for(unsigned k=0;k<fields.size();++k)if(fields[k]!="original_instructions"&&values[k]!=expected[k])throw std::runtime_error("Live simulation differs at tick "+std::to_string(tick)+", field "+fields[k]);
-            trace<<simulation_->lastRow;
+            trace<<row;
         }
         renderLive(clock.fraction());++presentations;
     }

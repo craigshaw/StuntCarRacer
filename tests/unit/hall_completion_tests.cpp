@@ -28,7 +28,7 @@ struct Drive {
         const auto effects=updateRaceTiming(input,state);const auto saved=state;
         state::HumanRaceRecord human;human.player=input.currentPlayerId;
         for(unsigned n=0;n<12;++n)human.name[n]=char(input.playerNames[16*human.player+n]);human.total=state.times[human.player+12];
-        laps.observeTiming(effects,[&](LapCompletion c){require(state.times[0].minutes==0&&state.times[0].seconds==0&&state.times[0].subseconds==0,"Timing observer was moved before native clear");hall.complete(std::move(c),human);});
+        laps.observeTiming(effects.humanLapCrossing,[&](LapCompletion c){require(state.times[0].minutes==0&&state.times[0].seconds==0&&state.times[0].subseconds==0,"Timing observer was moved before native clear");hall.complete(std::move(c),human);});
         for(unsigned n=0;n<24;++n)require(state.times[n].minutes==saved.times[n].minutes&&state.times[n].seconds==saved.times[n].seconds&&state.times[n].subseconds==saved.times[n].subseconds,"Delivery changed native timing state");
         require(state.lapCounter==saved.lapCounter,"Delivery changed native lap count");if(advance)now+=120000;
     }

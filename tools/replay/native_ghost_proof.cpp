@@ -230,14 +230,27 @@ int main(int argc,char** argv)try{
     double renderMilliseconds=0,maxRenderMilliseconds=0;
     const auto views={NativeView::Original,NativeView::Extended,NativeView::Widescreen,NativeView::Ultrawide};
     GhostCarStyle style,disabled;disabled.opacity=0;
+    style.auditTrackDepth=true;
+    const auto& player=frames.at(24).pose;
+    auto behind=makeGhostCarPose(player);
+    const auto heading=double(player.yaw)*6.28318530717958647692/65536;
+    behind.position.x-=64*std::sin(heading);behind.position.z-=64*std::cos(heading);
     std::ofstream samples(output/"samples.csv");
     samples<<"view,position,ghost_position,silhouette,visible,occluded,track_pixels_without_depth,ghost_pixels_without_track_depth\n";
     for(auto view:views){
         CameraViewSettings settings;settings.view=view;
+        const auto baseline=scene->renderView(24,settings);
+        require(scene->renderGhostView(24,settings,behind)==baseline,"Clipped ghost changed world pixels");
+        const auto clipped=scene->ghostStatistics();
+        require(clipped.effectiveOpacity>0&&!clipped.silhouettePixels&&!clipped.checkedTrackDepth,
+            "Clipped ghost did not skip track depth");
+        require(scene->renderGhostView(24,settings,behind,style)==baseline&&scene->ghostStatistics().checkedTrackDepth&&
+            !scene->ghostStatistics().trackPixelsWithoutDepth,"Full depth audit did not cover the clipped ghost frame");
         for(unsigned tick=24;tick+13<frames.size();tick+=24)for(double fraction:{0.0,0.5}){
             const double position=tick+fraction;const auto ghost=sample(frames,position+12,trig);
             const auto baseline=scene->renderView(position,settings);
-            require(scene->renderGhostView(position,settings,ghost,disabled)==baseline,"Zero-opacity query changed baseline pixels");++endpointChecks;
+            require(scene->renderGhostView(position,settings,ghost,disabled)==baseline&&!scene->ghostStatistics().checkedTrackDepth,
+                "Zero-opacity query changed pixels or requested track depth");++endpointChecks;
             const auto started=std::chrono::steady_clock::now();
             const auto pixels=scene->renderGhostView(position,settings,ghost,style);const auto stats=scene->ghostStatistics();++queries;
             const auto elapsed=std::chrono::duration<double,std::milli>(std::chrono::steady_clock::now()-started).count();
@@ -266,7 +279,8 @@ int main(int argc,char** argv)try{
     for(auto view:views){CameraViewSettings settings;settings.view=view;
         for(unsigned tick=0;tick<frames.size();++tick)for(double fraction:{0.0,0.25,0.5,0.75}){
             const auto position=std::min(tick+fraction,double(frames.size()-1));
-            scene->renderGhostView(position,settings,sample(frames,position+12,trig));const auto stats=scene->ghostStatistics();++coverageQueries;
+            scene->renderGhostView(position,settings,sample(frames,position+12,trig),style);const auto stats=scene->ghostStatistics();++coverageQueries;
+            require(stats.checkedTrackDepth,"Depth sweep skipped a painted frame");
             sweepMissing+=stats.trackPixelsWithoutDepth;
             if(stats.trackPixelsWithoutDepth||stats.ghostPixelsWithoutTrackDepth)
                 gaps<<viewName(view)<<','<<position<<','<<stats.trackPixelsWithoutDepth<<','<<stats.ghostPixelsWithoutTrackDepth<<'\n';

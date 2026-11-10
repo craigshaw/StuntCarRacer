@@ -24,6 +24,8 @@ generic depth sorting is not a substitute for the recovered command stream.
 
 The optional [ghost renderer](personal-best-ghosts.md) carries reciprocal forward
 depth with projected road/side endpoints through clipping and viewport closure.
+The player captures track depth only when the clipped ghost raster has pixels.
+The rendering proofs can request full track-depth coverage on every frame.
 When requested, the same ordered scanline fills write colour and depth over
 identical spans; later painter fills replace both. Unmerged source strips supply
 angular ray/triangle depth within each fill, with endpoint interpolation retained

@@ -137,44 +137,26 @@ GhostCarMesh buildGhostCarMesh(const GhostCarPose& pose){
     for(auto& row:mesh.tyreRows)for(auto& p:row)transform(p);
     return mesh;
 }
-GhostCarStatistics GhostCarRenderer::draw(const GhostCarPose& pose,const GhostCarStyle& style,
-    const TrackMesh& mesh,const std::vector<TrackSideFace>& sides,
+GhostCarRenderer::Raster GhostCarRenderer::rasterize(const GhostCarPose& pose,const GhostCarStyle& style,
     const RenderProjectionCamera& camera,const RenderProjectionTables& tables,
-    std::vector<std::uint32_t>& pixels,const std::vector<std::uint8_t>& coverage,int padding,bool extended,int bottom,const std::vector<float>* paintedDepth){
+    int padding,bool extended,int bottom){
     if(padding<0||padding>304||bottom<0||bottom>56||(!extended&&(padding||bottom))||
        !std::isfinite(style.opacity)||style.opacity<0||style.opacity>1||
        !std::isfinite(style.fadeNear)||!std::isfinite(style.fadeFar)||style.fadeNear<0||style.fadeFar<=style.fadeNear)
         throw std::invalid_argument("Invalid ghost presentation settings");
     const int width=256+2*padding,top=extended?16:0,height=128+top+bottom;
-    const int canvasWidth=extended?width:320,offsetX=extended?0:32,offsetY=extended?0:16;
-    if(pixels.size()!=std::size_t(canvasWidth*200)||coverage.size()!=std::size_t(width*height))
-        throw std::invalid_argument("Ghost buffers do not match viewport");
-    if(paintedDepth&&paintedDepth->size()!=coverage.size())throw std::invalid_argument("Painted depth does not match viewport");
-    const auto car=buildGhostCarMesh(pose);GhostCarStatistics stats;
+    Raster raster;
+    raster.width=width;raster.height=height;raster.canvasWidth=extended?width:320;
+    raster.offsetX=extended?0:32;raster.offsetY=extended?0:16;
+    auto& stats=raster.statistics;
+    const auto car=buildGhostCarMesh(pose);
     // Proximity follows the player's physical reference, not the recovered
     // speed-dependent camera baseline, which can rise far above the vehicle.
     const RenderWorldPoint player{worldCoordinate(camera.worldPosition[0]),worldCoordinate(camera.worldPosition[1]),worldCoordinate(camera.worldPosition[2])};
     stats.effectiveOpacity=style.opacity*std::clamp((distance(player,pose.position)-style.fadeNear)/(style.fadeFar-style.fadeNear),0.0,1.0);
-    if(!stats.effectiveOpacity){
-        if(paintedDepth&&style.occlusion)for(std::size_t n=0;n<coverage.size();++n)
-            stats.trackPixelsWithoutDepth+=(coverage[n]==1||coverage[n]==2)&&(*paintedDepth)[n]<=0;
-        return stats;
-    }
-    worldDepth_.assign(coverage.size(),0);carDepth_.assign(coverage.size(),0);carColor_.assign(coverage.size(),0);
-    unsigned worldTriangles=0;
-    if(style.occlusion&&paintedDepth)worldDepth_=*paintedDepth;
-    if(style.occlusion&&!paintedDepth){
-        for(const auto& face:mesh.faces){
-            std::array<RenderWorldPoint,4> points;
-            for(unsigned n=0;n<4;++n){const auto& v=mesh.vertices.at(face.indices[n]);points[n]={v.x,v.y,v.z};}
-            quad(points,camera,tables,width,height,padding,top,worldDepth_,nullptr,0,worldTriangles);
-        }
-        for(const auto& face:sides){
-            std::array<RenderWorldPoint,4> points;
-            for(unsigned n=0;n<4;++n){const auto& v=face.vertices[n];points[n]={v.x,v.y,v.z};}
-            quad(points,camera,tables,width,height,padding,top,worldDepth_,nullptr,0,worldTriangles);
-        }
-    }
+    if(!stats.effectiveOpacity)return raster;
+    carDepth_.assign(std::size_t(width)*height,0);
+    carColor_.resize(carDepth_.size()); // Colour is read only where a fragment wrote depth.
     for(const auto& face:car.faces){
         std::array<RenderWorldPoint,4> points;for(unsigned n=0;n<4;++n)points[n]=car.vertices.at(face.vertices[n]);
         quad(points,camera,tables,width,height,padding,top,carDepth_,&carColor_,face.color,stats.triangles);
@@ -195,21 +177,64 @@ GhostCarStatistics GhostCarRenderer::draw(const GhostCarPose& pose,const GhostCa
             triangle(points[0],points[2],points[3],width,height,carDepth_,&carColor_,ghostTyreColor);stats.triangles+=2;
         }
     }
+    raster.hasSilhouette_=std::any_of(carDepth_.begin(),carDepth_.end(),[](float depth){return depth>0;});
+    return raster;
+}
+GhostCarStatistics GhostCarRenderer::composite(const Raster& raster,std::vector<std::uint32_t>& pixels,
+    const std::vector<std::uint8_t>& coverage,const std::vector<float>* trackDepth) const{
+    const auto width=raster.width,height=raster.height;
+    if(pixels.size()!=std::size_t(raster.canvasWidth*200)||coverage.size()!=std::size_t(width*height))
+        throw std::invalid_argument("Ghost buffers do not match viewport");
+    if(trackDepth&&trackDepth->size()!=coverage.size())throw std::invalid_argument("Painted depth does not match viewport");
+    auto stats=raster.statistics;
+    stats.checkedTrackDepth=trackDepth!=nullptr;
+    if(!raster.hasSilhouette()){
+        if(trackDepth)for(std::size_t n=0;n<coverage.size();++n)
+            stats.trackPixelsWithoutDepth+=(coverage[n]==1||coverage[n]==2)&&(*trackDepth)[n]<=0;
+        return stats;
+    }
     for(int y=0;y<height;++y)for(int x=0;x<width;++x){
-        const auto at=std::size_t(y*width+x);const bool track=coverage[at]==1||coverage[at]==2;
-        stats.trackPixelsWithoutDepth+=track&&style.occlusion&&!worldDepth_[at];
+        const auto at=std::size_t(y*width+x);
+        const bool track=trackDepth&&(coverage[at]==1||coverage[at]==2);
+        const auto inverse=track?(*trackDepth)[at]:0;
+        stats.trackPixelsWithoutDepth+=track&&!inverse;
         if(!carDepth_[at])continue;
-        stats.ghostPixelsWithoutTrackDepth+=track&&style.occlusion&&!worldDepth_[at];
+        stats.ghostPixelsWithoutTrackDepth+=track&&!inverse;
         ++stats.silhouettePixels;
         // Restrict the auxiliary mask to road/side pixels actually painted by
         // the original command stream. Never mask a ghost against an unseen
         // generic-mesh surface. Small depth tolerance handles raster rounding.
         // Unknown painted-track depth is conservative: hide that fragment
         // rather than letting it draw through an original fill boundary.
-        if(style.occlusion&&track&&(!worldDepth_[at]||worldDepth_[at]>carDepth_[at]*1.002f+0.000001f)){++stats.occludedPixels;continue;}
-        const auto pixel=std::size_t((y+offsetY)*canvasWidth+x+offsetX);
+        if(track&&(!inverse||inverse>carDepth_[at]*1.002f+0.000001f)){++stats.occludedPixels;continue;}
+        const auto pixel=std::size_t((y+raster.offsetY)*raster.canvasWidth+x+raster.offsetX);
         pixels[pixel]=blend(pixels[pixel],carColor_[at],stats.effectiveOpacity);++stats.visiblePixels;
     }
     return stats;
+}
+GhostCarStatistics GhostCarRenderer::draw(const GhostCarPose& pose,const GhostCarStyle& style,
+    const TrackMesh& mesh,const std::vector<TrackSideFace>& sides,
+    const RenderProjectionCamera& camera,const RenderProjectionTables& tables,
+    std::vector<std::uint32_t>& pixels,const std::vector<std::uint8_t>& coverage,int padding,bool extended,int bottom,const std::vector<float>* paintedDepth){
+    const auto raster=rasterize(pose,style,camera,tables,padding,extended,bottom);
+    if(style.occlusion&&!paintedDepth&&(raster.hasSilhouette()||style.auditTrackDepth)){
+        worldDepth_.assign(std::size_t(raster.width)*raster.height,0);
+        unsigned worldTriangles=0;
+        const auto drawQuad=[&](const std::array<RenderWorldPoint,4>& points){
+            quad(points,camera,tables,raster.width,raster.height,padding,extended?16:0,worldDepth_,nullptr,0,worldTriangles);
+        };
+        for(const auto& face:mesh.faces){
+            std::array<RenderWorldPoint,4> points;
+            for(unsigned n=0;n<4;++n){const auto& v=mesh.vertices.at(face.indices[n]);points[n]={v.x,v.y,v.z};}
+            drawQuad(points);
+        }
+        for(const auto& face:sides){
+            std::array<RenderWorldPoint,4> points;
+            for(unsigned n=0;n<4;++n){const auto& v=face.vertices[n];points[n]={v.x,v.y,v.z};}
+            drawQuad(points);
+        }
+        paintedDepth=&worldDepth_;
+    }
+    return composite(raster,pixels,coverage,style.occlusion?paintedDepth:nullptr);
 }
 } // namespace scr

@@ -538,13 +538,16 @@ const std::vector<std::uint32_t>& RaceScene::renderViewImpl(double position,cons
 }
 void RaceScene::draw(const PresentationPose& frame,const NearTrackPresentation& nearTrack,bool wireframe,const TrackPresentationSnapshot* movingTrack,const RaceFrame* discrete,double fraction,bool showCockpit,NativeView view,const RaceFrame* next,const GhostCarPose* ghost,const GhostCarStyle* ghostStyle){
     const bool wide=isWideView(view),extended=view!=NativeView::Original;
+    const int padding=viewPadding(view),bottomPadding=wide?56:0;
     if(showCockpit&&!wide)makeRaceBackground(assets_,pixels_);else pixels_.assign(viewWidth(view)*200,0);
-    const auto mountains=projectMountainHorizon(mountains_,frame.pose.yaw,frame.camera,viewPadding(view));
-    const auto ghostDepth=ghost&&ghostStyle->occlusion?std::optional<NearTrackPresentation>(refineGhostTrackDepth(nearTrack,movingTrack?movingTrack->progress:presentationTrack_,frame.pose,frame.camera)):std::nullopt;
-    statistics_=renderer_.drawFrame(movingTrack?movingTrack->mesh:mesh_,movingTrack?movingTrack->sides:sides_,mountains,frame.camera,projection_,assets_.palette,pixels_,wireframe,ghostDepth?&*ghostDepth:&nearTrack,viewPadding(view),extended,wide?56:0,ghost&&ghostStyle->occlusion);
+    const auto ghostRaster=ghost?std::optional{ghostRenderer_.rasterize(*ghost,*ghostStyle,frame.camera,projection_,padding,extended,bottomPadding)}:std::nullopt;
+    const bool captureDepth=ghostRaster&&ghostStyle->occlusion&&(ghostRaster->hasSilhouette()||ghostStyle->auditTrackDepth);
+    const auto mountains=projectMountainHorizon(mountains_,frame.pose.yaw,frame.camera,padding);
+    const auto ghostDepth=captureDepth?std::optional{refineGhostTrackDepth(nearTrack,movingTrack?movingTrack->progress:presentationTrack_,frame.pose,frame.camera)}:std::nullopt;
+    statistics_=renderer_.drawFrame(movingTrack?movingTrack->mesh:mesh_,movingTrack?movingTrack->sides:sides_,mountains,frame.camera,projection_,assets_.palette,pixels_,wireframe,ghostDepth?&*ghostDepth:&nearTrack,padding,extended,bottomPadding,captureDepth);
     ghostStatistics_={};
-    if(ghost)ghostStatistics_=ghostRenderer_.draw(*ghost,*ghostStyle,movingTrack?movingTrack->mesh:mesh_,
-        movingTrack?movingTrack->sides:sides_,frame.camera,projection_,pixels_,renderer_.worldCoverage(),viewPadding(view),extended,wide?56:0,&renderer_.worldInverseDepth());
+    if(ghostRaster)ghostStatistics_=ghostRenderer_.composite(*ghostRaster,pixels_,renderer_.worldCoverage(),
+        captureDepth?&renderer_.worldInverseDepth():nullptr);
     if(extended&&showCockpit){
         if(wide){
             cage_.assign(pixels_.size(),transparentPixel);composeWidescreenFrame(assets_,cage_);

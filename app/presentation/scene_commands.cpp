@@ -42,7 +42,9 @@ SceneCommands buildSceneCommands(const NearTrackFrame& near,
     const RenderProjectionCamera& camera,
     const std::optional<OpponentCarInputs>& opponent){
     SceneCommands result;
-    result.presentation=near.presentation;
+    result.presentation.queueEntries=near.queueEntries;
+    result.presentation.opponentOffset=near.queue.opponentOffset;
+    result.presentation.farStartSegment=near.farStartSegment;
     result.denseLineBytes=near.queue.lineBytes;
     const auto far=buildOpponentFarTrack(farData,tables,geometry,near.queue);
     result.geometry=far.geometry;

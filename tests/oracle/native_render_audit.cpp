@@ -220,10 +220,15 @@ void scenes(const std::filesystem::path& pack,const std::filesystem::path& outpu
                 require(timelineHash(viewed)==before,"Rendering changed a retained frame or track snapshot");++counts.snapshotChecks;counts.queries+=19;
                 if(!competition){
                     auto geometry=frame.nearSeed;const auto& data=frame.movingTrack?frame.movingTrack->progress:probe->progressData;
-                    auto dense=buildNearTrackFrame(data,flags,frame.nearInputs,geometry);dense.presentation.horizonMode=frame.nearTrack.horizonMode;
+                    const auto dense=buildNearTrackFrame(data,flags,frame.nearInputs,geometry);
+                    NearTrackPresentation densePresentation;
+                    densePresentation.coveredSegments=dense.coveredSegments;
+                    densePresentation.queueEntries=dense.queueEntries;
+                    densePresentation.horizonMode=frame.nearTrack.horizonMode;
+                    densePresentation.commands=drawNearTrackQueue(dense.queue,frame.nearInputs.drawing);
                     const auto projected=projectMountainHorizon(mountains,frame.cameraYaw,frame.camera);
                     const auto& mesh=frame.movingTrack?frame.movingTrack->mesh:viewed.mesh();const auto& walls=frame.movingTrack?frame.movingTrack->sides:sides;
-                    std::vector<std::uint32_t> old(64000),corrected(64000);const auto oldStats=comparisonRenderer.drawFrame(mesh,walls,projected,frame.camera,tables,assets.palette,old,false,&dense.presentation);
+                    std::vector<std::uint32_t> old(64000),corrected(64000);const auto oldStats=comparisonRenderer.drawFrame(mesh,walls,projected,frame.camera,tables,assets.palette,old,false,&densePresentation);
                     const auto newStats=comparisonRenderer.drawFrame(mesh,walls,projected,frame.camera,tables,assets.palette,corrected,false,&frame.nearTrack);
                     unsigned difference=0;std::vector<std::uint32_t> diff(64000);
                     for(unsigned y=16;y<144;++y)for(unsigned x=32;x<288;++x){const unsigned index=y*320+x;if(old[index]!=corrected[index]){++difference;diff[index]=0xffcc00;}}

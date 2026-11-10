@@ -135,7 +135,7 @@ void check(const Ram& baseline,const scr::NearTrackFrame& near,const scr::NearTr
     if(result.opponentAttempted)++carAttempts;if(result.opponentAdmitted)++carAdmissions;if(!opponent)++practiceCases;
     if(near.queue.lineBytes>=0x2328)++arenaCases;
     require(std::all_of(result.presentation.coveredSegments.begin(),result.presentation.coveredSegments.end(),[](bool value){return value;}),"Generic far mesh remains enabled");
-    require(result.presentation.queueEntries==near.presentation.queueEntries&&result.presentation.farStartSegment==near.presentation.farStartSegment,"Dense frame metadata was lost");++cases;
+    require(result.presentation.queueEntries==near.queueEntries&&result.presentation.farStartSegment==near.farStartSegment,"Dense frame metadata was lost");++cases;
 }
 void sequentialPractice(const Ram& baseline,const scr::RenderProjectionTables& tables,
     const scr::OpponentFarTrackData& far,const scr::MountainHorizonData& mountains,

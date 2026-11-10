@@ -34,15 +34,13 @@ NearTrackFrame buildNearTrackFrame(const TrackProgressData& data,
         appendNearTrackSegment(geometry,result.queue,pass==0);
         // Cull the coarse far mesh for every visited near segment, including
         // sections whose original visibility rules emitted no drawable face.
-        result.presentation.coveredSegments.at(geometry.progress.currentSegment)=true;
+        result.coveredSegments.at(geometry.progress.currentSegment)=true;
         if(!pass){geometry.renderingLoopIndex=0;geometry.startIndex=4;}
         (void)shiftNearTrackCoordinates(geometry);advance();
         if(pass==1)geometry.continuation=1;
     }
-    result.presentation.queueEntries=std::uint16_t((result.queue.offset-32)/32);
-    result.presentation.opponentOffset=result.queue.opponentOffset;
-    result.presentation.farStartSegment=geometry.progress.currentSegment;
-    result.presentation.commands=drawNearTrackQueue(result.queue,inputs.drawing);
+    result.queueEntries=std::uint16_t((result.queue.offset-32)/32);
+    result.farStartSegment=geometry.progress.currentSegment;
     return result;
 }
 } // namespace scr

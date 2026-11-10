@@ -536,14 +536,13 @@ const std::vector<std::uint32_t>& NativeGameSession::render(bool interpolate,boo
     }
     if(page()==NativeMenuPage::Preview){if(hallChallenge_){packNativeMenuPixels(hallPreviewImage(),pixels_);return pixels_;}return preview_.pixels();}
     if(page()==NativeMenuPage::Race){
-        const bool ghost=practiceGhostVisible_&&practiceGhostActive()&&!race_.liveTerminal();
-        if(ghost){const auto playback=race_.lapGhostPlayback(interpolate?driveClock_.fraction():1,interpolate);ghostConditionsDiffer_=playback&&!playback->finished&&playback->conditionsDiffer;}
-        // Set the presentation view even when paused or at the terminal panel.
-        if(race_.liveTerminal()||paused)race_.renderLive(driveClock_.fraction(),false,interpolate,view);
-        if(race_.liveTerminal())return race_.renderLiveMessage(0x3c,4);
-        if(paused)return race_.renderLiveMessage(0x4c,2,ghost);
-        if(ghost)return race_.renderPracticeGhost(driveClock_.fraction(),interpolate,view);
-        return race_.renderLive(driveClock_.fraction(),false,interpolate,view);
+        const auto fraction=driveClock_.fraction();
+        if(race_.liveTerminal())return race_.renderLiveMessage(0x3c,4,fraction,interpolate,view);
+        const bool ghost=practiceGhostVisible_&&practiceGhostActive();
+        if(ghost){const auto playback=race_.lapGhostPlayback(interpolate?fraction:1,interpolate);ghostConditionsDiffer_=playback&&!playback->finished&&playback->conditionsDiffer;}
+        if(paused)return race_.renderLiveMessage(0x4c,2,fraction,interpolate,view,ghost);
+        if(ghost)return race_.renderPracticeGhost(fraction,interpolate,view);
+        return race_.renderLive(fraction,false,interpolate,view);
     }
     packNativeMenuPixels(menuImage(),pixels_);return pixels_;
 }

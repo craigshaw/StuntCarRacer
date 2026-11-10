@@ -388,7 +388,7 @@ void RaceScene::clearPersonalBestLap(){if(simulation_&&simulation_->laps)simulat
 const std::vector<std::uint32_t>& RaceScene::renderPracticeGhost(double fraction,bool interpolate,NativeView view){
     const auto playback=lapGhostPlayback(interpolate?fraction:1,interpolate);
     if(!playback||playback->opacity<=0)return renderLive(fraction,false,interpolate,view);
-    lastLiveFraction_=fraction;lastLiveInterpolate_=interpolate;lastLiveView_=view;
+    lastLiveFraction_=fraction;lastLiveInterpolate_=interpolate;
     CameraViewSettings camera;camera.view=view;GhostCarStyle style;style.opacity*=playback->opacity;
     return renderGhostView(interpolate?fraction:1,camera,playback->pose,style);
 }
@@ -402,21 +402,22 @@ std::optional<GhostLapPlayback> RaceScene::lapGhostPlayback(double position,bool
     return simulation_->laps->playback(time,interpolate);
 }
 const std::vector<std::uint32_t>& RaceScene::renderLive(double fraction,bool wireframe,bool interpolate,NativeView view){
-    fraction=std::clamp(fraction,0.0,1.0);lastLiveFraction_=fraction;lastLiveInterpolate_=interpolate;lastLiveView_=view;
+    fraction=std::clamp(fraction,0.0,1.0);lastLiveFraction_=fraction;lastLiveInterpolate_=interpolate;
     if(view!=NativeView::Original){CameraViewSettings settings;settings.view=view;return renderView(interpolate?fraction:1,settings,wireframe);}
     if(interpolate)return renderInterpolated(fraction,wireframe);
     const auto& frame=frames_[1];draw(frame,frame.nearTrack,wireframe,frame.movingTrack.get(),&frame,fraction);
     cachedFrame_=~0u;return pixels_;
 }
-const std::vector<std::uint32_t>& RaceScene::renderLiveMessage(unsigned index,unsigned mode,bool includeGhost){
+const std::vector<std::uint32_t>& RaceScene::renderLiveMessage(unsigned index,unsigned mode,double fraction,
+    bool interpolate,NativeView view,bool includeGhost){
     // Repaint the final snapshot before overlaying the original panel, so a
     // pause message never becomes part of a later interpolated race image.
     cachedFrame_=~0u;
-    if(includeGhost)renderPracticeGhost(lastLiveFraction_,lastLiveInterpolate_,lastLiveView_);
-    else renderLive(lastLiveFraction_,false,lastLiveInterpolate_,lastLiveView_);
+    if(includeGhost)renderPracticeGhost(fraction,interpolate,view);
+    else renderLive(fraction,false,interpolate,view);
     const auto& memory=simulation_->native.ram;
     const auto cockpit=captureCockpitFrame(memory.data(),memory.size());
-    const bool wide=isWideView(lastLiveView_);
+    const bool wide=isWideView(view);
     if(wide)foreground_.assign(320*200,transparentPixel);
     auto& panel=wide?foreground_:pixels_;
     compositeMaskedObject(assets_,51,cockpit.objects[51],panel);
@@ -426,7 +427,6 @@ const std::vector<std::uint32_t>& RaceScene::renderLiveMessage(unsigned index,un
 }
 std::vector<std::uint16_t> RaceScene::captureLiveIndices(bool endMessage,NativeView view){
     const auto saved=assets_.palette;
-    const auto savedView=lastLiveView_;lastLiveView_=view;
     // Original fades use the four bitmap planes. The independent hardware
     // sprites have their own OCS palette and Sprite DMA is off for race fades.
     bitmapOnly_=true;
@@ -436,14 +436,15 @@ std::vector<std::uint16_t> RaceScene::captureLiveIndices(bool endMessage,NativeV
         for(unsigned i=0;i<assets_.palette.size();++i)assets_.palette[i]=i;
         cachedFrame_=~0u;
         CameraViewSettings settings;settings.view=view;
-        const auto& frame=endMessage?renderLiveMessage(0x3c,4):view!=NativeView::Original?renderView(1,settings):render(1);
+        const auto& frame=endMessage?renderLiveMessage(0x3c,4,lastLiveFraction_,lastLiveInterpolate_,view):
+            view!=NativeView::Original?renderView(1,settings):render(1);
         std::vector<std::uint16_t> indices;indices.reserve(frame.size());
         for(auto pixel:frame){
             if(pixel>=16&&(!isWideView(view)||pixel<0x100||pixel>=0x300))throw std::logic_error("Native race renderer emitted a non-palette pixel");
             indices.push_back(std::uint16_t(pixel));
         }
-        assets_.palette=saved;lastLiveView_=savedView;bitmapOnly_=false;cachedFrame_=~0u;return indices;
-    }catch(...){assets_.palette=saved;lastLiveView_=savedView;bitmapOnly_=false;cachedFrame_=~0u;throw;}
+        assets_.palette=saved;bitmapOnly_=false;cachedFrame_=~0u;return indices;
+    }catch(...){assets_.palette=saved;bitmapOnly_=false;cachedFrame_=~0u;throw;}
 }
 unsigned RaceScene::verifyLiveReplay(const std::filesystem::path& inputs,const std::filesystem::path& referencePath,const std::filesystem::path& tracePath){
     namespace replay=scr::state::replay;const auto input=replay::loadInputs(inputs.string().c_str());

@@ -71,7 +71,8 @@ int main(int argc,char** argv)try{
             shown.setRunningLapHundredths(true);check(shown.renderLive(0.5)==smooth,"Smoothed HUD toggle reused a stale frame");
             for(const auto view:{NativeView::Original,NativeView::Extended,NativeView::Widescreen,NativeView::Ultrawide}){
                 shown.renderLive(0,false,false,view);shown.saveBitmap(output/("hundredths-"+std::to_string(unsigned(view))+".bmp"));
-                const auto paused=shown.renderLiveMessage(0x4c,2);check(shown.renderLiveMessage(0x4c,2)==paused,"Paused timer changed between presentations");
+                const auto paused=shown.renderLiveMessage(0x4c,2,0,false,view);
+                check(shown.renderLiveMessage(0x4c,2,0,false,view)==paused,"Paused timer changed between presentations");
             }
             captured=true;
         }

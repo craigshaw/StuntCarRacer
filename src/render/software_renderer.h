@@ -23,10 +23,13 @@ class SoftwareRenderer {
 public:
     static constexpr int width=320,height=200;
     static constexpr int viewportX=32,viewportY=16,viewportWidth=256,viewportHeight=128;
+    // When capturing ordered track depth, a mask limits it to positive viewport entries.
     RenderStatistics drawFrame(const TrackMesh&,const std::vector<TrackSideFace>&,
         const MountainHorizonFrame&,const RenderProjectionCamera&,
         const RenderProjectionTables&,const std::array<std::uint32_t,16>& palette,
-        std::vector<std::uint32_t>& pixels,bool wireframe=false,const NearTrackPresentation* nearTrack=nullptr,int horizontalPadding=0,bool extendedCorners=false,int bottomPadding=0,bool captureTrackDepth=false);
+        std::vector<std::uint32_t>& pixels,bool wireframe=false,const NearTrackPresentation* nearTrack=nullptr,
+        int horizontalPadding=0,bool extendedCorners=false,int bottomPadding=0,bool captureTrackDepth=false,
+        const std::vector<float>* depthMask=nullptr);
     // Read-only classification of the last painted viewport: road=1, side=2,
     // mountain=3, opponent=4. Auxiliary presentation must not alter this layer.
     const std::vector<std::uint8_t>& worldCoverage()const noexcept{return coverage_;}

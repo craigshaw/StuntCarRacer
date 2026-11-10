@@ -111,12 +111,24 @@ int main()try{
     painter.drawFrame({}, {}, {},camera,tables,palette,withoutDepth,false,&painted);
     painter.drawFrame({}, {}, {},camera,tables,palette,painterPixels,false,&painted,0,false,0,true);
     require(painterPixels==withoutDepth,"Capturing painter depth changed original pixels");
-    const auto& depth=painter.worldInverseDepth();
+    const auto depth=painter.worldInverseDepth();
     require(std::none_of(depth.begin(),depth.end(),[](float d){return d<=0;}),"Clipped painter span has a depth coverage hole");
     require(std::abs(depth[90*256+60]-1.0/180)<1e-7,"Depth was sorted instead of following the painter");
     const auto paintedGhost=renderer.draw(pose,style,{}, {},camera,tables,painterPixels,painter.worldCoverage(),0,false,0,&depth);
     require(paintedGhost.visiblePixels>0&&paintedGhost.occludedPixels>0&&!paintedGhost.ghostPixelsWithoutTrackDepth,
         "Painted road/side depth did not occlude the ghost without gaps");
+    const auto raster=renderer.rasterize(pose,style,camera,tables,0,false,0);
+    const auto* silhouette=raster.silhouette();
+    require(silhouette,"Missing ghost silhouette for track depth");
+    std::vector<std::uint32_t> maskedPixels(320*200,background);
+    painter.drawFrame({}, {}, {},camera,tables,palette,maskedPixels,false,&painted,0,false,0,true,silhouette);
+    const auto& maskedDepth=painter.worldInverseDepth();
+    for(std::size_t n=0;n<depth.size();++n)
+        require(maskedDepth[n]==((*silhouette)[n]>0?depth[n]:0),"Painter depth differs from the masked full-depth values");
+    require(maskedPixels==withoutDepth,"Silhouette depth changed painted colour pixels");
+    const auto maskedGhost=renderer.composite(raster,maskedPixels,painter.worldCoverage(),&maskedDepth,false);
+    require(maskedPixels==painterPixels&&!maskedGhost.checkedFullTrackDepth&&!maskedGhost.ghostPixelsWithoutTrackDepth&&
+        maskedGhost.occludedPixels==paintedGhost.occludedPixels,"Silhouette depth changed ghost compositing");
     const auto physicalFill=[&](const std::array<RenderWorldPoint,4>& points,NearTrackSurface surface){
         auto command=rectangle(0,0,1,1,1,surface);command.edges.clear();std::array<NearTrackPoint,4> projected;
         std::array<RenderCameraRelative,4> sources;

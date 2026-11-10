@@ -3,6 +3,7 @@
 #include <algorithm>
 #include <cmath>
 #include <limits>
+#include <optional>
 #include <stdexcept>
 
 namespace scr {
@@ -164,8 +165,9 @@ std::vector<AngularDepthTriangle> depthTriangles(const NearTrackDrawCommand& com
 }
 void nearPolygon(const NearTrackDrawCommand& command,std::uint32_t color,
     std::vector<std::uint32_t>& pixels,std::vector<std::uint8_t>& coverage,
-    std::vector<std::uint8_t>& highlights,const RenderCanvas& canvas,std::vector<float>* depth,const RenderProjectionCamera& camera) {
-    const auto triangles=depth?depthTriangles(command,camera):std::vector<AngularDepthTriangle>{};
+    std::vector<std::uint8_t>& highlights,const RenderCanvas& canvas,std::vector<float>* depth,
+    const std::vector<float>* depthMask,const RenderProjectionCamera& camera) {
+    std::optional<std::vector<AngularDepthTriangle>> triangles;
     struct Crossing {double x{},inverseDepth{};};
     std::vector<Crossing> crossings;crossings.reserve(command.edges.size());
     for(int y=0;y<canvas.viewportHeight();++y){
@@ -186,12 +188,13 @@ void nearPolygon(const NearTrackDrawCommand& command,std::uint32_t color,
             for(int x=first;x<=last;++x){
                 const auto index=canvas.viewIndex(x,y);pixels[canvas.pixelIndex(x,y)]=color;
                 coverage[index]=command.surface==NearTrackSurface::opponent?4:command.surface==NearTrackSurface::road?1:2;highlights[index]=0;
-                if(depth){
+                if(depth&&(!depthMask||(*depthMask)[index]>0)){
                     const auto fraction=right.x==left.x?0:(x+0.5-left.x)/(right.x-left.x);
                     auto inverse=left.inverseDepth>0&&right.inverseDepth>0?left.inverseDepth+(right.inverseDepth-left.inverseDepth)*fraction:0;
-                    if(!triangles.empty()){
+                    if(!triangles)triangles=depthTriangles(command,camera);
+                    if(!triangles->empty()){
                         const auto px=x+0.5-canvas.padding;const auto r=angularRay(px,scan,camera);const RenderCameraRelative ray{r[0],r[1],1};double nearest=0;
-                        for(const auto& t:triangles)if(px>=t.left&&px<=t.right&&scan>=t.top&&scan<=t.bottom){
+                        for(const auto& t:*triangles)if(px>=t.left&&px<=t.right&&scan>=t.top&&scan<=t.bottom){
                             const auto d=dot(t.depth,ray),u=dot(t.u,ray),v=dot(t.v,ray);
                             if(d>0&&u>=-1e-8&&v>=-1e-8&&u+v<=d+1e-8)nearest=std::max(nearest,d);
                         }
@@ -212,14 +215,17 @@ void nearPolygon(const NearTrackDrawCommand& command,std::uint32_t color,
 RenderStatistics SoftwareRenderer::drawFrame(const TrackMesh& mesh,const std::vector<TrackSideFace>& sides,
     const MountainHorizonFrame& mountains,const RenderProjectionCamera& camera,
     const RenderProjectionTables& tables,const std::array<std::uint32_t,16>& palette,
-    std::vector<std::uint32_t>& pixels,bool wireframe,const NearTrackPresentation* nearTrack,int padding,bool extended,int bottomPadding,bool captureTrackDepth) {
+    std::vector<std::uint32_t>& pixels,bool wireframe,const NearTrackPresentation* nearTrack,int padding,bool extended,int bottomPadding,
+    bool captureTrackDepth,const std::vector<float>* depthMask) {
     if(padding<0||padding>304)throw std::invalid_argument("Invalid render viewport padding");
     const RenderCanvas canvas{padding,extended,bottomPadding};
     if(bottomPadding<0||canvas.viewportHeight()+(extended?0:16)>height)throw std::invalid_argument("Invalid render viewport height");
     if(pixels.size()!=std::size_t(canvas.width()*height))throw std::invalid_argument("Renderer background dimensions do not match its viewport");
-    inverseDepth_.assign(canvas.viewportWidth()*canvas.viewportHeight(),0);
-    coverage_.assign(canvas.viewportWidth()*canvas.viewportHeight(),0);
-    highlights_.assign(canvas.viewportWidth()*canvas.viewportHeight(),0);
+    const auto viewportPixels=std::size_t(canvas.viewportWidth())*canvas.viewportHeight();
+    if(depthMask&&depthMask->size()!=viewportPixels)throw std::invalid_argument("Track depth mask does not match viewport");
+    inverseDepth_.assign(viewportPixels,0);
+    coverage_.assign(viewportPixels,0);
+    highlights_.assign(viewportPixels,0);
     const auto mode=nearTrack?nearTrack->horizonMode:std::uint8_t{};
     auto h0=horizonPoint(-0x500,camera,mode),h1=horizonPoint(0x500,camera,mode);
     h0.x+=padding;h1.x+=padding;h0.y+=canvas.topPadding();h1.y+=canvas.topPadding();
@@ -314,7 +320,8 @@ RenderStatistics SoftwareRenderer::drawFrame(const TrackMesh& mesh,const std::ve
         for(const auto& command:nearTrack->commands){
             if(command.color>=palette.size())throw std::invalid_argument("Near command palette index outside range");
             if(command.kind==NearTrackCommandKind::fill){
-                nearPolygon(command,palette[command.color],pixels,coverage_,highlights_,canvas,captureTrackDepth?&inverseDepth_:nullptr,camera);++stats.nearFillCommands;
+                nearPolygon(command,palette[command.color],pixels,coverage_,highlights_,canvas,
+                    captureTrackDepth?&inverseDepth_:nullptr,depthMask,camera);++stats.nearFillCommands;
                 stats.opponentPolygons+=command.surface==NearTrackSurface::opponent;
                 if(wireframe)for(const auto& edge:command.edges)drawEdge(edge,palette[3],false);
             }else{

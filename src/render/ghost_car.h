@@ -43,7 +43,7 @@ struct GhostCarStatistics {
     unsigned trackPixelsWithoutDepth{};
     unsigned ghostPixelsWithoutTrackDepth{};
     double effectiveOpacity{};
-    bool checkedTrackDepth{};
+    bool checkedFullTrackDepth{};
 };
 // Resolve the car once, then test against depth from the original painter.
 // Standalone diagnostic meshes can omit that layer and use auxiliary geometry.
@@ -52,19 +52,21 @@ class GhostCarRenderer {
 public:
     class Raster {
     public:
-        bool hasSilhouette() const noexcept { return hasSilhouette_; }
+        // Positive entries mark covered viewport pixels. The renderer owns the buffer.
+        const std::vector<float>* silhouette() const noexcept { return silhouette_; }
     private:
         friend class GhostCarRenderer;
         GhostCarStatistics statistics;
         int width{},height{},canvasWidth{},offsetX{},offsetY{};
-        bool hasSilhouette_{};
+        const std::vector<float>* silhouette_{};
     };
     // Composite the raster before the next rasterize call on this renderer.
     Raster rasterize(const GhostCarPose&,const GhostCarStyle&,
         const RenderProjectionCamera&,const RenderProjectionTables&,
         int horizontalPadding,bool extended,int bottomPadding);
     GhostCarStatistics composite(const Raster&,std::vector<std::uint32_t>& pixels,
-        const std::vector<std::uint8_t>& worldCoverage,const std::vector<float>* trackDepth) const;
+        const std::vector<std::uint8_t>& worldCoverage,const std::vector<float>* trackDepth,
+        bool fullTrackDepth=true) const;
     GhostCarStatistics draw(const GhostCarPose&,const GhostCarStyle&,
         const TrackMesh&,const std::vector<TrackSideFace>&,
         const RenderProjectionCamera&,const RenderProjectionTables&,

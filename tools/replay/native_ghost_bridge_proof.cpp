@@ -158,10 +158,16 @@ Counts scenario(const NativeStartupData& game,const Recording& recording,const T
             const auto ghost=makeGhostCarPose(target.pose);
             const auto visual=cut?static_cast<const PresentationPose&>(frame):interpolatePresentation(drawn->frames()[0],frame,fraction,trig);
             const auto camera=observer(visual,target,view);const auto seconds=displayed*gameplayTickSeconds;const auto alpha=visibility.alphaAt(seconds);
-            GhostCarStyle style;style.opacity*=alpha;style.fadeNear=0;style.fadeFar=1;style.auditTrackDepth=true;
-            const auto baseline=normal->renderView(cut?1:fraction,camera);
-            const auto image=drawn->renderGhostView(cut?1:fraction,camera,ghost,style);const auto stats=drawn->ghostStatistics();++counts.queries;
-            require(stats.checkedTrackDepth,"Bridge depth proof skipped a painted frame");
+            GhostCarStyle style;style.opacity*=alpha;style.fadeNear=0;style.fadeFar=1;
+            auto audit=style;audit.auditTrackDepth=true;
+            const auto position=cut?1:fraction;
+            const auto baseline=normal->renderView(position,camera);
+            const auto image=drawn->renderGhostView(position,camera,ghost,style);
+            const auto masked=drawn->ghostStatistics();
+            require(drawn->renderGhostView(position,camera,ghost,audit)==image,"Ghost silhouette depth changed the bridge image");
+            const auto stats=drawn->ghostStatistics();++counts.queries;
+            require(!masked.checkedFullTrackDepth&&stats.checkedFullTrackDepth&&!masked.ghostPixelsWithoutTrackDepth&&
+                masked.occludedPixels==stats.occludedPixels,"Ghost silhouette depth differs from the full bridge audit");
             counts.hidden+=alpha==0;counts.fading+=alpha>0&&alpha<1;counts.shown+=alpha==1;
             counts.visibleQueries+=stats.visiblePixels>0&&stats.effectiveOpacity>0;
             counts.equalPhaseCrossingShown+=a.region==GhostBridgeRegion::crossing&&a.phase!=update.phase&&matches&&alpha==1;

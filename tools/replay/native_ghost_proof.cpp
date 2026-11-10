@@ -80,6 +80,17 @@ struct ProportionStatistics {unsigned cases{},maximumWidthDifference{},maximumRe
 struct PoseRegressionStatistics {unsigned cornerQueries{},jumpQueries{},distantQueries{};double minimumCornerVisibility{1},minimumDistantVisibility{1};};
 PoseRegressionStatistics poseRegressions(RaceScene& scene,const TrigTable& trig,const std::filesystem::path& output,bool preview){
     PoseRegressionStatistics stats;const auto& frames=scene.frames();
+    GhostCarStyle audit;audit.auditTrackDepth=true;
+    const auto compareDepth=[&](double position,const CameraViewSettings& view,const GhostCarPose& pose){
+        const auto pixels=scene.renderGhostView(position,view,pose);
+        const auto masked=scene.ghostStatistics();
+        require(scene.renderGhostView(position,view,pose,audit)==pixels,"Ghost silhouette depth changed the image");
+        const auto full=scene.ghostStatistics();
+        require(!masked.checkedFullTrackDepth&&full.checkedFullTrackDepth&&!full.trackPixelsWithoutDepth&&
+            !masked.ghostPixelsWithoutTrackDepth&&masked.occludedPixels==full.occludedPixels,
+            "Ghost silhouette depth differs from the full track audit");
+        return masked;
+    };
     // Named regressions from the retained native lap: the first banked turn
     // and the ramp flight. Observer cameras are presentation queries only.
     for(bool jump:{false,true})for(auto aperture:{NativeView::Original,NativeView::Extended,NativeView::Widescreen,NativeView::Ultrawide}){
@@ -92,12 +103,11 @@ PoseRegressionStatistics poseRegressions(RaceScene& scene,const TrigTable& trig,
             view.yawOffset=jump?0x3000:0;view.pitchOffset=std::int16_t(-visual.pose.pitch-0x0800);view.rollOffset=std::int16_t(-visual.pose.roll);
             const auto heading=std::uint16_t(pose.yaw+view.yawOffset)*6.28318530717958647692/65536;
             view.worldOffset={-32*std::sin(heading),14,-32*std::cos(heading)};
-            scene.renderGhostView(time,view,pose);const auto s=scene.ghostStatistics();
+            const auto s=compareDepth(time,view,pose);
             require(s.silhouettePixels>100,("Pose regression observer did not see the exterior at "+std::to_string(time)+", aperture "+viewName(aperture)+", pixels "+std::to_string(s.silhouettePixels)).c_str());
             const auto fraction=double(s.visiblePixels)/s.silhouettePixels;
             if(jump){++stats.jumpQueries;require(fraction>.75,"Ramp flight was spuriously buried by its road mask");}
             else{++stats.cornerQueries;stats.minimumCornerVisibility=std::min(stats.minimumCornerVisibility,fraction);require(fraction>.75,("Banked corner buried the ghost exterior at "+std::to_string(time)+", "+viewName(aperture)+", fraction "+std::to_string(fraction)).c_str());}
-            require(!s.trackPixelsWithoutDepth,"Pose regression exposed a painted-depth boundary gap");
             if(preview&&aperture==NativeView::Widescreen)scene.saveBitmap(folder/(std::to_string(1000+n).substr(1)+".bmp"));
         }
     }
@@ -106,14 +116,13 @@ PoseRegressionStatistics poseRegressions(RaceScene& scene,const TrigTable& trig,
     for(auto aperture:{NativeView::Original,NativeView::Extended,NativeView::Widescreen,NativeView::Ultrawide}){
         CameraViewSettings view;view.view=aperture;
         for(unsigned n=0;n<13;++n){const auto time=112+n*.5;
-            scene.renderGhostView(time,view,sample(frames,time+24,trig));const auto s=scene.ghostStatistics();
+            const auto s=compareDepth(time,view,sample(frames,time+24,trig));
             require(s.silhouettePixels>=5,("Distant bend regression left the aperture at "+std::to_string(time)+", "+viewName(aperture)+", pixels "+std::to_string(s.silhouettePixels)).c_str());
             const auto fraction=double(s.visiblePixels)/s.silhouettePixels;
             require(fraction>.75,"Distance-thinned road falsely hid the ghost on a bend");
             ++stats.distantQueries;stats.minimumDistantVisibility=std::min(stats.minimumDistantVisibility,fraction);
-            require(!s.trackPixelsWithoutDepth,"Distant bend regression exposed a depth gap");
         }
-        scene.renderGhostView(222,view,sample(frames,234,trig));const auto crest=scene.ghostStatistics();
+        const auto crest=compareDepth(222,view,sample(frames,234,trig));
         require(crest.silhouettePixels>20&&!crest.visiblePixels,"Detailed depth exposed a ghost behind the ramp crest");
     }
     return stats;
@@ -242,14 +251,14 @@ int main(int argc,char** argv)try{
         const auto baseline=scene->renderView(24,settings);
         require(scene->renderGhostView(24,settings,behind)==baseline,"Clipped ghost changed world pixels");
         const auto clipped=scene->ghostStatistics();
-        require(clipped.effectiveOpacity>0&&!clipped.silhouettePixels&&!clipped.checkedTrackDepth,
+        require(clipped.effectiveOpacity>0&&!clipped.silhouettePixels&&!clipped.checkedFullTrackDepth,
             "Clipped ghost did not skip track depth");
-        require(scene->renderGhostView(24,settings,behind,style)==baseline&&scene->ghostStatistics().checkedTrackDepth&&
+        require(scene->renderGhostView(24,settings,behind,style)==baseline&&scene->ghostStatistics().checkedFullTrackDepth&&
             !scene->ghostStatistics().trackPixelsWithoutDepth,"Full depth audit did not cover the clipped ghost frame");
         for(unsigned tick=24;tick+13<frames.size();tick+=24)for(double fraction:{0.0,0.5}){
             const double position=tick+fraction;const auto ghost=sample(frames,position+12,trig);
             const auto baseline=scene->renderView(position,settings);
-            require(scene->renderGhostView(position,settings,ghost,disabled)==baseline&&!scene->ghostStatistics().checkedTrackDepth,
+            require(scene->renderGhostView(position,settings,ghost,disabled)==baseline&&!scene->ghostStatistics().checkedFullTrackDepth,
                 "Zero-opacity query changed pixels or requested track depth");++endpointChecks;
             const auto started=std::chrono::steady_clock::now();
             const auto pixels=scene->renderGhostView(position,settings,ghost,style);const auto stats=scene->ghostStatistics();++queries;
@@ -280,7 +289,7 @@ int main(int argc,char** argv)try{
         for(unsigned tick=0;tick<frames.size();++tick)for(double fraction:{0.0,0.25,0.5,0.75}){
             const auto position=std::min(tick+fraction,double(frames.size()-1));
             scene->renderGhostView(position,settings,sample(frames,position+12,trig),style);const auto stats=scene->ghostStatistics();++coverageQueries;
-            require(stats.checkedTrackDepth,"Depth sweep skipped a painted frame");
+            require(stats.checkedFullTrackDepth,"Depth sweep skipped a painted frame");
             sweepMissing+=stats.trackPixelsWithoutDepth;
             if(stats.trackPixelsWithoutDepth||stats.ghostPixelsWithoutTrackDepth)
                 gaps<<viewName(view)<<','<<position<<','<<stats.trackPixelsWithoutDepth<<','<<stats.ghostPixelsWithoutTrackDepth<<'\n';

@@ -177,28 +177,30 @@ GhostCarRenderer::Raster GhostCarRenderer::rasterize(const GhostCarPose& pose,co
             triangle(points[0],points[2],points[3],width,height,carDepth_,&carColor_,ghostTyreColor);stats.triangles+=2;
         }
     }
-    raster.hasSilhouette_=std::any_of(carDepth_.begin(),carDepth_.end(),[](float depth){return depth>0;});
+    if(std::any_of(carDepth_.begin(),carDepth_.end(),[](float depth){return depth>0;}))raster.silhouette_=&carDepth_;
     return raster;
 }
 GhostCarStatistics GhostCarRenderer::composite(const Raster& raster,std::vector<std::uint32_t>& pixels,
-    const std::vector<std::uint8_t>& coverage,const std::vector<float>* trackDepth) const{
+    const std::vector<std::uint8_t>& coverage,const std::vector<float>* trackDepth,bool fullTrackDepth) const{
     const auto width=raster.width,height=raster.height;
     if(pixels.size()!=std::size_t(raster.canvasWidth*200)||coverage.size()!=std::size_t(width*height))
         throw std::invalid_argument("Ghost buffers do not match viewport");
     if(trackDepth&&trackDepth->size()!=coverage.size())throw std::invalid_argument("Painted depth does not match viewport");
     auto stats=raster.statistics;
-    stats.checkedTrackDepth=trackDepth!=nullptr;
-    if(!raster.hasSilhouette()){
-        if(trackDepth)for(std::size_t n=0;n<coverage.size();++n)
+    stats.checkedFullTrackDepth=trackDepth&&fullTrackDepth;
+    if(!raster.silhouette()){
+        if(stats.checkedFullTrackDepth)for(std::size_t n=0;n<coverage.size();++n)
             stats.trackPixelsWithoutDepth+=(coverage[n]==1||coverage[n]==2)&&(*trackDepth)[n]<=0;
         return stats;
     }
     for(int y=0;y<height;++y)for(int x=0;x<width;++x){
         const auto at=std::size_t(y*width+x);
+        const auto carDepth=carDepth_[at];
+        if(!carDepth&&!stats.checkedFullTrackDepth)continue;
         const bool track=trackDepth&&(coverage[at]==1||coverage[at]==2);
         const auto inverse=track?(*trackDepth)[at]:0;
-        stats.trackPixelsWithoutDepth+=track&&!inverse;
-        if(!carDepth_[at])continue;
+        stats.trackPixelsWithoutDepth+=stats.checkedFullTrackDepth&&track&&!inverse;
+        if(!carDepth)continue;
         stats.ghostPixelsWithoutTrackDepth+=track&&!inverse;
         ++stats.silhouettePixels;
         // Restrict the auxiliary mask to road/side pixels actually painted by
@@ -206,7 +208,7 @@ GhostCarStatistics GhostCarRenderer::composite(const Raster& raster,std::vector<
         // generic-mesh surface. Small depth tolerance handles raster rounding.
         // Unknown painted-track depth is conservative: hide that fragment
         // rather than letting it draw through an original fill boundary.
-        if(track&&(!inverse||inverse>carDepth_[at]*1.002f+0.000001f)){++stats.occludedPixels;continue;}
+        if(track&&(!inverse||inverse>carDepth*1.002f+0.000001f)){++stats.occludedPixels;continue;}
         const auto pixel=std::size_t((y+raster.offsetY)*raster.canvasWidth+x+raster.offsetX);
         pixels[pixel]=blend(pixels[pixel],carColor_[at],stats.effectiveOpacity);++stats.visiblePixels;
     }
@@ -217,7 +219,7 @@ GhostCarStatistics GhostCarRenderer::draw(const GhostCarPose& pose,const GhostCa
     const RenderProjectionCamera& camera,const RenderProjectionTables& tables,
     std::vector<std::uint32_t>& pixels,const std::vector<std::uint8_t>& coverage,int padding,bool extended,int bottom,const std::vector<float>* paintedDepth){
     const auto raster=rasterize(pose,style,camera,tables,padding,extended,bottom);
-    if(style.occlusion&&!paintedDepth&&(raster.hasSilhouette()||style.auditTrackDepth)){
+    if(style.occlusion&&!paintedDepth&&(raster.silhouette()||style.auditTrackDepth)){
         worldDepth_.assign(std::size_t(raster.width)*raster.height,0);
         unsigned worldTriangles=0;
         const auto drawQuad=[&](const std::array<RenderWorldPoint,4>& points){

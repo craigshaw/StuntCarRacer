@@ -541,13 +541,15 @@ void RaceScene::draw(const PresentationPose& frame,const NearTrackPresentation& 
     const int padding=viewPadding(view),bottomPadding=wide?56:0;
     if(showCockpit&&!wide)makeRaceBackground(assets_,pixels_);else pixels_.assign(viewWidth(view)*200,0);
     const auto ghostRaster=ghost?std::optional{ghostRenderer_.rasterize(*ghost,*ghostStyle,frame.camera,projection_,padding,extended,bottomPadding)}:std::nullopt;
-    const bool captureDepth=ghostRaster&&ghostStyle->occlusion&&(ghostRaster->hasSilhouette()||ghostStyle->auditTrackDepth);
+    const auto* silhouette=ghostRaster?ghostRaster->silhouette():nullptr;
+    const bool captureDepth=ghostRaster&&ghostStyle->occlusion&&(silhouette||ghostStyle->auditTrackDepth);
+    const auto* depthMask=captureDepth&&!ghostStyle->auditTrackDepth?silhouette:nullptr;
     const auto mountains=projectMountainHorizon(mountains_,frame.pose.yaw,frame.camera,padding);
     const auto ghostDepth=captureDepth?std::optional{refineGhostTrackDepth(nearTrack,movingTrack?movingTrack->progress:presentationTrack_,frame.pose,frame.camera)}:std::nullopt;
-    statistics_=renderer_.drawFrame(movingTrack?movingTrack->mesh:mesh_,movingTrack?movingTrack->sides:sides_,mountains,frame.camera,projection_,assets_.palette,pixels_,wireframe,ghostDepth?&*ghostDepth:&nearTrack,padding,extended,bottomPadding,captureDepth);
+    statistics_=renderer_.drawFrame(movingTrack?movingTrack->mesh:mesh_,movingTrack?movingTrack->sides:sides_,mountains,frame.camera,projection_,assets_.palette,pixels_,wireframe,ghostDepth?&*ghostDepth:&nearTrack,padding,extended,bottomPadding,captureDepth,depthMask);
     ghostStatistics_={};
     if(ghostRaster)ghostStatistics_=ghostRenderer_.composite(*ghostRaster,pixels_,renderer_.worldCoverage(),
-        captureDepth?&renderer_.worldInverseDepth():nullptr);
+        captureDepth?&renderer_.worldInverseDepth():nullptr,!depthMask);
     if(extended&&showCockpit){
         if(wide){
             cage_.assign(pixels_.size(),transparentPixel);composeWidescreenFrame(assets_,cage_);

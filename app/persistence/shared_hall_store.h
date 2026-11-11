@@ -1,5 +1,6 @@
 #pragma once
 #include "persistence/hall_ghost_codec.h"
+#include "persistence/hall_storage_types.h"
 #include "race/practice_ghost_target.h"
 #include <condition_variable>
 #include <filesystem>
@@ -9,7 +10,6 @@
 #include <thread>
 
 namespace scr::runtime {
-using HallBytes=state::checkpoint::Bytes;
 struct HallSubmission {
     HallAttempt attempt;
     HallBytes ghost;
@@ -20,14 +20,8 @@ struct HallSubmission {
 HallSubmission makeHallSubmission(HallAttempt,const HallGhost* ghost=nullptr);
 HallSubmission captureHallSubmission(HallAttempt,std::shared_ptr<const HallGhost>);
 std::string hallObjectName(const HallAttemptId&);
-enum class HallArchiveState {Missing,Valid,Recovered,Corrupt,Unsupported};
-struct HallArchiveRead {
-    HallArchiveState state{HallArchiveState::Missing};
-    std::shared_ptr<const HallOfFame> hall;
-    std::uint64_t generation{};
-};
-enum class HallGhostState {Missing,Valid,Corrupt,Unsupported,Unavailable};
-struct HallGhostRead {HallGhostState state{HallGhostState::Missing};std::shared_ptr<const HallGhost> ghost;};
+using HallArchiveRead=HallArchiveReadFor<HallOfFame>;
+using HallGhostRead=HallGhostReadFor<HallGhost>;
 struct HallBrowserRead {
     HallBoardKey board;
     HallArchiveRead archive;
@@ -37,9 +31,6 @@ struct HallBrowserRead {
     std::optional<HallAttemptId> challenge;
     std::shared_ptr<const PinnedHallGhost> target;
 };
-// Optional transaction observer for diagnostics and interrupted-write proofs.
-enum class HallWriteStage {GhostFlushed,GhostPublished,BackupFlushed,BackupPublished,HeadFlushed,HeadPublished,Collected};
-using HallWriteObserver=std::function<void(HallWriteStage)>;
 class SharedHallArchive {
 public:
     SharedHallArchive(std::filesystem::path root,HallCatalog,HallWriteObserver observer={});
@@ -54,7 +45,6 @@ private:
     HallCatalog catalog_;
     HallWriteObserver observer_;
 };
-enum class HallSubmitResult {Queued,Duplicate,OutsideTable,Full};
 constexpr std::size_t hallPendingMaximumBytes=64*1024*1024;
 constexpr std::size_t hallCaptureMaximumBytes=sizeof(HallGhost)+maxGhostLapSamples*sizeof(GhostLapSample)+
     maxGhostLapBridgeShapes*(sizeof(GhostBridgeShape)+512*sizeof(std::uint16_t));

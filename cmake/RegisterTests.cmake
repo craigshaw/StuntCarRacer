@@ -54,12 +54,14 @@ if(TARGET native_timing_proof)
     "${SCR_TEST_ASSET_PACK}" "${test_output}/native_timing_proof" ${timing_capture_arguments})
 endif()
 
-foreach(target crossing_estimation_tests lap_timing_tests hall_of_fame_tests hall_table_codec_tests hall_browser_tests hall_ghost_codec_tests paula_mixer_tests presentation_interpolation_tests drive_input_tests ghost_car_tests ghost_bridge_tests lap_recording_tests ghost_lap_codec_tests)
+foreach(target enhanced_records_tests crossing_estimation_tests lap_timing_tests hall_of_fame_tests hall_table_codec_tests hall_browser_tests hall_ghost_codec_tests paula_mixer_tests presentation_interpolation_tests drive_input_tests ghost_car_tests ghost_bridge_tests lap_recording_tests ghost_lap_codec_tests)
   scr_test(${target} "native;unit" "")
 endforeach()
 scr_test(software_renderer_tests "native;assets" "${SCR_TEST_PAYLOAD}" "${SCR_TEST_PAYLOAD}")
 
 if(WIN32)
+  scr_test(enhanced_store_tests "native;unit;storage" "" "${test_output}/enhanced_store_tests")
+  set_tests_properties(enhanced_store_tests PROPERTIES RUN_SERIAL TRUE)
   scr_test(native_lap_timing_tests "native;assets;timing" "${SCR_TEST_ASSET_PACK}"
     "${SCR_TEST_ASSET_PACK}" "${test_output}/native_lap_timing_tests"
     "${SCR_TEST_CAPTURE}" "${SCR_TEST_PAYLOAD}" "${PROJECT_SOURCE_DIR}/tests/replays/laps/authored-race-1463.csv")

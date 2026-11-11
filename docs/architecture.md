@@ -13,8 +13,8 @@ only to separate verification executables.
 | `scr_audio` | `src/audio/engine_audio.*`, `paula_mixer.*` | Engine interrupt state and four-channel mixing |
 | `scr_render` | `src/render/` | Geometry, projection, planar decoding and rasterization |
 | `scr_state` | `src/state/` | Recovered-layout adapters, race-stage order, checkpoint/replay I/O |
-| `scr_records` | `app/records/`, `app/persistence/hall_*_codec.*`, `app/race/practice_ghost_target.*` | Hall rankings, table and ghost formats, pinned Practice targets |
-| `scr_hall_storage` | `app/persistence/shared_hall_store.*`, `app/platform/windows/shared_hall_storage.*` | Installation-scoped archive, file locking, recovery and background reads and writes |
+| `scr_records` | `app/records/`, Hall/Enhanced codecs in `app/persistence/`, `app/race/practice_ghost_target.*` | Original/Enhanced record models, timing values and formats, pinned Original Practice targets |
+| `scr_hall_storage` | `app/persistence/*hall_store.*`, `hall_archive_engine.h`, `app/platform/windows/shared_hall_storage.*` | Separate category archives sharing file locking, recovery and background reads and writes |
 | `scr_runtime` | `app/assets/`, `menus/`, `presentation/`, shared rule adapters | Initialization, original menus/text/screens and competition helpers |
 | `scr_game` | `app/session/`, `race/`, `persistence/`, `input/`, `audio/`, Hall browser in `menus/` and `presentation/` | Session handoff, career storage, gameplay orchestration, snapshots, lap recording and Hall completion delivery |
 | `scr_host_ui` | `app/launcher/`, Windows launcher/display adapters | Setup, preferences, overlays, image scaling and fullscreen |
@@ -63,7 +63,8 @@ private state and cannot affect later gameplay, RNG or saves. The
 
 [Enhanced timing capture](components/enhanced-timing.md#independent-timing-capture)
 observes native crossings independently of ghost buffers. Its measurements do
-not change the original clocks or race outcomes; Enhanced records/UI are pending.
+not change the original clocks or race outcomes. Separate Enhanced PB/Hall models,
+codecs and storage are implemented; session delivery, targets and UI are pending.
 
 ## Fidelity contract
 

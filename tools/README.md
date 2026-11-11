@@ -43,7 +43,8 @@ Results, raw CSVs, the method decision and identified receipts live under
 `analysis/timing-estimation/`. `--configuration Debug` writes a separate Debug
 receipt; `--skip-build` requires matching identities. This is stage 1 of the
 [Enhanced timing plan](../docs/components/enhanced-timing.md). Its chosen arithmetic
-is shared with live capture; Enhanced records and presentation remain pending.
+is shared with live capture and separate Enhanced record storage; player
+delivery and presentation remain pending.
 
 `scripts/check_native_lap_timing.py` verifies stage-2 capture through unit and
 native integration CTests. It covers dual timing metadata without a ghost
@@ -77,8 +78,20 @@ It checks recovery, retry deduplication and usable referenced ghosts. Reports,
 logs and disposable data stay under `analysis/hall-of-fame/durable-store/`.
 This proof covers process interruption, not power loss or another Windows login;
 the foundation account proof remains separate. Player completion delivery is
-checked by `scripts/check_native_laps.py --verify-original`; enhanced Hall browser
+checked by `scripts/check_native_laps.py --verify-original`; Enhanced Hall browser
 and challenge integration remain pending.
+
+`scripts/check_native_enhanced_store.py` verifies separate Enhanced PB/Hall
+models, codecs and storage, with Original regressions. It builds
+`native_enhanced_store_proof` and reruns the Original process proof. Each uses
+two hidden owned writers and seven process-termination boundaries, checking
+recovery, duplicate retries and usable ghost references in disposable namespaces.
+It also checks private PB recovery, category isolation, millisecond ties and
+time-only results. Source/fixture/executable receipts, logs and data live under
+`analysis/enhanced-records/`, with a separate Debug directory selected by
+`--configuration Debug`. Real player data, power loss and a real second Windows
+account are outside this proof. Live Enhanced completion delivery is stage 4 of
+the [timing plan](../docs/components/enhanced-timing.md).
 
 ## Static ghost rendering proof
 

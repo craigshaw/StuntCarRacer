@@ -10,12 +10,14 @@
 #include <iomanip>
 #include <sstream>
 #include <set>
+#include <limits>
 
 namespace scr::runtime {
 namespace {
 using namespace state::checkpoint;
 constexpr std::uint32_t magic=0x43524353,version=1;
 constexpr std::size_t maximumFile=4*1024*1024;
+static_assert(enhancedBestMaximumBytes+32<=maximumFile,"Enhanced PB must fit the durable envelope");
 bool validId(const std::string& id){return id.size()==32&&std::all_of(id.begin(),id.end(),[](char c){return (c>='0'&&c<='9')||(c>='a'&&c<='f');});}
 std::filesystem::path generationPath(const std::filesystem::path& path,unsigned n){return n?std::filesystem::path(path.wstring()+L".bak"+std::to_wstring(n)):path;}
 CareerRead readOne(const std::filesystem::path& path,unsigned kind){
@@ -28,14 +30,16 @@ CareerRead readOne(const std::filesystem::path& path,unsigned kind){
         const auto savedVersion=r.u32();if(savedVersion!=version)return {CareerFileState::Unsupported};
         if(r.u32()!=kind)return {CareerFileState::Corrupt};
         const auto length=r.u32();const auto sequence=r.u64(),checksum=r.u64();
+        if(kind==5&&!sequence)return {CareerFileState::Corrupt};
         if(length!=bytes.size()-r.position||checksum!=hash(bytes.data()+r.position,length))return {CareerFileState::Corrupt};
         Bytes payload(bytes.begin()+r.position,bytes.end());
         if(kind==1)(void)decodeCareerInfo(payload);
         if(kind==2){if(payload.size()!=512)return {CareerFileState::Corrupt};NativeHallBanks hall{};std::copy(payload.begin(),payload.end(),hall.begin());if(!validNativeHall(hall))return {CareerFileState::Corrupt};}
         if(kind==3){Reader index{payload};const auto id=index.text(32);index.end();if(!id.empty()&&!validId(id))return {CareerFileState::Corrupt};}
         if(kind==4)(void)decodeGhostLap(payload);
+        if(kind==5)(void)decodeEnhancedBest(payload);
         return {CareerFileState::Valid,std::move(payload),sequence};
-    }catch(const UnsupportedGhostLap&){return {CareerFileState::Unsupported};}catch(...){return {CareerFileState::Corrupt};}
+    }catch(const UnsupportedGhostLap&){return {CareerFileState::Unsupported};}catch(const UnsupportedEnhancedRecords&){return {CareerFileState::Unsupported};}catch(...){return {CareerFileState::Corrupt};}
 }
 bool atomicWrite(const std::filesystem::path& path,const Bytes& bytes,std::string& error){
     std::error_code code;std::filesystem::create_directories(path.parent_path(),code);
@@ -87,6 +91,10 @@ std::filesystem::path NativeCareerStore::ghostPath(const GhostLapKey& key)const{
     if(!validId(key.career)||key.track>=8)throw std::invalid_argument("Invalid ghost identity");
     return root_/L"ghosts"/key.career/(std::to_string(key.track)+(key.superLeague?"-super":"-normal")+".scr-ghost");
 }
+std::filesystem::path NativeCareerStore::enhancedBestPath(const EnhancedBestKey& key)const{
+    validateEnhancedBestKey(key);
+    return root_/L"ghosts-enhanced-v1"/key.career/(std::to_string(key.track)+(key.superLeague?"-super":"-normal")+".scr-ebest");
+}
 CareerRead NativeCareerStore::readFile(const std::filesystem::path& path,unsigned kind,const Validator& validator){
     const auto read=[&](const std::filesystem::path& file){auto value=readOne(file,kind);if(value.state==CareerFileState::Valid&&validator)value.state=validator(value.data);return value;};
     auto current=read(path);if(current.state==CareerFileState::Valid||current.state==CareerFileState::Unsupported)return current;
@@ -101,6 +109,21 @@ CareerRead NativeCareerStore::readHall()const{return readFile(root_/L"hall.scr-h
 CareerRead NativeCareerStore::readGhost(const GhostLapKey& key,std::uint64_t content)const{
     return readFile(ghostPath(key),4,[key,content](const auto& data){try{(void)decodeGhostLap(data,key,content);return CareerFileState::Valid;}
         catch(const UnsupportedGhostLap&){return CareerFileState::Unsupported;}catch(...){return CareerFileState::Corrupt;}});
+}
+CareerRead NativeCareerStore::readEnhancedBest(const EnhancedBestKey& key,EnhancedCatalog catalog)const{
+    validateEnhancedCatalog(catalog);
+    const auto path=enhancedBestPath(key);CareerRead result;bool corrupt=false;
+    for(unsigned n=0;n<3;++n){auto candidate=readOne(generationPath(path,n),5);
+        if(candidate.state==CareerFileState::Valid)try{(void)decodeEnhancedBest(candidate.data,key,catalog);}
+            catch(const UnsupportedEnhancedRecords&){candidate.state=CareerFileState::Unsupported;}catch(...){candidate.state=CareerFileState::Corrupt;}
+        if(candidate.state==CareerFileState::Unsupported)return candidate;
+        corrupt|=candidate.state==CareerFileState::Corrupt;
+        if(candidate.state==CareerFileState::Valid&&(result.state==CareerFileState::Missing||
+            decodeEnhancedBest(candidate.data).time.milliseconds()<decodeEnhancedBest(result.data).time.milliseconds())){
+            result=std::move(candidate);if(n)result.state=CareerFileState::Recovered;
+        }
+    }
+    if(result.state==CareerFileState::Missing&&corrupt)result.state=CareerFileState::Corrupt;return result;
 }
 std::string NativeCareerStore::lastUsed()const{
     const auto saved=readFile(root_/L"last.scr-index",3);if(saved.state!=CareerFileState::Valid&&saved.state!=CareerFileState::Recovered)return {};
@@ -128,7 +151,15 @@ std::vector<NativeCareerInfo> NativeCareerStore::list()const{
     std::sort(result.begin(),result.end(),[](const auto& a,const auto& b){return a.lastPlayed!=b.lastPlayed?a.lastPlayed>b.lastPlayed:a.id<b.id;});return result;
 }
 void NativeCareerStore::submit(std::filesystem::path path,unsigned kind,CareerBytes bytes,Validator validator){
-    std::lock_guard<std::mutex> lock(mutex_);Job job{std::move(path),kind,std::move(bytes),++serial_,std::move(validator)};
+    std::lock_guard<std::mutex> lock(mutex_);
+    if(kind==5)if(const auto old=latest_.find(path);old!=latest_.end()){
+        const auto candidate=decodeEnhancedBest(bytes),held=decodeEnhancedBest(old->second.data);
+        if(!sameEnhancedCatalog(candidate.catalog,held.catalog))throw UnsupportedEnhancedRecords("Pending Enhanced PB compatibility differs");
+        // Coalescing and retries must retain the fastest unsaved candidate too.
+        // Still enqueue it so a missing or damaged head can be repaired.
+        if(held.time.milliseconds()<=candidate.time.milliseconds()){bytes=old->second.data;validator=old->second.validator;}
+    }
+    Job job{std::move(path),kind,std::move(bytes),++serial_,std::move(validator)};
     latest_[job.path]=job;
     jobs_.erase(std::remove_if(jobs_.begin(),jobs_.end(),[&](const auto& old){return old.path==job.path;}),jobs_.end());jobs_.push_back(std::move(job));changed_.notify_one();
 }
@@ -140,15 +171,32 @@ void NativeCareerStore::saveGhost(const GhostLap& lap){
     submit(ghostPath(key),4,encodeGhostLap(lap),[key,content](const auto& data){try{(void)decodeGhostLap(data,key,content);return CareerFileState::Valid;}
         catch(const UnsupportedGhostLap&){return CareerFileState::Unsupported;}catch(...){return CareerFileState::Corrupt;}});
 }
+void NativeCareerStore::saveEnhancedBest(const EnhancedBest& best){
+    const auto key=best.key;const auto catalog=best.catalog;
+    submit(enhancedBestPath(key),5,encodeEnhancedBest(best),[key,catalog](const auto& data){try{(void)decodeEnhancedBest(data,key,catalog);return CareerFileState::Valid;}
+        catch(const UnsupportedEnhancedRecords&){return CareerFileState::Unsupported;}catch(...){return CareerFileState::Corrupt;}});
+}
 bool NativeCareerStore::writeFile(const Job& job,std::string& error,const Validator& validator){
     try{
         const auto read=[&](const std::filesystem::path& path){auto value=readOne(path,job.kind);
-            const auto& validate=job.kind==4?job.validator:validator;
-            if(value.state==CareerFileState::Valid&&(job.kind==1||job.kind==4)&&validate)value.state=validate(value.data);return value;};
+            const auto& validate=(job.kind==4||job.kind==5)?job.validator:validator;
+            if(value.state==CareerFileState::Valid&&(job.kind==1||job.kind==4||job.kind==5)&&validate)value.state=validate(value.data);return value;};
         const auto current=read(job.path);if(current.state==CareerFileState::Unsupported){error="Save belongs to an unsupported version";return false;}
         auto previous=read(generationPath(job.path,1)),older=read(generationPath(job.path,2));
         if(previous.state==CareerFileState::Unsupported||older.state==CareerFileState::Unsupported){error="A recovery copy belongs to an unsupported version";return false;}
-        if(job.kind==4){
+        const auto* payload=&job.data;
+        const CareerRead* enhancedBest=nullptr;
+        if(job.kind==5){
+            const CareerRead* copies[]{&current,&previous,&older};
+            const CareerRead* best=nullptr;for(const auto* copy:copies)if(copy->state==CareerFileState::Valid&&
+                (!best||decodeEnhancedBest(copy->data).time.milliseconds()<decodeEnhancedBest(best->data).time.milliseconds()))best=copy;
+            enhancedBest=best;
+            if(best&&decodeEnhancedBest(best->data).time.milliseconds()<=decodeEnhancedBest(*payload).time.milliseconds()){
+                if(current.state==CareerFileState::Valid&&current.data==best->data)return true;
+                payload=&best->data;
+            }
+        }
+        if(job.kind==4||job.kind==5){
             const CareerRead* copies[]{&current,&previous,&older};
             const auto stamp=std::to_wstring(std::chrono::system_clock::now().time_since_epoch().count())+L"-"+std::to_wstring(job.serial);
             for(unsigned n=0;n<3;++n)if(copies[n]->state==CareerFileState::Corrupt){
@@ -156,24 +204,36 @@ bool NativeCareerStore::writeFile(const Job& job,std::string& error,const Valida
                 if(!MoveFileExW(path.c_str(),preserved.c_str(),MOVEFILE_WRITE_THROUGH)){error="Cannot preserve unreadable ghost";return false;}
             }
         }
-        std::uint64_t sequence=std::max({current.generation,previous.generation,older.generation})+1;
-        if(current.state==CareerFileState::Valid&&current.generation!=previous.generation){
+        const auto newest=std::max({current.generation,previous.generation,older.generation});
+        if(job.kind==5&&newest==std::numeric_limits<std::uint64_t>::max()){error="Enhanced PB generation exhausted";return false;}
+        const std::uint64_t sequence=newest+1;
+        if(job.kind==5&&enhancedBest){
+            const CareerRead* history=enhancedBest;const CareerRead* copies[]{&current,&previous,&older};
+            for(const auto* copy:copies)if(copy!=enhancedBest&&copy->state==CareerFileState::Valid&&(history==enhancedBest||copy->generation>history->generation))history=copy;
+            const auto backupBest=[&]{return atomicWrite(generationPath(job.path,1),envelope(job.kind,enhancedBest->generation,enhancedBest->data),error);};
+            const auto backupHistory=[&]{return atomicWrite(generationPath(job.path,2),envelope(job.kind,history->generation,history->data),error);};
+            if(enhancedBest==&older){if(!backupBest()||!backupHistory())return false;}
+            else if(!backupHistory()||!backupBest())return false;
+        }else if(current.state==CareerFileState::Valid&&current.generation!=previous.generation){
             if(previous.state==CareerFileState::Valid&&!atomicWrite(generationPath(job.path,2),envelope(job.kind,previous.generation,previous.data),error))return false;
             if(!atomicWrite(generationPath(job.path,1),envelope(job.kind,current.generation,current.data),error))return false;
         }
-        return atomicWrite(job.path,envelope(job.kind,sequence,job.data),error);
+        return atomicWrite(job.path,envelope(job.kind,sequence,*payload),error);
     }catch(const std::exception& failure){error=failure.what();return false;}
 }
 void NativeCareerStore::run(){
     for(;;){Job job;{std::unique_lock<std::mutex> lock(mutex_);changed_.wait(lock,[&]{return stopping_||!jobs_.empty();});if(stopping_&&jobs_.empty())return;job=std::move(jobs_.front());jobs_.pop_front();writing_=true;}
         std::string error;const bool okay=writeFile(job,error,validator_);
-        {std::lock_guard<std::mutex> lock(mutex_);if(okay)errors_.erase(job.path);else errors_[job.path]=std::move(error);writing_=false;if(jobs_.empty())idle_.notify_all();}
+        {std::lock_guard<std::mutex> lock(mutex_);if(okay){errors_.erase(job.path);
+                if(job.kind==5)if(const auto latest=latest_.find(job.path);latest!=latest_.end()&&latest->second.serial==job.serial)latest_.erase(latest);
+            }else errors_[job.path]=std::move(error);writing_=false;if(jobs_.empty())idle_.notify_all();}
     }
 }
 bool NativeCareerStore::flush(){std::unique_lock<std::mutex> lock(mutex_);idle_.wait(lock,[&]{return !writing_&&jobs_.empty();});return errors_.empty();}
 bool NativeCareerStore::pending()const{std::lock_guard<std::mutex> lock(mutex_);return writing_||!jobs_.empty();}
 bool NativeCareerStore::failed()const{std::lock_guard<std::mutex> lock(mutex_);return !errors_.empty();}
 bool NativeCareerStore::ghostFailed()const{std::lock_guard<std::mutex> lock(mutex_);return std::any_of(errors_.begin(),errors_.end(),[](const auto& e){return e.first.extension()==L".scr-ghost";});}
+bool NativeCareerStore::enhancedBestFailed()const{std::lock_guard<std::mutex> lock(mutex_);return std::any_of(errors_.begin(),errors_.end(),[](const auto& e){return e.first.extension()==L".scr-ebest";});}
 std::string NativeCareerStore::error()const{std::lock_guard<std::mutex> lock(mutex_);return errors_.empty()?std::string{}:errors_.begin()->second;}
 std::string NativeCareerStore::failureSummary()const{
     std::lock_guard<std::mutex> lock(mutex_);bool hall=false,career=false,ghost=false;
@@ -189,10 +249,15 @@ bool NativeCareerStore::removeCareer(const std::string& id){
     for(unsigned n=0;n<3;++n){std::filesystem::remove(generationPath(path,n),error);if(error)return false;}
     std::filesystem::remove(path.wstring()+L".tmp",error);if(error)return false;
     for(bool super:{false,true})for(unsigned track=0;track<8;++track)if(!clearGhost({id,track,super}))return false;
+    for(bool super:{false,true})for(unsigned track=0;track<8;++track)if(!clearEnhancedBest({id,track,super}))return false;
     if(lastUsed()==id){setLastUsed({});return flush();}return true;
 }
 bool NativeCareerStore::clearGhost(const GhostLapKey& key){
-    flush();const auto path=ghostPath(key);
+    return clearRecord(ghostPath(key));
+}
+bool NativeCareerStore::clearEnhancedBest(const EnhancedBestKey& key){return clearRecord(enhancedBestPath(key));}
+bool NativeCareerStore::clearRecord(const std::filesystem::path& path){
+    flush();
     {std::lock_guard<std::mutex> lock(mutex_);latest_.erase(path);errors_.erase(path);}
     std::error_code error;
     for(unsigned n=0;n<4;++n){

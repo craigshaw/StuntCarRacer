@@ -1,8 +1,8 @@
 # Enhanced timing implementation plan
 
-Status: stages 1–2 complete. The crossing estimator and independent live timing
-capture are implemented. Enhanced persistence, targets and UI in stages 3–6
-remain pending.
+Status: stages 1–3 complete. Crossing estimation, independent live timing capture
+and separate Enhanced record/storage APIs are implemented. Live session delivery,
+ghost targets and UI in stages 4–6 remain pending.
 
 Add millisecond lap and three-lap timing using interpolated crossings on the
 existing 120 ms simulation timeline. Keep Original timing and its records
@@ -203,6 +203,7 @@ exclude pre-start recoveries from the next lap and assign a same-timestamp reset
 by native event order. A decreasing recovery identity invalidates intervals
 across that discontinuity; later intervals can resynchronise.
 
+`app/records/enhanced_time.*` owns the shared boundary and time values.
 `EnhancedTime` contains the method version, elapsed/penalty/scored microseconds,
 recovery count and confidence. `hasEstimate` distinguishes a usable approximate
 value from invalid clock arithmetic or unknown penalty accounting. `rankable()`
@@ -222,13 +223,12 @@ step; callers must drain it before the next step. This bounded handoff is
 independent of ghost capture. Existing `LapCompletion` objects also carry the
 optional Enhanced metadata, including time-only completions after a recording
 overflow. Original PB/Hall processing and all existing codecs still use their
-Original fields. Enhanced persistence and session delivery will consume this
-handoff in the later stages.
+Original fields. Enhanced session delivery will consume this handoff in stage 4.
 
 Original ghost samples retain their existing progress-aligned boundaries.
-Enhanced recording persistence must bind its own validated boundaries and
-sample offsets in stages 3–4; the new timing metadata does not reinterpret an
-existing Original recording as an Enhanced ghost.
+Enhanced recording persistence binds its own validated boundaries and sample
+offsets; stage 4 must produce those recordings. The timing metadata does not
+reinterpret an existing Original recording as an Enhanced ghost.
 
 Run `scripts/check_native_lap_timing.py` for the Release capture receipt, or add
 `--configuration Debug` for a separate Debug receipt. Unit checks cover both
@@ -243,7 +243,8 @@ results live under `analysis/lap-timing/`; existing ghost/Hall and test-only
 original-code regressions remain covered by `check_native_laps.py --verify-original`.
 
 The player still displays and saves Original results at this stage. Enhanced
-ranking, persistence, category selection and presentation are later work.
+storage is available independently; player delivery, selection and presentation
+remain later work.
 
 ## Component changes
 
@@ -305,6 +306,68 @@ its replacement for the current partial lap, while the other category and Hall
 capture continue. Career deletion covers both private namespaces. Preserve Hall
 no-reset/no-delete behaviour and career checkpoint compatibility.
 
+### Implemented storage foundation
+
+`app/records/enhanced_records.*` owns Enhanced PBs and Hall models. Both compare
+the rounded displayed millisecond, never hidden microsecond digits. PBs require
+a strict improvement and may contain a time without a ghost. Hall boards retain
+20 entries each across eight tracks, two leagues and lap/race categories. Ties
+share competition rank and retain insertion order; a full board rejects a tie
+with its final entry. Uncertain or unavailable estimates cannot enter either
+model. An existing attempt ID cannot be retried with different record content.
+
+`app/persistence/enhanced_record_codec.*` defines separate version-1 table, PB
+and Hall-ghost formats with checksums and distinct magic values. The catalog
+binds track content, gameplay rules and timing method independently. Recordings
+include reliable start/finish boundaries, raw movement samples, bridge shapes
+and ordered recovery offsets. Validation recomputes the score from the endpoints
+and recovery count, checks sample coverage and binds each recovery to a cut.
+Original files are neither imported nor reinterpreted.
+
+| Data | Enhanced namespace |
+| --- | --- |
+| Private career PB | `ghosts-enhanced-v1/<career>/<track>-normal.scr-ebest` or `-super.scr-ebest` under the existing private data root |
+| Shared Hall | Sibling `<original-hall-name>-enhanced-v1/`, including installation `hall-enhanced-v1/` and development `shared-hall-enhanced-v1/` |
+| Shared index | `index.scr-ehall` and its own two backups, temporary file and lock |
+| Shared lap recording | `ghosts/<attempt-id>.scr-eghost` inside the Enhanced Hall root |
+
+`NativeCareerStore` exposes read/save/clear operations and a separate Enhanced
+failure query. Its existing envelope uses a new payload kind; Original kinds
+and checkpoints are unchanged. Reads choose the fastest valid PB among the head
+and two backups, retaining the head on a tie. Writes and queued retries retain
+the fastest candidate and preserve a sole fastest backup before rotating files.
+Unsupported compatibility in any copy blocks replacement; corrupt copies are
+preserved before repair. Clearing one private category leaves the other intact,
+and career deletion removes both private categories without altering the Hall.
+
+`EnhancedHallArchive` and `EnhancedHallStore` reuse the locked, atomic file
+protocol in `hall_archive_engine.h` with the Original archive. Policies keep
+their paths, index identities, codecs and garbage collection suffixes separate.
+Ghosts publish before their index references; collection protects references in
+all readable generations. The Enhanced worker exposes queue backpressure,
+failure and retry independently. Completion IDs salt the run identity with the
+Enhanced category and method before applying the unchanged completion-ID rule.
+Live submission and failure feedback are stage-4 integration work.
+
+Encoded limits are 66,728 bytes for a full Hall table, 3,019,268 for a PB and
+3,019,196 for a Hall ghost. Recordings permit at most 65,536 movement samples,
+64 bridge shapes and 65,536 recovery events. The shared worker defaults to a
+64 MiB pending budget and accounts for vector allocation capacity, returning
+`Full` when a candidate cannot fit. Immutable captures must meet the compact
+allocation bounds; the worker encodes them away from the driving loop.
+
+Run `scripts/check_native_enhanced_store.py`, with `--configuration Debug` for a
+separate Debug receipt. It checks models/codecs and private/shared storage,
+including time-only PBs, ties, failed writes, unsupported copies, isolated clears,
+career deletion, backup recovery, garbage collection and concurrent writers.
+The wrapper also runs Original PB/Hall regressions and both category-specific
+process proofs: each merges 20 attempts from two writers, then terminates owned
+children at seven transaction boundaries and verifies deduplicated retries and
+usable ghost references. Receipts and disposable data live under
+`analysis/enhanced-records/`. These checks use synthetic records and do not access
+real player data; process interruption does not establish power-loss or real
+second-account behaviour.
+
 ## Settings and presentation
 
 Extend the existing version-9 settings format with a versioned timing preference.
@@ -351,7 +414,7 @@ active.
    Integrate dual completion metadata without changing Original processing.
    Exit: reliable results survive ghost overflow and full simulation/RNG
    comparisons remain identical.
-3. **Add records and persistence.** Implement category-specific ordering, PBs,
+3. **Add records and persistence — complete.** Implement category-specific ordering, PBs,
    separate Enhanced namespaces/codecs, retry identities and storage workers.
    Exit: tie semantics, Original compatibility, time-only results, interrupted
    writes and concurrent access pass isolated tests.
@@ -377,8 +440,8 @@ active.
 | Timing arithmetic | Exact endpoints, fractions, positive duration, rollover, overflow, half-millisecond ties and race totals rounded once; unit CTest |
 | Crossings | Both endpoints, forward/wrap/reverse/high-speed/airborne cases, lookup failure, missing brackets, recovery cuts and penalty ordering; lap integration tests |
 | Original isolation | All eight tracks and both leagues, identical native memory/RNG/outcomes with either timing mode; `scripts/check_native_laps.py --verify-original` |
-| Record models/codecs | Separate rankings and PBs, ties/cutoff ties, duplicate attempts, time-only results, invalid metadata and legacy reads; `scripts/check_native_hall.py` |
-| Durable storage | Both namespaces, retry/failure isolation, backups, unsupported files, process interruption, concurrent writers and garbage collection; `scripts/check_native_hall_store.py` |
+| Record models/codecs | Separate rankings and PBs, ties/cutoff ties, duplicate attempts, time-only results, invalid metadata and legacy reads; `scripts/check_native_enhanced_store.py` |
+| Durable storage | Both namespaces, retry/failure isolation, backups, unsupported files, process interruption, concurrent writers and garbage collection; `scripts/check_native_enhanced_store.py` |
 | Session/UI | Practice, career, multiplayer, pinned rivals, clear, quit, interrupted races and settings migration/Cancel; `scripts/check_native_game.py --verify-original` |
 | Presentation | Frame-rate independence, executed catch-up, discarded stall time, pause/focus loss, smoothing, repeated/reverse queries and all four views; `scripts/check_native_rendering.py` and `scripts/check_native_render_audit.py` |
 | Ghosts | Raw movement timeline, independent category targets, recording overflow and Draw Bridge suppression; lap checks plus `scripts/check_native_ghost.py` and `scripts/check_native_ghost_bridge.py` |
@@ -393,5 +456,6 @@ under `analysis/`, following [development](../development.md).
 
 Completion requires preserved Original data and gameplay, independent Enhanced
 rankings with conservative eligibility, deterministic millisecond results, and
-matching timer/ghost presentation. Stages 1–2 provide the selected world-plane
-method and independent capture; stages 3–6 complete the agreed player behaviour.
+matching timer/ghost presentation. Stages 1–3 provide the selected world-plane
+method, independent capture and separate storage; stages 4–6 complete the agreed
+player behaviour.

@@ -1,96 +1,14 @@
-#define NOMINMAX
-#define WIN32_LEAN_AND_MEAN
-#include <windows.h>
-#include <bcrypt.h>
 #include "persistence/shared_hall_store.h"
-#include "platform/windows/shared_hall_storage.h"
-#include <algorithm>
-#include <array>
+#include "persistence/hall_archive_engine.h"
 #include <iomanip>
-#include <limits>
-#include <set>
 #include <sstream>
 
 namespace scr::runtime {
 namespace {
 namespace fs=std::filesystem;
 using namespace state::checkpoint;
-constexpr std::uint32_t indexMagic=0x58444948,indexVersion=1;
-constexpr std::size_t indexMaximumBytes=hallTableMaximumBytes+28;
-class HallIoError:public std::runtime_error {public:using std::runtime_error::runtime_error;};
-[[noreturn]]void failure(const char* message,DWORD code=GetLastError()){
-    throw HallIoError(std::string(message)+" (Windows error "+std::to_string(code)+")");
-}
-struct File {HANDLE value{INVALID_HANDLE_VALUE};~File(){if(value!=INVALID_HANDLE_VALUE)CloseHandle(value);}};
-HallGhostDigest digest(const Bytes& bytes){
-    BCRYPT_ALG_HANDLE algorithm{};BCRYPT_HASH_HANDLE h{};
-    if(BCryptOpenAlgorithmProvider(&algorithm,BCRYPT_SHA256_ALGORITHM,nullptr,0)<0)throw std::runtime_error("Cannot open Hall ghost hash");
-    auto status=BCryptCreateHash(algorithm,&h,nullptr,0,nullptr,0,0);HallGhostDigest result{};
-    if(status>=0)status=BCryptHashData(h,const_cast<PUCHAR>(bytes.data()),ULONG(bytes.size()),0);
-    if(status>=0)status=BCryptFinishHash(h,result.data(),ULONG(result.size()),0);
-    if(h)BCryptDestroyHash(h);BCryptCloseAlgorithmProvider(algorithm,0);
-    if(status<0)throw std::runtime_error("Cannot hash Hall ghost");return result;
-}
-std::optional<Bytes> readBytes(const fs::path& path,std::size_t maximum){
-    File file;file.value=CreateFileW(path.c_str(),GENERIC_READ,FILE_SHARE_READ,nullptr,OPEN_EXISTING,FILE_ATTRIBUTE_NORMAL,nullptr);
-    if(file.value==INVALID_HANDLE_VALUE){const auto code=GetLastError();if(code==ERROR_FILE_NOT_FOUND||code==ERROR_PATH_NOT_FOUND)return {};failure("Cannot read shared Hall",code);}
-    LARGE_INTEGER size{};if(!GetFileSizeEx(file.value,&size))failure("Cannot size shared Hall");
-    if(size.QuadPart<0||std::uint64_t(size.QuadPart)>maximum)throw std::length_error("Shared Hall file exceeds its bound");
-    Bytes bytes(std::size_t(size.QuadPart),0);DWORD count{};
-    if(!ReadFile(file.value,bytes.data(),DWORD(bytes.size()),&count,nullptr)||count!=bytes.size())failure("Cannot read complete shared Hall");
-    return bytes;
-}
-void atomicWrite(const fs::path& path,const Bytes& bytes,const HallWriteObserver& observer,HallWriteStage flushed,HallWriteStage published){
-    const auto temporary=fs::path(path.wstring()+L".tmp");
-    {File file;file.value=CreateFileW(temporary.c_str(),GENERIC_WRITE,0,nullptr,CREATE_ALWAYS,FILE_ATTRIBUTE_NORMAL,nullptr);
-        if(file.value==INVALID_HANDLE_VALUE)failure("Cannot create shared Hall temporary");DWORD count{};
-        if(!WriteFile(file.value,bytes.data(),DWORD(bytes.size()),&count,nullptr)||count!=bytes.size()||!FlushFileBuffers(file.value))failure("Cannot flush shared Hall temporary");}
-    if(observer)observer(flushed);
-    if(!MoveFileExW(temporary.c_str(),path.c_str(),MOVEFILE_REPLACE_EXISTING|MOVEFILE_WRITE_THROUGH))failure("Cannot publish shared Hall");
-    if(observer)observer(published);
-}
-Bytes envelope(const HallOfFame& hall,std::uint64_t generation){
-    const auto table=encodeHallTable(hall);Writer w;w.u32(indexMagic);w.u32(indexVersion);w.u64(generation);w.u32(unsigned(table.size()));w.bytes(table.data(),table.size());
-    w.u64(hash(w.data.data(),w.data.size()));return std::move(w.data);
-}
-struct Generation {HallArchiveState state{HallArchiveState::Missing};Bytes bytes;std::shared_ptr<const HallOfFame> hall;std::uint64_t number{};unsigned slot{};};
-fs::path indexPath(const fs::path& root,unsigned slot){return root/(slot?L"index.scr-hall.bak"+std::to_wstring(slot):L"index.scr-hall");}
-Generation readGeneration(const fs::path& root,unsigned slot,HallCatalog catalog){
-    Generation g;g.slot=slot;
-    try{
-        auto bytes=readBytes(indexPath(root,slot),indexMaximumBytes);if(!bytes)return g;g.bytes=std::move(*bytes);
-        Reader r{g.bytes};if(r.u32()!=indexMagic)throw std::runtime_error("Invalid Hall index magic");
-        if(r.u32()!=indexVersion)throw UnsupportedHallTable("Unsupported Hall index version");
-        g.number=r.u64();const auto size=r.u32();if(!g.number||size>hallTableMaximumBytes)throw std::runtime_error("Invalid Hall index header");
-        r.require(size);Bytes table(g.bytes.begin()+r.position,g.bytes.begin()+r.position+size);r.position+=size;
-        const auto end=r.position;if(r.u64()!=hash(g.bytes.data(),end))throw std::runtime_error("Hall index checksum mismatch");r.end();
-        g.hall=std::make_shared<const HallOfFame>(decodeHallTable(table,catalog));g.state=HallArchiveState::Valid;
-    }catch(const HallIoError&){throw;}
-    catch(const UnsupportedHallTable&){g.state=HallArchiveState::Unsupported;}
-    catch(const std::length_error&){g.state=HallArchiveState::Corrupt;}
-    catch(const std::invalid_argument&){g.state=HallArchiveState::Corrupt;}
-    // Format-reader failures are distinct from OS I/O failures above.
-    catch(const std::runtime_error&){g.state=HallArchiveState::Corrupt;}
-    return g;
-}
-struct Loaded {std::array<Generation,3> copies;HallArchiveRead result;std::vector<Generation*> valid;};
-Loaded load(const fs::path& root,HallCatalog catalog){
-    Loaded loaded;bool corrupt=false,unsupported=false;
-    for(unsigned n=0;n<3;++n){auto& g=loaded.copies[n];g=readGeneration(root,n,catalog);
-        corrupt|=g.state==HallArchiveState::Corrupt;unsupported|=g.state==HallArchiveState::Unsupported;}
-    // Populate pointers only after returning Loaded (see select below).
-    loaded.result.state=unsupported?HallArchiveState::Unsupported:corrupt?HallArchiveState::Corrupt:HallArchiveState::Missing;
-    return loaded;
-}
-void select(Loaded& l,HallCatalog catalog){
-    if(l.result.state==HallArchiveState::Unsupported)return;
-    for(auto& g:l.copies)if(g.state==HallArchiveState::Valid)l.valid.push_back(&g);
-    std::stable_sort(l.valid.begin(),l.valid.end(),[](const auto* a,const auto* b){return a->number>b->number;});
-    for(unsigned n=1;n<l.valid.size();++n)if(l.valid[n-1]->number==l.valid[n]->number&&l.valid[n-1]->bytes!=l.valid[n]->bytes){l.result.state=HallArchiveState::Corrupt;l.valid.clear();return;}
-    if(!l.valid.empty()){const auto& g=*l.valid.front();l.result={g.slot?HallArchiveState::Recovered:HallArchiveState::Valid,g.hall,g.number};}
-    else if(l.result.state==HallArchiveState::Missing)l.result.hall=std::make_shared<const HallOfFame>(catalog);
-}
-void validateSubmission(const HallSubmission& s,HallCatalog c){
+using archive_detail::digest;
+void validateOriginalSubmission(const HallSubmission& s,HallCatalog c){
     HallOfFame single(c);single.offer(s.attempt);
     if(s.recording){
         if(!s.ghost.empty()||s.attempt.ghost)throw std::invalid_argument("Captured Hall recording already has encoded data");
@@ -116,24 +34,24 @@ std::size_t submissionBytes(const HallSubmission& s){
     const auto& g=*s.recording;bytes+=sizeof(g)+g.samples.capacity()*sizeof(GhostLapSample)+g.bridges.capacity()*sizeof(GhostBridgeShape);
     for(const auto& b:g.bridges)bytes+=b.cachedSections.capacity()*sizeof(std::uint16_t);return bytes;
 }
-bool objectFilename(const std::string& name){
-    if(name.size()!=43&&name.size()!=47)return false;
-    if(name.substr(32)!=".scr-hghost"&&name.substr(32)!=".scr-hghost.tmp")return false;
-    return std::all_of(name.begin(),name.begin()+32,[](char c){return (c>='0'&&c<='9')||(c>='a'&&c<='f');});
-}
-void collect(const fs::path& root,HallCatalog catalog){
-    auto loaded=load(root,catalog);select(loaded,catalog);
-    if(loaded.result.state==HallArchiveState::Unsupported||loaded.result.state==HallArchiveState::Corrupt)return;
-    std::set<std::string> retained;
-    for(const auto& g:loaded.copies){
-        if(g.state==HallArchiveState::Corrupt)return; // Cannot inspect this generation's references safely.
-        if(g.hall)for(const auto& board:g.hall->snapshot().boards)for(const auto& e:board)if(e.attempt.ghost)retained.insert(hallObjectName(e.attempt.id));
-    }
-    for(const auto& file:fs::directory_iterator(root/L"ghosts")){
-        if(!file.is_regular_file())continue;const auto name=file.path().filename().string();
-        if(objectFilename(name)&&!retained.count(name)&&!DeleteFileW(file.path().c_str()))failure("Cannot collect unreferenced Hall ghost");
-    }
-}
+struct OriginalArchiveTraits {
+    using Model=HallOfFame;using Catalog=HallCatalog;using Attempt=HallAttempt;using Ghost=HallGhost;using Submission=HallSubmission;
+    using UnsupportedTable=UnsupportedHallTable;using UnsupportedGhost=UnsupportedHallGhost;
+    static constexpr auto accepted=HallAdmission::Accepted;
+    static constexpr std::uint32_t indexMagic=0x58444948,indexVersion=1;
+    static constexpr std::size_t tableMaximum=hallTableMaximumBytes,ghostMaximum=hallGhostMaximumBytes;
+    static constexpr const wchar_t* indexName=L"index.scr-hall";
+    static constexpr const char* ghostSuffix=".scr-hghost";
+    static auto encodeTable(const Model& h){return encodeHallTable(h);}
+    static auto decodeTable(const HallBytes& b,Catalog c){return decodeHallTable(b,c);}
+    static auto encodeGhost(const Ghost& g){return encodeHallGhost(g);}
+    static auto decodeGhost(const HallBytes& b){return decodeHallGhost(b);}
+    static void requireBinding(const Ghost& g,const Attempt& a,Catalog c){requireHallGhostBinding(g,a,c);}
+    static void validateSubmission(const Submission& s,Catalog c){validateOriginalSubmission(s,c);}
+    static auto makeSubmission(Attempt a,const Ghost* g){return makeHallSubmission(std::move(a),g);}
+    static auto objectName(const HallAttemptId& id){return hallObjectName(id);}
+};
+using OriginalEngine=archive_detail::HallArchiveEngine<OriginalArchiveTraits>;
 }
 std::string hallObjectName(const HallAttemptId& id){
     std::ostringstream text;for(auto b:id)text<<std::hex<<std::setw(2)<<std::setfill('0')<<unsigned(b);return text.str()+".scr-hghost";
@@ -153,54 +71,9 @@ SharedHallArchive::SharedHallArchive(fs::path root,HallCatalog catalog,HallWrite
     :root_(fs::absolute(std::move(root)).lexically_normal()),catalog_(catalog),observer_(std::move(observer)){
     (void)HallOfFame(catalog_);
 }
-HallArchiveRead SharedHallArchive::read()const{prepareSharedHallDirectory(root_);SharedHallLock lock(root_);auto l=load(root_,catalog_);select(l,catalog_);return l.result;}
-HallGhostRead SharedHallArchive::readGhost(const HallAttempt& attempt)const{
-    if(!attempt.ghost)return {};
-    try{prepareSharedHallDirectory(root_);SharedHallLock lock(root_);auto bytes=readBytes(root_/L"ghosts"/hallObjectName(attempt.id),hallGhostMaximumBytes);if(!bytes)return {};
-        if(digest(*bytes)!=*attempt.ghost)return {HallGhostState::Corrupt,{}};
-        auto ghost=std::make_shared<const HallGhost>(decodeHallGhost(*bytes));requireHallGhostBinding(*ghost,attempt,catalog_);return {HallGhostState::Valid,std::move(ghost)};
-    }catch(const HallIoError&){return {HallGhostState::Unavailable,{}};}
-    catch(const UnsupportedHallGhost&){return {HallGhostState::Unsupported,{}};}
-    catch(const std::length_error&){return {HallGhostState::Corrupt,{}};}
-    catch(const std::exception&){return {HallGhostState::Corrupt,{}};}
-}
-std::uint64_t SharedHallArchive::commit(const std::vector<std::shared_ptr<const HallSubmission>>& submissions){
-    std::vector<HallAttempt> attempts;attempts.reserve(submissions.size());
-    for(const auto& s:submissions){if(!s)throw std::invalid_argument("Empty Hall submission");validateSubmission(*s,catalog_);
-        attempts.push_back(s->recording?makeHallSubmission(s->attempt,s->recording.get()).attempt:s->attempt);}
-    prepareSharedHallDirectory(root_);prepareSharedHallDirectory(root_/L"ghosts");
-    SharedHallLock lock(root_);auto l=load(root_,catalog_);select(l,catalog_);
-    if(!l.result.hall)throw std::runtime_error(l.result.state==HallArchiveState::Unsupported?"Shared Hall uses unsupported content, rules or format":"Shared Hall has no readable generation; existing files preserved");
-    // Reclaim leftovers from an interrupted writer before creating more objects.
-    // All surviving index generations are locked and protected by collect().
-    collect(root_,catalog_);
-    HallOfFame merged=*l.result.hall;bool changed=l.result.state==HallArchiveState::Recovered;
-    for(const auto& a:attempts)changed|=merged.offer(a)==HallAdmission::Accepted;
-    // Write only objects still referenced after this entire batch has merged.
-    for(std::size_t n=0;n<submissions.size();++n){const auto& s=submissions[n];const auto& a=attempts[n];const auto& board=merged.entries(a.board);
-        if(!a.ghost||std::none_of(board.begin(),board.end(),[&](const auto& e){return e.attempt.id==a.id;}))continue;
-        const auto path=root_/L"ghosts"/hallObjectName(a.id);bool healthy=false;
-        try{const auto old=readBytes(path,hallGhostMaximumBytes);healthy=old&&digest(*old)==*a.ghost;}catch(const std::length_error&){}
-        if(!healthy){
-            // Re-encode one retained capture at a time: bounded scratch instead
-            // of holding a second full batch of encoded recordings in memory.
-            const auto captured=s->recording?encodeHallGhost(*s->recording):HallBytes{};
-            atomicWrite(path,s->recording?captured:s->ghost,observer_,HallWriteStage::GhostFlushed,HallWriteStage::GhostPublished);
-        }
-    }
-    if(changed){
-        if(l.result.generation==std::numeric_limits<std::uint64_t>::max())throw std::overflow_error("Hall generation exhausted");
-        // Never overwrite the sole newest recovery copy before it is duplicated.
-        const auto backup1=[&]{if(!l.valid.empty())atomicWrite(indexPath(root_,1),l.valid.front()->bytes,observer_,HallWriteStage::BackupFlushed,HallWriteStage::BackupPublished);};
-        const auto backup2=[&]{if(l.valid.empty())return;const auto* older=l.valid.front();
-            for(const auto* g:l.valid)if(g->number<l.result.generation){older=g;break;}
-            atomicWrite(indexPath(root_,2),older->bytes,observer_,HallWriteStage::BackupFlushed,HallWriteStage::BackupPublished);};
-        if(!l.valid.empty()&&l.valid.front()->slot==2){backup1();backup2();}else{backup2();backup1();}
-        atomicWrite(indexPath(root_,0),envelope(merged,l.result.generation+1),observer_,HallWriteStage::HeadFlushed,HallWriteStage::HeadPublished);
-        ++l.result.generation;
-    }
-    collect(root_,catalog_);if(observer_)observer_(HallWriteStage::Collected);return l.result.generation;
-}
+HallArchiveRead SharedHallArchive::read()const{return OriginalEngine(root_,catalog_,observer_).read();}
+HallGhostRead SharedHallArchive::readGhost(const HallAttempt& a)const{return OriginalEngine(root_,catalog_,observer_).readGhost(a);}
+std::uint64_t SharedHallArchive::commit(const std::vector<std::shared_ptr<const HallSubmission>>& submissions){return OriginalEngine(root_,catalog_,observer_).commit(submissions);}
 SharedHallStore::SharedHallStore(fs::path root,HallCatalog catalog,HallWriteObserver observer,std::size_t limit)
     :archive_(std::move(root),catalog,std::move(observer)),catalog_(catalog),limit_(limit){
     if(!limit_||limit_>hallCapturePendingMaximumBytes)throw std::invalid_argument("Invalid Hall pending byte limit");
@@ -210,7 +83,7 @@ SharedHallStore::~SharedHallStore(){
     flush();{std::lock_guard<std::mutex> lock(mutex_);stopping_=true;}changed_.notify_one();worker_.join();
 }
 HallSubmitResult SharedHallStore::submit(HallSubmission submission){
-    submission.attempt.name=normaliseHallName(submission.attempt.name).display;validateSubmission(submission,catalog_);
+    submission.attempt.name=normaliseHallName(submission.attempt.name).display;validateOriginalSubmission(submission,catalog_);
     std::lock_guard<std::mutex> lock(mutex_);
     for(const auto* list:{&pending_,&active_})for(const auto& s:*list)if(s->attempt.id==submission.attempt.id){
         if(!same(*s,submission,catalog_))throw std::invalid_argument("Hall retry changed its recording");return HallSubmitResult::Duplicate;}

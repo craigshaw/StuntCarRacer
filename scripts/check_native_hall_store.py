@@ -21,7 +21,7 @@ def identity(path):
 
 def sources():
     paths = {*build_sources(), Path(__file__).resolve()}
-    for pattern in ('app/records/*', 'app/persistence/*hall*',
+    for pattern in ('app/records/*', 'app/persistence/*hall*', 'app/persistence/enhanced_*',
                     'app/platform/windows/shared_hall*', 'app/race/ghost_lap_data.h',
                     'app/race/lap_recording.*', 'app/race/practice_ghost_target.*', 'app/persistence/ghost_lap_codec.*',
                     'app/presentation/ghost_bridge.*', 'app/presentation/presentation_interpolation.*',

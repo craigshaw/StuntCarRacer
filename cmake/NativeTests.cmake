@@ -1,4 +1,7 @@
 # Included from the project root; source paths remain relative to that root.
+scr_add_test_executable(enhanced_records_tests tests/unit/enhanced_records_tests.cpp)
+target_link_libraries(enhanced_records_tests PRIVATE scr_records scr_simulation)
+target_compile_features(enhanced_records_tests PRIVATE cxx_std_17)
 scr_add_test_executable(crossing_estimation_tests tests/unit/crossing_estimation_tests.cpp)
 target_link_libraries(crossing_estimation_tests PRIVATE scr_simulation)
 target_compile_features(crossing_estimation_tests PRIVATE cxx_std_17)
@@ -46,6 +49,9 @@ target_link_libraries(drive_input_tests PRIVATE scr_render)
 target_compile_features(drive_input_tests PRIVATE cxx_std_17)
 
 if(WIN32)
+  scr_add_test_executable(enhanced_store_tests tests/integration/enhanced_store_tests.cpp)
+  target_link_libraries(enhanced_store_tests PRIVATE scr_game)
+  target_compile_features(enhanced_store_tests PRIVATE cxx_std_17)
   scr_add_test_executable(native_lap_timing_tests tests/integration/native_lap_timing_tests.cpp)
   target_link_libraries(native_lap_timing_tests PRIVATE scr_game)
   target_compile_features(native_lap_timing_tests PRIVATE cxx_std_17)

@@ -4,20 +4,6 @@
 #include <utility>
 
 namespace scr::runtime {
-EnhancedTime measureEnhancedTime(const LapTimingBoundary& start,const LapTimingBoundary& finish)noexcept{
-    using timing::Reason;
-    EnhancedTime result;result.confidence=start.confidence==Reason::reliable?finish.confidence:start.confidence;
-    if(start.player>11||start.player!=finish.player)result.confidence=Reason::player;
-    if(start.crossingMicroseconds<0||finish.crossingMicroseconds<=start.crossingMicroseconds){result.confidence=Reason::interval;return result;}
-    result.elapsedMicroseconds=finish.crossingMicroseconds-start.crossingMicroseconds;
-    if(start.recoveryEpoch!=finish.recoveryEpoch||finish.recoveries<start.recoveries){result.confidence=Reason::penaltySequence;return result;}
-    result.recoveries=finish.recoveries-start.recoveries;
-    constexpr auto maximum=std::numeric_limits<std::int64_t>::max();
-    if(result.recoveries>std::uint64_t(maximum/recoveryPenaltyMicroseconds)){result.confidence=Reason::arithmetic;return result;}
-    result.penaltyMicroseconds=std::int64_t(result.recoveries)*recoveryPenaltyMicroseconds;
-    if(result.elapsedMicroseconds>maximum-result.penaltyMicroseconds){result.confidence=Reason::arithmetic;return result;}
-    result.scoredMicroseconds=result.elapsedMicroseconds+result.penaltyMicroseconds;result.hasEstimate=true;return result;
-}
 LapTiming::LapTiming(timing::Gate gate,bool competitive,unsigned initialRestarts)
     :gate_(gate),competitive_(competitive),restarts_(initialRestarts){}
 void LapTiming::observeMovement(timing::Observation observation){

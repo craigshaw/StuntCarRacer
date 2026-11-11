@@ -1,5 +1,11 @@
 # Optional development entry points reuse the player's production libraries.
 if(WIN32)
+  add_executable(native_enhanced_store_proof tools/replay/native_enhanced_store_proof.cpp)
+  target_link_libraries(native_enhanced_store_proof PRIVATE scr_hall_storage)
+  target_compile_features(native_enhanced_store_proof PRIVATE cxx_std_17)
+  if(MSVC)
+    target_compile_options(native_enhanced_store_proof PRIVATE /W4 /WX /permissive-)
+  endif()
   add_executable(native_timing_proof tools/replay/native_timing_proof.cpp)
   target_link_libraries(native_timing_proof PRIVATE scr_runtime)
   target_compile_features(native_timing_proof PRIVATE cxx_std_17)

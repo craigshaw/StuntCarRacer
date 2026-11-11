@@ -5,6 +5,11 @@ archive and displays it in the career-menu browser, with selectable lap ghosts
 for isolated Practice challenges. Private
 career PB files and ordinary Practice targets retain their existing format.
 
+This guide describes Original records. The [Enhanced storage foundation](enhanced-timing.md#implemented-storage-foundation)
+uses separate models, codecs and a sibling archive, while sharing the locked file
+protocol in `app/persistence/hall_archive_engine.h`. Original filenames, wire
+formats and completion IDs are unchanged; Enhanced player delivery is pending.
+
 ## Browser
 
 `menus/hall_browser.*` owns filters, focus, two-page navigation and selected record

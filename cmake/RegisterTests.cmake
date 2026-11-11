@@ -44,12 +44,25 @@ if(TARGET native_ghost_bridge_proof)
     "${SCR_TEST_ASSET_PACK}" "${test_output}/native_ghost_bridge_proof")
 endif()
 
-foreach(target hall_of_fame_tests hall_table_codec_tests hall_browser_tests hall_ghost_codec_tests paula_mixer_tests presentation_interpolation_tests drive_input_tests ghost_car_tests ghost_bridge_tests lap_recording_tests ghost_lap_codec_tests)
+if(TARGET native_timing_proof)
+  set(timing_capture_arguments)
+  if(EXISTS "${SCR_TEST_CAPTURE}")
+    list(APPEND timing_capture_arguments "${SCR_TEST_CAPTURE}"
+      "${PROJECT_SOURCE_DIR}/tests/replays/laps/authored-race-1463.csv")
+  endif()
+  scr_test(native_timing_proof "native;assets;timing" "${SCR_TEST_ASSET_PACK}"
+    "${SCR_TEST_ASSET_PACK}" "${test_output}/native_timing_proof" ${timing_capture_arguments})
+endif()
+
+foreach(target crossing_estimation_tests lap_timing_tests hall_of_fame_tests hall_table_codec_tests hall_browser_tests hall_ghost_codec_tests paula_mixer_tests presentation_interpolation_tests drive_input_tests ghost_car_tests ghost_bridge_tests lap_recording_tests ghost_lap_codec_tests)
   scr_test(${target} "native;unit" "")
 endforeach()
 scr_test(software_renderer_tests "native;assets" "${SCR_TEST_PAYLOAD}" "${SCR_TEST_PAYLOAD}")
 
 if(WIN32)
+  scr_test(native_lap_timing_tests "native;assets;timing" "${SCR_TEST_ASSET_PACK}"
+    "${SCR_TEST_ASSET_PACK}" "${test_output}/native_lap_timing_tests"
+    "${SCR_TEST_CAPTURE}" "${SCR_TEST_PAYLOAD}" "${PROJECT_SOURCE_DIR}/tests/replays/laps/authored-race-1463.csv")
   scr_test(native_hall_challenge_tests "native;assets;capture" "${SCR_TEST_ASSET_PACK}"
     "${SCR_TEST_ASSET_PACK}" "${test_output}/native_hall_challenge_tests" "${SCR_TEST_CAPTURE}" "${SCR_TEST_PAYLOAD}"
     "${PROJECT_SOURCE_DIR}/tests/replays/laps/authored-race-1463.csv")

@@ -13,6 +13,8 @@ and test interface; see [development](../docs/development.md).
 | `check_native_ghost.py` | Static-track ghost rendering proof, CTest checks and identified visual previews |
 | `check_native_ghost_bridge.py` | Draw Bridge geometry matching, local fades, native league approach and identified previews |
 | `check_native_laps.py` | Saved player ghosts, controls, feedback, storage and timing; `--verify-original` adds original timing/full-race comparisons |
+| `check_native_timing.py` | Stage-1 crossing estimator and timestamp proof; `--configuration Debug` selects Debug, with source/fixture/executable receipts |
+| `check_native_lap_timing.py` | Independent live timing and recovery accounting; Release/Debug CTest receipts and full-state isolation |
 | `check_*physics*.py`, `check_motion_stages.py`, `check_road_response.py`, `check_transform_matrices.py`, `check_wheel_coordinates.py` | Recovered gameplay verification |
 | `check_driving_replay.py`, `replay_lap.py` | Replay comparisons and authored-lap evidence checks |
 | `prepare_wheel_oracle.py` | Validate or explicitly download pinned test-only Musashi sources |

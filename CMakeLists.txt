@@ -162,6 +162,7 @@ if(WIN32)
     app/persistence/native_career_checkpoint.cpp
     app/persistence/native_save_store.cpp
     app/race/race_scene.cpp
+    app/race/lap_timing.cpp
     app/race/hall_race_recording.cpp
     app/race/lap_recording.cpp
     app/presentation/race_render_assets.cpp

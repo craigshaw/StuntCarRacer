@@ -1,4 +1,11 @@
 # Included from the project root; source paths remain relative to that root.
+scr_add_test_executable(crossing_estimation_tests tests/unit/crossing_estimation_tests.cpp)
+target_link_libraries(crossing_estimation_tests PRIVATE scr_simulation)
+target_compile_features(crossing_estimation_tests PRIVATE cxx_std_17)
+scr_add_test_executable(lap_timing_tests tests/unit/lap_timing_tests.cpp app/race/lap_timing.cpp
+  app/race/lap_recording.cpp app/presentation/ghost_bridge.cpp app/presentation/presentation_interpolation.cpp)
+target_link_libraries(lap_timing_tests PRIVATE scr_render scr_records)
+target_compile_features(lap_timing_tests PRIVATE cxx_std_17)
 scr_add_test_executable(hall_of_fame_tests tests/unit/hall_of_fame_tests.cpp)
 target_link_libraries(hall_of_fame_tests PRIVATE scr_records scr_simulation)
 scr_add_test_executable(hall_table_codec_tests tests/unit/hall_table_codec_tests.cpp)
@@ -39,6 +46,9 @@ target_link_libraries(drive_input_tests PRIVATE scr_render)
 target_compile_features(drive_input_tests PRIVATE cxx_std_17)
 
 if(WIN32)
+  scr_add_test_executable(native_lap_timing_tests tests/integration/native_lap_timing_tests.cpp)
+  target_link_libraries(native_lap_timing_tests PRIVATE scr_game)
+  target_compile_features(native_lap_timing_tests PRIVATE cxx_std_17)
   scr_add_test_executable(native_hall_challenge_tests tests/integration/native_hall_challenge_tests.cpp)
   target_link_libraries(native_hall_challenge_tests PRIVATE scr_game scr_host_ui)
   scr_add_test_executable(native_hall_browser_tests tests/integration/native_hall_browser_tests.cpp)

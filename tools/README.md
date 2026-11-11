@@ -29,6 +29,30 @@ Focus loss or controller disconnection pauses and requires explicit resume.
 The replay shortcut is `replay/Watch Native Replay.cmd`; original-game emulation
 tools live separately in [research/](research/README.md).
 
+## Crossing estimation proof
+
+`scripts/check_native_timing.py` builds `native_timing_proof` and runs its CTest
+alongside asset-free `crossing_estimation_tests`. It compares progress and full
+fixed-point world-plane intersections, validates native timing-cell geometry in
+all tracks/leagues, audits recovery timestamps and checks observer isolation.
+The wrapper requires the retained authored three-lap capture and controls; CTest
+can run the asset-only portion when the capture is absent. Captures remain
+development inputs, with no effect on normal native startup.
+
+Results, raw CSVs, the method decision and identified receipts live under
+`analysis/timing-estimation/`. `--configuration Debug` writes a separate Debug
+receipt; `--skip-build` requires matching identities. This is stage 1 of the
+[Enhanced timing plan](../docs/components/enhanced-timing.md). Its chosen arithmetic
+is shared with live capture; Enhanced records and presentation remain pending.
+
+`scripts/check_native_lap_timing.py` verifies stage-2 capture through unit and
+native integration CTests. It covers dual timing metadata without a ghost
+recorder, explicit recovery accounting, buffer overflow, confidence and unchanged
+native state/records/RNG. Receipts live under `analysis/lap-timing/` with a
+separate Debug directory selected by `--configuration Debug`. It requires the
+retained authored replay; the native CTest can run fresh asset-only cases when
+the replay is unavailable.
+
 ## Shared Hall storage proofs
 
 `scripts/check_native_hall.py` builds focused model/codec/storage CTests and

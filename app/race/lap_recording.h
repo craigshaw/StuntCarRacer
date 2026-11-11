@@ -1,6 +1,7 @@
 #pragma once
 #include "input/drive_input.h"
 #include "race/ghost_lap_data.h"
+#include "race/lap_timing.h"
 #include "race/practice_ghost_target.h"
 #include "presentation/ghost_bridge.h"
 #include "presentation/presentation_interpolation.h"
@@ -31,6 +32,7 @@ struct LapCompletion {
     std::uint8_t counter{};
     PackedLapTime time{};
     std::unique_ptr<LapRecording> recording;
+    std::optional<EnhancedLapTiming> enhanced;
 };
 using LapCompletionSink=std::function<void(LapCompletion)>;
 // Ranking always uses original packed-decimal time, never movement duration.
@@ -73,7 +75,7 @@ public:
     LapRecorder(PersonalBestLaps&,GhostLapContext,const TrigTable&,std::shared_ptr<const PinnedHallGhost> target={});
     LapRecorder(unsigned track,const TrigTable&);
     void observeMovement(LapMovementObservation);
-    void observeTiming(const std::optional<HumanLapCrossing>&,const LapCompletionSink& sink={});
+    void observeTiming(const std::optional<HumanLapCrossing>&,const LapCompletionSink& sink={},const EnhancedLapTiming* enhanced=nullptr);
     void stop();
     void clear();
     std::optional<GhostLapPlayback> playback(std::int64_t absoluteMicroseconds,bool interpolate=true)const;

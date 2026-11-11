@@ -61,6 +61,10 @@ private state and cannot affect later gameplay, RNG or saves. The
 [presentation contract](components/presentation.md) covers history, views and audio;
 [simulation](components/simulation.md) records the less obvious state dependencies.
 
+[Enhanced timing capture](components/enhanced-timing.md#independent-timing-capture)
+observes native crossings independently of ghost buffers. Its measurements do
+not change the original clocks or race outcomes; Enhanced records/UI are pending.
+
 ## Fidelity contract
 
 Gameplay preserves arithmetic, operation order, wraparound, RNG consumption and

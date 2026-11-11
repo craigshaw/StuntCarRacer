@@ -32,6 +32,10 @@
   Practice and career league races, Practice playback, rendering/Draw Bridge proof
   gates, saved targets and player controls. A future online extension remains
   separate from the local feature.
+- [Enhanced timing implementation plan](components/enhanced-timing.md): approved
+  design for millisecond records, interpolated crossings and explicit recovery
+  penalties alongside Original timing. Stages 1–2 provide validated crossing
+  estimation and live capture; Enhanced records and UI remain pending.
 
 ## Tools and research
 

@@ -103,7 +103,7 @@ GhostLapBoundary LapRecorder::boundary(bool first)const{
     }
     return result;
 }
-void LapRecorder::observeTiming(const std::optional<HumanLapCrossing>& crossing,const LapCompletionSink& sink){
+void LapRecorder::observeTiming(const std::optional<HumanLapCrossing>& crossing,const LapCompletionSink& sink,const EnhancedLapTiming* enhanced){
     if(stopped_||!current_)return;
     ++statistics_.timingUpdates;statistics_.recoveryTimingUpdates+=current_->recovery;
     if(!crossing)return;
@@ -112,6 +112,7 @@ void LapRecorder::observeTiming(const std::optional<HumanLapCrossing>& crossing,
         ++statistics_.completions;
         if(observedStart_&&crossing->counter==std::uint8_t(lastCounter_+1)){
             LapCompletion result;result.counter=crossing->counter;result.time=*crossing->completedTime;
+            if(enhanced)result.enhanced=*enhanced;
             const auto hundredths=ghostLapHundredths(result.time);
             if(candidate_&&line.alignedMicroseconds>candidate_->start.alignedMicroseconds){
                 candidate_->finish=line;candidate_->durationMicroseconds=line.alignedMicroseconds-candidate_->start.alignedMicroseconds;

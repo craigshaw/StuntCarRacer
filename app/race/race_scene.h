@@ -86,6 +86,10 @@ public:
     bool recordPersonalBestLaps(PersonalBestLaps&,GhostLapContext,std::shared_ptr<const PinnedHallGhost> target={});
     void recordHallAttempts(HallAttemptId run,bool competitive);
     std::vector<HallSubmission> takeHallCompletions();
+    // Dual timing metadata from the latest successful step; drain before the
+    // next step. Capture is independent of ghost recording and Hall storage.
+    std::vector<LapTimingCompletion> takeTimingCompletions();
+    const LapTimingStatistics* timingStatistics()const noexcept;
     const LapRecordingStatistics* lapRecordingStatistics()const noexcept;
     std::optional<GhostLapPlayback> lapGhostPlayback(double position,bool interpolate=true)const;
     void clearPersonalBestLap();

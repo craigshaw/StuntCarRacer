@@ -81,6 +81,12 @@ public:
     const NativeMemory& memory()const noexcept{return *data_.memory;}
     const RaceScene& race()const noexcept{return race_;}
     const PersonalBestLaps& personalBestLaps()const noexcept{return personalBestLaps_;}
+    const EnhancedPersonalBests* enhancedPersonalBests()const noexcept{return enhancedBests_.get();}
+    void setTimingCategory(TimingCategory);
+    TimingCategory effectiveTimingCategory()const noexcept;
+    // Stage-5 browsing supplies a validated, immutable rival loaded off-thread.
+    void startEnhancedHallChallenge(std::shared_ptr<const PinnedEnhancedHallGhost>,const NativeMenuInput& held={});
+    void requestEnhancedHallChallenge(const EnhancedHallAttempt&);
     void setPracticeGhostVisible(bool visible)noexcept{practiceGhostVisible_=visible;}
     bool practiceGhostActive()const noexcept;
     bool canClearPracticeGhost()const;
@@ -90,6 +96,7 @@ public:
     std::string ghostFeedback()const;
     bool ghostFeedbackWarning()const;
     HallArchiveRead sharedHall()const;
+    EnhancedHallRead enhancedHall()const;
     bool flushRecords();
     const HallBrowser* hallBrowser()const noexcept{return hallBrowserActive_?&hallBrowser_:nullptr;}
     bool raceEnded()const noexcept{return page()==NativeMenuPage::Race&&(finishPending_||race_.liveTerminal());}
@@ -104,18 +111,25 @@ private:
     unsigned draftNameLength_{};
     std::unique_ptr<NativeCareerStore> careerStore_;
     std::unique_ptr<SharedHallStore> sharedHallStore_;
+    std::unique_ptr<EnhancedHallStore> enhancedHallStore_;
+    std::unique_ptr<EnhancedPersonalBests> enhancedBests_;
+    TimingCategory timingCategory_{TimingCategory::Original};
     HallBrowser hallBrowser_;
     bool hallBrowserActive_{},hallResolving_{};
     std::uint64_t hallBrowserRequest_{},hallBrowserApplied_{};
+    std::optional<std::uint64_t> enhancedChallengeRequest_;
     struct HallChallenge {
         NativeCareerCheckpoint continuation;
         std::shared_ptr<const PinnedHallGhost> target;
+        std::shared_ptr<const PinnedEnhancedHallGhost> enhancedTarget;
+        HallBoardKey board()const noexcept{return target?target->attempt.board:enhancedTarget->attempt.board;}
     };
     std::optional<HallChallenge> hallChallenge_;
     void openHallBrowser(const NativeMenuInput&);
     bool updateHallBrowser(double,const NativeGameInput&,NativeGameUpdate&);
     void requestHallBrowser();
     void startHallChallenge(std::shared_ptr<const PinnedHallGhost>,const NativeMenuInput&);
+    void enterHallChallenge(HallChallenge,const NativeMenuInput&);
     void returnHallChallenge(const NativeMenuInput& held={});
     NativeMenuImage hallPreviewImage()const;
     bool creatingCareer_{},finishPending_{},closeReady_{},errorAcknowledged_{},multiplayerSetup_{};
@@ -170,10 +184,14 @@ private:
     std::optional<GhostLapKey> lapKey_;
     CareerFileState ghostFileState_{CareerFileState::Missing};
     unsigned lapImprovements_{},lapOverflows_{};
+    unsigned enhancedImprovements_{};
+    CareerFileState enhancedBestFileState_{CareerFileState::Missing};
     bool practiceGhostVisible_{true},ghostConditionsDiffer_{};
     double ghostNoticeSeconds_{};
     std::string ghostNotice_;
     void observePersonalBest();
+    void prepareEnhancedRecords();
+    void observeEnhancedPersonalBest();
     RaceScene race_;
     FixedDriveClock driveClock_;
     DriveInputLatch driveLatch_;

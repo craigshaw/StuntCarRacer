@@ -33,6 +33,7 @@ struct LapCompletion {
     PackedLapTime time{};
     std::unique_ptr<LapRecording> recording;
     std::optional<EnhancedLapTiming> enhanced;
+    std::shared_ptr<const EnhancedRecording> enhancedRecording;
 };
 using LapCompletionSink=std::function<void(LapCompletion)>;
 // Ranking always uses original packed-decimal time, never movement duration.
@@ -64,9 +65,11 @@ struct GhostLapPlayback {
     std::int64_t elapsedMicroseconds{};
     std::shared_ptr<const LapRecording> target;
     std::shared_ptr<const PinnedHallGhost> hallTarget;
+    std::shared_ptr<const EnhancedRecording> enhancedTarget;
+    std::shared_ptr<const PinnedEnhancedHallGhost> enhancedHallTarget;
 };
 struct LapRecordingStatistics {
-    unsigned movements{},timingUpdates{},recoveryTimingUpdates{},starts{},completions{},recordedLaps{},improvements{},overflowCandidates{};
+    unsigned movements{},timingUpdates{},recoveryTimingUpdates{},starts{},completions{},recordedLaps{},improvements{},overflowCandidates{},enhancedImprovements{};
 };
 // observe* runs only at native stage boundaries. All playback queries are pure.
 // A new recorder waits for an observed crossing; a partial entry lap is skipped.
@@ -75,29 +78,36 @@ public:
     LapRecorder(PersonalBestLaps&,GhostLapContext,const TrigTable&,std::shared_ptr<const PinnedHallGhost> target={});
     LapRecorder(unsigned track,const TrigTable&);
     void observeMovement(LapMovementObservation);
-    void observeTiming(const std::optional<HumanLapCrossing>&,const LapCompletionSink& sink={},const EnhancedLapTiming* enhanced=nullptr);
+    void observeTiming(const std::optional<HumanLapCrossing>&,const LapCompletionSink& sink={},const EnhancedLapTiming* enhanced=nullptr,const LapTimingBoundary* lineTiming=nullptr);
     void stop();
     void clear();
-    std::optional<GhostLapPlayback> playback(std::int64_t absoluteMicroseconds,bool interpolate=true)const;
+    void configureEnhanced(EnhancedPersonalBests&,EnhancedBestKey,std::shared_ptr<const PinnedEnhancedHallGhost> target={});
+    void clearEnhanced();
+    std::optional<GhostLapPlayback> playback(std::int64_t absoluteMicroseconds,bool interpolate=true,TimingCategory category=TimingCategory::Original)const;
     const LapRecordingStatistics& statistics()const noexcept{return statistics_;}
     const GhostLapContext& context()const noexcept{return context_;}
 private:
     struct Epoch {
         std::int64_t start{};
         std::shared_ptr<const LapRecording> target;
+        std::shared_ptr<const EnhancedRecording> enhancedTarget;
         GhostBridgeVisibility visibility;
         std::optional<std::int64_t> lastCut;
     };
     PersonalBestLaps* bests_{};
     GhostLapContext context_;
     std::shared_ptr<const PinnedHallGhost> hallTarget_;
+    EnhancedPersonalBests* enhancedBests_{};
+    EnhancedBestKey enhancedKey_;
+    std::shared_ptr<const PinnedEnhancedHallGhost> enhancedHallTarget_;
     const TrigTable& trig_;
     std::optional<LapMovementObservation> previous_,current_;
     std::optional<LapRecording> candidate_;
     std::deque<Epoch> epochs_;
+    std::deque<Epoch> enhancedEpochs_;
     GhostBridgeRegionTracker region_;
     LapRecordingStatistics statistics_;
-    bool stopped_{},overflowed_{},observedStart_{},pbEligible_{true};
+    bool stopped_{},overflowed_{},observedStart_{},pbEligible_{true},enhancedPbEligible_{true};
     std::uint8_t lastCounter_{};
     unsigned candidatePresets_{};
     GhostLapBoundary boundary(bool first)const;

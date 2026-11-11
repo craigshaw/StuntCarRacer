@@ -13,20 +13,31 @@ unsigned decimal(std::uint8_t value){
     return (value>>4)*10+(value&15);
 }
 struct Sampled {RenderCameraInputs pose;const GhostLapSample* discrete;double opacity;};
-Sampled sample(const LapRecording& lap,std::int64_t elapsed,bool smooth,const TrigTable& trig){
-    const auto at=std::min(elapsed,lap.durationMicroseconds);
-    const auto next=std::upper_bound(lap.samples.begin(),lap.samples.end(),at,
+Sampled sample(const std::vector<GhostLapSample>& samples,std::int64_t duration,std::int64_t elapsed,bool smooth,const TrigTable& trig){
+    const auto at=std::min(elapsed,duration);
+    const auto next=std::upper_bound(samples.begin(),samples.end(),at,
         [](auto t,const GhostLapSample& s){return t<s.microseconds;});
-    const auto& a=next==lap.samples.begin()?lap.samples.front():*(next-1);
+    const auto& a=next==samples.begin()?samples.front():*(next-1);
     auto pose=a.pose;
-    if(smooth&&next!=lap.samples.end()&&!next->cut&&at>a.microseconds){
+    if(smooth&&next!=samples.end()&&!next->cut&&at>a.microseconds){
         PresentationPose from,to;from.pose=a.pose;to.pose=next->pose;
         from.camera=makeRenderProjectionCamera(from.pose,trig);to.camera=makeRenderProjectionCamera(to.pose,trig);
         pose=interpolatePresentation(from,to,double(at-a.microseconds)/(next->microseconds-a.microseconds),trig).pose;
     }
-    const auto opacity=elapsed<=lap.durationMicroseconds?1.0:
-        std::clamp(1-double(elapsed-lap.durationMicroseconds)/fadeMicroseconds,0.0,1.0);
+    const auto opacity=elapsed<=duration?1.0:
+        std::clamp(1-double(elapsed-duration)/fadeMicroseconds,0.0,1.0);
     return {pose,&a,opacity};
+}
+std::shared_ptr<const EnhancedRecording> alignEnhanced(const LapRecording& source,const EnhancedLapTiming& timing,unsigned track){
+    if(!timing.lap.rankable()||timing.lap.recoveries>maxGhostLapSamples)return {};
+    auto g=std::make_shared<EnhancedRecording>();g->time=timing.lap;g->start=timing.start;g->finish=timing.finish;
+    g->samples.reserve(source.samples.size());g->bridges=source.bridges;g->recoveryOffsets.reserve(std::size_t(timing.lap.recoveries));
+    const auto shift=source.start.alignedMicroseconds-timing.start.crossingMicroseconds;
+    for(auto s:source.samples){s.microseconds+=shift;g->samples.push_back(s);
+        if(s.cut&&s.microseconds>=0&&s.microseconds<=g->time.elapsedMicroseconds)g->recoveryOffsets.push_back(s.microseconds);}
+    // A buffer/attribution failure removes the ghost, never its reliable time.
+    try{validateEnhancedRecording(*g,track);}catch(const std::invalid_argument&){return {};}
+    return g;
 }
 }
 bool GhostLapKey::operator<(const GhostLapKey& other)const noexcept{
@@ -63,6 +74,14 @@ LapRecorder::LapRecorder(PersonalBestLaps& bests,GhostLapContext context,const T
 }
 LapRecorder::LapRecorder(unsigned track,const TrigTable& trig):trig_(trig){
     if(track>=8)throw std::invalid_argument("Invalid lap recording track");context_.key.track=track;
+}
+void LapRecorder::configureEnhanced(EnhancedPersonalBests& bests,EnhancedBestKey key,std::shared_ptr<const PinnedEnhancedHallGhost> target){
+    validateEnhancedBestKey(key);
+    if(key.track!=context_.key.track||key.superLeague!=context_.key.superLeague||
+       (target&&(context_.source!=GhostLapSource::Practice||target->attempt.board.track!=key.track||
+        (target->attempt.board.league==HallLeague::Super)!=key.superLeague||!sameEnhancedCatalog(target->catalog,bests.catalog()))))
+        throw std::invalid_argument("Enhanced target differs from recording context");
+    enhancedBests_=&bests;enhancedKey_=std::move(key);enhancedHallTarget_=std::move(target);
 }
 void LapRecorder::append(const LapMovementObservation& movement,bool cut){
     if(!candidate_||overflowed_)return;
@@ -103,7 +122,7 @@ GhostLapBoundary LapRecorder::boundary(bool first)const{
     }
     return result;
 }
-void LapRecorder::observeTiming(const std::optional<HumanLapCrossing>& crossing,const LapCompletionSink& sink,const EnhancedLapTiming* enhanced){
+void LapRecorder::observeTiming(const std::optional<HumanLapCrossing>& crossing,const LapCompletionSink& sink,const EnhancedLapTiming* enhanced,const LapTimingBoundary* lineTiming){
     if(stopped_||!current_)return;
     ++statistics_.timingUpdates;statistics_.recoveryTimingUpdates+=current_->recovery;
     if(!crossing)return;
@@ -117,6 +136,7 @@ void LapRecorder::observeTiming(const std::optional<HumanLapCrossing>& crossing,
             if(candidate_&&line.alignedMicroseconds>candidate_->start.alignedMicroseconds){
                 candidate_->finish=line;candidate_->durationMicroseconds=line.alignedMicroseconds-candidate_->start.alignedMicroseconds;
                 candidate_->completedTime=result.time;result.recording=std::make_unique<LapRecording>(std::move(*candidate_));++statistics_.recordedLaps;
+                if(enhanced)result.enhancedRecording=alignEnhanced(*result.recording,*enhanced,context_.key.track);
                 if(bests_&&pbEligible_){const auto old=bests_->best(context_.key);
                     if(!old||hundredths<old->hundredths){GhostLap lap;
                         if(sink)static_cast<LapRecording&>(lap)=*result.recording;else static_cast<LapRecording&>(lap)=std::move(*result.recording);
@@ -124,40 +144,68 @@ void LapRecorder::observeTiming(const std::optional<HumanLapCrossing>& crossing,
                         if(bests_->accept(std::move(lap)))++statistics_.improvements;}
                 }
             }
+            if(enhancedBests_&&enhancedPbEligible_&&enhanced&&enhanced->lap.rankable()){
+                EnhancedBest best{enhancedBests_->catalog(),enhancedKey_,enhanced->lap,result.enhancedRecording};
+                if(enhancedBests_->offer(std::move(best)))++statistics_.enhancedImprovements;
+            }
             if(sink)sink(std::move(result));
         }
     }
-    observedStart_=true;lastCounter_=crossing->counter;pbEligible_=true;candidatePresets_=0;
+    observedStart_=true;lastCounter_=crossing->counter;pbEligible_=enhancedPbEligible_=true;candidatePresets_=0;
     candidate_.emplace();candidate_->start=line;overflowed_=false;region_=GhostBridgeRegionTracker{};
     if(previous_)append(*previous_,false);
     append(*current_,previous_&&previous_->restarts!=current_->restarts);++statistics_.starts;
     Epoch epoch;epoch.start=line.alignedMicroseconds;
     if(hallTarget_)epoch.target=std::shared_ptr<const LapRecording>(hallTarget_,&hallTarget_->recording);
     else if(bests_&&context_.source==GhostLapSource::Practice)epoch.target=bests_->best(context_.key);
-    epochs_.push_back(std::move(epoch));while(epochs_.size()>4)epochs_.pop_front();compatibility();
+    epochs_.push_back(std::move(epoch));while(epochs_.size()>4)epochs_.pop_front();
+    const auto* enhancedLine=enhanced?&enhanced->finish:lineTiming;
+    if(enhancedBests_&&enhancedLine){
+        Epoch e;e.start=enhancedLine->crossingMicroseconds;
+        if(enhancedLine->confidence==timing::Reason::reliable){
+            if(enhancedHallTarget_)e.enhancedTarget=std::shared_ptr<const EnhancedRecording>(enhancedHallTarget_,&enhancedHallTarget_->recording);
+            else if(context_.source==GhostLapSource::Practice){const auto best=enhancedBests_->best(enhancedKey_);if(best)e.enhancedTarget=best->recording;}
+        }
+        enhancedEpochs_.push_back(std::move(e));while(enhancedEpochs_.size()>4)enhancedEpochs_.pop_front();
+    }
+    compatibility();
 }
 void LapRecorder::compatibility(){
-    if(epochs_.empty()||!epochs_.back().target||!current_||context_.key.track!=5)return;
-    auto& epoch=epochs_.back();const auto elapsed=current_->microseconds-epoch.start;
-    if(elapsed<0||elapsed>epoch.target->durationMicroseconds)return;
-    const auto source=sample(*epoch.target,elapsed,false,trig_);
+    if(!current_||context_.key.track!=5)return;
+    const auto update=[&](Epoch& epoch){
+    if(!epoch.target&&!epoch.enhancedTarget)return;
+    const auto duration=epoch.target?epoch.target->durationMicroseconds:epoch.enhancedTarget->time.elapsedMicroseconds;
+    const auto& samples=epoch.target?epoch.target->samples:epoch.enhancedTarget->samples;
+    const auto& bridges=epoch.target?epoch.target->bridges:epoch.enhancedTarget->bridges;
+    const auto elapsed=current_->microseconds-epoch.start;
+    if(elapsed<0||elapsed>duration)return;
+    const auto source=sample(samples,duration,elapsed,false,trig_);
     const bool matches=source.discrete->bridge!=noGhostBridge&&current_->bridge&&
-        epoch.target->bridges.at(source.discrete->bridge)==*current_->bridge;
+        bridges.at(source.discrete->bridge)==*current_->bridge;
     const bool cut=source.discrete->cut&&epoch.lastCut!=source.discrete->microseconds;
     if(cut)epoch.lastCut=source.discrete->microseconds;
-    epoch.visibility.observe(current_->microseconds/1000000.0,source.discrete->region,matches,cut);
+    epoch.visibility.observe(current_->microseconds/1000000.0,source.discrete->region,matches,cut);};
+    if(!epochs_.empty())update(epochs_.back());if(!enhancedEpochs_.empty())update(enhancedEpochs_.back());
 }
 void LapRecorder::stop(){candidate_.reset();observedStart_=false;stopped_=true;}
 void LapRecorder::clear(){
     if(bests_)bests_->forget(context_.key);pbEligible_=false;
     if(!hallTarget_)for(auto& epoch:epochs_)epoch.target.reset();
 }
-std::optional<GhostLapPlayback> LapRecorder::playback(std::int64_t absolute,bool interpolate)const{
-    const auto next=std::upper_bound(epochs_.begin(),epochs_.end(),absolute,[](auto t,const Epoch& e){return t<e.start;});
-    if(next==epochs_.begin())return std::nullopt;
-    const auto& epoch=*(next-1);if(!epoch.target)return std::nullopt;
-    const auto elapsed=absolute-epoch.start;const auto source=sample(*epoch.target,elapsed,interpolate,trig_);
+void LapRecorder::clearEnhanced(){
+    if(enhancedBests_)enhancedBests_->forget(enhancedKey_);enhancedPbEligible_=false;
+    if(!enhancedHallTarget_)for(auto& epoch:enhancedEpochs_)epoch.enhancedTarget.reset();
+}
+std::optional<GhostLapPlayback> LapRecorder::playback(std::int64_t absolute,bool interpolate,TimingCategory category)const{
+    const auto& epochs=category==TimingCategory::Original?epochs_:enhancedEpochs_;
+    const auto next=std::upper_bound(epochs.begin(),epochs.end(),absolute,[](auto t,const Epoch& e){return t<e.start;});
+    if(next==epochs.begin())return std::nullopt;
+    const auto& epoch=*(next-1);if(!epoch.target&&!epoch.enhancedTarget)return std::nullopt;
+    const auto elapsed=absolute-epoch.start;const auto duration=epoch.target?epoch.target->durationMicroseconds:epoch.enhancedTarget->time.elapsedMicroseconds;
+    const auto& samples=epoch.target?epoch.target->samples:epoch.enhancedTarget->samples;
+    const auto source=sample(samples,duration,elapsed,interpolate,trig_);
     return GhostLapPlayback{makeGhostCarPose(source.pose),source.opacity*epoch.visibility.alphaAt(absolute/1000000.0),
-        epoch.visibility.conditionsDifferAt(absolute/1000000.0),elapsed>epoch.target->durationMicroseconds,elapsed,epoch.target,hallTarget_};
+        epoch.visibility.conditionsDifferAt(absolute/1000000.0),elapsed>duration,elapsed,epoch.target,
+        category==TimingCategory::Original?hallTarget_:nullptr,epoch.enhancedTarget,category==TimingCategory::Enhanced?enhancedHallTarget_:nullptr};
 }
 } // namespace scr::runtime

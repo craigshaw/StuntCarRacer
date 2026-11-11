@@ -5,6 +5,11 @@ Bridge proofs. Career recording, saved targets, Practice drawing, settings,
 feedback and confirmed clear share the contracts below. Online records remain
 future work; finite checks do not imply universal rendering equivalence.
 
+This guide describes Original PBs. [Enhanced timing](enhanced-timing.md#session-delivery-and-ghost-targets)
+adds independent PB storage and targets from the same raw capture, with world-plane
+boundaries and time-only results after overflow. Both categories now save live;
+the timing selector and Enhanced timer/Hall UI remain pending.
+
 ## Player contract
 
 - Retain one personal best, including its ghost, per career, circuit and

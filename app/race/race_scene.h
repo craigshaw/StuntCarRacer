@@ -7,6 +7,7 @@
 #include "render/software_renderer.h"
 #include "render/ghost_car.h"
 #include "persistence/shared_hall_store.h"
+#include "persistence/enhanced_hall_store.h"
 #include "audio/game_audio.h"
 #include "render/opponent_car.h"
 #include "render/opponent_far_track.h"
@@ -84,8 +85,11 @@ public:
     // In-memory career targets only. No file, settings or automatic draw path.
     // Multiplayer and a mismatched mode/track/league cannot bind a recorder.
     bool recordPersonalBestLaps(PersonalBestLaps&,GhostLapContext,std::shared_ptr<const PinnedHallGhost> target={});
+    bool recordEnhancedPersonalBestLaps(EnhancedPersonalBests&,EnhancedBestKey,std::shared_ptr<const PinnedEnhancedHallGhost> target={});
     void recordHallAttempts(HallAttemptId run,bool competitive);
     std::vector<HallSubmission> takeHallCompletions();
+    std::vector<EnhancedSubmission> takeEnhancedHallCompletions();
+    void setGhostTimingCategory(TimingCategory category)noexcept{ghostTimingCategory_=category;}
     // Dual timing metadata from the latest successful step; drain before the
     // next step. Capture is independent of ghost recording and Hall storage.
     std::vector<LapTimingCompletion> takeTimingCompletions();
@@ -93,6 +97,7 @@ public:
     const LapRecordingStatistics* lapRecordingStatistics()const noexcept;
     std::optional<GhostLapPlayback> lapGhostPlayback(double position,bool interpolate=true)const;
     void clearPersonalBestLap();
+    void clearEnhancedPersonalBestLap();
     const std::vector<std::uint32_t>& renderPracticeGhost(double fraction,bool interpolate,NativeView);
     unsigned verifyLiveReplay(const std::filesystem::path& inputs,const std::filesystem::path& reference,
         const std::filesystem::path& nativeTrace);
@@ -165,6 +170,7 @@ private:
     bool lastLiveInterpolate_{true};
     bool bitmapOnly_{};
     bool runningLapHundredths_{};
+    TimingCategory ghostTimingCategory_{TimingCategory::Original};
     const std::vector<std::uint32_t>& renderViewImpl(double,const CameraViewSettings&,bool,
         const GhostCarPose*,const GhostCarStyle*);
     NearTrackPresentation buildViewCommands(const PresentationPose&,const RaceFrame&,

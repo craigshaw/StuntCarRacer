@@ -156,6 +156,7 @@ if(WIN32)
   add_library(scr_game STATIC
     app/session/native_game_session.cpp
     app/session/native_hall_session.cpp
+    app/session/native_enhanced_session.cpp
     app/menus/hall_browser.cpp
     app/presentation/hall_browser_render.cpp
     app/session/native_career_session.cpp

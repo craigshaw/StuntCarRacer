@@ -60,6 +60,11 @@ endforeach()
 scr_test(software_renderer_tests "native;assets" "${SCR_TEST_PAYLOAD}" "${SCR_TEST_PAYLOAD}")
 
 if(WIN32)
+  scr_test(native_enhanced_session_tests "native;assets;capture;storage" "${SCR_TEST_ASSET_PACK}"
+    "${SCR_TEST_ASSET_PACK}" "${test_output}/native_enhanced_session_tests"
+    "${SCR_TEST_CAPTURE}" "${SCR_TEST_PAYLOAD}" "${PROJECT_SOURCE_DIR}/tests/replays/laps/authored-race-1463.csv")
+  set_tests_properties(native_enhanced_session_tests PROPERTIES RUN_SERIAL TRUE)
+  scr_test(enhanced_capture_tests "native;unit" "")
   scr_test(enhanced_store_tests "native;unit;storage" "" "${test_output}/enhanced_store_tests")
   set_tests_properties(enhanced_store_tests PROPERTIES RUN_SERIAL TRUE)
   scr_test(native_lap_timing_tests "native;assets;timing" "${SCR_TEST_ASSET_PACK}"

@@ -1,8 +1,10 @@
 # Enhanced timing implementation plan
 
-Status: stages 1–3 complete. Crossing estimation, independent live timing capture
-and separate Enhanced record/storage APIs are implemented. Live session delivery,
-ghost targets and UI in stages 4–6 remain pending.
+Status: stages 1–4 complete. Crossing estimation, independent timing capture,
+separate storage, live delivery and category-specific ghost targets are
+implemented. Settings, timer presentation and final staging in stages 5–6 remain
+pending. The player still selects Original presentation until stage 5 wires the
+timing preference and Hall filter; both record categories now save in the background.
 
 Add millisecond lap and three-lap timing using interpolated crossings on the
 existing 120 ms simulation timeline. Keep Original timing and its records
@@ -223,11 +225,12 @@ step; callers must drain it before the next step. This bounded handoff is
 independent of ghost capture. Existing `LapCompletion` objects also carry the
 optional Enhanced metadata, including time-only completions after a recording
 overflow. Original PB/Hall processing and all existing codecs still use their
-Original fields. Enhanced session delivery will consume this handoff in stage 4.
+Original fields. Enhanced delivery consumes the independent metadata alongside
+the Original completion without changing its fields or identity.
 
 Original ghost samples retain their existing progress-aligned boundaries.
 Enhanced recording persistence binds its own validated boundaries and sample
-offsets; stage 4 must produce those recordings. The timing metadata does not
+offsets. The shared movement capture now produces those recordings; it does not
 reinterpret an existing Original recording as an Enhanced ghost.
 
 Run `scripts/check_native_lap_timing.py` for the Release capture receipt, or add
@@ -242,9 +245,8 @@ that render queries cannot advance timing or mint completions. Identified
 results live under `analysis/lap-timing/`; existing ghost/Hall and test-only
 original-code regressions remain covered by `check_native_laps.py --verify-original`.
 
-The player still displays and saves Original results at this stage. Enhanced
-storage is available independently; player delivery, selection and presentation
-remain later work.
+The player still displays Original timing at this stage, while saving both
+categories. Timing preference controls and timer presentation remain later work.
 
 ## Component changes
 
@@ -347,7 +349,7 @@ Ghosts publish before their index references; collection protects references in
 all readable generations. The Enhanced worker exposes queue backpressure,
 failure and retry independently. Completion IDs salt the run identity with the
 Enhanced category and method before applying the unchanged completion-ID rule.
-Live submission and failure feedback are stage-4 integration work.
+Both workers participate in live delivery, safe departure and retry handling.
 
 Encoded limits are 66,728 bytes for a full Hall table, 3,019,268 for a PB and
 3,019,196 for a Hall ghost. Recordings permit at most 65,536 movement samples,
@@ -367,6 +369,68 @@ usable ghost references. Receipts and disposable data live under
 `analysis/enhanced-records/`. These checks use synthetic records and do not access
 real player data; process interruption does not establish power-loss or real
 second-account behaviour.
+
+## Session delivery and ghost targets
+
+`LapRecorder` shares raw movement capture between the two categories. At a
+reliable Enhanced completion it copies the raw poses and rebases their offsets
+to the full-position crossing, preserving the Original progress-aligned record.
+It retains neighbouring samples, moving bridge shapes and recovery cuts. Invalid
+or overflowing movement data removes only the Enhanced ghost; a reliable time
+can still improve an Enhanced PB and enter the Hall. No Original saved recording
+or old duration is promoted to Enhanced.
+
+The recorder compares private PBs independently, and `HallRaceRecording` delivers
+every eligible completion to both Hall workers regardless of PB improvement.
+Enhanced laps require reliable timing; competitive totals require the observer's
+three consecutive full laps. The actual native human supplies the roster name,
+track and league. Multiplayer contributes Hall records without acquiring a
+private PB owner. Session delivery drains both queues after each native step,
+before terminal checkpoint handling. Reloading a checkpoint or saved target
+creates no new attempt.
+
+`native_enhanced_session.cpp` restores the matching career/track/league PB at race
+entry and resubmits retained unsaved improvements. Original and Enhanced failures
+remain independent; all workers participate in Saved status, Retry, close and
+career departure. Both private categories are forgotten when a career is deleted.
+Live Hall delivery uses `enhancedCapturePendingMaximumBytes`, recalculated for
+every possible retained top-20 capture; allocation backpressure cannot silently
+remove a valid live recording.
+Clear removes only the effective private category and its playback target,
+suppresses replacement for the current partial lap, and leaves Hall capture and
+the other category active. The next full candidate can qualify normally.
+
+`TimingCategory` and `NativeGameSession::setTimingCategory` provide the stage-5
+integration boundary. Changing it selects retained playback epochs without
+restarting either capture. Each category selects its next PB target at a crossing;
+the current attempt retains its target. Playback uses raw elapsed movement time,
+with the existing interpolation, recovery cuts, fade and Draw Bridge guard.
+The 260 ms scoring penalty never inserts poses or extends a ghost's movement.
+Repeated and reverse queries cannot update timing, visibility or records.
+
+`PinnedEnhancedHallGhost` binds a rival's method, category, attempt and immutable
+movement. `EnhancedHallStore::requestTarget` resolves the current retained row and
+validates/loads its recording on the worker. Session requests can be cancelled;
+stale responses are ignored and Back takes priority over a completed resolution.
+A challenge temporarily overrides the selected category, preserving the rival
+through private PB improvements, clears and visibility changes. Preview cancel,
+race exit and close preserve the career continuation, suspended season and RNG;
+the global category applies again on return. The stage-5 Hall filter will call
+this path; no Enhanced browser controls are exposed yet.
+
+Run `scripts/check_native_enhanced_sessions.py`, or add `--configuration Debug`.
+Receipts under `analysis/enhanced-sessions/` identify sources, fixtures and
+executables. Asset-free constructed checks cover independent PB winners, boundary
+rebasing, ties, recovery offsets, time-only overflow, category clearing, pinned
+targets and bridge suppression. Native checks cover all eight tracks/both leagues,
+nine complete laps across Practice/competitive/multiplayer fixture routes, two
+competitive totals, independent failure/retry of all four PB/Hall destinations,
+reload/time-only targets, asynchronous resolution/cancel and challenge continuation.
+They verify visible Enhanced ghosts in all four views and compare full native
+memory/RNG with capture disabled. The retained authored route supplies complete
+Little Ramp laps; other tracks use fresh partial drives, not complete-lap claims.
+`scripts/check_native_laps.py --verify-original` supplies the Original player,
+recording and test-only original-code regression checks.
 
 ## Settings and presentation
 
@@ -418,7 +482,7 @@ active.
    separate Enhanced namespaces/codecs, retry identities and storage workers.
    Exit: tie semantics, Original compatibility, time-only results, interrupted
    writes and concurrent access pass isolated tests.
-4. **Integrate sessions and ghosts.** Capture both categories through Practice,
+4. **Integrate sessions and ghosts — complete.** Capture both categories through Practice,
    career and local multiplayer routes; restore matching PB targets and pin Hall
    category/identity. Preserve clear, quit, save failure and career continuation.
    Exit: each completion reaches each eligible category once, and ghost movement
@@ -456,6 +520,6 @@ under `analysis/`, following [development](../development.md).
 
 Completion requires preserved Original data and gameplay, independent Enhanced
 rankings with conservative eligibility, deterministic millisecond results, and
-matching timer/ghost presentation. Stages 1–3 provide the selected world-plane
-method, independent capture and separate storage; stages 4–6 complete the agreed
-player behaviour.
+matching timer/ghost presentation. Stages 1–4 provide the selected world-plane
+method, independent capture, separate storage and live delivery; stages 5–6
+complete the agreed player behaviour.

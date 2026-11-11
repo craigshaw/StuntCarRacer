@@ -41,6 +41,11 @@ retain their timing gates. Computer Link remains disabled and deferred.
   independent. The serial worker also owns their atomic writes and recovery;
   see [ghost recording and storage](personal-best-ghosts.md#saved-files-and-player-integration).
 
+[Enhanced timing](enhanced-timing.md#session-delivery-and-ghost-targets) now delivers
+the same live completions to separate PB/Hall storage, with conservative confidence,
+independent failures and category-specific targets. Pinned Enhanced challenges use
+the same isolated career continuation. Settings and timer/Hall controls remain pending.
+
 ## Storage
 
 Private career/index files use bounded, checksummed, versioned envelopes. A serial

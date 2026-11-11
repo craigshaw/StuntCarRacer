@@ -151,9 +151,10 @@ void RaceScene::initialiseMemory(const std::array<std::uint8_t,0x80000>& memory,
             auto completed=simulation.lapTiming.observeTiming(timing.humanLapCrossing,human?std::optional<PackedLapTime>(human->total):std::nullopt);
             if(simulation.laps){
                 const auto* enhanced=completed?&completed->enhanced:nullptr;
+                const auto& line=simulation.lapTiming.lastBoundary();
                 if(simulation.hall)simulation.laps->observeTiming(timing.humanLapCrossing,[&](LapCompletion completion){
                     if(human)simulation.hall->complete(std::move(completion),*human);
-                },enhanced);else simulation.laps->observeTiming(timing.humanLapCrossing,{},enhanced);
+                },enhanced,line?&*line:nullptr);else simulation.laps->observeTiming(timing.humanLapCrossing,{},enhanced,line?&*line:nullptr);
             }
             if(completed)simulation.timedCompletions.push_back(std::move(*completed));
         }
@@ -390,6 +391,14 @@ bool RaceScene::recordPersonalBestLaps(PersonalBestLaps& bests,GhostLapContext c
 const LapRecordingStatistics* RaceScene::lapRecordingStatistics()const noexcept{
     return simulation_&&simulation_->laps?&simulation_->laps->statistics():nullptr;
 }
+bool RaceScene::recordEnhancedPersonalBestLaps(EnhancedPersonalBests& bests,EnhancedBestKey key,std::shared_ptr<const PinnedEnhancedHallGhost> target){
+    if(!simulation_)throw std::logic_error("Enhanced recording requires a live scene");const auto& ram=simulation_->native.ram;
+    if(ram[0x5eb76])return false;
+    if(!simulation_->laps||key.track!=state::raceSelection::trackId(ram)||key.superLeague!=state::raceSelection::superLeague(ram)||
+       bests.catalog().trackContent!=trackContentIdentity_||bests.catalog().rules!=1)
+        throw std::invalid_argument("Enhanced PB context differs from native race");
+    simulation_->laps->configureEnhanced(bests,std::move(key),std::move(target));return true;
+}
 void RaceScene::recordHallAttempts(HallAttemptId run,bool competitive){
     if(!simulation_||simulation_->hall)throw std::logic_error("Hall capture requires a new live scene");
     const auto& ram=simulation_->native.ram;const auto track=state::raceSelection::trackId(ram);
@@ -400,12 +409,16 @@ void RaceScene::recordHallAttempts(HallAttemptId run,bool competitive){
 std::vector<HallSubmission> RaceScene::takeHallCompletions(){
     return simulation_&&simulation_->hall?simulation_->hall->take():std::vector<HallSubmission>{};
 }
+std::vector<EnhancedSubmission> RaceScene::takeEnhancedHallCompletions(){
+    return simulation_&&simulation_->hall?simulation_->hall->takeEnhanced():std::vector<EnhancedSubmission>{};
+}
 std::vector<LapTimingCompletion> RaceScene::takeTimingCompletions(){
     if(!simulation_)return {};
     auto result=std::move(simulation_->timedCompletions);simulation_->timedCompletions.clear();return result;
 }
 const LapTimingStatistics* RaceScene::timingStatistics()const noexcept{return simulation_?&simulation_->lapTiming.statistics():nullptr;}
 void RaceScene::clearPersonalBestLap(){if(simulation_&&simulation_->laps)simulation_->laps->clear();}
+void RaceScene::clearEnhancedPersonalBestLap(){if(simulation_&&simulation_->laps)simulation_->laps->clearEnhanced();}
 const std::vector<std::uint32_t>& RaceScene::renderPracticeGhost(double fraction,bool interpolate,NativeView view){
     const auto playback=lapGhostPlayback(interpolate?fraction:1,interpolate);
     if(!playback||playback->opacity<=0)return renderLive(fraction,false,interpolate,view);
@@ -420,7 +433,7 @@ std::optional<GhostLapPlayback> RaceScene::lapGhostPlayback(double position,bool
     const auto& from=frames_[index];auto time=from.presentationMicroseconds;
     if(interpolate&&index+1<frames_.size()&&canInterpolatePresentation(from.restarts,frames_[index+1].restarts,from.action,frames_[index+1].action))
         time+=std::llround((frames_[index+1].presentationMicroseconds-time)*fraction);
-    return simulation_->laps->playback(time,interpolate);
+    return simulation_->laps->playback(time,interpolate,ghostTimingCategory_);
 }
 const std::vector<std::uint32_t>& RaceScene::renderLive(double fraction,bool wireframe,bool interpolate,NativeView view){
     fraction=std::clamp(fraction,0.0,1.0);lastLiveFraction_=fraction;lastLiveInterpolate_=interpolate;

@@ -43,8 +43,8 @@ Results, raw CSVs, the method decision and identified receipts live under
 `analysis/timing-estimation/`. `--configuration Debug` writes a separate Debug
 receipt; `--skip-build` requires matching identities. This is stage 1 of the
 [Enhanced timing plan](../docs/components/enhanced-timing.md). Its chosen arithmetic
-is shared with live capture and separate Enhanced record storage; player
-delivery and presentation remain pending.
+is shared with live capture and separate Enhanced records/targets; timing settings
+and presentation remain pending.
 
 `scripts/check_native_lap_timing.py` verifies stage-2 capture through unit and
 native integration CTests. It covers dual timing metadata without a ghost
@@ -78,8 +78,8 @@ It checks recovery, retry deduplication and usable referenced ghosts. Reports,
 logs and disposable data stay under `analysis/hall-of-fame/durable-store/`.
 This proof covers process interruption, not power loss or another Windows login;
 the foundation account proof remains separate. Player completion delivery is
-checked by `scripts/check_native_laps.py --verify-original`; Enhanced Hall browser
-and challenge integration remain pending.
+checked by `scripts/check_native_laps.py --verify-original`; the Enhanced Hall
+filter and timing presentation remain pending.
 
 `scripts/check_native_enhanced_store.py` verifies separate Enhanced PB/Hall
 models, codecs and storage, with Original regressions. It builds
@@ -90,8 +90,15 @@ It also checks private PB recovery, category isolation, millisecond ties and
 time-only results. Source/fixture/executable receipts, logs and data live under
 `analysis/enhanced-records/`, with a separate Debug directory selected by
 `--configuration Debug`. Real player data, power loss and a real second Windows
-account are outside this proof. Live Enhanced completion delivery is stage 4 of
-the [timing plan](../docs/components/enhanced-timing.md).
+account are outside this proof.
+
+`scripts/check_native_enhanced_sessions.py` checks stage-4 dual delivery,
+independent private PBs, category-specific playback and pinned Enhanced Hall
+challenges. It covers fresh track/league contexts, complete authored fixture laps,
+time-only restore, four independent write-failure routes and safe continuation.
+Receipts live under `analysis/enhanced-sessions/`, with separate Debug output via
+`--configuration Debug`. See the [timing plan](../docs/components/enhanced-timing.md#session-delivery-and-ghost-targets)
+for scope and the pending settings/UI boundary.
 
 ## Static ghost rendering proof
 

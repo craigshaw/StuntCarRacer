@@ -7,6 +7,11 @@
 #include <thread>
 
 namespace scr::runtime {
+struct PinnedEnhancedHallGhost;
+struct EnhancedTargetRead {
+    std::uint64_t request{};HallGhostState state{HallGhostState::Missing};
+    std::shared_ptr<const PinnedEnhancedHallGhost> target;std::string error;
+};
 using EnhancedHallRead=HallArchiveReadFor<EnhancedHallOfFame>;
 using EnhancedGhostRead=HallGhostReadFor<EnhancedHallGhost>;
 struct EnhancedSubmission {
@@ -45,6 +50,9 @@ public:
     EnhancedHallStore& operator=(const EnhancedHallStore&)=delete;
     EnhancedSubmitResult submit(EnhancedSubmission);
     void retry();bool flush();bool pending()const;bool failed()const;std::string error()const;
+    std::uint64_t requestTarget(EnhancedHallAttempt);
+    std::shared_ptr<const EnhancedTargetRead> targetRead()const;
+    void cancelTarget();
     EnhancedHallRead read()const{return archive_.read();}
     EnhancedGhostRead readGhost(const EnhancedHallAttempt& a)const{return archive_.readGhost(a);}
 private:
@@ -52,6 +60,8 @@ private:
     mutable std::mutex mutex_;std::condition_variable changed_,idle_;std::thread worker_;
     std::vector<std::shared_ptr<const EnhancedSubmission>> pending_,active_;
     bool stopping_{},writing_{},blocked_{};std::string error_;
+    std::optional<EnhancedHallAttempt> targetRequest_;std::uint64_t targetSerial_{};
+    std::shared_ptr<const EnhancedTargetRead> targetRead_;
     void run();
 };
 } // namespace scr::runtime

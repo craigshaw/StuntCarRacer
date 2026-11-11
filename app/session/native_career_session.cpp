@@ -34,6 +34,10 @@ void NativeGameSession::enableCareers(const std::filesystem::path& root,const st
     sharedHallStore_=std::make_unique<SharedHallStore>(sharedRoot.empty()?root/"shared-hall":sharedRoot,
         HallCatalog{ghostTrackContentIdentity(data_.payload),1},HallWriteObserver{},hallCapturePendingMaximumBytes);
     sharedHallStore_->retry(); // Check/open off-thread; a failure cannot block career loading.
+    const EnhancedCatalog enhancedCatalog{ghostTrackContentIdentity(data_.payload),1,enhancedTimingMethodVersion};
+    enhancedBests_=std::make_unique<EnhancedPersonalBests>(enhancedCatalog);
+    enhancedHallStore_=std::make_unique<EnhancedHallStore>(sharedRoot.empty()?root/"shared-hall":sharedRoot,
+        enhancedCatalog,HallWriteObserver{},enhancedCapturePendingMaximumBytes);
     if(careerPanel_==CareerPanel::None&&careerStore_->lastUsedState()==CareerFileState::Recovered){
         notice_="Last career recovery restored";returnPanel_=CareerPanel::None;showCareerPanel(CareerPanel::Notice);
     }
@@ -41,7 +45,7 @@ void NativeGameSession::enableCareers(const std::filesystem::path& root,const st
 std::string NativeGameSession::saveStatus()const{
     if(!careerStore_)return {};
     if(storesFailed())return "NOT SAVED";
-    return careerStore_->pending()||(sharedHallStore_&&sharedHallStore_->pending())?"Saving...":"Saved";
+    return careerStore_->pending()||(sharedHallStore_&&sharedHallStore_->pending())||(enhancedHallStore_&&enhancedHallStore_->pending())?"Saving...":"Saved";
 }
 void NativeGameSession::refreshCareerHome(){
     careerList_=careerStore_->list();homeActions_.clear();recentCareerName_.clear();
@@ -216,18 +220,21 @@ void NativeGameSession::observeHallCompletions(){
         // as dominated is safe; Full would indicate a broken capture bound.
         if(sharedHallStore_->submit(completed)==HallSubmitResult::Full)throw std::logic_error("Hall capture allocation bound exceeded");
     }
+    for(const auto& completed:race_.takeEnhancedHallCompletions())
+        if(enhancedHallStore_->submit(completed)==EnhancedSubmitResult::Full)throw std::logic_error("Enhanced Hall capture allocation bound exceeded");
 }
 HallArchiveRead NativeGameSession::sharedHall()const{
     if(!sharedHallStore_)throw std::logic_error("Shared Hall is not enabled");return sharedHallStore_->read();
 }
-bool NativeGameSession::storesFailed()const{return (careerStore_&&careerStore_->failed())||(sharedHallStore_&&sharedHallStore_->failed());}
+bool NativeGameSession::storesFailed()const{return (careerStore_&&careerStore_->failed())||(sharedHallStore_&&sharedHallStore_->failed())||(enhancedHallStore_&&enhancedHallStore_->failed());}
 std::string NativeGameSession::storeFailureSummary()const{
+    if(enhancedHallStore_&&enhancedHallStore_->failed())return careerStore_&&careerStore_->failed()?"Progress and Hall not saved":sharedHallStore_&&sharedHallStore_->failed()?"Hall records not saved":"Enhanced Hall not saved";
     if(sharedHallStore_&&sharedHallStore_->failed())return careerStore_&&careerStore_->failed()?"Progress and Hall not saved":"Hall records not saved";
     return careerStore_?careerStore_->failureSummary():std::string{};
 }
 bool NativeGameSession::flushStores(bool retry){
-    if(retry){if(careerStore_)careerStore_->retry();if(sharedHallStore_)sharedHallStore_->retry();}
-    const bool a=!careerStore_||careerStore_->flush();const bool b=!sharedHallStore_||sharedHallStore_->flush();return a&&b;
+    if(retry){if(careerStore_)careerStore_->retry();if(sharedHallStore_)sharedHallStore_->retry();if(enhancedHallStore_)enhancedHallStore_->retry();}
+    const bool a=!careerStore_||careerStore_->flush();const bool b=!sharedHallStore_||sharedHallStore_->flush();const bool c=!enhancedHallStore_||enhancedHallStore_->flush();return a&&b&&c;
 }
 bool NativeGameSession::flushRecords(){return flushStores();}
 void NativeGameSession::observeCareerState(NativeMenuPage previous){
@@ -299,6 +306,7 @@ bool NativeGameSession::updateCareers(double elapsed,const NativeGameInput& held
             else{const auto id=careerList_[listSelection_].id;
                 if(careerStore_->removeCareer(id)){
                     personalBestLaps_.forgetCareer(id);
+                    enhancedBests_->forgetCareer(id);
                     if(activeCareer_&&activeCareer_->id==id){activeCareer_.reset();checkpoint_.clear();suspendedSeason_.clear();}
                     if(lastCareer_==id)lastCareer_.clear();refreshCareerHome();listSelection_=0;showCareerPanel(CareerPanel::List);
                 }else{notice_="Could not delete career";returnPanel_=CareerPanel::List;showCareerPanel(CareerPanel::Notice);}}

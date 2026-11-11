@@ -28,6 +28,7 @@ public:
         std::optional<PackedLapTime> originalTotal={});
     void stop()noexcept;
     const LapTimingStatistics& statistics()const noexcept{return statistics_;}
+    const std::optional<LapTimingBoundary>& lastBoundary()const noexcept{return start_;}
 private:
     timing::Gate gate_;
     bool competitive_{},stopped_{};

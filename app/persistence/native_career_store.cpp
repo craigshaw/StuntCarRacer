@@ -236,8 +236,9 @@ bool NativeCareerStore::ghostFailed()const{std::lock_guard<std::mutex> lock(mute
 bool NativeCareerStore::enhancedBestFailed()const{std::lock_guard<std::mutex> lock(mutex_);return std::any_of(errors_.begin(),errors_.end(),[](const auto& e){return e.first.extension()==L".scr-ebest";});}
 std::string NativeCareerStore::error()const{std::lock_guard<std::mutex> lock(mutex_);return errors_.empty()?std::string{}:errors_.begin()->second;}
 std::string NativeCareerStore::failureSummary()const{
-    std::lock_guard<std::mutex> lock(mutex_);bool hall=false,career=false,ghost=false;
-    for(const auto& item:errors_){if(item.first.filename()==L"hall.scr-hall")hall=true;else if(item.first.extension()==L".scr-ghost")ghost=true;else career=true;}
+    std::lock_guard<std::mutex> lock(mutex_);bool hall=false,career=false,ghost=false,enhanced=false;
+    for(const auto& item:errors_){if(item.first.filename()==L"hall.scr-hall")hall=true;else if(item.first.extension()==L".scr-ghost")ghost=true;else if(item.first.extension()==L".scr-ebest")enhanced=true;else career=true;}
+    if(enhanced)return hall||career||ghost?"Progress and records not saved":"Enhanced PB not saved";
     if(ghost)return hall?(career?"Career, Hall and ghosts not saved":"Hall records and ghosts not saved"):(career?"Career and ghosts not saved":"Ghost not saved");
     return hall?(career?"Career and Hall not saved":"Hall records not saved"):"Career progress not saved";
 }

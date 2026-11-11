@@ -38,6 +38,7 @@ void validateEnhancedBest(const EnhancedBest&);
 class EnhancedPersonalBests {
 public:
     explicit EnhancedPersonalBests(EnhancedCatalog);
+    EnhancedCatalog catalog()const noexcept{return catalog_;}
     std::shared_ptr<const EnhancedBest> best(const EnhancedBestKey&)const;
     bool offer(EnhancedBest);
     void forget(const EnhancedBestKey& key){bests_.erase(key);}

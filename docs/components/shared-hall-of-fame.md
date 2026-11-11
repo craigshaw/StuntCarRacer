@@ -8,7 +8,8 @@ career PB files and ordinary Practice targets retain their existing format.
 This guide describes Original records. The [Enhanced storage foundation](enhanced-timing.md#implemented-storage-foundation)
 uses separate models, codecs and a sibling archive, while sharing the locked file
 protocol in `app/persistence/hall_archive_engine.h`. Original filenames, wire
-formats and completion IDs are unchanged; Enhanced player delivery is pending.
+formats and completion IDs are unchanged. Both categories receive live completions;
+Enhanced target resolution and challenges are implemented behind the stage-5 UI boundary.
 
 ## Browser
 

@@ -115,6 +115,7 @@ void NativeGameSession::startRace(){
         race_.recordPersonalBestLaps(personalBestLaps_,{*lapKey_,menu_->competitive()?GhostLapSource::League:GhostLapSource::Practice,content},hallChallenge_?hallChallenge_->target:nullptr);
     }
     if(sharedHallStore_)race_.recordHallAttempts(newHallRunId(),menu_->competitive());
+    prepareEnhancedRecords();race_.setGhostTimingCategory(effectiveTimingCategory());
     race_.setRunningLapHundredths(true);
     driveClock_.reset();driveLatch_.clear();endFireWait_.reset();quitPending_=false;
 }
@@ -127,21 +128,31 @@ bool NativeGameSession::practiceGhostActive()const noexcept{
     return lapKey_&&activeCareer_&&!multiplayer()&&!competitive()&&!finishPending_&&page()==NativeMenuPage::Race;
 }
 bool NativeGameSession::canClearPracticeGhost()const{
+    if(practiceGhostActive()&&effectiveTimingCategory()==TimingCategory::Enhanced)
+        return enhancedBests_->best({lapKey_->career,lapKey_->track,lapKey_->superLeague})||enhancedBestFileState_!=CareerFileState::Missing;
     return practiceGhostActive()&&(personalBestLaps_.best(*lapKey_)||ghostFileState_!=CareerFileState::Missing);
 }
 std::string NativeGameSession::practiceGhostTime()const{
     if(!practiceGhostActive())return {};
+    if(effectiveTimingCategory()==TimingCategory::Enhanced){const auto best=enhancedBests_->best({lapKey_->career,lapKey_->track,lapKey_->superLeague});return best?formatEnhancedTime(best->time):"Not set";}
     const auto best=personalBestLaps_.best(*lapKey_);if(!best)return "Not set";
     std::ostringstream text;text<<best->hundredths/6000<<':'<<std::setw(2)<<std::setfill('0')<<(best->hundredths/100)%60<<'.'<<std::setw(2)<<best->hundredths%100;return text.str();
 }
 std::string NativeGameSession::practiceGhostTarget()const{
     if(!practiceGhostActive())return {};
     if(!hallChallenge_)return "Career PB";
+    if(hallChallenge_->enhancedTarget){const auto& a=hallChallenge_->enhancedTarget->attempt;return "Hall rival: "+a.name+" "+formatEnhancedTime(a.time)+" (Enhanced)";}
     const auto& a=hallChallenge_->target->attempt;
     return "Hall rival: "+a.name+" "+formatHallTime(a.time,HallRecordKind::Lap);
 }
 bool NativeGameSession::clearPracticeGhost(){
     if(!practiceGhostActive()||!careerStore_)return false;
+    if(effectiveTimingCategory()==TimingCategory::Enhanced){
+        const EnhancedBestKey key{lapKey_->career,lapKey_->track,lapKey_->superLeague};
+        if(!careerStore_->clearEnhancedBest(key)){ghostNotice_="Could not clear Enhanced PB. Please try again.";ghostNoticeSeconds_=5;return false;}
+        enhancedBests_->forget(key);race_.clearEnhancedPersonalBestLap();enhancedBestFileState_=CareerFileState::Missing;ghostConditionsDiffer_=false;
+        ghostNotice_=hallChallenge_?"Enhanced PB cleared. Hall rival retained.":"Enhanced PB and ghost cleared.";ghostNoticeSeconds_=2.5;return true;
+    }
     if(!careerStore_->clearGhost(*lapKey_)){ghostNotice_="Could not clear the ghost. Please try again.";ghostNoticeSeconds_=5;return false;}
     personalBestLaps_.forget(*lapKey_);race_.clearPersonalBestLap();ghostFileState_=CareerFileState::Missing;ghostConditionsDiffer_=false;
     ghostNotice_=hallChallenge_?"Career PB cleared. Hall rival retained.":"Career PB and ghost cleared.";ghostNoticeSeconds_=2.5;return true;
@@ -153,14 +164,17 @@ void NativeGameSession::observePersonalBest(){
     if(stats->improvements==lapImprovements_)return;
     lapImprovements_=stats->improvements;const auto best=personalBestLaps_.best(*lapKey_);if(!best)return;
     careerStore_->saveGhost(*best);
+    if(effectiveTimingCategory()!=TimingCategory::Original)return;
     std::ostringstream time;time<<best->hundredths/6000<<':'<<std::setw(2)<<std::setfill('0')<<(best->hundredths/100)%60<<'.'<<std::setw(2)<<best->hundredths%100;
     ghostNotice_="New personal best: "+time.str();ghostNoticeSeconds_=2.5;
 }
 bool NativeGameSession::ghostFeedbackWarning()const{
+    if(effectiveTimingCategory()==TimingCategory::Enhanced)return (careerStore_&&careerStore_->enhancedBestFailed())||
+        (ghostNoticeSeconds_>0&&(enhancedBestFileState_==CareerFileState::Unsupported||enhancedBestFileState_==CareerFileState::Corrupt));
     return (careerStore_&&careerStore_->ghostFailed())||(ghostNoticeSeconds_>0&&(ghostFileState_==CareerFileState::Unsupported||ghostFileState_==CareerFileState::Corrupt));
 }
 std::string NativeGameSession::ghostFeedback()const{
-    const bool failed=careerStore_&&careerStore_->ghostFailed();
+    const bool failed=careerStore_&&(effectiveTimingCategory()==TimingCategory::Original?careerStore_->ghostFailed():careerStore_->enhancedBestFailed());
     if(ghostNoticeSeconds_>0)return ghostNotice_+(failed?" (ghost not saved)":"");
     if(failed)return "Ghost not saved. Your best is kept for this session.";
     return ghostConditionsDiffer_?"Bridge conditions differ":std::string{};
@@ -334,6 +348,7 @@ NativeGameUpdate NativeGameSession::updateImpl(double elapsed,const NativeGameIn
             race_.stepLive(driveLatch_.consume(input.drivePreset),quitPending_,input.drivePreset);quitPending_=input.quit;
             result.audio.push_back(race_.frames().back().audio);
             observePersonalBest();
+            observeEnhancedPersonalBest();
             observeHallCompletions();
             if(race_.liveTerminal()){
                 if(careerStore_){

@@ -34,9 +34,9 @@
   separate from the local feature.
 - [Enhanced timing implementation plan](components/enhanced-timing.md): approved
   design for millisecond records, interpolated crossings and explicit recovery
-  penalties alongside Original timing. Stages 1–3 provide validated crossing
-  estimation, live capture and separate record storage; session delivery, ghost
-  targets and UI remain pending.
+  penalties alongside Original timing. Stages 1–4 provide validated crossing
+  estimation, live delivery, separate storage and ghost targets; settings and
+  timer/Hall UI remain pending.
 
 ## Tools and research
 

@@ -1,6 +1,10 @@
 #include "race/practice_ghost_target.h"
 
 namespace scr::runtime {
+std::shared_ptr<const PinnedEnhancedHallGhost> pinEnhancedHallGhost(const EnhancedHallAttempt& attempt,const EnhancedHallGhost& ghost,EnhancedCatalog catalog){
+    requireEnhancedGhostBinding(ghost,attempt,catalog);(void)encodeEnhancedHallGhost(ghost);
+    auto target=std::make_shared<PinnedEnhancedHallGhost>();target->attempt=attempt;target->catalog=catalog;target->recording=ghost.recording;return target;
+}
 std::shared_ptr<const PinnedHallGhost> pinHallGhost(const HallAttempt& attempt,const HallGhost& ghost,HallCatalog catalog){
     requireHallGhostBinding(ghost,attempt,catalog);
     // This boundary also rejects malformed in-memory callers. Resolution runs

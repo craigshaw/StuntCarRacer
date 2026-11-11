@@ -13,6 +13,20 @@ void HallRaceRecording::complete(LapCompletion lap,const state::HumanRaceRecord&
     if(crossing_==std::numeric_limits<std::uint64_t>::max())throw std::overflow_error("Hall crossing sequence exhausted");
     ++crossing_;
     const auto name=normaliseHallName(std::string(human.name.begin(),human.name.end())).display;
+    if(lap.enhanced){
+        const EnhancedCatalog catalog{catalog_.trackContent,catalog_.rules,enhancedTimingMethodVersion};
+        if(lap.enhanced->lap.rankable()){
+            EnhancedHallAttempt a{enhancedCompletionId(run_,crossing_,HallRecordKind::Lap),board_,name,lap.enhanced->lap,{}};
+            std::shared_ptr<const EnhancedHallGhost> recording;
+            if(lap.enhancedRecording){auto g=std::make_shared<EnhancedHallGhost>();g->catalog=catalog;g->attempt=a.id;g->board=board_;g->recording=*lap.enhancedRecording;recording=std::move(g);}
+            enhancedCompleted_.push_back(captureEnhancedSubmission(std::move(a),std::move(recording)));
+        }
+        if(competitive_&&lap.enhanced->race&&lap.enhanced->race->enhanced.rankable()){
+            auto raceBoard=board_;raceBoard.kind=HallRecordKind::Race;
+            EnhancedHallAttempt a{enhancedCompletionId(run_,crossing_,HallRecordKind::Race),raceBoard,name,lap.enhanced->race->enhanced,{}};
+            enhancedCompleted_.push_back(captureEnhancedSubmission(std::move(a),{}));
+        }
+    }
     HallAttempt attempt{hallCompletionId(run_,crossing_,HallRecordKind::Lap),board_,name,lap.time,{}};
     std::shared_ptr<const HallGhost> recording;
     if(lap.recording){auto g=std::make_shared<HallGhost>();g->catalog=catalog_;g->attempt=attempt.id;g->board=board_;g->time=lap.time;
@@ -29,4 +43,5 @@ void HallRaceRecording::complete(LapCompletion lap,const state::HumanRaceRecord&
     }
 }
 std::vector<HallSubmission> HallRaceRecording::take(){auto result=std::move(completed_);completed_.clear();return result;}
+std::vector<EnhancedSubmission> HallRaceRecording::takeEnhanced(){auto result=std::move(enhancedCompleted_);enhancedCompleted_.clear();return result;}
 } // namespace scr::runtime

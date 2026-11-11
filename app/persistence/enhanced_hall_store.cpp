@@ -1,5 +1,6 @@
 #include "persistence/enhanced_hall_store.h"
 #include "persistence/hall_archive_engine.h"
+#include "race/practice_ghost_target.h"
 #include <iomanip>
 #include <sstream>
 
@@ -93,8 +94,27 @@ bool EnhancedHallStore::flush(){std::unique_lock<std::mutex> lock(mutex_);idle_.
 bool EnhancedHallStore::pending()const{std::lock_guard<std::mutex> lock(mutex_);return writing_||!pending_.empty();}
 bool EnhancedHallStore::failed()const{std::lock_guard<std::mutex> lock(mutex_);return blocked_;}
 std::string EnhancedHallStore::error()const{std::lock_guard<std::mutex> lock(mutex_);return error_;}
+std::uint64_t EnhancedHallStore::requestTarget(EnhancedHallAttempt attempt){
+    EnhancedHallOfFame check(catalog_);if(check.offer(attempt)==EnhancedAdmission::Ineligible)throw std::invalid_argument("Unrankable Enhanced target");
+    std::lock_guard<std::mutex> lock(mutex_);targetRequest_=std::move(attempt);changed_.notify_one();return ++targetSerial_;
+}
+std::shared_ptr<const EnhancedTargetRead> EnhancedHallStore::targetRead()const{std::lock_guard<std::mutex> lock(mutex_);return targetRead_;}
+void EnhancedHallStore::cancelTarget(){std::lock_guard<std::mutex> lock(mutex_);targetRequest_.reset();++targetSerial_;}
 void EnhancedHallStore::run(){for(;;){
-    {std::unique_lock<std::mutex> lock(mutex_);changed_.wait(lock,[&]{return stopping_||(!blocked_&&!pending_.empty());});if(stopping_)return;active_=pending_;writing_=true;}
+    std::optional<EnhancedHallAttempt> target;std::uint64_t request{};
+    {std::unique_lock<std::mutex> lock(mutex_);changed_.wait(lock,[&]{return stopping_||targetRequest_||(!blocked_&&!pending_.empty());});if(stopping_)return;
+        if(!blocked_&&!pending_.empty()){active_=pending_;writing_=true;}else{target=targetRequest_;targetRequest_.reset();request=targetSerial_;}}
+    if(target){
+        auto result=std::make_shared<EnhancedTargetRead>();result->request=request;
+        try{const auto archive=archive_.read();
+            if(archive.state==HallArchiveState::Unsupported)result->state=HallGhostState::Unsupported;
+            else if(archive.hall){const auto& board=archive.hall->entries(target->board);const auto found=std::find_if(board.begin(),board.end(),[&](const auto& e){return e.attempt.id==target->id;});
+                if(found!=board.end()){const auto ghost=archive_.readGhost(found->attempt);result->state=ghost.state;
+                    if(ghost.ghost)result->target=pinEnhancedHallGhost(found->attempt,*ghost.ghost,catalog_);}}
+            else result->state=HallGhostState::Corrupt;
+        }catch(const std::exception& e){result->state=HallGhostState::Unavailable;result->error=e.what();}
+        {std::lock_guard<std::mutex> lock(mutex_);if(request==targetSerial_)targetRead_=std::move(result);}continue;
+    }
     std::string error;try{archive_.commit(active_);}catch(const std::exception& e){error=e.what();}
     {std::lock_guard<std::mutex> lock(mutex_);if(error.empty()){std::set<HallAttemptId> saved;for(const auto& item:active_)saved.insert(item->attempt.id);
         pending_.erase(std::remove_if(pending_.begin(),pending_.end(),[&](const auto& item){return saved.count(item->attempt.id)!=0;}),pending_.end());}

@@ -43,8 +43,7 @@ Results, raw CSVs, the method decision and identified receipts live under
 `analysis/timing-estimation/`. `--configuration Debug` writes a separate Debug
 receipt; `--skip-build` requires matching identities. This is stage 1 of the
 [Enhanced timing plan](../docs/components/enhanced-timing.md). Its chosen arithmetic
-is shared with live capture and separate Enhanced records/targets; timing settings
-and presentation remain pending.
+is shared with live capture, separate Enhanced records/targets and the player UI.
 
 `scripts/check_native_lap_timing.py` verifies stage-2 capture through unit and
 native integration CTests. It covers dual timing metadata without a ghost
@@ -79,7 +78,7 @@ logs and disposable data stay under `analysis/hall-of-fame/durable-store/`.
 This proof covers process interruption, not power loss or another Windows login;
 the foundation account proof remains separate. Player completion delivery is
 checked by `scripts/check_native_laps.py --verify-original`; the Enhanced Hall
-filter and timing presentation remain pending.
+filter and timing presentation are covered by the Enhanced UI checks below.
 
 `scripts/check_native_enhanced_store.py` verifies separate Enhanced PB/Hall
 models, codecs and storage, with Original regressions. It builds
@@ -98,7 +97,14 @@ challenges. It covers fresh track/league contexts, complete authored fixture lap
 time-only restore, four independent write-failure routes and safe continuation.
 Receipts live under `analysis/enhanced-sessions/`, with separate Debug output via
 `--configuration Debug`. See the [timing plan](../docs/components/enhanced-timing.md#session-delivery-and-ghost-targets)
-for scope and the pending settings/UI boundary.
+for capture and continuation scope.
+
+`scripts/check_native_enhanced_ui.py` covers stage-5 timing settings/migration,
+immutable presentation clocks, explicit Hall categories and saved-finish metadata.
+It retains Release/Debug receipts and PNG previews under `analysis/enhanced-ui/`.
+Fresh native recovery and three authored crossings verify presentation alignment;
+the approximation preview is a constructed display case. Player/original-code
+regressions remain in `check_native_laps.py --verify-original`.
 
 ## Static ghost rendering proof
 

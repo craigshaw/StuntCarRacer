@@ -14,6 +14,11 @@ struct EnhancedTargetRead {
 };
 using EnhancedHallRead=HallArchiveReadFor<EnhancedHallOfFame>;
 using EnhancedGhostRead=HallGhostReadFor<EnhancedHallGhost>;
+struct EnhancedBrowserRead {
+    HallBoardKey board;EnhancedHallRead archive;std::array<bool,hallEntriesPerBoard> ghosts{};
+    std::string error;std::uint64_t request{};std::optional<HallAttemptId> challenge;
+    std::shared_ptr<const PinnedEnhancedHallGhost> target;
+};
 struct EnhancedSubmission {
     EnhancedHallAttempt attempt;HallBytes ghost;
     std::shared_ptr<const EnhancedHallGhost> recording;
@@ -53,6 +58,9 @@ public:
     std::uint64_t requestTarget(EnhancedHallAttempt);
     std::shared_ptr<const EnhancedTargetRead> targetRead()const;
     void cancelTarget();
+    std::uint64_t requestBrowser(HallBoardKey,std::optional<HallAttemptId> challenge={});
+    std::shared_ptr<const EnhancedBrowserRead> browserRead()const;
+    void cancelBrowser();
     EnhancedHallRead read()const{return archive_.read();}
     EnhancedGhostRead readGhost(const EnhancedHallAttempt& a)const{return archive_.readGhost(a);}
 private:
@@ -62,6 +70,8 @@ private:
     bool stopping_{},writing_{},blocked_{};std::string error_;
     std::optional<EnhancedHallAttempt> targetRequest_;std::uint64_t targetSerial_{};
     std::shared_ptr<const EnhancedTargetRead> targetRead_;
+    std::optional<HallBoardKey> browserRequest_;std::optional<HallAttemptId> browserChallenge_;
+    std::uint64_t browserSerial_{};std::shared_ptr<const EnhancedBrowserRead> browserRead_;
     void run();
 };
 } // namespace scr::runtime

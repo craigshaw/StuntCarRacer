@@ -230,6 +230,8 @@ void navigation(){
     tap(settings,8);require(settings.preferences().view==NativeView::Ultrawide,"Aspect ratio did not select 32:9");
     tap(settings,8);require(settings.preferences().view==NativeView::Original,"Aspect ratio did not cycle from 32:9 to Original");
     tap(settings,2);tap(settings,8);require(!settings.preferences().practiceGhost,"Practice ghost did not toggle independently");
+    tap(settings,2);require(settings.preferences().timing==TimingCategory::Enhanced,"New settings did not default to Enhanced timing");
+    tap(settings,8);require(settings.preferences().timing==TimingCategory::Original,"Timing selector did not select Original");
     tap(settings,2);settings.navigate(0);require(settings.navigate(16)&&settings.blocksGame(),"Apply did not request saving while blocking gameplay");
     settings.applied();require(!settings.blocksGame(),"Applied direct settings did not return to game");
     const auto saved=settings.preferences();settings.pause();tap(settings,2);tap(settings,16);
@@ -237,7 +239,7 @@ void navigation(){
     require(settings.page()==NativeDisplayPage::Pause&&settings.preferences()==saved,"Cancel did not restore preferences and paused state");settings.back();
     settings.openSettings();tap(settings,2);tap(settings,2);tap(settings,2);tap(settings,2);tap(settings,8);
     require(settings.preferences().controls==DriveControlPreset::Original,"Controls did not preview on reopening settings");
-    tap(settings,2);tap(settings,2);tap(settings,2);tap(settings,2);tap(settings,2);tap(settings,16);
+    tap(settings,2);tap(settings,2);tap(settings,2);tap(settings,2);tap(settings,2);tap(settings,2);tap(settings,16);
     require(!settings.blocksGame()&&settings.preferences()==saved,"Cancel row did not restore the saved control preset");
     settings.openSettings();tap(settings,8);settings.suspendRace();settings.applied();
     require(settings.page()==NativeDisplayPage::Pause,"Focus loss allowed settings to resume a race");

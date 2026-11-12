@@ -1,5 +1,6 @@
 #include "persistence/native_career_checkpoint.h"
 #include <algorithm>
+#include <limits>
 #include <stdexcept>
 
 namespace scr::runtime {
@@ -44,7 +45,8 @@ CareerBytes encodeNativeCheckpoint(const NativeMemory& baseline,const NativeCare
         const auto season=decode(baseline,c.suspendedSeason,false);
         if(!season.menu.competitive)throw std::runtime_error("Suspended checkpoint is not a season");
     }
-    Writer w;w.u32(2);w.u64(checkpointBaselineHash(baseline));
+    if(c.finishTiming&&!c.finishPending)throw std::runtime_error("Enhanced finish has no pending finish");
+    Writer w;w.u32(c.finishTiming?3:2);w.u64(checkpointBaselineHash(baseline));
     w.u32(unsigned(c.menu.page));w.u32(c.menu.competitive);w.u32(c.menu.division);w.u32(c.menu.context);
     for(int value:{c.menu.mainSelection,c.menu.divisionSelection,c.menu.saveSelection,c.menu.trackSelections[0],c.menu.trackSelections[1],c.menu.trackSelections[2],c.menu.trackSelections[3]})w.u32(unsigned(value+1));
     w.u32(c.previewPrepared);w.u32(c.preparedTrack);w.u32(c.preparedLeague);w.u32(c.finishPending);
@@ -59,12 +61,14 @@ CareerBytes encodeNativeCheckpoint(const NativeMemory& baseline,const NativeCare
     w.u32(count);w.bytes(ranges.data.data(),ranges.data.size());
     if(c.finishPending)for(auto colour:c.finishPixels)w.u32(colour);
     w.u32(std::uint32_t(c.suspendedSeason.size()));w.bytes(c.suspendedSeason.data(),c.suspendedSeason.size());
+    if(c.finishTiming){w.u32(enhancedTimingMethodVersion);for(const auto value:{c.finishTiming->lap,c.finishTiming->record}){
+        if(value.microseconds<0)throw std::runtime_error("Invalid Enhanced finish time");w.u64(std::uint64_t(value.microseconds));w.u32(value.available);w.u32(value.approximate);}}
     return std::move(w.data);
 }
 namespace {
 NativeCareerCheckpoint decode(const NativeMemory& baseline,const CareerBytes& bytes,bool allowSeason){
     Reader r{bytes};const auto version=r.u32();
-    if((version!=1&&version!=2)||r.u64()!=checkpointBaselineHash(baseline))throw UnsupportedNativeCheckpoint("Unsupported career checkpoint or asset pack");
+    if((version!=1&&version!=2&&version!=3)||r.u64()!=checkpointBaselineHash(baseline))throw UnsupportedNativeCheckpoint("Unsupported career checkpoint or asset pack");
     NativeCareerCheckpoint c;c.memory=std::make_unique<NativeMemory>(baseline);c.menu.page=NativeMenuPage(r.u32());
     const auto flag=[&](){const auto value=r.u32();if(value>1)throw std::runtime_error("Invalid checkpoint flag");return bool(value);};
     c.menu.competitive=flag();c.menu.division=r.u32();c.menu.context=r.u32();
@@ -82,6 +86,9 @@ NativeCareerCheckpoint decode(const NativeMemory& baseline,const CareerBytes& by
         r.require(size);c.suspendedSeason.assign(bytes.begin()+r.position,bytes.begin()+r.position+size);r.position+=size;
         if(size){const auto season=decode(baseline,c.suspendedSeason,false);if(!season.menu.competitive)throw std::runtime_error("Invalid suspended season");}
     }
+    if(version==3){if(!c.finishPending)throw std::runtime_error("Enhanced finish has no pending finish");
+        if(r.u32()!=enhancedTimingMethodVersion)throw UnsupportedNativeCheckpoint("Unsupported Enhanced finish timing method");c.finishTiming.emplace();
+        for(auto* value:{&c.finishTiming->lap,&c.finishTiming->record}){const auto time=r.u64();if(time>std::uint64_t(std::numeric_limits<std::int64_t>::max()))throw std::runtime_error("Invalid Enhanced finish time");value->microseconds=std::int64_t(time);value->available=flag();value->approximate=flag();}}
     r.end();validate(c);return c;
 }
 }

@@ -5,26 +5,31 @@
 
 namespace scr::runtime {
 void NativeGameSession::requestHallBrowser(){
-    if(enhancedHallStore_)enhancedHallStore_->cancelTarget();enhancedChallengeRequest_.reset();
-    hallResolving_=false;hallBrowser_.loading();hallBrowserRequest_=sharedHallStore_->requestBrowser(hallBrowser_.board());
+    enhancedHallStore_->cancelTarget();enhancedHallStore_->cancelBrowser();sharedHallStore_->cancelBrowser();enhancedChallengeRequest_.reset();
+    hallResolving_=false;hallBrowserApplied_=0;hallBrowser_.loading();
+    hallBrowserRequest_=hallBrowser_.timingCategory()==TimingCategory::Original?sharedHallStore_->requestBrowser(hallBrowser_.board()):enhancedHallStore_->requestBrowser(hallBrowser_.board());
 }
 void NativeGameSession::openHallBrowser(const NativeMenuInput& held){
     if(!activeCareer_||multiplayer()||!sharedHallStore_)throw std::logic_error("Hall browser requires an active career");
     const auto track=state::raceSelection::trackId(*data_.memory)%state::raceSelection::trackCount;
     const auto league=activeCareer_->league?HallLeague::Super:HallLeague::Normal;
     HallBoardKey initial{track,league,HallRecordKind::Lap};
-    hallBrowser_.open(activeCareer_->name,initial,held);hallBrowserActive_=true;requestHallBrowser();
+    hallBrowser_.open(activeCareer_->name,initial,held,effectiveTimingCategory());hallBrowserActive_=true;requestHallBrowser();
 }
 bool NativeGameSession::updateHallBrowser(double elapsed,const NativeGameInput& input,NativeGameUpdate& result){
     if(!hallBrowserActive_)return false;
     if(transitioning()){hallBrowser_.block(input.menu);return false;}
     std::shared_ptr<const EnhancedTargetRead> enhancedRead;
     if(enhancedChallengeRequest_){const auto loaded=enhancedHallStore_->targetRead();if(loaded&&loaded->request==*enhancedChallengeRequest_)enhancedRead=loaded;}
-    const auto read=sharedHallStore_->browserRead();
+    const auto read=hallBrowser_.timingCategory()==TimingCategory::Original?sharedHallStore_->browserRead():std::shared_ptr<const HallBrowserRead>{};
+    const auto enhancedBrowser=hallBrowser_.timingCategory()==TimingCategory::Enhanced?enhancedHallStore_->browserRead():std::shared_ptr<const EnhancedBrowserRead>{};
     bool resolved=false;
     if(read&&read->request==hallBrowserRequest_&&read->request!=hallBrowserApplied_){
         hallBrowser_.apply(*read);hallBrowserApplied_=read->request;
         resolved=read->challenge.has_value();
+    }
+    if(enhancedBrowser&&enhancedBrowser->request==hallBrowserRequest_&&enhancedBrowser->request!=hallBrowserApplied_){
+        hallBrowser_.apply(*enhancedBrowser);hallBrowserApplied_=enhancedBrowser->request;resolved=enhancedBrowser->challenge.has_value();
     }
     auto navigation=input.menu;if(hallResolving_)navigation.controls=navigation.numberedKeys=0;
     const auto action=hallBrowser_.update(elapsed,navigation);
@@ -34,16 +39,18 @@ bool NativeGameSession::updateHallBrowser(double elapsed,const NativeGameInput& 
     }
     if(resolved&&action!=HallBrowserAction::Back){
         hallResolving_=false;
-        if(read->target){startHallChallenge(read->target,input.menu);return true;}
+        if(read&&read->target){startHallChallenge(read->target,input.menu);return true;}
+        if(enhancedBrowser&&enhancedBrowser->target){startEnhancedHallChallenge(enhancedBrowser->target,input.menu);return true;}
         releaseInput(input.menu);
     }
     if(action==HallBrowserAction::Load)requestHallBrowser();
     else if(action==HallBrowserAction::Challenge){
-        const auto id=hallBrowser_.entries().at(hallBrowser_.selected()).attempt.id;
-        hallResolving_=true;hallBrowser_.loading();hallBrowserRequest_=sharedHallStore_->requestBrowser(hallBrowser_.board(),id);
+        const auto id=hallBrowser_.rowId(hallBrowser_.selected());
+        hallResolving_=true;hallBrowserApplied_=0;hallBrowser_.loading();
+        hallBrowserRequest_=hallBrowser_.timingCategory()==TimingCategory::Original?sharedHallStore_->requestBrowser(hallBrowser_.board(),id):enhancedHallStore_->requestBrowser(hallBrowser_.board(),id);
     }
     else if(action==HallBrowserAction::Back){
-        enhancedHallStore_->cancelTarget();enhancedChallengeRequest_.reset();
+        enhancedHallStore_->cancelTarget();enhancedHallStore_->cancelBrowser();enhancedChallengeRequest_.reset();
         const auto previous=menuImage();hallBrowserActive_=hallResolving_=false;sharedHallStore_->cancelBrowser();
         menu_->setNavigation(NativeMenuNavigation::Responsive);(void)menu_->back();menu_->setNavigation(navigation_);
         (*data_.memory)[0x5d724]=0x41;
@@ -63,7 +70,7 @@ void NativeGameSession::enterHallChallenge(HallChallenge challenge,const NativeM
     auto& m=*data_.memory;
     state::raceSelection::preparePracticePreview(m,board.track,board.league==HallLeague::Super);
     hallChallenge_=std::move(challenge);hallBrowserActive_=false;sharedHallStore_->cancelBrowser();
-    enhancedHallStore_->cancelTarget();enhancedChallengeRequest_.reset();hallResolving_=false;
+    enhancedHallStore_->cancelTarget();enhancedHallStore_->cancelBrowser();enhancedChallengeRequest_.reset();hallResolving_=false;
     race_.setGhostTimingCategory(effectiveTimingCategory());
     NativeMenuContinuation flow;flow.page=NativeMenuPage::Preview;
     menu_=std::make_unique<NativeMenuFlow>(m,flow);menu_->setMainRowCount(3);menu_->setNavigation(navigation_);

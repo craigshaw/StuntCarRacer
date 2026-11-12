@@ -29,6 +29,7 @@ public:
     void stop()noexcept;
     const LapTimingStatistics& statistics()const noexcept{return statistics_;}
     const std::optional<LapTimingBoundary>& lastBoundary()const noexcept{return start_;}
+    LapTimingBoundary clockBoundary()const noexcept;
 private:
     timing::Gate gate_;
     bool competitive_{},stopped_{};

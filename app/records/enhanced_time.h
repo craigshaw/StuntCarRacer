@@ -3,6 +3,8 @@
 
 namespace scr::runtime {
 enum class TimingCategory {Original,Enhanced};
+struct EnhancedClockValue {std::int64_t microseconds{};bool available{},approximate{};};
+struct EnhancedClockDisplay {EnhancedClockValue lap,record;};
 constexpr std::uint32_t enhancedTimingMethodVersion=1;
 constexpr std::int64_t recoveryPenaltyMicroseconds=260000;
 struct LapTimingBoundary {

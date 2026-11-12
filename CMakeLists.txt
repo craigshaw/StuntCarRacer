@@ -170,6 +170,7 @@ if(WIN32)
     app/race/lap_recording.cpp
     app/presentation/race_render_assets.cpp
     app/presentation/presentation_interpolation.cpp
+    app/presentation/enhanced_clock.cpp
     app/presentation/ghost_bridge.cpp
     app/input/drive_input.cpp
     app/audio/game_audio.cpp

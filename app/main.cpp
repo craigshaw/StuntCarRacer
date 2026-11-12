@@ -150,6 +150,7 @@ private:
                 hallRoot=sharedHallPaths(std::filesystem::path(executable).parent_path()).root;}
             started->enableCareers(paths.dataRoot,hallRoot);
             started->setNavigation(launcher_.preferences().navigation);
+            started->setTimingCategory(launcher_.preferences().timing);
             settings_=NativeDisplaySettings(launcher_.preferences());
             game_=std::move(started);launcherView_.visible(false);display_.apply(window,settings_.preferences());SetFocus(window);clearGameInput();
             for(const unsigned key:{unsigned(VK_RETURN),unsigned(VK_SPACE),unsigned(VK_ESCAPE),unsigned(VK_UP),unsigned(VK_DOWN),unsigned(VK_LEFT),unsigned(VK_RIGHT),unsigned('W'),unsigned('A'),unsigned('S'),unsigned('D')})
@@ -216,6 +217,7 @@ private:
     void update(HWND window,double elapsed){
         if(!focused_||settings_.blocksGame())return;
         game_->setNavigation(settings_.preferences().navigation);
+        game_->setTimingCategory(settings_.preferences().timing);
         const auto changes=game_->update(elapsed,input());
         if(game_->closeReady()){DestroyWindow(window);return;}
         if(closeFromMenu_&&!game_->closePending()){closeFromMenu_=false;openGameMenu(window);return;}
@@ -285,6 +287,7 @@ private:
     }
     void syncDisplay(HWND window,bool applied=false){
         if(game_){
+            game_->setTimingCategory(settings_.preferences().timing);
             const bool editing=settings_.page()==NativeDisplayPage::Settings;
             if(editing&&!displayEditing_)display_.beginSettings(window);
             display_.apply(window,settings_.preferences());
@@ -312,12 +315,12 @@ private:
     void syncGhostMenu(){
         if(!game_)return;const auto time=game_->practiceGhostTime();
         const auto target=game_->practiceGhostTarget();
-        settings_.setPracticeGhostContext(game_->practiceGhostActive(),std::wstring(time.begin(),time.end()),game_->canClearPracticeGhost(),std::wstring(target.begin(),target.end()));
+        settings_.setPracticeGhostContext(game_->practiceGhostActive(),std::wstring(time.begin(),time.end()),game_->canClearPracticeGhost(),std::wstring(target.begin(),target.end()),game_->effectiveTimingCategory());
     }
     void paint(HWND window){
         // Keep the last completed image visible while rendering. Clearing the
         // window before game_->render exposed black frames to the compositor.
-        if(game_)game_->setPracticeGhostVisible(settings_.preferences().practiceGhost);
+        if(game_){game_->setPracticeGhostVisible(settings_.preferences().practiceGhost);game_->setTimingCategory(settings_.preferences().timing);}
         const std::vector<std::uint32_t>* pixels=game_?&game_->render(settings_.preferences().interpolate,settings_.blocksGame(),settings_.preferences().view):nullptr;
         syncGhostMenu();
         {

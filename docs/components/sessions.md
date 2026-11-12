@@ -44,7 +44,10 @@ retain their timing gates. Computer Link remains disabled and deferred.
 [Enhanced timing](enhanced-timing.md#session-delivery-and-ghost-targets) now delivers
 the same live completions to separate PB/Hall storage, with conservative confidence,
 independent failures and category-specific targets. Pinned Enhanced challenges use
-the same isolated career continuation. Settings and timer/Hall controls remain pending.
+the same isolated career continuation. Version-10 settings select timing and the
+Hall's default category. Pending-finish checkpoints may carry optional Enhanced
+display values in version 3 alongside their Original bitmap; versions 1–2 remain
+readable, and normal checkpoints continue to use version 2.
 
 ## Storage
 

@@ -1,10 +1,8 @@
 # Enhanced timing implementation plan
 
-Status: stages 1–4 complete. Crossing estimation, independent timing capture,
-separate storage, live delivery and category-specific ghost targets are
-implemented. Settings, timer presentation and final staging in stages 5–6 remain
-pending. The player still selects Original presentation until stage 5 wires the
-timing preference and Hall filter; both record categories now save in the background.
+Status: stages 1–5 complete. Crossing estimation, independent capture/storage,
+dual live delivery, category-specific targets, settings and timer/Hall UI are
+implemented. Stage 6 retains final release verification and staging.
 
 Add millisecond lap and three-lap timing using interpolated crossings on the
 existing 120 ms simulation timeline. Keep Original timing and its records
@@ -245,8 +243,9 @@ that render queries cannot advance timing or mint completions. Identified
 results live under `analysis/lap-timing/`; existing ghost/Hall and test-only
 original-code regressions remain covered by `check_native_laps.py --verify-original`.
 
-The player still displays Original timing at this stage, while saving both
-categories. Timing preference controls and timer presentation remain later work.
+The player selects Original or Enhanced presentation while saving both eligible
+categories independently. Development/original-code renderers retain their
+explicit Original defaults.
 
 ## Component changes
 
@@ -400,8 +399,8 @@ Clear removes only the effective private category and its playback target,
 suppresses replacement for the current partial lap, and leaves Hall capture and
 the other category active. The next full candidate can qualify normally.
 
-`TimingCategory` and `NativeGameSession::setTimingCategory` provide the stage-5
-integration boundary. Changing it selects retained playback epochs without
+`TimingCategory` and `NativeGameSession::setTimingCategory` bind the effective
+preference. Changing it selects retained playback epochs without
 restarting either capture. Each category selects its next PB target at a crossing;
 the current attempt retains its target. Playback uses raw elapsed movement time,
 with the existing interpolation, recovery cuts, fade and Draw Bridge guard.
@@ -415,8 +414,8 @@ stale responses are ignored and Back takes priority over a completed resolution.
 A challenge temporarily overrides the selected category, preserving the rival
 through private PB improvements, clears and visibility changes. Preview cancel,
 race exit and close preserve the career continuation, suspended season and RNG;
-the global category applies again on return. The stage-5 Hall filter will call
-this path; no Enhanced browser controls are exposed yet.
+the global category applies again on return. The Hall's explicit timing filter
+uses this path for Enhanced Ready rows.
 
 Run `scripts/check_native_enhanced_sessions.py`, or add `--configuration Debug`.
 Receipts under `analysis/enhanced-sessions/` identify sources, fixtures and
@@ -434,29 +433,55 @@ recording and test-only original-code regression checks.
 
 ## Settings and presentation
 
-Extend the existing version-9 settings format with a versioned timing preference.
-New installations and older settings without this field select Enhanced while
-retaining their other migrated preferences. Preserve explicit Original choices
-in the new format and the current Settings Apply/Cancel behaviour.
+Display settings version 10 adds `timing=original|enhanced`. New installations
+and versions 1–9 migrate to Enhanced while retaining their other choices.
+Explicit Original choices round-trip. Launcher and F10 Settings share the field;
+preview, failed Apply/retry and Cancel use the existing transaction. Restore
+original defaults explicitly selects Original timing and navigation.
 
 The effective timing category selects the running timer, completed-lap hold,
-three-lap record display, PB context and default Hall board. Provide an explicit
-Original / Enhanced filter in the Hall, and label results and rivals clearly.
-Original competition screens continue to report the native winner and points;
+three-lap result display, PB context and default Hall board. The Hall has an
+explicit Original / Enhanced filter, with category-specific rows and rivals.
+Original competition reports retain their native times, record notices, winner and points;
 an Enhanced duration does not imply a different race outcome.
 
-Calculate the displayed running clock on the same retained timeline as the
-presented car. Smoothing delays crossing and penalty presentation with the car;
-pause freezes both. Keep historical timing snapshots for repeated or reverse
-presentation queries. Committed completions come from simulation observation,
-independently of when their pixels are presented. No render query can mint an
-attempt or charge a penalty.
+`presentation/enhanced_clock.*` retains a value snapshot and at most sixteen
+ordered state changes per native frame. A crossing key uses its estimated
+movement timestamp; a recovery key uses the recovery observation's timestamp,
+which can lie at the next frame boundary. Queries combine retained neighbouring
+snapshots and apply only changes reached by the presented car. Future recovery
+penalties and completed holds cannot leak into an earlier interpolated image.
+Snapshots retain starts, cumulative recovery identities, completed holds,
+record values and first-finish freezing. Native hold release follows observed
+scheduler events; running values use elapsed movement plus explicit penalties.
+Pause preserves the fractional presentation position. Repeated/reverse queries,
+mode changes and extra refreshes cannot advance measurement, mint attempts or
+alter later history.
 
-Compose the three-digit Enhanced timer within the existing instrument panel
-using presentation-owned pixels. Preserve the car artwork's scale in all four
-views and the Original timer path. Show approximate results with a visible
-approximation marker. Freeze/hold completed or terminal displays consistently
-with the existing race lifetime.
+Enhanced composition changes only the two existing clock fields, x230–287 at
+y178–185 and y188–195, using the retained native font/palette. Normal times use
+`m:ss.mmm`; long minute values and the `~` approximation marker use narrower
+glyph spacing within the same fields. `--:--.---` means unavailable. The lower
+field shows the Enhanced lap record, or the observed three-lap result after a
+competitive finish. Entry records come from compatible Enhanced PB/Hall values;
+Original digits never supply invented precision. All four views retain the same
+car-art scale and the selectable Original instrument path.
+
+Hall navigation keeps ten rows per page. Track occupies the first selector row;
+league and timing share the next, followed by lap/race type. Keyboard shortcuts
+1/2/3 retain track/league/type and 4 selects timing. Each category resolves rows,
+rank, ghost availability and challenges on its own worker. Changing filters clears
+stale rows and cancels previous requests. Request/category checks prevent a late
+response from crossing namespaces. The opening default follows the global
+preference; an explicitly selected filter remains independent of it.
+
+Pending-finish checkpoints keep their Original bitmap and may add two immutable
+Enhanced display values, including availability/confidence. Only checkpoints
+carrying that optional data use version 3; ordinary checkpoints remain version 2.
+The reader retains versions 1–2, and unknown methods remain protected. Restored
+finishes can switch categories without rerunning timing/scoring or changing the
+saved artwork. Older finishes show unavailable Enhanced fields rather than
+promoting their Original bitmap. Multiplayer saves and record formats are unchanged.
 
 Ghost movement stays on elapsed movement time; scoring penalties never insert
 extra poses or slow playback. Select ordinary Practice PB ghosts from the
@@ -465,6 +490,16 @@ changes preserve both current captures and retained presentation history. A Hall
 challenge pins its rival and timing category for the challenge; the global
 preference applies again on return. Hiding a ghost leaves observation and timing
 active.
+
+`scripts/check_native_enhanced_ui.py` produces identified Release/Debug receipts
+under `analysis/enhanced-ui/`. It covers all nine preference migrations, explicit
+Original persistence, Apply/Cancel/failure, exact presentation-boundary keys,
+future recovery rejection, approximate/unavailable values, all four apertures,
+three authored interpolated crossings, Hall filtering/ties/race formatting,
+pinned categories and saved-finish compatibility. Existing session, autosave,
+pause/focus/controller and Original timer checks run alongside it. PNG previews
+are retained; `approximate.png` is an explicitly constructed presentation case.
+The live launcher/F10 keyboard check uses an isolated disposable data root.
 
 ## Implementation stages
 
@@ -487,7 +522,7 @@ active.
    category/identity. Preserve clear, quit, save failure and career continuation.
    Exit: each completion reaches each eligible category once, and ghost movement
    remains independent of penalties and record selection.
-5. **Add settings and presentation.** Implement preference migration, category
+5. **Add settings and presentation — complete.** Implement preference migration, category
    filtering, millisecond formatting and timer snapshots. Inspect the HUD and
    Hall in all views, with smoothing on/off, pause, recovery and mode changes.
    Exit: displayed crossings match presented movement and UI queries preserve
@@ -520,6 +555,6 @@ under `analysis/`, following [development](../development.md).
 
 Completion requires preserved Original data and gameplay, independent Enhanced
 rankings with conservative eligibility, deterministic millisecond results, and
-matching timer/ghost presentation. Stages 1–4 provide the selected world-plane
-method, independent capture, separate storage and live delivery; stages 5–6
-complete the agreed player behaviour.
+matching timer/ghost presentation. Stages 1–5 provide the selected world-plane
+method, independent capture/storage/delivery and player UI; stage 6 completes
+final release verification and staging.

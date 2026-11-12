@@ -17,6 +17,7 @@ and test interface; see [development](../docs/development.md).
 | `check_native_lap_timing.py` | Independent live timing and recovery accounting; Release/Debug CTest receipts and full-state isolation |
 | `check_native_enhanced_store.py` | Separate Enhanced PB/Hall storage, Original regressions and process-interruption proofs; `--configuration Debug` selects Debug |
 | `check_native_enhanced_sessions.py` | Dual completion delivery, category-specific PB/ghosts and pinned Enhanced challenges; Release/Debug receipts |
+| `check_native_enhanced_ui.py` | Timing settings/migration, frame-aligned clocks, Hall filters and finish compatibility; Release/Debug receipts and PNG previews |
 | `check_*physics*.py`, `check_motion_stages.py`, `check_road_response.py`, `check_transform_matrices.py`, `check_wheel_coordinates.py` | Recovered gameplay verification |
 | `check_driving_replay.py`, `replay_lap.py` | Replay comparisons and authored-lap evidence checks |
 | `prepare_wheel_oracle.py` | Validate or explicitly download pinned test-only Musashi sources |

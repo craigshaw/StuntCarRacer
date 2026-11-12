@@ -100,16 +100,33 @@ std::uint64_t EnhancedHallStore::requestTarget(EnhancedHallAttempt attempt){
 }
 std::shared_ptr<const EnhancedTargetRead> EnhancedHallStore::targetRead()const{std::lock_guard<std::mutex> lock(mutex_);return targetRead_;}
 void EnhancedHallStore::cancelTarget(){std::lock_guard<std::mutex> lock(mutex_);targetRequest_.reset();++targetSerial_;}
+std::uint64_t EnhancedHallStore::requestBrowser(HallBoardKey board,std::optional<HallAttemptId> challenge){
+    (void)hallBoardIndex(board);std::lock_guard<std::mutex> lock(mutex_);browserRequest_=board;browserChallenge_=challenge;changed_.notify_one();return ++browserSerial_;
+}
+std::shared_ptr<const EnhancedBrowserRead> EnhancedHallStore::browserRead()const{std::lock_guard<std::mutex> lock(mutex_);return browserRead_;}
+void EnhancedHallStore::cancelBrowser(){std::lock_guard<std::mutex> lock(mutex_);browserRequest_.reset();++browserSerial_;}
 void EnhancedHallStore::run(){for(;;){
-    std::optional<EnhancedHallAttempt> target;std::uint64_t request{};
-    {std::unique_lock<std::mutex> lock(mutex_);changed_.wait(lock,[&]{return stopping_||targetRequest_||(!blocked_&&!pending_.empty());});if(stopping_)return;
-        if(!blocked_&&!pending_.empty()){active_=pending_;writing_=true;}else{target=targetRequest_;targetRequest_.reset();request=targetSerial_;}}
+    std::optional<EnhancedHallAttempt> target;std::optional<HallBoardKey> board;std::optional<HallAttemptId> challenge;std::uint64_t request{};
+    {std::unique_lock<std::mutex> lock(mutex_);changed_.wait(lock,[&]{return stopping_||targetRequest_||browserRequest_||(!blocked_&&!pending_.empty());});if(stopping_)return;
+        if(!blocked_&&!pending_.empty()){active_=pending_;writing_=true;}
+        else if(targetRequest_){target=targetRequest_;targetRequest_.reset();request=targetSerial_;}
+        else{board=browserRequest_;challenge=browserChallenge_;browserRequest_.reset();request=browserSerial_;}}
+    if(board){
+        auto result=std::make_shared<EnhancedBrowserRead>();result->board=*board;result->request=request;result->challenge=challenge;
+        try{result->archive=archive_.read();if(result->archive.hall){const auto& entries=result->archive.hall->entries(*board);
+            for(unsigned n=0;n<entries.size();++n){
+                {std::lock_guard<std::mutex> lock(mutex_);if(stopping_||request!=browserSerial_)break;}
+                const auto& attempt=entries[n].attempt;const auto ghost=attempt.ghost?archive_.readGhost(attempt):EnhancedGhostRead{};result->ghosts[n]=ghost.state==HallGhostState::Valid;
+                if(challenge&&attempt.id==*challenge&&ghost.ghost)result->target=pinEnhancedHallGhost(attempt,*ghost.ghost,catalog_);}}}
+        catch(const std::exception& e){result->error=e.what();}
+        {std::lock_guard<std::mutex> lock(mutex_);if(request==browserSerial_)browserRead_=std::move(result);}continue;
+    }
     if(target){
         auto result=std::make_shared<EnhancedTargetRead>();result->request=request;
         try{const auto archive=archive_.read();
             if(archive.state==HallArchiveState::Unsupported)result->state=HallGhostState::Unsupported;
-            else if(archive.hall){const auto& board=archive.hall->entries(target->board);const auto found=std::find_if(board.begin(),board.end(),[&](const auto& e){return e.attempt.id==target->id;});
-                if(found!=board.end()){const auto ghost=archive_.readGhost(found->attempt);result->state=ghost.state;
+            else if(archive.hall){const auto& rows=archive.hall->entries(target->board);const auto found=std::find_if(rows.begin(),rows.end(),[&](const auto& e){return e.attempt.id==target->id;});
+                if(found!=rows.end()){const auto ghost=archive_.readGhost(found->attempt);result->state=ghost.state;
                     if(ghost.ghost)result->target=pinEnhancedHallGhost(found->attempt,*ghost.ghost,catalog_);}}
             else result->state=HallGhostState::Corrupt;
         }catch(const std::exception& e){result->state=HallGhostState::Unavailable;result->error=e.what();}

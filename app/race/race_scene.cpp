@@ -80,6 +80,7 @@ struct RaceScene::Simulation {
     unsigned outerRestarts{};
     DriveControlPreset preset{};
     LapTiming lapTiming;
+    EnhancedClockPresentation enhancedClock;
     std::vector<LapTimingCompletion> timedCompletions;
     std::unique_ptr<LapRecorder> laps;
     std::unique_ptr<HallRaceRecording> hall;
@@ -120,6 +121,7 @@ void RaceScene::initialiseMemory(const std::array<std::uint8_t,0x80000>& memory,
             const auto microseconds=(std::int64_t(simulation.ticks)+(recovery?1:0))*scr::timing::tickUs;
             const auto movement=state::readHumanTimingObservation(ram,microseconds,simulation.native.restarts,simulation.native.trackFound,recovery);
             simulation.lapTiming.observeMovement(movement);
+            simulation.enhancedClock.observeMovement(simulation.lapTiming.clockBoundary());
             if(simulation.laps){
                 namespace a=scr::state::audio;LapMovementObservation observation;
                 observation.recovery=movement.recovery;
@@ -149,6 +151,9 @@ void RaceScene::initialiseMemory(const std::array<std::uint8_t,0x80000>& memory,
         if(stage==scr::state::replay::ReplayPresentationStage::timing){
             const auto human=state::readHumanRaceRecord(ram.data());
             auto completed=simulation.lapTiming.observeTiming(timing.humanLapCrossing,human?std::optional<PackedLapTime>(human->total):std::nullopt);
+            const auto& boundary=simulation.lapTiming.lastBoundary();
+            simulation.enhancedClock.observeTiming(simulation.lapTiming.clockBoundary(),timing.humanLapCrossing&&boundary?&*boundary:nullptr,
+                completed?&*completed:nullptr,ram[0x1bbcc]!=0,ram[0x1bbaf]!=0);
             if(simulation.laps){
                 const auto* enhanced=completed?&completed->enhanced:nullptr;
                 const auto& line=simulation.lapTiming.lastBoundary();
@@ -224,6 +229,7 @@ void RaceScene::finishFrame(Simulation& simulation,RaceFrame& frame){
     frame.cockpit.wheelRotation=simulation.wheelTimeline[0].phase;
     frame.instrumentPixels=simulation.instruments.capture();
     frame.hundredthsInstrumentPixels=simulation.instruments.capture(true);
+    frame.enhancedClock=simulation.enhancedClock.snapshot();
     frame.wheelSprites=captureNativeWheelSpriteFrame(wheelAssets_,state.ram.data(),state.ram.size());
     frame.wheelTimeline=simulation.wheelTimeline;frame.wheelVblanks=simulation.wheelVblanks;
     frame.forwardSpeed=a::word(state.ram.data(),0x1bd30);frame.lapCounter=state.ram[0x1bb20];frame.raceComplete=state.ram[0x1bbaf];
@@ -240,6 +246,7 @@ void RaceScene::finishFrame(Simulation& simulation,RaceFrame& frame){
 RaceFrame RaceScene::advanceSimulation(Simulation& simulation,unsigned controls,bool quit,DriveControlPreset preset){
     if(controls>31)throw std::invalid_argument("Live controls exceed original digital mask");
     simulation.timedCompletions.clear();
+    simulation.enhancedClock.beginFrame();
     auto& state=simulation.native;
     simulation.outerRestarts=state.restarts;simulation.preset=preset;
     simulation.wheelVblanks=0;
@@ -419,6 +426,18 @@ std::vector<LapTimingCompletion> RaceScene::takeTimingCompletions(){
 const LapTimingStatistics* RaceScene::timingStatistics()const noexcept{return simulation_?&simulation_->lapTiming.statistics():nullptr;}
 void RaceScene::clearPersonalBestLap(){if(simulation_&&simulation_->laps)simulation_->laps->clear();}
 void RaceScene::clearEnhancedPersonalBestLap(){if(simulation_&&simulation_->laps)simulation_->laps->clearEnhanced();}
+void RaceScene::setEnhancedRecordTargets(std::optional<EnhancedTime> lap,std::optional<EnhancedTime> race){
+    if(!simulation_||simulation_->ticks)throw std::logic_error("Enhanced record targets require race entry");
+    simulation_->enhancedClock.records(std::move(lap),std::move(race));
+    for(auto& frame:frames_)frame.enhancedClock=simulation_->enhancedClock.seed();cachedFrame_=~0u;
+}
+EnhancedClockDisplay RaceScene::enhancedClock(double position,bool interpolate)const{
+    if(!std::isfinite(position)||frames_.empty())throw std::invalid_argument("Invalid Enhanced clock presentation position");
+    position=std::clamp(position,0.0,double(frames_.size()-1));const auto index=unsigned(position);const auto& from=frames_[index];const RaceFrame* next=nullptr;
+    if(interpolate&&index+1<frames_.size()&&canInterpolatePresentation(from.restarts,frames_[index+1].restarts,from.action,frames_[index+1].action))next=&frames_[index+1];
+    auto at=from.presentationMicroseconds;if(next)at+=std::llround((next->presentationMicroseconds-at)*(position-index));
+    return queryEnhancedClock(from.enhancedClock,next?&next->enhancedClock:nullptr,at);
+}
 const std::vector<std::uint32_t>& RaceScene::renderPracticeGhost(double fraction,bool interpolate,NativeView view){
     const auto playback=lapGhostPlayback(interpolate?fraction:1,interpolate);
     if(!playback||playback->opacity<=0)return renderLive(fraction,false,interpolate,view);
@@ -603,7 +622,11 @@ void RaceScene::draw(const PresentationPose& frame,const NearTrackPresentation& 
     }
     if(showCockpit)composeCockpit(assets_,frame.cockpit,foreground,extended,!wide);
     if(discrete&&showCockpit){
-        const auto& instruments=runningLapHundredths_?discrete->hundredthsInstrumentPixels:discrete->instrumentPixels;
+        auto instruments=runningLapHundredths_?discrete->hundredthsInstrumentPixels:discrete->instrumentPixels;
+        if(ghostTimingCategory_==TimingCategory::Enhanced){
+            auto at=discrete->presentationMicroseconds;if(next)at+=std::llround((next->presentationMicroseconds-at)*fraction);
+            composeEnhancedClock(instruments,assets_.font,queryEnhancedClock(discrete->enhancedClock,next?&next->enhancedClock:nullptr,at));
+        }
         for(unsigned n=0;n<instruments.size();++n)foreground[320*cockpitInstrumentTop+n]=assets_.palette[instruments[n]];
         const unsigned vblank=std::min(6u,unsigned(std::floor(fraction*6+1e-9)));
         const auto placements=next?interpolateNativeWheelSprites(discrete->wheelSprites,next->wheelSprites,discrete->cockpit,next->cockpit,fraction):discrete->wheelSprites;

@@ -115,7 +115,7 @@ void NativeGameSession::startRace(){
         race_.recordPersonalBestLaps(personalBestLaps_,{*lapKey_,menu_->competitive()?GhostLapSource::League:GhostLapSource::Practice,content},hallChallenge_?hallChallenge_->target:nullptr);
     }
     if(sharedHallStore_)race_.recordHallAttempts(newHallRunId(),menu_->competitive());
-    prepareEnhancedRecords();race_.setGhostTimingCategory(effectiveTimingCategory());
+    prepareEnhancedRecords();prepareEnhancedRecordDisplay();race_.setGhostTimingCategory(effectiveTimingCategory());
     race_.setRunningLapHundredths(true);
     driveClock_.reset();driveLatch_.clear();endFireWait_.reset();quitPending_=false;
 }
@@ -140,7 +140,7 @@ std::string NativeGameSession::practiceGhostTime()const{
 }
 std::string NativeGameSession::practiceGhostTarget()const{
     if(!practiceGhostActive())return {};
-    if(!hallChallenge_)return "Career PB";
+    if(!hallChallenge_)return effectiveTimingCategory()==TimingCategory::Enhanced?"Enhanced career PB":"Career PB";
     if(hallChallenge_->enhancedTarget){const auto& a=hallChallenge_->enhancedTarget->attempt;return "Hall rival: "+a.name+" "+formatEnhancedTime(a.time)+" (Enhanced)";}
     const auto& a=hallChallenge_->target->attempt;
     return "Hall rival: "+a.name+" "+formatHallTime(a.time,HallRecordKind::Lap);
@@ -174,6 +174,7 @@ bool NativeGameSession::ghostFeedbackWarning()const{
     return (careerStore_&&careerStore_->ghostFailed())||(ghostNoticeSeconds_>0&&(ghostFileState_==CareerFileState::Unsupported||ghostFileState_==CareerFileState::Corrupt));
 }
 std::string NativeGameSession::ghostFeedback()const{
+    if(finishPending_&&effectiveTimingCategory()==TimingCategory::Enhanced&&!finishTiming_)return "Enhanced time unavailable for this older saved finish.";
     const bool failed=careerStore_&&(effectiveTimingCategory()==TimingCategory::Original?careerStore_->ghostFailed():careerStore_->enhancedBestFailed());
     if(ghostNoticeSeconds_>0)return ghostNotice_+(failed?" (ghost not saved)":"");
     if(failed)return "Ghost not saved. Your best is kept for this session.";
@@ -540,7 +541,10 @@ const std::vector<std::uint32_t>& NativeGameSession::render(bool interpolate,boo
     ghostConditionsDiffer_=false;
     presentationView_=view;
     if(careerPanel_!=CareerPanel::None){packNativeMenuPixels(careerImage(),pixels_);return pixels_;}
-    if(finishPending_){pixels_=finishPixels_;return pixels_;}
+    if(finishPending_){pixels_=finishPixels_;
+        if(effectiveTimingCategory()==TimingCategory::Enhanced){std::array<std::uint8_t,96*8> font;std::copy_n(data_.memory->begin()+0x1fe82,font.size(),font.begin());
+            const auto colours=readNativePalette(*data_.memory,0x20184);std::array<std::uint32_t,16> palette{};for(unsigned n=0;n<16;++n)palette[n]=originalPaletteRgb(colours[n]);
+            composeEnhancedFinish(pixels_,font,palette,finishTiming_.value_or(EnhancedClockDisplay{}));}return pixels_;}
     if(transitioning()){
         const auto palette=fade_.rgbPalette();pixels_.resize(transitionIndices_.size());
         const unsigned width=unsigned(pixels_.size()/200);

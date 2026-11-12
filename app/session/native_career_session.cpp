@@ -154,7 +154,8 @@ void NativeGameSession::saveCheckpoint(bool terminal){
     if(terminal&&menu_->competitive()){
         race_.copyLiveExit(*c.memory);NativeMenuFlow future(*c.memory,c.menu);future.setNavigation(navigation_);future.returnFromRace();c.menu=future.continuation();
         c.finishPending=race_.frames().back().action==unsigned(RaceTransitionAction::raceEnd);
-        if(c.finishPending)c.finishPixels=race_.renderLiveMessage(0x3c,4,0,false,NativeView::Original);
+        if(c.finishPending){c.finishTiming=race_.enhancedClock(1,false);race_.setGhostTimingCategory(TimingCategory::Original);
+            c.finishPixels=race_.renderLiveMessage(0x3c,4,0,false,NativeView::Original);race_.setGhostTimingCategory(effectiveTimingCategory());}
         c.previewPrepared=false;
     }else if(c.menu.page==NativeMenuPage::Race)return; // retain the pre-race fixture
     else if(c.menu.page==NativeMenuPage::Preview&&c.menu.competitive){c.menu.page=NativeMenuPage::Matchup;(*c.memory)[0x57c62]=0x11;}
@@ -172,7 +173,7 @@ void NativeGameSession::restoreCheckpoint(const CareerBytes& bytes){
     opening_.reset();saveMenu_.reset();saveReturn_=SaveReturn::None;menu_=std::make_unique<NativeMenuFlow>(*data_.memory,c.menu);menu_->setMainRowCount(3);menu_->setNavigation(navigation_);
     suspendedSeason_=std::move(c.suspendedSeason);
     previewPrepared_=c.previewPrepared;preparedTrack_=c.preparedTrack;preparedLeague_=c.preparedLeague;preparedCompetitive_=c.menu.competitive;
-    finishPending_=c.finishPending;finishPixels_=std::move(c.finishPixels);transition_=Transition::None;fade_.reset(readNativePalette(*data_.memory,0x23c32));careerPanel_=CareerPanel::None;creatingCareer_=false;releaseInput();
+    finishPending_=c.finishPending;finishPixels_=std::move(c.finishPixels);finishTiming_=std::move(c.finishTiming);transition_=Transition::None;fade_.reset(readNativePalette(*data_.memory,0x23c32));careerPanel_=CareerPanel::None;creatingCareer_=false;releaseInput();
 }
 bool NativeGameSession::loadCareer(const std::string& id){
     try{

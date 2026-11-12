@@ -2,7 +2,9 @@
 #include "input/drive_input.h"
 #include "menus/native_menu_navigation.h"
 #include "presentation/camera_view.h"
+#include "records/enhanced_time.h"
 #include <filesystem>
+#include <iterator>
 #include <string>
 
 namespace scr::runtime {
@@ -20,8 +22,9 @@ struct NativeDisplayPreferences {
     unsigned integerScale{}; // Zero selects the largest fitting integer scale.
     NativeView view{NativeView::Original};
     bool practiceGhost{true};
+    TimingCategory timing{TimingCategory::Enhanced};
     bool operator==(const NativeDisplayPreferences& other)const noexcept {
-        return fullscreen==other.fullscreen&&interpolate==other.interpolate&&scaling==other.scaling&&controls==other.controls&&navigation==other.navigation&&filtering==other.filtering&&integerScale==other.integerScale&&view==other.view&&practiceGhost==other.practiceGhost;
+        return fullscreen==other.fullscreen&&interpolate==other.interpolate&&scaling==other.scaling&&controls==other.controls&&navigation==other.navigation&&filtering==other.filtering&&integerScale==other.integerScale&&view==other.view&&practiceGhost==other.practiceGhost&&timing==other.timing;
     }
 };
 NativeDisplayPreferences loadDisplayPreferences(const std::filesystem::path&);
@@ -33,7 +36,8 @@ const wchar_t* viewName(NativeView)noexcept;
 int displayWidthAtScale(NativeView,unsigned scale)noexcept;
 PresentationRectangle displayRectangle(int width,int height,const NativeDisplayPreferences&,int sourceWidth=0);
 // Existing preference row identities stay stable; aspect ratio follows navigation.
-constexpr unsigned displayRowOrder[]{0,1,5,2,3,4,6,7};
+constexpr unsigned displayRowOrder[]{0,1,5,2,3,4,6,7,8};
+constexpr unsigned displayPreferenceCount=unsigned(std::size(displayRowOrder));
 void changeDisplayPreference(NativeDisplayPreferences&,unsigned row,int direction=1);
 // Bits shared by keyboard and controller navigation: up/down/left/right/A/B.
 unsigned displayPadNavigation(const DrivePad&)noexcept;
@@ -51,7 +55,8 @@ public:
     unsigned optionCount()const noexcept;
     bool canLeaveRace()const noexcept{return canLeaveRace_;}
     NativeQuitContext quitContext()const noexcept{return quitContext_;}
-    void setPracticeGhostContext(bool active,std::wstring time={},bool canClear=false,std::wstring target=L"Career PB"){practice_=active;bestTime_=std::move(time);target_=std::move(target);clearGhost_=active&&canClear;if(page_==NativeDisplayPage::Pause&&selected_>=optionCount())selected_=0;}
+    void setPracticeGhostContext(bool active,std::wstring time={},bool canClear=false,std::wstring target=L"Career PB",TimingCategory timing=TimingCategory::Original){practice_=active;bestTime_=std::move(time);target_=std::move(target);practiceTiming_=timing;clearGhost_=active&&canClear;if(page_==NativeDisplayPage::Pause&&selected_>=optionCount())selected_=0;}
+    TimingCategory practiceTiming()const noexcept{return practiceTiming_;}
     bool practiceGhostContext()const noexcept{return practice_;}
     bool canClearGhost()const noexcept{return clearGhost_;}
     const std::wstring& bestTime()const noexcept{return bestTime_;}
@@ -75,6 +80,7 @@ private:
     bool waitForRelease_{},canLeaveRace_{};
     bool practice_{},clearGhost_{};
     std::wstring bestTime_,target_;
+    TimingCategory practiceTiming_{TimingCategory::Original};
     NativeDisplayAction action_{NativeDisplayAction::None};
     NativeQuitContext quitContext_{NativeQuitContext::General};
 };

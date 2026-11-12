@@ -48,7 +48,7 @@ void preferences(const std::filesystem::path& root){
     const auto temporary=std::filesystem::path(files.settings.wstring()+L".tmp");std::filesystem::create_directory(temporary);
     require(!staged.saveForPlay()&&loadDisplayPreferences(files.settings)==original&&staged.preferences().interpolate,"Failed save lost staged values or replaced settings");
     std::filesystem::remove(temporary);require(staged.saveForPlay()&&loadDisplayPreferences(files.settings)==staged.preferences(),"Play did not save shared preferences");
-    auto faithful=original;faithful.navigation=NativeMenuNavigation::Original;
+    auto faithful=original;faithful.navigation=NativeMenuNavigation::Original;faithful.timing=TimingCategory::Original;
     staged.resetPreferences();require(staged.preferences()==faithful&&staged.ready(),"Restoring defaults changed assets or did not restore Original navigation");require(staged.saveForPlay(),"Cannot restore original preferences");
     NativeLauncher overridden(files,true,true);require(overridden.preferences().fullscreen&&overridden.preferences().interpolate,"Launch override not visible");
     require(overridden.saveForPlay()&&loadDisplayPreferences(files.settings)==faithful,"Play persisted a launch-only override");
@@ -121,7 +121,7 @@ void snapshot(const std::filesystem::path& root,NativeLauncher& model,int width,
     const auto dc=CreateCompatibleDC(nullptr);BITMAPINFO info{};info.bmiHeader.biSize=sizeof(BITMAPINFOHEADER);info.bmiHeader.biWidth=width;info.bmiHeader.biHeight=-height;info.bmiHeader.biPlanes=1;info.bmiHeader.biBitCount=32;
     void* pixels{};const auto bitmap=CreateDIBSection(dc,&info,DIB_RGB_COLORS,&pixels,nullptr,0);const auto previous=SelectObject(dc,bitmap);
     view.paint(dc,width,height,model);
-    for(unsigned id=LauncherAdf;id<=LauncherView;++id){const auto child=GetDlgItem(window,int(id));RECT rect{};GetWindowRect(child,&rect);MapWindowPoints(nullptr,window,reinterpret_cast<POINT*>(&rect),2);
+    for(unsigned id=LauncherAdf;id<=LauncherTiming;++id){const auto child=GetDlgItem(window,int(id));RECT rect{};GetWindowRect(child,&rect);MapWindowPoints(nullptr,window,reinterpret_cast<POINT*>(&rect),2);
         const auto saved=SaveDC(dc);SetViewportOrgEx(dc,rect.left,rect.top,nullptr);SendMessageW(child,WM_PRINT,reinterpret_cast<WPARAM>(dc),PRF_CLIENT);RestoreDC(dc,saved);}
     GdiFlush();UINT count{},size{};Gdiplus::GetImageEncodersSize(&count,&size);std::vector<std::uint8_t> encoders(size);auto codec=reinterpret_cast<Gdiplus::ImageCodecInfo*>(encoders.data());Gdiplus::GetImageEncoders(count,size,codec);
     for(UINT n=0;n<count;++n)if(std::wstring(codec[n].MimeType)==L"image/png"){Gdiplus::Bitmap image(bitmap,nullptr);require(image.Save((root/name).c_str(),&codec[n].Clsid,nullptr)==Gdiplus::Ok,"Cannot save launcher preview");}

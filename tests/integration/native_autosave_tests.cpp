@@ -118,6 +118,8 @@ void careerFlow(const std::filesystem::path& pack,const std::filesystem::path& r
     require(game->render(false,false,NativeView::Ultrawide).size()==864*200,"Career race did not use ultrawide presentation");
     for(unsigned n=0;n<2400&&!game->raceEnded();++n){if(n%100==0)game->render(false,false,NativeView::Ultrawide);game->update(.12,{});}
     require(game->raceEnded(),"Opponent did not finish fixture");const auto finishImage=game->render();
+    game->setTimingCategory(TimingCategory::Enhanced);const auto enhancedFinishImage=game->render();
+    require(enhancedFinishImage!=finishImage,"Enhanced finish did not compose separate timer values");game->setTimingCategory(TimingCategory::Original);
     require(finishImage.size()==320*200,"Ultrawide changed the persisted career finish image codec");
     require(game->requestClose(),"Finish checkpoint did not flush");
     const auto pending=root/"pending-finish";CareerBytes finishCheckpoint;NativeCareerInfo finishInfo;
@@ -129,6 +131,8 @@ void careerFlow(const std::filesystem::path& pack,const std::filesystem::path& r
     game.reset();{NativeCareerStore target(root);target.saveCareer(finishInfo,finishCheckpoint);require(target.flush(),"Cannot restore pending finish fixture");}
     game=start(pack,root);continueLast(*game,true);
     require(game->raceEnded(),"Finish stage was not durable before acknowledgement");require(game->render()==finishImage,"Restored finish message pixels differ");
+    game->setTimingCategory(TimingCategory::Enhanced);require(game->render()==enhancedFinishImage,"Restored Enhanced finish lost its values or changed Original artwork");
+    game->setTimingCategory(TimingCategory::Original);require(game->render()==finishImage,"Switching a restored finish changed Original pixels");
     back(*game);require(game->page()==NativeMenuPage::Main&&game->hasSuspendedSeason(),"Finish Back did not reach the profile menu");
     practiseFromMenu(*game,false);require(game->requestClose(),"Interrupted Practice did not flush the saved season");game.reset();game=start(pack,root);continueLast(*game);
     require(game->hasSuspendedSeason(),"Interrupted Practice lost the pending finish");resume(*game);require(game->raceEnded()&&game->render()==finishImage,"Practice altered or acknowledged the pending finish message");tap(*game);require(game->page()==NativeMenuPage::Results,"Restored finish did not lead to results");

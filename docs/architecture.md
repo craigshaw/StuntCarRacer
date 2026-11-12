@@ -65,7 +65,10 @@ private state and cannot affect later gameplay, RNG or saves. The
 observes native crossings independently of ghost buffers. Its measurements do
 not change the original clocks or race outcomes. Separate Enhanced PB/Hall models,
 codecs, storage and live delivery are implemented. Category-specific PBs and pinned
-Enhanced rivals use elapsed movement playback; settings and timer/Hall UI are pending.
+Enhanced rivals use elapsed movement playback. The player defaults to Enhanced;
+versioned preferences select Original or Enhanced clocks and Hall categories.
+Immutable frame-local timing keys align clock presentation with the car without
+affecting simulation; development/original-code paths retain Original defaults.
 
 ## Fidelity contract
 

@@ -8,7 +8,8 @@ future work; finite checks do not imply universal rendering equivalence.
 This guide describes Original PBs. [Enhanced timing](enhanced-timing.md#session-delivery-and-ghost-targets)
 adds independent PB storage and targets from the same raw capture, with world-plane
 boundaries and time-only results after overflow. Both categories now save live;
-the timing selector and Enhanced timer/Hall UI remain pending.
+the timing selector chooses the displayed timer, private target and clear action
+without interrupting either capture. Original / Enhanced Hall rows remain separate.
 
 ## Player contract
 

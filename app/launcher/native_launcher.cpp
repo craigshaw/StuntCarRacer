@@ -37,11 +37,11 @@ bool NativeLauncher::importDisk(const std::filesystem::path& disk){
     catch(const std::exception& failure){error_=launcherErrorText(failure);return false;}
 }
 void NativeLauncher::change(unsigned row,int direction){
-    if(row>6)return;
+    if(row>8)return;
     edited_|=1u<<row;
     changeDisplayPreference(pending_,row,direction);
 }
-void NativeLauncher::resetPreferences(){pending_={};pending_.navigation=NativeMenuNavigation::Original;edited_=127;}
+void NativeLauncher::resetPreferences(){pending_={};pending_.navigation=NativeMenuNavigation::Original;pending_.timing=TimingCategory::Original;edited_=511;}
 bool NativeLauncher::saveForPlay(){
     if(!ready_)return false;
     auto persisted=pending_;

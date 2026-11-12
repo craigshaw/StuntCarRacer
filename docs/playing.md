@@ -75,28 +75,32 @@ There is no single-player manual save/load/Replay route or legacy HALL import.
 
 Open **Hall of Fame** from an active career's main menu to browse **All players**.
 **Driving as** identifies the open career. Completed human laps from
-Practice, career races and local multiplayer save into one installation-wide
-archive, together with completed competitive three-lap races. Each track/league/
-category retains up to 20 attempts, including ties and multiple attempts by one
+Practice, career races and local multiplayer save into separate Original and
+Enhanced installation-wide archives, together with completed competitive
+three-lap races. Each track/league/timing/type board retains up to 20 attempts,
+including ties and multiple attempts by one
 name. Incomplete laps and opponents do not enter. Deleting/restoring a career or
 clearing its PB cannot remove shared records or their retained ghosts.
 
 The browser extends the original Hall artwork, colours and pixel font. Track,
-league and category selectors are stacked above ten entries per page; tracks
+league, timing and lap/race selectors sit above ten entries per page; tracks
 follow Division 4 through Division 1 in the same order as Practice. Up/down
 selects a filter, record or the bottom page control; left/right changes the
 selected filter or page. Enter/Space/A advances a selector or page. Escape/B
-returns to the career. Keyboard 1, 2 and 3 select track, league and category.
+returns to the career. Keyboard 1, 2 and 3 select track, league and lap/race;
+4 selects Original / Enhanced timing.
 These controls work with either navigation policy.
 
 **Ready** means a lap's retained ghost has been validated; **None** means no usable
 recording is available. Three-lap race entries have no ghost. Records reload on
 opening or changing a filter; reopen the Hall to retry an unavailable archive.
 Filters and selected records are remembered during the session.
+The opening timing category follows Settings. Original records remain Original;
+they are not converted into Enhanced times.
 
 Select a lap with a **Ready** ghost and press Enter/Space/A to race it. The usual
 track preview identifies the rival, time and league; Back cancels. The challenge
-uses that track and complete Normal/Super configuration, even if your career is
+uses that track, timing category and complete Normal/Super configuration, even if your career is
 in the other league. It follows Practice rules and cannot advance your season.
 Leaving returns to the same Hall board and record. Closing resumes your normal
 career, with any suspended season intact.
@@ -221,6 +225,21 @@ held controls must be released before resuming, and the fractional tick survives
 | Driving controls | Original or Modern |
 | Menu navigation | Responsive (default) or Original |
 | Aspect ratio | 4:3 Original (default), 4:3 Extended, 16:9 or 32:9 |
+| Practice ghost | Show or hide the current target; capture continues while hidden |
+| Timing | Enhanced (default), displaying `m:ss.mmm`, or Original |
+
+Enhanced timing estimates crossings between updates and measures elapsed driving
+time, adding 260 ms each time the game recovers your car after a fall. Original
+retains the original clock and race rules. Both eligible record categories save
+regardless of the displayed choice. The choice selects your Practice PB target
+and clear action; clearing one leaves the other category intact. A Hall challenge
+keeps its rival's timing category until you return.
+
+`~` marks an approximate Enhanced result, which cannot set a PB or enter the Hall.
+`--:--.---` means no Enhanced time is available. Older saved finish screens retain
+their Original result and show unavailable Enhanced fields; new saved finishes
+retain both displays. Competition reports keep their Original times, winner and
+points; selecting Enhanced does not change the race outcome.
 
 Integer uses 240-pixel display-height steps. Fixed scales resize the windowed
 game area and centre fullscreen output; 3× gives 960×720 in 4:3, 1280×720 in
@@ -238,8 +257,10 @@ the old choice. See [view details](components/presentation.md#views).
 Gameplay stays at 120 ms, wheel/engine state at 50 Hz, and host presentation
 targets 60 FPS. Smoothing blends camera/suspension, wheel placement, particles
 and lifting chains; rotation, image phases and gameplay events keep their own
-timing. The running lap timer shows `m:ss.hh` at game-update cadence and retains
-completed-lap holds. DROP START/PRESS FIRE, dust and sparks retain their original
+timing. Original shows `m:ss.hh` at game-update cadence. Enhanced follows the
+presented car, including interpolated crossings and recovery penalties. Both
+retain completed-lap holds and freeze with pause/finish. DROP START/PRESS FIRE,
+dust and sparks retain their original
 conditions. F toggles the initially hidden host FPS counter, averaged over one
 second; it is independent of simulation and types normally during name entry.
 
@@ -253,14 +274,16 @@ Normal launches use `%LOCALAPPDATA%/Stunt Car Racer/`:
 | `settings/display.ini` | Shared preferences |
 | `careers/`, `last.scr-index` | Native careers and last-used identity |
 | `ghosts/<career-id>/` | Saved personal bests and their ghost recordings |
+| `ghosts-enhanced-v1/<career-id>/` | Independent Enhanced PBs and recordings |
 | `saves/stunt-car-racer.scr-save` | Manual multiplayer saves |
 
-The shared archive uses `%PROGRAMDATA%/Stunt Car Racer/instances/<installation-id>/hall/`
-and is shared across Windows accounts using that installation directory. Replacing
+The Original archive uses `%PROGRAMDATA%/Stunt Car Racer/instances/<installation-id>/hall/`.
+Enhanced records sit beside it in `hall-enhanced-v1/`. Both are shared across
+Windows accounts using that installation directory. Replacing
 the executable in place keeps it; another installation directory has a separate
 archive. Old per-user `hall.scr-hall` files remain untouched and are not imported.
-Development launches with `--data-dir` use an isolated `shared-hall/` below that
-directory instead.
+Development launches with `--data-dir` use isolated `shared-hall/` and
+`shared-hall-enhanced-v1/` directories below that directory instead.
 
 A second launch using the same data directory brings the existing window forward.
 Saving/Saved appears in menus/pause; Not saved persists after failure. Retry or

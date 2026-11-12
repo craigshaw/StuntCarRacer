@@ -187,19 +187,21 @@ void WindowsGameDisplay::overlay(HDC dc,int width,int height,const NativeDisplay
     const auto font=CreateFontW(-px(19),0,0,0,FW_NORMAL,FALSE,FALSE,FALSE,DEFAULT_CHARSET,OUT_DEFAULT_PRECIS,CLIP_DEFAULT_PRECIS,CLEARTYPE_QUALITY,DEFAULT_PITCH,L"Segoe UI");
     const auto old=SelectObject(dc,font);SetBkMode(dc,TRANSPARENT);
     const auto text=[&](int x,int y,const wchar_t* value,COLORREF colour){SetTextColor(dc,colour);TextOutW(dc,left+px(x),top+px(y),value,int(wcslen(value)));};
-    text(24,18,menu?L"Settings":clear?L"Clear career PB?":confirmation?L"Quit to Desktop?":L"Game menu",RGB(245,247,250));
+    text(24,18,menu?L"Settings":clear?(settings.practiceTiming()==TimingCategory::Enhanced?L"Clear Enhanced PB?":L"Clear Original PB?"):confirmation?L"Quit to Desktop?":L"Game menu",RGB(245,247,250));
     std::vector<const wchar_t*> actions{L"Resume",L"Settings"};
     if(settings.canLeaveRace())actions.push_back(L"Leave Race");
-    if(settings.canClearGhost())actions.push_back(L"Clear career PB...");actions.push_back(L"Quit to Desktop");
-    const wchar_t* confirmActions[]{L"Cancel",clear?L"Clear career PB":L"Quit to Desktop"};
-    const auto best=L"Career PB: "+settings.bestTime();
+    if(settings.canClearGhost())actions.push_back(settings.practiceTiming()==TimingCategory::Enhanced?L"Clear Enhanced PB...":L"Clear career PB...");actions.push_back(L"Quit to Desktop");
+    const wchar_t* confirmActions[]{L"Cancel",clear?(settings.practiceTiming()==TimingCategory::Enhanced?L"Clear Enhanced PB":L"Clear career PB"):L"Quit to Desktop"};
+    const auto best=(settings.practiceTiming()==TimingCategory::Enhanced?L"Enhanced PB: ":L"Original PB: ")+settings.bestTime();
     if(!menu&&!confirmation&&settings.practiceGhostContext()){
         const auto target=L"Target: "+settings.practiceTarget();text(24,48,target.c_str(),RGB(148,213,243));
         text(24,72,best.c_str(),RGB(148,213,243));
     }
     if(confirmation){
         const wchar_t* message=L"Close Stunt Car Racer?";
-        if(clear)message=L"Remove this career's PB and ghost for this circuit and league?\nThe lap in progress will not replace it.\nHall records and selected rivals stay unchanged.";
+        if(clear)message=settings.practiceTiming()==TimingCategory::Enhanced?
+            L"Clear Enhanced PB and ghost for this circuit and league?\nThis lap will not replace it.\nOriginal PB, Hall records and the rival stay unchanged.":
+            L"Clear Original PB and ghost for this circuit and league?\nThis lap will not replace it.\nEnhanced PB, Hall records and the rival stay unchanged.";
         else if(settings.quitContext()==NativeQuitContext::Career)message=L"Your career, records and ghosts will be saved before closing.";
         else if(settings.quitContext()==NativeQuitContext::CareerRace)message=L"Your career and best laps will be saved.\nThis unfinished race will restart from its matchup.";
         else if(settings.quitContext()==NativeQuitContext::Multiplayer)message=L"Progress since your last manual save will be lost.";
@@ -207,7 +209,7 @@ void WindowsGameDisplay::overlay(HDC dc,int width,int height,const NativeDisplay
         DrawTextW(dc,message,-1,&warning,DT_LEFT|DT_TOP|DT_WORDBREAK|DT_NOPREFIX);
     }
     const auto& prefs=settings.preferences();
-    const wchar_t* labels[]{L"Display mode",L"Image sizing",prefs.scaling==NativeScaling::Integer?L"Integer scale":L"Filtering",L"60 FPS smoothing",L"Driving controls",L"Menu navigation",L"Aspect ratio",L"Practice ghost",L"Apply and back",L"Cancel"};
+    const wchar_t* labels[]{L"Display mode",L"Image sizing",prefs.scaling==NativeScaling::Integer?L"Integer scale":L"Filtering",L"60 FPS smoothing",L"Driving controls",L"Menu navigation",L"Aspect ratio",L"Practice ghost",L"Timing",L"Apply and back",L"Cancel"};
     auto detail=prefs.scaling==NativeScaling::Integer?integerScaleName(prefs.integerScale):std::wstring(filteringName(prefs.filtering));
     if(prefs.scaling==NativeScaling::Integer){
         const auto actual=unsigned(displayRectangle(width,height,prefs).height/originalDisplayHeight);
@@ -215,12 +217,12 @@ void WindowsGameDisplay::overlay(HDC dc,int width,int height,const NativeDisplay
         else if(actual!=prefs.integerScale)detail+=L" (using "+integerScaleName(actual)+L")";
     }
     const wchar_t* values[]{prefs.fullscreen?L"Borderless fullscreen":L"Windowed",scalingName(prefs.scaling),detail.c_str(),prefs.interpolate?L"On":L"Off",
-        prefs.controls==DriveControlPreset::Original?L"Original":L"Modern",prefs.navigation==NativeMenuNavigation::Responsive?L"Responsive":L"Original",viewName(prefs.view),prefs.practiceGhost?L"On":L"Off"};
+        prefs.controls==DriveControlPreset::Original?L"Original":L"Modern",prefs.navigation==NativeMenuNavigation::Responsive?L"Responsive":L"Original",viewName(prefs.view),prefs.practiceGhost?L"On":L"Off",prefs.timing==TimingCategory::Enhanced?L"Enhanced (milliseconds)":L"Original"};
     for(unsigned n=0;n<settings.optionCount();++n){
         const int y=rows+int(n)*36;
         if(n==settings.selected())fill({left+px(16),top+px(y-3),left+panelWidth-px(16),top+px(y+30)},RGB(35,65,91));
         text(28,y,menu?labels[n]:confirmation?confirmActions[n]:actions[n],RGB(237,242,247));
-        if(menu&&n<8)text(250,y,values[n],RGB(148,213,243));
+        if(menu&&n<displayPreferenceCount)text(250,y,values[n],RGB(148,213,243));
     }
     text(24,help,menu?L"Arrows / D-pad: select and change":L"Arrows / D-pad: select",RGB(167,180,197));
     text(24,help+25,confirmation?L"Enter / A: confirm    Esc / B: cancel":L"Enter / A: confirm    Esc / B: back",RGB(167,180,197));

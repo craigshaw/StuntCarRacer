@@ -32,21 +32,25 @@ NativeMenuImage makeHallBrowserImage(const NativeMemory& m,const HallBrowser& b)
     std::string track(m.begin()+0x1edaa+b.board().track*16,m.begin()+0x1edaa+b.board().track*16+15);
     while(!track.empty()&&track.back()==' ')track.pop_back();
     control(m,image,b,HallBrowserFocus::Track,"1.Track: < "+track+" >",4,65,316);
-    control(m,image,b,HallBrowserFocus::League,b.board().league==HallLeague::Normal?"2.League: < Normal >":"2.League: < Super >",4,76,316);
+    control(m,image,b,HallBrowserFocus::League,b.board().league==HallLeague::Normal?"2.< Normal >":"2.< Super >",4,76,151);
+    control(m,image,b,HallBrowserFocus::Timing,b.timingCategory()==TimingCategory::Enhanced?"4.< Enhanced >":"4.< Original >",161,76,157);
     control(m,image,b,HallBrowserFocus::Category,b.board().kind==HallRecordKind::Lap?"3.Type: < Lap >":"3.Type: < 3-lap race >",4,87,316);
     rect(image,0,98,320,9,12);text(m,image,"Rk",4,98,0);text(m,image,"Driver",28,98,0);text(m,image,"Time",195,98,0);text(m,image,"Ghost",266,98,0);
-    if(b.busy()&&b.entries().empty())text(m,image,"Loading records...",90,138,15);
+    if(b.busy()&&!b.rowCount())text(m,image,"Loading records...",90,138,15);
     else if(b.unavailable()){text(m,image,"Hall records unavailable",62,130,15);text(m,image,"Reopen Hall to try again",83,146,12);}
-    else if(b.entries().empty()){text(m,image,"No records yet",111,130,15);
+    else if(!b.rowCount()){text(m,image,"No records yet",111,130,15);
         text(m,image,b.board().kind==HallRecordKind::Lap?"Complete a lap to enter":"Finish a three-lap race",83,146,12);}
     else{
-        const auto& entries=b.entries();const auto first=b.page()*10;
-        for(unsigned n=first;n<entries.size()&&n<first+10;++n){const auto y=108+(n-first)*8;const auto& a=entries[n].attempt;
+        const auto first=b.page()*10;
+        for(unsigned n=first;n<b.rowCount()&&n<first+10;++n){const auto y=108+(n-first)*8;
             const bool selected=b.focus()==HallBrowserFocus::Records&&n==b.selected();
             rect(image,1,y,20,8,selected?7:4);rect(image,24,y,140,8,selected?10:9);rect(image,167,y,74,8,n%2?2:1);rect(image,244,y,74,8,n%2?2:1);
-            text(m,image,std::to_string(b.rank(n)),4,y,selected?0:15);text(m,image,a.name,28,y,7);
-            const auto time=formatHallTime(a.time,a.board.kind);text(m,image,time,236-unsigned(time.size())*7,y,15);
-            text(m,image,selected&&b.busy()?"Loading":a.board.kind==HallRecordKind::Race?"-":b.ghost(n)?"Ready":"None",266,y,b.ghost(n)?15:12);
+            text(m,image,std::to_string(b.rank(n)),4,y,selected?0:15);text(m,image,b.rowName(n),28,y,7);
+            const auto time=b.rowTime(n);const auto pitch=std::min(7u,70u/unsigned(time.size()));
+            if(pitch==7)text(m,image,time,236-unsigned(time.size())*7,y,15);
+            else for(unsigned c=0;c<time.size();++c)for(unsigned row=0;row<8;++row)for(unsigned col=0;col<pitch;++col)
+                if(m[0x1fe82+(unsigned(time[c])-32)*8+row]&(128u>>(col*7/pitch)))image.indices[(y+row)*320+236-unsigned(time.size())*pitch+c*pitch+col]=15;
+            text(m,image,selected&&b.busy()?"Loading":b.board().kind==HallRecordKind::Race?"-":b.ghost(n)?"Ready":"None",266,y,b.ghost(n)?15:12);
         }
     }
     control(m,image,b,HallBrowserFocus::Page,"< Page "+std::to_string(b.page()+1)+"/"+std::to_string(b.pages())+" >",104,191,114);

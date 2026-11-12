@@ -1,4 +1,5 @@
 #include "menus/hall_browser.h"
+#include "enhanced_record_fixture.h"
 #include "hall_fixture.h"
 #include <iostream>
 
@@ -14,13 +15,14 @@ HallBrowserAction tap(HallBrowser& b,unsigned controls=0,unsigned numbers=0,bool
 void navigation(){
     HallBrowser b;b.open("Craig",{});b.apply(view());require(b.entries().size()==20&&b.pages()==2,"Top-20 browser dimensions differ");
     require(b.rank(9)==10&&b.rank(10)==10&&b.rank(11)==12,"Ranks changed across page boundary");
-    tap(b,2);tap(b,2);tap(b,2);require(b.focus()==HallBrowserFocus::Records&&b.selected()==0,"Selectors did not reach record rows");
+    tap(b,2);tap(b,2);tap(b,2);tap(b,2);require(b.focus()==HallBrowserFocus::Records&&b.selected()==0,"Selectors did not reach record rows");
     for(unsigned n=0;n<9;++n)tap(b,2);require(b.selected()==9&&b.page()==0,"First page selection differs");
     tap(b,8);require(b.page()==1&&b.selected()==19,"Record paging lost relative row");
     tap(b,2);require(b.focus()==HallBrowserFocus::Page,"Last row did not reach page control");
     tap(b,4);require(b.page()==0,"Page control did not change page");
     tap(b,2);require(b.focus()==HallBrowserFocus::Page,"Navigation went beyond the bottom page control");
-    require(tap(b,0,8)==HallBrowserAction::None&&b.focus()==HallBrowserFocus::Page,"Removed reload shortcut still active");
+    require(tap(b,0,8)==HallBrowserAction::None&&b.focus()==HallBrowserFocus::Timing,"Fourth shortcut did not select timing category");
+    tap(b,2);tap(b,2);tap(b,2);
     require(tap(b,16)==HallBrowserAction::None&&b.page()==1,"Page confirmation did not change page");
     require(tap(b,0,0,true)==HallBrowserAction::Back,"Escape/controller Back did not close browser");
 }
@@ -47,7 +49,7 @@ void divisionOrder(){
     require(b.board().track==7,"Non-first initial track was treated as a display ordinal");
 }
 void stableIdentity(){
-    HallBrowser b;b.open("A",{});auto initial=view();b.apply(initial);tap(b,2);tap(b,2);tap(b,2);for(unsigned n=0;n<9;++n)tap(b,2);
+    HallBrowser b;b.open("A",{});auto initial=view();b.apply(initial);tap(b,2);tap(b,2);tap(b,2);tap(b,2);for(unsigned n=0;n<9;++n)tap(b,2);
     const auto selected=b.entries()[b.selected()].attempt.id;
     HallOfFame newer=*initial.archive.hall;newer.offer(attempt(90,1));auto next=initial;next.archive.hall=std::make_shared<const HallOfFame>(newer);b.apply(next);
     require(b.selected()==10&&b.page()==1&&b.entries()[10].attempt.id==selected,"Refresh changed selected record identity");
@@ -65,12 +67,23 @@ void heldInput(){
 }
 void challenge(){
     HallBrowser b;b.open("A",{});auto snapshot=view();snapshot.ghosts[0]=true;b.apply(snapshot);
-    tap(b,2);tap(b,2);tap(b,2);require(b.canChallenge()&&tap(b,16)==HallBrowserAction::Challenge,"Available lap row did not request its ghost");
+    tap(b,2);tap(b,2);tap(b,2);tap(b,2);require(b.canChallenge()&&tap(b,16)==HallBrowserAction::Challenge,"Available lap row did not request its ghost");
     b.loading();require(!b.canChallenge()&&tap(b,16)==HallBrowserAction::None,"Loading row dispatched another challenge");
     b.apply(snapshot);tap(b,2);require(!b.canChallenge()&&tap(b,16)==HallBrowserAction::None,"Time-only row requested a challenge");
     tap(b,0,4);tap(b,16);snapshot.board=b.board();snapshot.ghosts.fill(true);b.apply(snapshot);tap(b,2);
     require(!b.canChallenge()&&tap(b,16)==HallBrowserAction::None,"Race result offered a ghost challenge");
 }
+void enhancedTables(){
+    namespace f=scr::test::enhanced;HallBrowser b;b.open("A",{}, {},TimingCategory::Enhanced);
+    EnhancedHallOfFame hall(f::catalog);for(unsigned n=1;n<=20;++n)hall.offer(f::attempt(n,59999500+n));
+    EnhancedBrowserRead read;read.archive.hall=std::make_shared<const EnhancedHallOfFame>(hall);read.ghosts[0]=true;b.apply(read);
+    require(b.rowCount()==20&&b.pages()==2&&b.rowTime(0)=="1:00.000"&&b.rank(19)==1,"Enhanced browser lost milliseconds, ties or paging");
+    b.apply(view());require(b.rowCount()==20&&b.rowTime(0)=="1:00.000","Original response replaced Enhanced rows");
+    tap(b,0,4);tap(b,2);require(b.canChallenge()&&tap(b,16)==HallBrowserAction::Challenge,"Enhanced ready row could not be challenged");
+    tap(b,0,8);require(tap(b,8)==HallBrowserAction::Load&&b.timingCategory()==TimingCategory::Original&&b.rowCount()==0,"Timing filter kept stale Enhanced rows");
+    b.apply(read);require(b.busy(),"Stale Enhanced response entered Original category");b.apply(view());require(!b.busy()&&b.rowCount()==20,"Original category did not load after Enhanced");
+    b.open("A",{}, {},TimingCategory::Enhanced);require(b.busy()&&b.rowCount()==0,"Hall default did not follow the timing preference");
 }
-int main()try{navigation();filtersAndMemory();divisionOrder();stableIdentity();heldInput();challenge();std::cout<<"Hall browser: "<<checks<<" checks passed\n";return 0;}
+}
+int main()try{navigation();filtersAndMemory();divisionOrder();stableIdentity();heldInput();challenge();enhancedTables();std::cout<<"Hall browser: "<<checks<<" checks passed\n";return 0;}
 catch(const std::exception& e){std::cerr<<e.what()<<'\n';return 1;}

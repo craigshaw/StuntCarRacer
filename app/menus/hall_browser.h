@@ -1,29 +1,37 @@
 #pragma once
 #include "menus/native_menu_navigation.h"
 #include "persistence/shared_hall_store.h"
+#include "persistence/enhanced_hall_store.h"
 
 namespace scr::runtime {
-enum class HallBrowserFocus {Track,League,Category,Records,Page};
+enum class HallBrowserFocus {Track,League,Category,Records,Page,Timing};
 enum class HallBrowserAction {None,Load,Back,Challenge};
 // Presentation/navigation state only. No filesystem, native RAM or race rules.
 class HallBrowser {
 public:
-    void open(std::string driver,HallBoardKey initial,const NativeMenuInput& held={});
+    void open(std::string driver,HallBoardKey initial,const NativeMenuInput& held={},TimingCategory=TimingCategory::Original);
     HallBrowserAction update(double elapsed,const NativeMenuInput& held);
     void block(const NativeMenuInput& held){clock_.enterScreen(held);}
     void loading(){loading_=true;}
     void apply(const HallBrowserRead&);
+    void apply(const EnhancedBrowserRead&);
+    TimingCategory timingCategory()const noexcept{return timing_;}
     HallBoardKey board()const noexcept{return board_;}
     HallBrowserFocus focus()const noexcept{return focus_;}
     unsigned selected()const noexcept{return selected_;}
     unsigned page()const noexcept{return std::min(selected_/10,pages()-1);}
-    unsigned pages()const noexcept{return unsigned(std::max<std::size_t>(1,(entries().size()+9)/10));}
+    unsigned pages()const noexcept{return std::max(1u,(rowCount()+9)/10);}
     const std::vector<HallEntry>& entries()const noexcept;
-    unsigned rank(unsigned row)const{return hall_->rank(board_,row);}
+    const std::vector<EnhancedHallEntry>& enhancedEntries()const noexcept;
+    unsigned rowCount()const noexcept;
+    std::string rowName(unsigned)const;
+    std::string rowTime(unsigned)const;
+    HallAttemptId rowId(unsigned)const;
+    unsigned rank(unsigned row)const{return timing_==TimingCategory::Original?hall_->rank(board_,row):enhancedHall_->rank(board_,row);}
     bool ghost(unsigned row)const{return row<ghosts_.size()&&ghosts_[row];}
     bool busy()const noexcept{return loading_;}
     bool unavailable()const noexcept{return unavailable_;}
-    bool canChallenge()const{return !loading_&&focus_==HallBrowserFocus::Records&&board_.kind==HallRecordKind::Lap&&selected_<entries().size()&&ghost(selected_);}
+    bool canChallenge()const{return !loading_&&focus_==HallBrowserFocus::Records&&board_.kind==HallRecordKind::Lap&&selected_<rowCount()&&ghost(selected_);}
     const std::string& driver()const noexcept{return driver_;}
 private:
     HallBoardKey board_;
@@ -34,9 +42,12 @@ private:
     std::string driver_;
     NativeMenuInputClock clock_;
     std::shared_ptr<const HallOfFame> hall_;
+    std::shared_ptr<const EnhancedHallOfFame> enhancedHall_;
+    TimingCategory timing_{TimingCategory::Original};
     std::array<bool,hallEntriesPerBoard> ghosts_{};
     void selection(unsigned);
     void move(int);
     void changePage(int);
+    void resetRows();
 };
 } // namespace scr::runtime

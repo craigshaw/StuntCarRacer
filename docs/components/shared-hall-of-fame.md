@@ -9,7 +9,7 @@ This guide describes Original records. The [Enhanced storage foundation](enhance
 uses separate models, codecs and a sibling archive, while sharing the locked file
 protocol in `app/persistence/hall_archive_engine.h`. Original filenames, wire
 formats and completion IDs are unchanged. Both categories receive live completions;
-Enhanced target resolution and challenges are implemented behind the stage-5 UI boundary.
+the player defaults to Enhanced and exposes an Original / Enhanced filter.
 
 ## Browser
 
@@ -21,8 +21,8 @@ The legacy renderer remains available to original-code tests and development
 sessions; the enabled player has one shared Hall route, from an active career.
 The old multiplayer Hall option is disabled in the player.
 
-The header names All players and the active driver. Track, Normal/Super and
-lap/three-lap selectors are stacked vertically above one board, with ten rows per
+The header names All players and the active driver. Track, Normal/Super,
+timing category and lap/three-lap selectors sit above one board, with ten rows per
 page and a centred page control at the bottom. Track cycling follows the original
 Division 4-to-1 mapping (Little Ramp, Hump Back, Stepping Stones, Big Ramp, High
 Jump, Roller Coaster, Ski Jump, Draw Bridge); archive keys remain native track IDs.

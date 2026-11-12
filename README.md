@@ -14,6 +14,8 @@
   with track/league filters and ghost availability.
 - **[Lap ghosts](#lap-ghosts).** Chase your career best or a selected Hall of Fame rival in
   Practice, with an optional translucent ghost. Practice and career races save best laps.
+- **Enhanced timing.** Millisecond clocks and separate records, with Original
+  timing selectable in Settings and the Hall of Fame.
 - **Local multiplayer.** Championships for 2–8 drivers taking turns, with thirty
   manual save slots.
 - **Widescreen and ultrawide.** Original and Extended 4:3, 16:9 and 32:9 views,

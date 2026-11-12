@@ -127,6 +127,7 @@ Use `& $AmigaPython scripts/<command>` after loading `env.ps1`.
 | Enhanced timing capture, confidence, recovery penalties and dual completions | `check_native_lap_timing.py` | `analysis/lap-timing/` |
 | Separate Enhanced PB/Hall models, codecs, durable storage and Original compatibility | `check_native_enhanced_store.py` | `analysis/enhanced-records/` |
 | Dual live delivery, independent PB/ghost targets, failure isolation and Enhanced challenges | `check_native_enhanced_sessions.py` | `analysis/enhanced-sessions/` |
+| Enhanced settings/migration, presentation clocks, Hall filters and saved finishes | `check_native_enhanced_ui.py` | `analysis/enhanced-ui/` |
 | Shared Hall model/codec and isolated storage foundations | `check_native_hall.py` | `analysis/hall-of-fame/foundations/` |
 | Durable shared Hall, retained recordings, recovery and process interruptions | `check_native_hall_store.py` | `analysis/hall-of-fame/durable-store/` |
 | Physics driver and supporting stages | `check_physics_update.py` | `analysis/physics-update/` |

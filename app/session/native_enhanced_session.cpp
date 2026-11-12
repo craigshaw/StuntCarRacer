@@ -1,4 +1,5 @@
 #include "session/native_game_session.h"
+#include "state/race_selection_adapter.h"
 #include <limits>
 
 namespace scr::runtime {
@@ -8,7 +9,8 @@ TimingCategory NativeGameSession::effectiveTimingCategory()const noexcept{
 }
 void NativeGameSession::setTimingCategory(TimingCategory category){
     if(category!=TimingCategory::Original&&category!=TimingCategory::Enhanced)throw std::invalid_argument("Invalid timing category");
-    timingCategory_=category;race_.setGhostTimingCategory(effectiveTimingCategory());
+    const auto before=effectiveTimingCategory();timingCategory_=category;race_.setGhostTimingCategory(effectiveTimingCategory());
+    if(before!=effectiveTimingCategory()){ghostNotice_.clear();ghostNoticeSeconds_=0;ghostConditionsDiffer_=false;}
 }
 void NativeGameSession::prepareEnhancedRecords(){
     enhancedImprovements_=0;enhancedBestFileState_=CareerFileState::Missing;
@@ -24,6 +26,16 @@ void NativeGameSession::prepareEnhancedRecords(){
     const auto retained=enhancedBests_->best(key);
     if(retained&&(saved.state!=CareerFileState::Valid||retained->time.milliseconds()<diskTime))careerStore_->saveEnhancedBest(*retained);
     race_.recordEnhancedPersonalBestLaps(*enhancedBests_,key,hallChallenge_?hallChallenge_->enhancedTarget:nullptr);
+}
+void NativeGameSession::prepareEnhancedRecordDisplay(){
+    std::optional<EnhancedTime> lap,race;
+    if(lapKey_&&enhancedBests_)if(const auto pb=enhancedBests_->best({lapKey_->career,lapKey_->track,lapKey_->superLeague}))lap=pb->time;
+    if(enhancedHallStore_)try{const auto saved=enhancedHallStore_->read();if(saved.hall){
+        HallBoardKey key{menu_->trackId(),state::raceSelection::superLeague(*data_.memory)?HallLeague::Super:HallLeague::Normal,HallRecordKind::Lap};
+        const auto& laps=saved.hall->entries(key);if(!laps.empty()&&(!lap||laps.front().attempt.time.milliseconds()<lap->milliseconds()))lap=laps.front().attempt.time;
+        key.kind=HallRecordKind::Race;const auto& races=saved.hall->entries(key);if(!races.empty())race=races.front().attempt.time;
+    }}catch(const std::exception&){/* Unavailable records have no invented precision. */}
+    race_.setEnhancedRecordTargets(std::move(lap),std::move(race));
 }
 void NativeGameSession::observeEnhancedPersonalBest(){
     if(!lapKey_||!enhancedBests_)return;

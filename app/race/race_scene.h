@@ -12,6 +12,7 @@
 #include "render/opponent_car.h"
 #include "render/opponent_far_track.h"
 #include "presentation/native_cockpit_presentation.h"
+#include "presentation/enhanced_clock.h"
 #include "presentation/native_wheel_sprites.h"
 #include "presentation/native_driving_particles.h"
 #include "presentation/native_cockpit_chains.h"
@@ -41,6 +42,7 @@ struct RaceFrame : PresentationPose {
     bool opponentEnabled{};
     CockpitInstrumentPixels instrumentPixels{};
     CockpitInstrumentPixels hundredthsInstrumentPixels{};
+    EnhancedClockSnapshot enhancedClock;
     NativeWheelSpriteFrame wheelSprites;
     std::array<WheelAnimationState,7> wheelTimeline{};
     unsigned wheelVblanks{};
@@ -89,7 +91,9 @@ public:
     void recordHallAttempts(HallAttemptId run,bool competitive);
     std::vector<HallSubmission> takeHallCompletions();
     std::vector<EnhancedSubmission> takeEnhancedHallCompletions();
-    void setGhostTimingCategory(TimingCategory category)noexcept{ghostTimingCategory_=category;}
+    void setGhostTimingCategory(TimingCategory category)noexcept{if(ghostTimingCategory_!=category){ghostTimingCategory_=category;cachedFrame_=~0u;}}
+    EnhancedClockDisplay enhancedClock(double position,bool interpolate=true)const;
+    void setEnhancedRecordTargets(std::optional<EnhancedTime> lap,std::optional<EnhancedTime> race);
     // Dual timing metadata from the latest successful step; drain before the
     // next step. Capture is independent of ghost recording and Hall storage.
     std::vector<LapTimingCompletion> takeTimingCompletions();

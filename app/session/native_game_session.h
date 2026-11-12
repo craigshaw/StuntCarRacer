@@ -142,6 +142,7 @@ private:
     std::vector<HomeAction> homeActions_;
     std::string recentCareerName_;
     std::vector<std::uint32_t> finishPixels_;
+    std::optional<EnhancedClockDisplay> finishTiming_;
     NativeMenuInputClock careerClock_;
     std::string lastCareer_,notice_,loadCareer_;
     void showCareerPanel(CareerPanel);
@@ -191,6 +192,7 @@ private:
     std::string ghostNotice_;
     void observePersonalBest();
     void prepareEnhancedRecords();
+    void prepareEnhancedRecordDisplay();
     void observeEnhancedPersonalBest();
     RaceScene race_;
     FixedDriveClock driveClock_;

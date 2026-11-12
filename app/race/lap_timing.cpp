@@ -23,6 +23,12 @@ LapTimingBoundary LapTiming::boundary()const{
     if(now.player>11)result.confidence=timing::Reason::player;
     return result;
 }
+LapTimingBoundary LapTiming::clockBoundary()const noexcept{
+    LapTimingBoundary b;b.recoveries=recoveries_;b.recoveryEpoch=recoveryEpoch_;
+    if(current_){b.observedMicroseconds=b.crossingMicroseconds=current_->us;b.player=current_->player;
+        b.confidence=b.player<=11?timing::Reason::reliable:timing::Reason::player;}
+    return b;
+}
 std::optional<LapTimingCompletion> LapTiming::observeTiming(const std::optional<HumanLapCrossing>& crossing,
     std::optional<PackedLapTime> originalTotal){
     if(stopped_)return {};

@@ -58,8 +58,21 @@ void freshTimer(const fs::path& pack,const fs::path& root){
             for(auto view:{NativeView::Original,NativeView::Extended,NativeView::Widescreen,NativeView::Ultrawide}){
                 const auto baseline=original->renderLive(.5,false,true,view);const auto enhanced=shown->renderLive(.5,false,true,view);check(enhanced!=baseline,"Enhanced HUD did not change the clock");
                 const auto width=unsigned(enhanced.size()/200),offset=(width-320)/2;
-                for(unsigned p=0;p<enhanced.size();++p)if(enhanced[p]!=baseline[p]){const auto x=p%width,y=p/width;check(x>=offset+230&&x<offset+288&&((y>=178&&y<186)||(y>=188&&y<196)),"Enhanced HUD changed car artwork or world pixels");}
+                for(unsigned p=0;p<enhanced.size();++p)if(enhanced[p]!=baseline[p]){const auto x=p%width,y=p/width;const bool corner=y==178||y==185||y==188||y==195;
+                    check(x>=offset+(corner?235u:234u)&&x<offset+(corner?283u:284u)&&((y>=178&&y<186)||(y>=188&&y<196)),"Enhanced HUD painted outside the artwork's clock slots");}
                 image(root/("timer-"+std::to_string(unsigned(view))+".ppm"),enhanced,width);viewMask|=1u<<unsigned(view);
+                if(view==NativeView::Original){
+                    const auto assets=decodeRaceRenderAssets(seed.payload.data(),seed.payload.size(),seed.memory->data(),seed.memory->size());
+                    auto finish=baseline;composeEnhancedFinish(finish,assets.font,assets.palette,shown->enhancedClock(.5));check(finish==enhanced,"Saved finish and live clock layouts differ");
+                    image(root/"timer-original.ppm",baseline);
+                    for(const auto& example:std::vector<std::pair<const char*,EnhancedClockDisplay>>{
+                        {"timer-layout",{{6416000,true,false},{47125000,true,false}}},
+                        {"timer-layout-approximate",{{6416000,true,true},{47125000,true,true}}},
+                        {"timer-layout-long",{{7200000000LL,true,false},{7200000000LL,true,true}}},
+                        {"timer-layout-unavailable",{}}}){
+                        auto preview=baseline;composeEnhancedFinish(preview,assets.font,assets.palette,example.second);image(root/(std::string(example.first)+".ppm"),preview);
+                    }
+                }
                 shown->setGhostTimingCategory(TimingCategory::Original);check(shown->renderLive(.5,false,true,view)==baseline,"Original mode reused Enhanced timer pixels");shown->setGhostTimingCategory(TimingCategory::Enhanced);
                 const auto paused=shown->renderLiveMessage(0x4c,2,.5,true,view);check(paused==shown->renderLiveMessage(0x4c,2,.5,true,view),"Paused Enhanced time changed");
             }

@@ -459,10 +459,12 @@ Pause preserves the fractional presentation position. Repeated/reverse queries,
 mode changes and extra refreshes cannot advance measurement, mint attempts or
 alter later history.
 
-Enhanced composition changes only the two existing clock fields, x230–287 at
-y178–185 and y188–195, using the retained native font/palette. Normal times use
-`m:ss.mmm`; long minute values and the `~` approximation marker use narrower
-glyph spacing within the same fields. `--:--.---` means unavailable. The lower
+Enhanced composition changes only the two existing clock slots, x234–283 at
+y178–185 and y188–195, preserving their one-pixel cut corners. The retained native
+font/palette uses six-column digits, narrow punctuation and one-pixel gaps for
+normal `m:ss.mmm` times. Long minute values, unavailable fields and the `~`
+approximation marker use narrower digits within the same slots. Saved finishes
+use the same layout. `--:--.---` means unavailable. The lower
 field shows the Enhanced lap record, or the observed three-lap result after a
 competitive finish. Entry records come from compatible Enhanced PB/Hall values;
 Original digits never supply invented precision. All four views retain the same

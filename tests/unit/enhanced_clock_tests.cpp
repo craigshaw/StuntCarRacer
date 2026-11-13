@@ -52,11 +52,25 @@ void confidenceAndTotals(){
 }
 void composition(){
     CockpitInstrumentPixels original;original.fill(9);std::array<std::uint8_t,96*8> font{};font.fill(0x7e);
-    for(const auto value:{EnhancedClockValue{},EnhancedClockValue{12345678,true,false},EnhancedClockValue{12345678,true,true},EnhancedClockValue{7200000000LL,true,false}}){
+    for(const auto value:{EnhancedClockValue{},EnhancedClockValue{12345678,true,false},EnhancedClockValue{12345678,true,true},EnhancedClockValue{7200000000LL,true,false},EnhancedClockValue{std::numeric_limits<std::int64_t>::max(),true,true}}){
         auto pixels=original;composeEnhancedClock(pixels,font,{value,value});bool changed=false;
-        for(unsigned n=0;n<pixels.size();++n)if(pixels[n]!=original[n]){changed=true;const auto x=n%320,y=cockpitInstrumentTop+n/320;check(x>=230&&x<288&&((y>=178&&y<186)||(y>=188&&y<196)),"Enhanced clock changed artwork outside its timer fields");}
+        for(unsigned n=0;n<pixels.size();++n)if(pixels[n]!=original[n]){changed=true;const auto x=n%320,y=cockpitInstrumentTop+n/320;
+            const bool slot=(y>=178&&y<186)||(y>=188&&y<196);const bool corner=y==178||y==185||y==188||y==195;
+            check(slot&&x>=(corner?235u:234u)&&x<(corner?283u:284u),"Enhanced clock painted across the slot's border or cut corners");}
         check(changed,"Enhanced clock did not compose its timer fields");
+        std::vector<std::uint32_t> finish(64000,0x123456);std::array<std::uint32_t,16> palette{};palette[14]=0xbbbbbb;composeEnhancedFinish(finish,font,palette,{value,value});
+        for(unsigned y=168;y<200;++y)for(unsigned x=220;x<296;++x){const auto ink=pixels[(y-cockpitInstrumentTop)*320+x];
+            check(finish[y*320+x]==(ink==9?0x123456:palette[ink]),"Saved finish composition changed the slot outline or differed from the live clock");}
     }
+    // Six-column digits and narrow punctuation should have one clear pixel
+    // between adjacent glyphs, leaving two pixels of paper at either side.
+    for(unsigned row=0;row<8;++row){font[(':'-32)*8+row]=row==2||row==5?0x10:0; font[('.'-32)*8+row]=row==5||row==6?0x18:0;}
+    auto pixels=original;composeEnhancedClock(pixels,font,{{0,true,false},{0,true,false}});
+    std::vector<unsigned> runs;unsigned run=0;
+    for(unsigned x=234;x<284;++x){if(pixels[(183-cockpitInstrumentTop)*320+x]==0)++run;else if(run){runs.push_back(run);run=0;}}
+    check(runs==std::vector<unsigned>({6,1,6,6,2,6,6,6}),"Normal times squeezed native digits or left oversized punctuation cells");
+    for(unsigned x:{234u,235u,242u,244u,251u,258u,261u,268u,275u,282u,283u})
+        check(pixels[(183-cockpitInstrumentTop)*320+x]==14,"Normal timer glyph spacing or slot padding differs");
 }
 }
 int main()try{timeline();confidenceAndTotals();composition();std::cout<<"Enhanced clock: "<<checks<<" checks passed\n";return 0;}

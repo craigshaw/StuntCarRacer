@@ -141,11 +141,8 @@ if(WIN32)
   target_link_libraries(native_launcher_tests PRIVATE scr_game scr_host_ui)
   target_compile_features(native_launcher_tests PRIVATE cxx_std_17)
 
-  scr_add_test_executable(native_startup_tests tests/integration/native_startup_tests.cpp app/race/race_scene.cpp
-    app/race/lap_recording.cpp app/race/hall_race_recording.cpp app/presentation/ghost_bridge.cpp
-    app/presentation/race_render_assets.cpp app/presentation/presentation_interpolation.cpp app/input/drive_input.cpp app/audio/game_audio.cpp)
-  target_include_directories(native_startup_tests PRIVATE app)
-  target_link_libraries(native_startup_tests PRIVATE scr_runtime scr_hall_storage)
+  scr_add_test_executable(native_startup_tests tests/integration/native_startup_tests.cpp)
+  target_link_libraries(native_startup_tests PRIVATE scr_game)
   target_compile_features(native_startup_tests PRIVATE cxx_std_17)
   scr_add_test_executable(native_audio_tests tests/integration/native_audio_tests.cpp app/audio/game_audio.cpp app/platform/windows/audio_output.cpp)
   target_include_directories(native_audio_tests PRIVATE app)

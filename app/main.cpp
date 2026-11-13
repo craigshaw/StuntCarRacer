@@ -408,7 +408,9 @@ private:
                 if(!game_->usingTextInput()&&key=='M'){muted_=!muted_;if(audio_)audio_->setMuted(muted_);}
                 else if(!game_->usingTextInput()&&key=='I'){settings_.toggleInterpolation();saveSettings();}
             }
-            update(window,0);InvalidateRect(window,nullptr,FALSE);return 0;
+            // Latch racing input immediately; the presentation timer owns the
+            // next repaint. Key repeats must not insert duplicate race frames.
+            update(window,0);if(!inRace())InvalidateRect(window,nullptr,FALSE);return 0;
         case WM_KEYUP:
             if(!game_){launcherView_.navigate(0,launcher_);return 0;}
             if(key<keys_.size())keys_[key]=false;

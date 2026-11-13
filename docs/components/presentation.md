@@ -66,6 +66,10 @@ suppress held input until release. Settings Cancel restores window placement
 and preferences. Preserve preference migration when adding settings; filtering,
 aspect and smoothing remain independent choices.
 
+Race key events latch input immediately, while the 60 Hz presentation timer
+schedules their redraw. Keyboard auto-repeat must not insert duplicate race
+paints between those ticks. Menu and overlay changes can still repaint immediately.
+
 Use [verification by change](../development.md#choose-verification-by-change),
 including simulation-isolation checks and visual inspection. Native raster
 coverage and audio output do not establish cycle-exact Amiga hardware behaviour.

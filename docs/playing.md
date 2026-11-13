@@ -228,10 +228,10 @@ held controls must be released before resuming, and the fractional tick survives
 | Practice ghost | Show or hide the current target; capture continues while hidden |
 | Timing | Enhanced (default), displaying `m:ss.mmm`, or Original |
 
-Enhanced timing estimates crossings between updates and measures elapsed driving
-time, adding 260 ms each time the game recovers your car after a fall. Original
-retains the original clock and race rules. Both eligible record categories save
-regardless of the displayed choice. The choice selects your Practice PB target
+Enhanced timing uses straight-line crossing estimates between 120 ms updates and
+measures elapsed driving time, adding 260 ms each time the game recovers your car
+after a fall. Original retains the original clock and race rules. Both eligible
+record categories save regardless of the displayed choice. The choice selects your Practice PB target
 and clear action; clearing one leaves the other category intact. A Hall challenge
 keeps its rival's timing category until you return.
 

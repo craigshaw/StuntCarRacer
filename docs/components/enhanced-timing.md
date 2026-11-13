@@ -1,8 +1,9 @@
 # Enhanced timing implementation plan
 
-Status: stages 1–5 complete. Crossing estimation, independent capture/storage,
+Status: stages 1–6 complete. Crossing estimation, independent capture/storage,
 dual live delivery, category-specific targets, settings and timer/Hall UI are
-implemented. Stage 6 retains final release verification and staging.
+implemented. Final release verification and staging are recorded under
+`analysis/enhanced-release/`, with the evidence boundaries below.
 
 Add millisecond lap and three-lap timing using interpolated crossings on the
 existing 120 ms simulation timeline. Keep Original timing and its records
@@ -527,7 +528,7 @@ The live launcher/F10 keyboard check uses an isolated disposable data root.
    Hall in all views, with smoothing on/off, pause, recovery and mode changes.
    Exit: displayed crossings match presented movement and UI queries preserve
    simulation, saved records and future history.
-6. **Verify and stage.** Run the affected Release/Debug checks and fresh original
+6. **Verify and stage — complete.** Run the affected Release/Debug checks and fresh original
    comparisons, update component/player documentation, build and test with CMake
    presets, then stage through CMake Install and verify the release contents.
    Exit: current source/fixture/executable receipts support the declared scope.
@@ -553,8 +554,24 @@ Inspect interactive keyboard/controller flows and rendered layouts manually.
 Retain comparison scope and source/fixture/executable identities with evidence
 under `analysis/`, following [development](../development.md).
 
+### Release evidence
+
+`analysis/enhanced-release/check-results.json` identifies the checked sources,
+fixtures, executables and staged player. Its scope combines the complete native
+Release suite, affected Debug timing/storage/session/UI checks, separate-process
+storage interruption proofs, fresh Original-code comparisons and inspected UI
+previews. Full-scene ghost rendering proofs run in Release. Interrupted optional
+runs are recorded separately and do not count as passes.
+
+The staged-player smoke check uses isolated data and keyboard input. Controller
+events have native integration coverage; physical controller hardware, actual
+power loss and a real second Windows account remain outside this evidence.
+Release contents and the staged/build executable hashes must agree before a
+release receipt can pass. Historical receipts still require identity checks
+before reuse.
+
 Completion requires preserved Original data and gameplay, independent Enhanced
 rankings with conservative eligibility, deterministic millisecond results, and
-matching timer/ghost presentation. Stages 1–5 provide the selected world-plane
-method, independent capture/storage/delivery and player UI; stage 6 completes
-final release verification and staging.
+matching timer/ghost presentation. All six stages are implemented and the checked
+Release player is staged through CMake Install. The release receipt declares the
+completed checks and their limits; it does not establish exhaustive equivalence.

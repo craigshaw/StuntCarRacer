@@ -34,9 +34,9 @@
   separate from the local feature.
 - [Enhanced timing implementation plan](components/enhanced-timing.md): approved
   design for millisecond records, interpolated crossings and explicit recovery
-  penalties alongside Original timing. Stages 1–5 provide validated crossing
-  estimation, separate records/targets and player settings/timer/Hall UI; final
-  release verification and staging remain pending.
+  penalties alongside Original timing. All six stages are complete, including
+  separate records/targets, player settings/timer/Hall UI and scoped final
+  release verification and staging.
 
 ## Tools and research
 

@@ -3,6 +3,7 @@
 #include "menus/native_menu_navigation.h"
 #include <array>
 #include <cstdint>
+#include <optional>
 
 namespace scr::runtime {
 enum class NativeMenuPage { Main,Division,Track,Preview,Race,Matchup,Results,RoundResults,Standings,SeasonEnd,SeasonAward,Roster,Records,Opening,HallOfFame,LoadSave,SaveSlots,RaceResults,TrackResults };
@@ -51,6 +52,9 @@ public:
     void setNavigation(NativeMenuNavigation mode)noexcept{navigation_=mode;}
     void setMainRowCount(unsigned count);
     void setHallEnabled(bool enabled)noexcept{hallEnabled_=enabled;}
+    // Host record presentation can select a separate category without changing
+    // native record bytes, winners, points or subsequent competition stages.
+    void setRecordNotice(std::optional<bool> show)noexcept{recordNotice_=show;}
     NativeMenuAction back();
     void returnFromRace();
     void cancelPreview();
@@ -66,6 +70,7 @@ public:
 private:
     enum class Phase { PaintDelay,Release,ReleaseDelay,Input,ConfirmDelay,TrackDelay,LoadSaveDelay,MainDelay };
     NativeMemory& memory_;
+    std::optional<bool> recordNotice_;
     NativeMenuPage page_{NativeMenuPage::Main};
     Phase phase_{Phase::PaintDelay};
     double remaining_{};

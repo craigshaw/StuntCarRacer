@@ -238,8 +238,10 @@ keeps its rival's timing category until you return.
 `~` marks an approximate Enhanced result, which cannot set a PB or enter the Hall.
 `--:--.---` means no Enhanced time is available. Older saved finish screens retain
 their Original result and show unavailable Enhanced fields; new saved finishes
-retain both displays. Competition reports keep their Original times, winner and
-points; selecting Enhanced does not change the race outcome.
+retain both displays. The post-race record notice follows the selected timing
+category. Enhanced notices show reliable new Enhanced track records, using the
+same millisecond values as the Hall. Winners, points and the other competition
+reports retain the original rules and times.
 
 Integer uses 240-pixel display-height steps. Fixed scales resize the windowed
 game area and centre fullscreen output; 3× gives 960×720 in 4:3, 1280×720 in

@@ -443,8 +443,14 @@ original defaults explicitly selects Original timing and navigation.
 The effective timing category selects the running timer, completed-lap hold,
 three-lap result display, PB context and default Hall board. The Hall has an
 explicit Original / Enhanced filter, with category-specific rows and rivals.
-Original competition reports retain their native times, record notices, winner and points;
-an Enhanced duration does not imply a different race outcome.
+The post-race record notice follows the effective category. Enhanced notices
+compare reliable live Hall completions with the same track/league's Enhanced
+records read before the race; only a strictly faster displayed millisecond value
+sets a record. Lap and three-lap race notices are independent of Original flags,
+PB ghost availability and the selected category while driving. An unavailable
+Enhanced archive produces no invented record notice. Original notices retain
+their native flags, names and times. Winners, points and the other competition
+reports retain the original rules and times.
 
 `presentation/enhanced_clock.*` retains a value snapshot and at most sixteen
 ordered state changes per native frame. A crossing key uses its estimated
@@ -480,11 +486,14 @@ preference; an explicitly selected filter remains independent of it.
 
 Pending-finish checkpoints keep their Original bitmap and may add two immutable
 Enhanced display values, including availability/confidence. Only checkpoints
-carrying that optional data use version 3; ordinary checkpoints remain version 2.
-The reader retains versions 1–2, and unknown methods remain protected. Restored
+carrying only that optional data use version 3; ordinary checkpoints remain
+version 2. Version 4 additionally retains the Enhanced post-race record notice,
+including an empty notice when no Enhanced record was set. The reader retains
+versions 1–3, and unknown methods remain protected. Restored
 finishes can switch categories without rerunning timing/scoring or changing the
 saved artwork. Older finishes show unavailable Enhanced fields rather than
-promoting their Original bitmap. Multiplayer saves and record formats are unchanged.
+promoting their Original bitmap or record flags. Multiplayer saves and record
+archive formats are unchanged.
 
 Ghost movement stays on elapsed movement time; scoring penalties never insert
 extra poses or slow playback. Select ordinary Practice PB ghosts from the

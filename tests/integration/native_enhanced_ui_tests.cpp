@@ -4,6 +4,8 @@
 #include "session/native_game_session.h"
 #include "platform/windows/game_display.h"
 #include "platform/windows/shared_hall_storage.h"
+#include "presentation/native_competition_render.h"
+#include "state/opponent_driving_adapter.h"
 #include "enhanced_record_fixture.h"
 #include "hall_ghost_fixture.h"
 #include "state/replay_io.h"
@@ -13,7 +15,7 @@
 
 namespace {
 using namespace scr;using namespace scr::runtime;namespace fs=std::filesystem;namespace replay=scr::state::replay;namespace fixture=scr::test::enhanced;
-unsigned checks{},recoveryChecks{},crossings{},viewMask{},hallSwitches{};
+unsigned checks{},recoveryChecks{},crossings{},viewMask{},hallSwitches{},recordNoticeRoutes{};
 void check(bool value,const char* message){++checks;if(!value)throw std::runtime_error(message);}
 void image(const fs::path& path,const std::vector<std::uint32_t>& pixels,unsigned width=320){std::ofstream out(path,std::ios::binary);out<<"P6\n"<<width<<' '<<pixels.size()/width<<"\n255\n";for(auto pixel:pixels)for(unsigned shift:{16u,8u,0u})out.put(char(pixel>>shift));check(bool(out),"Cannot save Enhanced UI preview");}
 void tap(NativeDisplaySettings& settings,unsigned controls){settings.navigate(0);settings.navigate(controls);settings.navigate(0);}
@@ -124,10 +126,73 @@ void finishCheckpoint(const fs::path& pack,const fs::path& root){
     auto future=encoded;const auto offset=future.size()-36;future[offset]=99;bool rejected=false;try{(void)decodeNativeCheckpoint(*seed.memory,future);}catch(const UnsupportedNativeCheckpoint&){rejected=true;}check(rejected,"Unknown finish method was interpreted as current timing");
     std::ofstream(root/"finish-checkpoint-size.txt")<<encoded.size()<<'\n';
 }
+void recordNotices(const fs::path& pack,const NativeMemory& captured,const std::vector<std::uint8_t>& payload,const std::vector<replay::ReplayInput>& plan,const fs::path& root){
+    const auto run=root/"record-data"/std::to_string(std::chrono::system_clock::now().time_since_epoch().count());
+    const EnhancedCatalog catalog{ghostTrackContentIdentity(payload),1,1};
+    std::optional<EnhancedRecordNotice> earned;
+    for(unsigned route=0;route<3;++route){
+        const auto data=run/std::to_string(route);auto g=career(pack,data);
+        {EnhancedHallArchive archive(data/"shared-hall",catalog);std::vector<std::shared_ptr<const EnhancedSubmission>> entries;
+            for(auto kind:{HallRecordKind::Lap,HallRecordKind::Race}){
+                const auto time=route==2?(kind==HallRecordKind::Lap?earned->lap:earned->race)->milliseconds*1000:1;
+                // Faster records in another league must not mask this race.
+                auto a=fixture::attempt(500+unsigned(kind),time,{0,route?HallLeague::Normal:HallLeague::Super,kind});
+                entries.push_back(std::make_shared<const EnhancedSubmission>(makeEnhancedSubmission(a)));
+            }archive.commit(entries);
+        }
+        tap(*g,0,4);tap(*g);check(g->page()==NativeMenuPage::Matchup,"Record notice missed season matchup");tap(*g);tap(*g);
+        check(g->page()==NativeMenuPage::Race&&g->competitive()&&g->memory()[0x1ca33]==0,"Record notice missed Little Ramp race");
+        auto seed=std::make_unique<NativeMemory>(captured);std::copy_n(g->memory().begin()+0x1ecab,256,seed->begin()+0x1ecab);
+        (*seed)[0x5eb79]=11;(*seed)[0x5eb76]=0;(*seed)[0x1ca22]=0x80;
+        for(unsigned base:{0x1c908u,0x1c920u,0x1c938u})(*seed)[base+23]=0;
+        auto opponent=state::opponent::readState(*seed);auto opponentData=std::make_unique<OpponentDrivingData>(state::opponent::readData(*seed));
+        opponent.segment=std::uint8_t(((*seed)[0x1ca32]+1)%(*seed)[0x1ca1a]);opponent.subSegment=0;opponent.lateral=128;
+        initializeOpponentCoordinates(*opponentData,state::opponent::readInputs(*seed),opponent);state::opponent::writeState(*seed,opponent);
+        auto& scene=const_cast<RaceScene&>(g->race());scene.loadNativeState(*seed,payload,{});scene.recordHallAttempts(newHallRunId(),true);scene.setGhostTimingCategory(TimingCategory::Enhanced);
+        auto baseline=std::make_unique<RaceScene>();baseline->loadNativeState(*seed,payload,{});
+        for(const auto in:plan){if(g->raceEnded())break;NativeGameInput input;input.driveControls=in.controls;input.quit=in.quit;g->update(.12,input);baseline->stepLive(in.controls,in.quit);}
+        check(g->raceEnded()&&g->flushRecords(),"Record notice race did not finish and save");
+        auto actual=std::make_unique<NativeMemory>(),expected=std::make_unique<NativeMemory>();scene.copyLiveExit(*actual);baseline->copyLiveExit(*expected);
+        check(*actual==*expected,"Enhanced record notices changed full simulation memory/RNG");
+        // Reload at the pending cockpit finish, before either report is acknowledged.
+        check(g->requestClose(),"Record notice finish did not close");g.reset();
+        g=std::make_unique<NativeGameSession>(pack,fs::path{});g->enableCareers(data);g->setNavigation(NativeMenuNavigation::Responsive);g->setTimingCategory(TimingCategory::Enhanced);g->update(0,{});tap(*g);tap(*g);
+        check(g->hasSuspendedSeason(),"Record notice finish was not resumable");tap(*g,0,4);tap(*g);check(g->raceEnded(),"Pending finish did not restore");tap(*g);
+        check(g->page()==NativeMenuPage::Results,"Pending finish missed results");
+        // Deliberately disagree with the Original notice trigger in both directions.
+        const_cast<NativeMemory&>(g->memory())[0x1bbb1]=route?0xc1:0;
+        tap(*g);
+        if(route){check(g->page()==NativeMenuPage::RoundResults,"Enhanced announced an Original-only record or millisecond tie");}
+        else{
+            check(g->page()==NativeMenuPage::Records,"Enhanced record depended on Original flags");
+            const auto hall=g->enhancedHall();EnhancedRecordNotice notice;
+            for(auto kind:{HallRecordKind::Lap,HallRecordKind::Race}){const auto& a=hall.hall->entries({0,HallLeague::Normal,kind}).front().attempt;
+                (kind==HallRecordKind::Lap?notice.lap:notice.race)=EnhancedRecordLine{a.name,a.time.milliseconds()};}
+            earned=notice;std::vector<std::uint32_t> pixels;packNativeMenuPixels(makeEnhancedRecordNoticeImage(g->memory(),g->menuState().division,notice),pixels);
+            check(g->render()==pixels,"Post-race values differ from the Enhanced Hall");image(root/"records-enhanced.ppm",pixels);
+            g->setTimingCategory(TimingCategory::Original);packNativeMenuPixels(makeNativeCompetitionImage(g->memory(),NativeMenuPage::Records,g->menuState().division),pixels);
+            check(g->render()==pixels,"Original record notice changed");image(root/"records-original.ppm",pixels);
+            g->setTimingCategory(TimingCategory::Enhanced);image(root/"records-enhanced-restored.ppm",g->render());
+            // The notice itself also survives closing on the records page.
+            const auto retained=g->render();check(g->requestClose(),"Record notice page did not close");g.reset();
+            g=std::make_unique<NativeGameSession>(pack,fs::path{});g->enableCareers(data);g->setNavigation(NativeMenuNavigation::Responsive);g->setTimingCategory(TimingCategory::Enhanced);g->update(0,{});tap(*g);tap(*g);tap(*g,0,4);tap(*g);
+            check(g->page()==NativeMenuPage::Records&&g->render()==retained,"Saved records page lost Enhanced values");
+        }
+        check(g->requestClose(),"Record notice scenario did not close");
+        ++recordNoticeRoutes;
+    }
+    EnhancedRecordNotice example;example.race=EnhancedRecordLine{"Craig",134191};example.lap=EnhancedRecordLine{"Craig",46540};
+    auto game=startNativeGame(pack);const auto memory=std::make_unique<NativeMemory>(*game.memory);std::vector<std::uint32_t> pixels;
+    packNativeMenuPixels(makeEnhancedRecordNoticeImage(*game.memory,3,example),pixels);image(root/"records-playtest-example.ppm",pixels);
+    example.race.reset();packNativeMenuPixels(makeEnhancedRecordNoticeImage(*game.memory,3,example),pixels);image(root/"records-lap-only.ppm",pixels);
+    example.lap.reset();example.race=EnhancedRecordLine{"TWELVE NAMES",734191};packNativeMenuPixels(makeEnhancedRecordNoticeImage(*game.memory,3,example),pixels);image(root/"records-race-only.ppm",pixels);
+    example.race.reset();packNativeMenuPixels(makeEnhancedRecordNoticeImage(*game.memory,3,example),pixels);image(root/"records-none.ppm",pixels);
+    check(*memory==*game.memory,"Record notice rendering changed native memory");
+}
 }
 int main(int argc,char** argv)try{
     check(argc==6,"Usage: native_enhanced_ui_tests pack output chip payload inputs");for(unsigned n:{1u,3u,4u,5u})if(!fs::exists(argv[n])){std::cout<<"SKIP: missing local test input\n";return 0;}
     const fs::path root=argv[2];fs::create_directories(root);const auto captured=replay::loadCapture(argv[3]);std::ifstream file(argv[4],std::ios::binary);const std::vector<std::uint8_t> payload{std::istreambuf_iterator<char>(file),{}};const auto plan=replay::loadInputs(argv[5]);
-    preferences(root/"preferences");freshTimer(argv[1],root);completed(*captured,payload,plan,root);browser(argv[1],root/"browser");finishCheckpoint(argv[1],root);
-    std::ofstream report(root/"results.json");report<<"{\"status\":\"passed\",\"checks\":"<<checks<<",\"migration_versions\":9,\"view_mask\":"<<viewMask<<",\"native_recovery_checks\":"<<recoveryChecks<<",\"interpolated_crossings\":"<<crossings<<",\"hall_category_switches\":"<<hallSwitches<<",\"apply_cancel\":true,\"pinned_category\":true,\"finish_checkpoint\":true,\"full_memory_and_rng_isolation\":true}\n";std::cout<<"Enhanced UI: "<<checks<<" checks passed\n";return 0;
+    preferences(root/"preferences");freshTimer(argv[1],root);completed(*captured,payload,plan,root);browser(argv[1],root/"browser");finishCheckpoint(argv[1],root);recordNotices(argv[1],*captured,payload,plan,root);
+    std::ofstream report(root/"results.json");report<<"{\"status\":\"passed\",\"checks\":"<<checks<<",\"migration_versions\":9,\"view_mask\":"<<viewMask<<",\"native_recovery_checks\":"<<recoveryChecks<<",\"interpolated_crossings\":"<<crossings<<",\"hall_category_switches\":"<<hallSwitches<<",\"record_notice_routes\":"<<recordNoticeRoutes<<",\"apply_cancel\":true,\"pinned_category\":true,\"finish_checkpoint\":true,\"full_memory_and_rng_isolation\":true}\n";std::cout<<"Enhanced UI: "<<checks<<" checks passed\n";return 0;
 }catch(const std::exception& e){std::cerr<<e.what()<<'\n';return 1;}

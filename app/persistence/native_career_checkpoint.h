@@ -13,6 +13,7 @@ struct NativeCareerCheckpoint {
     unsigned preparedTrack{},preparedLeague{};
     std::vector<std::uint32_t> finishPixels;
     std::optional<EnhancedClockDisplay> finishTiming;
+    std::optional<EnhancedRecordNotice> enhancedRecordNotice;
     // A main-menu/Practice checkpoint may retain one independent season.
     CareerBytes suspendedSeason;
 };

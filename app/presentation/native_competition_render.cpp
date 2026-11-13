@@ -100,6 +100,26 @@ NativeMenuImage result(const NativeMemory& m,unsigned index){
     return image;
 }
 }
+NativeMenuImage makeEnhancedRecordNoticeImage(const NativeMemory& m,unsigned division,const EnhancedRecordNotice& notice){
+    auto image=makeNativeMenuFrame(m,division,false);NativeMenuTextCursor c;
+    trackInfo(m,image,c,11);
+    const auto write=[&](const std::string& value){for(unsigned char ch:value)glyph(m,image,c,ch);};
+    const std::string heading=notice.any()?"New Enhanced track records":"Enhanced track records";
+    c={unsigned((45-heading.size())/2),13,0,0,1};write(heading);
+    if(!notice.any()){c={8,17,4,0,1};write("No new Enhanced records");return image;}
+    strip(m,image,17,1,true);
+    const auto line=[&](unsigned row,const char* label,const EnhancedRecordLine& record){
+        const auto time=formatEnhancedMilliseconds(record.milliseconds);
+        // The 224-pixel strip holds 31 native seven-pixel advances. Keep the
+        // complete millisecond time and fit the driver name into the remainder.
+        const auto width=time.size()<20?unsigned(20-time.size()):0;
+        auto driver=record.name.substr(0,width);driver.resize(width,' ');
+        c={5,row,4,0,0};write(std::string(label)+driver+(time.size()<=20?" ":"")+time);
+    };
+    if(notice.race)line(17,"Race Time:",*notice.race);
+    if(notice.lap)line(18,"Best Lap: ",*notice.lap);
+    return image;
+}
 NativeMenuImage makeNativeCompetitionImage(const NativeMemory& m,NativeMenuPage page,unsigned division,unsigned context){
     if(division>3)throw std::invalid_argument("Invalid native competition division");
     if(page==NativeMenuPage::Results)return result(m,(m[0x1bbb4]&0x80)?(m[0x1bca2]?3:2):1);

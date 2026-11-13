@@ -186,6 +186,8 @@ private:
     CareerFileState ghostFileState_{CareerFileState::Missing};
     unsigned lapImprovements_{},lapOverflows_{};
     unsigned enhancedImprovements_{};
+    std::optional<EnhancedRecordNotice> enhancedRecordNotice_;
+    std::optional<std::int64_t> enhancedLapRecord_,enhancedRaceRecord_;
     CareerFileState enhancedBestFileState_{CareerFileState::Missing};
     bool practiceGhostVisible_{true},ghostConditionsDiffer_{};
     double ghostNoticeSeconds_{};
@@ -194,6 +196,7 @@ private:
     void prepareEnhancedRecords();
     void prepareEnhancedRecordDisplay();
     void observeEnhancedPersonalBest();
+    void observeEnhancedRecord(const EnhancedHallAttempt&);
     RaceScene race_;
     FixedDriveClock driveClock_;
     DriveInputLatch driveLatch_;

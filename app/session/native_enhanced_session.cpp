@@ -28,14 +28,28 @@ void NativeGameSession::prepareEnhancedRecords(){
     race_.recordEnhancedPersonalBestLaps(*enhancedBests_,key,hallChallenge_?hallChallenge_->enhancedTarget:nullptr);
 }
 void NativeGameSession::prepareEnhancedRecordDisplay(){
+    enhancedRecordNotice_.reset();enhancedLapRecord_.reset();enhancedRaceRecord_.reset();
     std::optional<EnhancedTime> lap,race;
     if(lapKey_&&enhancedBests_)if(const auto pb=enhancedBests_->best({lapKey_->career,lapKey_->track,lapKey_->superLeague}))lap=pb->time;
     if(enhancedHallStore_)try{const auto saved=enhancedHallStore_->read();if(saved.hall){
         HallBoardKey key{menu_->trackId(),state::raceSelection::superLeague(*data_.memory)?HallLeague::Super:HallLeague::Normal,HallRecordKind::Lap};
-        const auto& laps=saved.hall->entries(key);if(!laps.empty()&&(!lap||laps.front().attempt.time.milliseconds()<lap->milliseconds()))lap=laps.front().attempt.time;
-        key.kind=HallRecordKind::Race;const auto& races=saved.hall->entries(key);if(!races.empty())race=races.front().attempt.time;
+        enhancedRecordNotice_.emplace();
+        const auto& laps=saved.hall->entries(key);if(!laps.empty()){
+            enhancedLapRecord_=laps.front().attempt.time.milliseconds();
+            if(!lap||*enhancedLapRecord_<lap->milliseconds())lap=laps.front().attempt.time;
+        }
+        key.kind=HallRecordKind::Race;const auto& races=saved.hall->entries(key);if(!races.empty()){
+            race=races.front().attempt.time;enhancedRaceRecord_=race->milliseconds();
+        }
     }}catch(const std::exception&){/* Unavailable records have no invented precision. */}
     race_.setEnhancedRecordTargets(std::move(lap),std::move(race));
+}
+void NativeGameSession::observeEnhancedRecord(const EnhancedHallAttempt& attempt){
+    if(!enhancedRecordNotice_||!attempt.time.rankable())return;
+    const auto milliseconds=attempt.time.milliseconds();
+    auto& best=attempt.board.kind==HallRecordKind::Lap?enhancedLapRecord_:enhancedRaceRecord_;
+    auto& line=attempt.board.kind==HallRecordKind::Lap?enhancedRecordNotice_->lap:enhancedRecordNotice_->race;
+    if(!best||milliseconds<*best){best=milliseconds;line=EnhancedRecordLine{attempt.name,milliseconds};}
 }
 void NativeGameSession::observeEnhancedPersonalBest(){
     if(!lapKey_||!enhancedBests_)return;

@@ -64,6 +64,8 @@ NativeMenuImage NativeGameSession::menuImage()const{
         default:return makeNativeMenuImage(*data_.memory,opening_->renderState());
         }
     }
+    if(page()==NativeMenuPage::Records&&effectiveTimingCategory()==TimingCategory::Enhanced)
+        return makeEnhancedRecordNoticeImage(*data_.memory,menu_->competitionDivision(),enhancedRecordNotice_.value_or(EnhancedRecordNotice{}));
     if(menu_->multiplayer())if(const auto screen=multiplayerScreen(page()))
         return makeNativeMultiplayerImage(*data_.memory,*screen,menu_->competitionDivision(),menu_->competitionContext());
     if(page()!=NativeMenuPage::LoadSave&&page()>=NativeMenuPage::Matchup)return makeNativeCompetitionImage(*data_.memory,page(),menu_->competitionDivision(),menu_->competitionContext());
@@ -367,6 +369,8 @@ NativeGameUpdate NativeGameSession::updateImpl(double elapsed,const NativeGameIn
         return result;
     }
     const auto previous=menuImage();const auto oldPage=page();
+    menu_->setRecordNotice(effectiveTimingCategory()==TimingCategory::Enhanced?
+        std::optional<bool>{enhancedRecordNotice_&&enhancedRecordNotice_->any()}:std::nullopt);
     const auto action=menu_->update(input.menu,elapsed);
     if(oldPage==NativeMenuPage::Main&&menu_->competitive())previewPrepared_=false;
     if(menu_->multiplayer()&&(action==NativeMenuAction::Changed||action==NativeMenuAction::ShowCompetitionPage))

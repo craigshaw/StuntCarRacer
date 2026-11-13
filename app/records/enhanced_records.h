@@ -54,6 +54,13 @@ struct EnhancedHallAttempt {
     std::optional<HallGhostDigest> ghost;
 };
 struct EnhancedHallEntry {EnhancedHallAttempt attempt;std::uint64_t insertionOrder{};};
+// Presentation-only record achievements from one race, independent of native
+// record flags and retained with the career's post-race continuation.
+struct EnhancedRecordLine {std::string name;std::int64_t milliseconds{};};
+struct EnhancedRecordNotice {
+    std::optional<EnhancedRecordLine> lap,race;
+    bool any()const noexcept{return lap.has_value()||race.has_value();}
+};
 struct EnhancedHallSnapshot {
     EnhancedCatalog catalog;std::uint64_t nextInsertionOrder{1};
     std::array<std::vector<EnhancedHallEntry>,hallBoardCount> boards;
@@ -71,4 +78,5 @@ private:
     EnhancedHallSnapshot state_;
 };
 std::string formatEnhancedTime(const EnhancedTime&);
+std::string formatEnhancedMilliseconds(std::int64_t);
 } // namespace scr::runtime

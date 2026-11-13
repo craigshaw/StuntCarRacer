@@ -46,8 +46,10 @@ the same live completions to separate PB/Hall storage, with conservative confide
 independent failures and category-specific targets. Pinned Enhanced challenges use
 the same isolated career continuation. Version-10 settings select timing and the
 Hall's default category. Pending-finish checkpoints may carry optional Enhanced
-display values in version 3 alongside their Original bitmap; versions 1–2 remain
-readable, and normal checkpoints continue to use version 2.
+display values in version 3 alongside their Original bitmap. Version 4 also
+retains the category-specific Enhanced record notice through pending finishes
+and record-page resumes; versions 1–3 remain readable. Normal checkpoints
+continue to use version 2.
 
 ## Storage
 

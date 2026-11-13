@@ -150,7 +150,7 @@ if(WIN32)
     app/presentation/scene_commands.cpp
   )
   target_include_directories(scr_runtime PUBLIC app)
-  target_link_libraries(scr_runtime PUBLIC scr_render scr_audio scr_state bcrypt)
+  target_link_libraries(scr_runtime PUBLIC scr_render scr_audio scr_state scr_records bcrypt)
   target_compile_features(scr_runtime PUBLIC cxx_std_17)
   include(cmake/AssetSources.cmake)
   add_library(scr_game STATIC

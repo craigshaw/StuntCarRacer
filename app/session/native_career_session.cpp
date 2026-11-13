@@ -164,6 +164,7 @@ void NativeGameSession::saveCheckpoint(bool terminal){
         // all career fields. No Practice race or selection journey is resumed.
         NativeMenuFlow main(*c.memory);main.setMainRowCount(3);main.setNavigation(navigation_);c.menu=main.continuation();c.previewPrepared=false;
     }else if(c.menu.page==NativeMenuPage::HallOfFame){NativeMenuFlow main(*c.memory);main.setMainRowCount(3);c.menu=main.continuation();}
+    if(c.menu.competitive&&(c.menu.page==NativeMenuPage::Results||c.menu.page==NativeMenuPage::Records))c.enhancedRecordNotice=enhancedRecordNotice_;
     checkpoint_=encodeNativeCheckpoint(*careerBaseline_,c);
     activeCareer_->division=(*c.memory)[0x1c9ce];activeCareer_->league=(*c.memory)[0x1c9d0];
     careerStore_->retry();careerStore_->saveCareer(*activeCareer_,checkpoint_);
@@ -173,7 +174,7 @@ void NativeGameSession::restoreCheckpoint(const CareerBytes& bytes){
     opening_.reset();saveMenu_.reset();saveReturn_=SaveReturn::None;menu_=std::make_unique<NativeMenuFlow>(*data_.memory,c.menu);menu_->setMainRowCount(3);menu_->setNavigation(navigation_);
     suspendedSeason_=std::move(c.suspendedSeason);
     previewPrepared_=c.previewPrepared;preparedTrack_=c.preparedTrack;preparedLeague_=c.preparedLeague;preparedCompetitive_=c.menu.competitive;
-    finishPending_=c.finishPending;finishPixels_=std::move(c.finishPixels);finishTiming_=std::move(c.finishTiming);transition_=Transition::None;fade_.reset(readNativePalette(*data_.memory,0x23c32));careerPanel_=CareerPanel::None;creatingCareer_=false;releaseInput();
+    finishPending_=c.finishPending;finishPixels_=std::move(c.finishPixels);finishTiming_=std::move(c.finishTiming);enhancedRecordNotice_=std::move(c.enhancedRecordNotice);transition_=Transition::None;fade_.reset(readNativePalette(*data_.memory,0x23c32));careerPanel_=CareerPanel::None;creatingCareer_=false;releaseInput();
 }
 bool NativeGameSession::loadCareer(const std::string& id){
     try{
@@ -221,8 +222,10 @@ void NativeGameSession::observeHallCompletions(){
         // as dominated is safe; Full would indicate a broken capture bound.
         if(sharedHallStore_->submit(completed)==HallSubmitResult::Full)throw std::logic_error("Hall capture allocation bound exceeded");
     }
-    for(const auto& completed:race_.takeEnhancedHallCompletions())
+    for(const auto& completed:race_.takeEnhancedHallCompletions()){
+        observeEnhancedRecord(completed.attempt);
         if(enhancedHallStore_->submit(completed)==EnhancedSubmitResult::Full)throw std::logic_error("Enhanced Hall capture allocation bound exceeded");
+    }
 }
 HallArchiveRead NativeGameSession::sharedHall()const{
     if(!sharedHallStore_)throw std::logic_error("Shared Hall is not enabled");return sharedHallStore_->read();

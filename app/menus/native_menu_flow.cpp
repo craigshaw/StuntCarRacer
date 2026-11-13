@@ -215,7 +215,7 @@ NativeMenuAction NativeMenuFlow::update(const NativeMenuInput& input,double elap
             return NativeMenuAction::EnterPreview;
         }
         if(page_==NativeMenuPage::Results){
-            if(memory_[0x1bbb1]){openCompetitionPage(NativeMenuPage::Records,1);return NativeMenuAction::ShowCompetitionPage;}
+            if(recordNotice_.value_or(memory_[0x1bbb1]!=0)){openCompetitionPage(NativeMenuPage::Records,1);return NativeMenuAction::ShowCompetitionPage;}
         }
         if(page_==NativeMenuPage::Results||page_==NativeMenuPage::Records){
             const bool fromBitmap=page_==NativeMenuPage::Results;

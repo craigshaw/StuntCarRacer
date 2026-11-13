@@ -1,4 +1,4 @@
-"""Verify Enhanced timing settings, frame-aligned clocks, Hall filters and saved finishes (stage 5)."""
+"""Verify Enhanced timing settings, clocks, Hall filters, record notices and saved finishes."""
 import argparse
 import hashlib
 import json
@@ -60,6 +60,7 @@ def main():
     checks = json.loads(results.read_text())
     if (checks['status'] != 'passed' or checks['migration_versions'] != 9 or checks['view_mask'] != 15
             or checks['native_recovery_checks'] < 1 or checks['interpolated_crossings'] != 3 or checks['hall_category_switches'] != 2
+            or checks['record_notice_routes'] != 3
             or not all(checks[key] for key in ('apply_cancel', 'pinned_category', 'finish_checkpoint', 'full_memory_and_rng_isolation'))):
         raise RuntimeError('Enhanced UI acceptance omitted required cases')
     session_results = NATIVE_BUILD / 'test-output' / args.configuration / 'native_enhanced_session_tests/results.json'
@@ -81,10 +82,10 @@ for path in source.rglob('*.ppm'):
     if before != source_records() or fixtures != [identity(path) for path in paths] or executables != json.loads(receipt.read_text())['executables']:
         raise RuntimeError('Enhanced UI sources, fixtures or executables changed during verification')
     report = {'status': 'passed', 'stage': 5, 'configuration': args.configuration,
-              'scope': 'Enhanced timing preference/UI, immutable presented clocks, Hall categories and compatible saved finishes; final staging pending',
+              'scope': 'Enhanced timing preference/UI, immutable clocks, Hall categories, category-specific post-race notices and compatible saved finishes',
               'sources': before, 'fixtures': fixtures, 'executables': executables, 'ctest_targets': tests,
               'checks': checks, 'session_regression': session, 'real_player_data_used': False, 'original_cpu_executed': False,
-              'synthetic_visuals': ['approximate.png'],
+              'synthetic_visuals': ['approximate.png', 'records-playtest-example.png', 'records-lap-only.png', 'records-race-only.png', 'records-none.png'],
               'visuals': [identity(path) for path in sorted(visuals.rglob('*.png'))],
               'artifacts': [identity(results), identity(session_results), identity(output / 'ctest.log')]}
     (output / 'check-results.json').write_text(json.dumps(report, indent=2) + '\n')

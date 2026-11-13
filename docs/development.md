@@ -110,6 +110,30 @@ build does not create a wrapper receipt. Run one wrapper at a time per shared tr
 
 Use `& $AmigaPython scripts/<command>` after loading `env.ps1`.
 
+For everyday fixes, default to one incremental Release build of the player and
+the affected test targets, then one focused CTest run. Select tests by the
+changed behaviour and its immediate dependencies. Add the relevant original-code
+comparison when an Original route or rule changes, and inspect rendered output
+for presentation changes. Use Debug for the affected targets when diagnosing a
+failure or checking a Debug-specific risk; do not repeat the whole suite in both
+configurations by default.
+
+For example, a post-race record-notice change uses:
+
+```powershell
+cmake --build --preset windows-release --target native_game native_enhanced_ui_tests native_autosave_tests --parallel 1 -- /nr:false
+ctest --preset windows-release -R '^(native_enhanced_ui_tests|native_autosave_tests)$' --output-on-failure
+cmake --install build/windows --config Release
+```
+
+The detailed wrappers below provide broader acceptance and identified receipts.
+Reserve a full game regression or multiple configurations for release checks,
+changes spanning several contracts, or unresolved failures. Once selected checks
+pass, repeat only those invalidated by a relevant code, fixture or binary change;
+documentation/evidence edits alone do not require another execution. Record the
+actual scope and identities rather than rerunning a broad wrapper merely to
+refresh its receipt. Install once after the selected checks pass.
+
 | Changed area | Command | Receipt directory |
 | --- | --- | --- |
 | Game flow, Hall browser, settings, launcher, persistence | `check_native_game.py` | `analysis/native-game/` |

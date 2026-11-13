@@ -95,6 +95,7 @@ unsigned EnhancedHallOfFame::rank(HallBoardKey key,unsigned row)const{
     const auto& board=entries(key);const auto time=board.at(row).attempt.time.milliseconds();unsigned result=1;
     for(const auto& entry:board){if(entry.attempt.time.milliseconds()>=time)break;++result;}return result;
 }
-std::string formatEnhancedTime(const EnhancedTime& time){validateEnhancedTime(time);const auto milliseconds=time.milliseconds();std::ostringstream out;
+std::string formatEnhancedMilliseconds(std::int64_t milliseconds){require(milliseconds>=0);std::ostringstream out;
     out<<milliseconds/60000<<':'<<std::setw(2)<<std::setfill('0')<<(milliseconds/1000)%60<<'.'<<std::setw(3)<<milliseconds%1000;return out.str();}
+std::string formatEnhancedTime(const EnhancedTime& time){validateEnhancedTime(time);return formatEnhancedMilliseconds(time.milliseconds());}
 } // namespace scr::runtime

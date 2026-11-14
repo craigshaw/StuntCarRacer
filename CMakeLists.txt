@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.21)
-project(stunt_car_racer VERSION 0.2.0 LANGUAGES C CXX)
+project(stunt_car_racer VERSION 0.3.0 LANGUAGES C CXX)
 include(CTest)
 option(SCR_BUILD_DEV_TOOLS "Build development replay and direct-race viewers" ON)
 option(SCR_BUILD_ORACLE "Build differential tests against original 68000 bytes" OFF)

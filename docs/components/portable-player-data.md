@@ -20,6 +20,8 @@ single-player and local multiplayer.
 | Independent copies | Moving the game folder carries its data; copying it creates an independent collection, without ongoing links or synchronisation |
 | Career portability | One folder contains a career's progress, Original/Enhanced personal bests, ghost recordings and recovery copies |
 | Multiplayer | Named, persistent games with New Game, Continue and Browse Saved Games; autosave and Resume follow the career model |
+| Multiplayer setup | All four divisions and Normal/Super League are selectable during New Game, independently of career progress |
+| Legacy multiplayer | No compatibility, import or migration of the original thirty-slot multiplayer saves |
 | Race interruption | Resume the current human driver's pre-race matchup; retain earlier completed turns |
 | Completed progression | Retain pending finish/results/report stages and committed scoring without applying them twice |
 | Records | The Hall is shared within the game folder and independent of restoring, replacing or deleting saved games |
@@ -161,6 +163,14 @@ only after two to eight drivers are confirmed and the first durable checkpoint
 succeeds. Retry or cancellation handles failure before racing, as for a new
 career. The game title is host metadata separate from the original driver names.
 
+New Game also selects Division 4, 3, 2 or 1 and Normal or Super League. Every
+combination is available without a career or access-file import. The selected
+division supplies its original two-track championship; this does not introduce
+arbitrary track combinations. Store the configuration with the draft and native
+checkpoint, and retain it through subsequent championships and Resume. A copied
+multiplayer game is self-contained; deleting, restoring or advancing a career
+cannot change its configuration or availability.
+
 Continue opens that game's home. Resume returns to the saved competition stage;
 starting another championship follows existing rules and retains cumulative
 state. Returning home or browsing another saved game must not acknowledge reports
@@ -169,8 +179,8 @@ verified during stage 4, with the same functionality under both navigation modes
 
 The native multiplayer checkpoint must retain:
 
-- The complete roster, turn order/current human, per-driver damage and applicable
-  division, league and track-access state.
+- The complete roster, turn order/current human, per-driver damage, selected
+  division/league and dependent track configuration.
 - Scores, race/track results, bonus-award state, current track/turn and the
   four-championship accumulation/reset counter.
 - Both gameplay RNG stores, prepared-matchup/preview state, the exact pending
@@ -189,10 +199,13 @@ race nor reapply damage, bonuses, turn advancement, the championship reset or
 live Hall delivery. Resume/preview must not prepare the same race twice.
 
 Replace the normal thirty-slot virtual disk, special `MP` names and format prompt
-with these native saved-game routes. Original codecs/progression routines remain
-available to their tests and any explicit compatibility tooling. The original
-race rules, multiplayer turn order, pace car, scoring and reset behaviour stay
-authoritative; persistent multiplayer is not Computer Link.
+with these native saved-game routes. The player has no legacy multiplayer
+load/save or access-slot route. Original codec/progression routines may remain
+for their verification tests; they do not require a player-facing compatibility
+feature. The original race rules, multiplayer turn order, pace car, scoring and
+reset behaviour stay authoritative. Open division/league selection is a deliberate
+change to multiplayer content access; single-player progression is unchanged.
+Computer Link remains deferred.
 
 ## Storage and host boundaries
 
@@ -254,7 +267,7 @@ Explicit developer data roots must not import real player data implicitly.
 | `last.scr-index` | Read a supported selection into the new preferences; it is not a discovery catalogue |
 | Current installation's ProgramData Hall and Enhanced sibling | Copy each complete compatible archive, its recovery indexes and all referenced recordings |
 | Existing explicit developer root | Apply the same recognised-layout conversion only through an explicit migration action |
-| `saves/stunt-car-racer.scr-save` | Preserve the legacy multiplayer file; see the conversion decision below |
+| `saves/stunt-car-racer.scr-save` | Excluded: no import, conversion or migration into native multiplayer games |
 
 Validate the entire staged migration and publish it through the folder-transaction
 protocol. Interrupted or repeated imports must be resumable/idempotent and must
@@ -272,22 +285,22 @@ ask for the old source location rather than guessing which Hall belongs to it.
 The retired per-user `hall.scr-hall` remains outside the new Hall's import sources;
 restored winning banks and legacy HALL slots cannot seed live-attempt archives.
 
-Two compatibility details need a concrete proposal before stage 4 is signed off:
+### Resolved multiplayer compatibility policy
 
-1. **Legacy multiplayer slots.** Their payload lacks full track-access and
-   four-championship continuation state. Preserve the file regardless. An optional
-   importer must define an explicit restart boundary and disclose missing state;
-   it cannot promise exact Resume or invent the omitted history. Whether this
-   importer ships with the first portable release is not yet agreed.
-2. **Multiplayer track access.** Today a career/access slot can supply division and
-   league context without replacing the local roster. Removing Load/Save must
-   provide an equivalent deliberate route, such as choosing access from a native
-   career, while retaining the original access rules. The replacement UI and
-   compatibility policy are not yet agreed; checkpointing must preserve whatever
-   valid access state was selected.
+Legacy thirty-slot multiplayer saves are outside the compatibility scope. Do not
+build an importer, roster extractor, fallback save system or dedicated backup/
+archive step for them. Migration ignores those files; it has no operation to
+delete or rewrite them. Their incomplete track-access and four-championship state
+does not need reconstructing. This decision does not relax the existing native
+career, PB or Hall migration/validation contracts, or define compatibility policy
+for future versions of the new native multiplayer format.
 
-These are implementation gates, not reasons to retain the virtual disk as the
-normal save system. Record their resolution here before changing those routes.
+The old career/access-slot dependency is also removed. Division and league are
+explicit New Game choices, with all combinations available. No native career
+selector, unlock aggregation or original access-file support is needed for
+multiplayer. Resume uses the saved multiplayer configuration, never the current
+state or presence of another saved game. Both former compatibility gates are
+resolved; the implementation stages below reflect these decisions.
 
 ## Current implementation and intended ownership
 
@@ -299,7 +312,7 @@ normal save system. Record their resolution here before changing those routes.
 | `app/persistence/native_career_checkpoint.*` | Preserve career versions 1–4; extract reusable native-memory range handling without weakening career validation |
 | `app/menus/native_menu_flow.*` | Complete multiplayer continuation, including race/track summary pages and `multiplayerTrackEnd`; safe home/Resume handoffs |
 | `app/session/native_career_session.cpp`, `native_game_session.*` | Shared saved-game lifecycle/failure handling with mode-specific capture; multiplayer drafts, autosave and exact-once restoration |
-| `app/session/native_multiplayer_state.*` | Keep original scoring/turn/access routines authoritative; expose the state needed by validated capture through proper adapters |
+| `app/session/native_multiplayer_state.*` | Keep original scoring/turn/track-selection routines authoritative for the selected division/league; expose the state needed by validated capture through proper adapters |
 | `app/persistence/hall_archive_engine.h`, category stores | Retain distinct models/codecs and immutable ghosts while taking explicit category roots |
 | `src/state/` | Reusable state adapters and checkpoint primitives; no application discovery/UI ownership |
 
@@ -356,22 +369,25 @@ four-championship reset. Existing career byte formats/validation remain compatib
 
 ### 4. Integrate the multiplayer saved-game journey — pending
 
-Resolve the two compatibility gates above, then implement named-game setup,
+Implement named-game setup with unrestricted division/league selection,
 Continue/Browse, home/Resume, deletion and autosave using the shared lifecycle.
 Preserve roster-confirmation draft semantics, pre-race interruption and terminal
 private-copy capture. Extend duplicate rekeying and transaction handling to the
-new format. Retire the normal slot/disc/format/name flow while retaining isolated
-original-code tests and the chosen compatibility route.
+new format. Retire the slot/disc/format/name and access-file flows from the player;
+retain isolated original-code tests without adding legacy multiplayer import.
 
 Exit: both navigation policies, keyboard/controller, 2/8-player setup, new-save
 failure, every turn/report resume, game switching, deletion and close/retry/cancel
-work. No scoring, damage transfer, preparation, RNG advance or Hall completion
-is repeated by reopening a saved stage. Inspect the new menus visually.
+work. Every division/league combination works without a career, and its saved
+configuration survives copying and changes to other saved games. No scoring,
+damage transfer, preparation, RNG advance or Hall completion is repeated by
+reopening a saved stage. Inspect the new menus visually.
 
 ### 5. Deliver migration and enable portable defaults — pending
 
 Implement source discovery, explicit import/fresh-start choices and validated
-transactional publication, including both Hall categories and all recovery files.
+transactional publication, including both Hall categories and all supported
+recovery files. Exclude legacy multiplayer slot files from import and migration.
 Handle a populated destination through the same conflict service. Update helpers
 to one complete data root, migrating/removing the player's narrow legacy path
 switches only after their callers are updated. Keep explicit recording options.
@@ -413,11 +429,13 @@ in `cmake/NativeTests.cmake`. Extend test-only original comparisons through
 | Ownership | Same folder from two Windows accounts; two independent folders; alias paths; second launch; crash release; no cross-root writes |
 | Career/PB compatibility | Older checkpoint versions, pending finishes, independent suspended season, Original/Enhanced PBs, clearing/deletion; `native_autosave_tests`, `native_career_session_tests`, `native_ghost_store_tests`, `enhanced_store_tests` |
 | Folder operations | Duplicate names/IDs, wrong modes, missing/corrupt heads, unknown versions, identical and diverged copies, rekeyed recovery generations, interruptions at each transaction step |
-| Multiplayer state | All player counts, turn/report boundaries, per-driver damage, F1 forfeits, Normal/Super access, bonuses and fourth-championship reset; extend `native_multiplayer_session_tests` and new codec/resume tests |
+| Multiplayer state | All player counts, turn/report boundaries, per-driver damage, F1 forfeits, all four divisions in Normal/Super, bonuses and fourth-championship reset; extend `native_multiplayer_session_tests` and new codec/resume tests |
+| Multiplayer setup | All division/league combinations with no careers or legacy saves present; unchanged career progression; selected configuration survives Resume, copying and career deletion/restoration |
+| Legacy exclusion | Legacy multiplayer files neither enable player load/import routes nor become native games during migration; no dedicated archive/backup operation |
 | Failure lifecycle | First-save failure, failed PB/Hall categories, retry, switch/delete/close drains, Leave Without Saving/Cancel; extend `native_autosave_tests` and `native_navigation_tests` for both modes |
 | Hall integrity | Original/Enhanced archive relocation with Ready ghosts, recoveries/collection, no duplicate attempts on Resume/import, no rollback on game replacement; `shared_hall_store_tests`, `shared_hall_storage_tests`, `native_hall_completion_tests`, `native_enhanced_session_tests` |
 | Launcher/preferences | Whole-root override, settings/last-used coordination, unwritable root, import/fresh start, repeated migration; extend `native_launcher_tests` and `native_display_tests` |
-| Original rules | Fresh matching comparisons for changed multiplayer/menu/access transitions; `native_multiplayer_state_tests`, `native_career_state_tests`, `native_menu_flow_tests` under `windows-oracle`; extend scoped cases instead of treating old passes as new coverage |
+| Original rules | Fresh matching comparisons for changed multiplayer/menu transitions at the same selected division/league; `native_multiplayer_state_tests`, `native_career_state_tests`, `native_menu_flow_tests` under `windows-oracle`; test unrestricted setup as the new native policy rather than claiming original access-menu equivalence |
 | Packaging | Clean CMake Install prefix passes `scripts/check_release.py`; updating a played-in folder preserves `data/`; repository policy rejects generated saves/assets including new extensions |
 
 Use one incremental `windows-release` build and focused CTest selection per

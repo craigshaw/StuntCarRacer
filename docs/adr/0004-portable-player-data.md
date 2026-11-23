@@ -23,6 +23,14 @@ Cancel; progress is never automatically merged. The independent Hall and the
 simulation/RNG isolation established by [ADR 0001](0001-native-career-checkpoints.md)
 remain in force.
 
+Multiplayer New Game offers every division and Normal/Super League directly,
+with the selected original two-track championship configuration owned by that
+saved game. This removes dependency on single-player unlocks or access files;
+single-player progression and original multiplayer scoring remain unchanged.
+Legacy thirty-slot multiplayer saves are excluded from compatibility and migration:
+there is no requirement for an importer or dedicated preservation/archive step.
+Existing native career, PB and Hall compatibility is retained.
+
 This is an accepted design, not an implemented runtime change. See the
 [design and staged implementation plan](../components/portable-player-data.md)
 for compatibility boundaries, migration and verification.

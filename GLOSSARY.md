@@ -35,6 +35,9 @@ The game-menu action that returns one logical level and restores the previous se
 **Career**:
 A persistent single-player driver identity and its progress across seasons. Multiple careers may use the same driver name.
 
+**Multiplayer game**:
+A named, persistent local competition for two to eight human drivers, including its roster and progress across championships. It is independent of any single-player career.
+
 **Driver name**:
 The name shown for a player in the original game's rosters, races and record tables. It does not uniquely identify a career.
 
@@ -45,7 +48,7 @@ The Single Player entry menu for opening the last-used career, creating a career
 An open career's home, containing Hall of Fame, Practise and either Start Season or Resume Season.
 
 **Continue**:
-The action that opens the last-used career's Single Player main menu. An active career retains its in-memory progress after a save failure until it is saved or explicitly discarded.
+The action that opens the main menu of the last-used career or saved multiplayer game in the selected mode. Active progress survives a save failure in memory until it is saved or explicitly discarded.
 
 **Resume Season**:
 The action that returns an open career to its suspended season stage, including pending matchups, finish messages and reports.
@@ -58,6 +61,9 @@ A saved point in a career containing its progression and continuation stage. It 
 
 **Career recovery copy**:
 An earlier valid career checkpoint retained for restoring a damaged current autosave.
+
+**Multiplayer checkpoint**:
+A saved continuation point for a multiplayer game, retaining completed turns and the current competition stage. An unfinished race is represented by its pre-race position.
 
 **Hall of Fame**:
 The installation-wide rankings of eligible human lap and three-lap race attempts, shared by all players using that installation and independent of any one career.

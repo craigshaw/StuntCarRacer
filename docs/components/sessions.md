@@ -5,6 +5,10 @@
 [app/persistence/](../../app/persistence/) owns codecs and storage.
 [Playing](../playing.md) documents the user-facing routes and recovery choices.
 
+The accepted [portable-data and multiplayer-save design](portable-player-data.md)
+will replace the current storage locations and manual multiplayer save flow.
+Its implementation is pending; the contracts below describe the current build.
+
 ## Transitions
 
 Original and Responsive navigation share progression handlers. Back or revisiting

@@ -68,11 +68,18 @@ EnhancedSubmission captureEnhancedSubmission(EnhancedHallAttempt attempt,std::sh
     attempt.name=normaliseHallName(attempt.name).display;return {std::move(attempt),{},std::move(recording)};
 }
 EnhancedHallArchive::EnhancedHallArchive(std::filesystem::path root,EnhancedCatalog catalog,HallWriteObserver observer)
-    :root_(enhancedHallRoot(root)),catalog_(catalog),observer_(std::move(observer)){validateEnhancedCatalog(catalog_);}
-EnhancedHallRead EnhancedHallArchive::read()const{return Engine(root_,catalog_,observer_).read();}
-EnhancedGhostRead EnhancedHallArchive::readGhost(const EnhancedHallAttempt& a)const{return Engine(root_,catalog_,observer_).readGhost(a);}
-std::uint64_t EnhancedHallArchive::commit(const std::vector<std::shared_ptr<const EnhancedSubmission>>& submissions){return Engine(root_,catalog_,observer_).commit(submissions);}
+    :EnhancedHallArchive(HallArchiveLocation{enhancedHallRoot(root),HallDirectoryAccess::SharedUsers},catalog,std::move(observer)){}
+EnhancedHallArchive::EnhancedHallArchive(HallArchiveLocation location,EnhancedCatalog catalog,HallWriteObserver observer)
+    :location_(std::move(location)),catalog_(catalog),observer_(std::move(observer)){
+    if(location_.root.empty())throw std::invalid_argument("Missing Enhanced Hall category root");
+    location_.root=std::filesystem::absolute(location_.root).lexically_normal();validateEnhancedCatalog(catalog_);
+}
+EnhancedHallRead EnhancedHallArchive::read()const{return Engine(location_,catalog_,observer_).read();}
+EnhancedGhostRead EnhancedHallArchive::readGhost(const EnhancedHallAttempt& a)const{return Engine(location_,catalog_,observer_).readGhost(a);}
+std::uint64_t EnhancedHallArchive::commit(const std::vector<std::shared_ptr<const EnhancedSubmission>>& submissions){return Engine(location_,catalog_,observer_).commit(submissions);}
 EnhancedHallStore::EnhancedHallStore(std::filesystem::path root,EnhancedCatalog catalog,HallWriteObserver observer,std::size_t limit)
+    :EnhancedHallStore(HallArchiveLocation{enhancedHallRoot(root),HallDirectoryAccess::SharedUsers},catalog,std::move(observer),limit){}
+EnhancedHallStore::EnhancedHallStore(HallArchiveLocation root,EnhancedCatalog catalog,HallWriteObserver observer,std::size_t limit)
     :archive_(std::move(root),catalog,std::move(observer)),catalog_(catalog),limit_(limit){
     if(!limit||limit>enhancedCapturePendingMaximumBytes)throw std::invalid_argument("Invalid Enhanced pending bound");worker_=std::thread([this]{run();});}
 EnhancedHallStore::~EnhancedHallStore(){flush();{std::lock_guard<std::mutex> lock(mutex_);stopping_=true;}changed_.notify_one();worker_.join();}

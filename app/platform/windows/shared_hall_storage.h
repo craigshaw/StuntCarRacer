@@ -1,5 +1,6 @@
 #pragma once
 #include "records/hall_of_fame.h"
+#include "persistence/hall_storage_types.h"
 #include <chrono>
 #include <filesystem>
 #include <memory>
@@ -16,6 +17,8 @@ SharedHallPaths sharedHallPaths(const std::filesystem::path& installationDirecto
 // New Hall directories grant local Users inherited read/write/execute/delete,
 // and Administrators/System full access. Never call on private career folders.
 void prepareSharedHallDirectory(const std::filesystem::path& root);
+// Portable roots inherit the chosen directory's existing Windows permissions.
+void prepareHallDirectory(const std::filesystem::path&,HallDirectoryAccess);
 bool sharedHallUsersAccess(const std::filesystem::path& root);
 HallAttemptId newHallRunId();
 HallAttemptId hallCompletionId(const HallAttemptId& run,std::uint64_t crossing,HallRecordKind);

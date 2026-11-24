@@ -31,6 +31,7 @@ Legacy thirty-slot multiplayer saves are excluded from compatibility and migrati
 there is no requirement for an importer or dedicated preservation/archive step.
 Existing native career, PB and Hall compatibility is retained.
 
-This is an accepted design, not an implemented runtime change. See the
-[design and staged implementation plan](../components/portable-player-data.md)
-for compatibility boundaries, migration and verification.
+The complete default-storage and multiplayer transition is pending. The first
+implementation stage provides explicit data-root resolution and process-held
+ownership. See the [design and staged implementation plan](../components/portable-player-data.md)
+for delivery status, compatibility boundaries, migration and verification.

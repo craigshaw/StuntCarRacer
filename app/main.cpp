@@ -10,6 +10,7 @@
 #include "platform/windows/audio_output.h"
 #include "platform/windows/game_display.h"
 #include "platform/windows/shared_hall_storage.h"
+#include "platform/windows/player_data_ownership.h"
 #include <algorithm>
 #include <array>
 #include <chrono>
@@ -23,30 +24,13 @@
 
 namespace {
 using namespace scr::runtime;
-struct Options {
-    NativeLaunchPaths paths;
-    std::optional<bool> interpolate,fullscreen;
-    bool isolatedHall{};
-};
-Options parse(){
+NativeLaunchOptions parse(){
     int count=0;auto args=CommandLineToArgvW(GetCommandLineW(),&count);
     if(!args)throw std::runtime_error("Cannot read native game arguments");
-    Options options;options.paths=defaultNativeLaunchPaths();
-    try{for(int n=1;n<count;++n){
-        const std::wstring key=args[n];
-        if(key==L"--interpolate"){options.interpolate=true;continue;}
-        if(key==L"--fullscreen"){options.fullscreen=true;continue;}
-        if(key==L"--windowed"){options.fullscreen=false;continue;}
-        if(++n==count)throw std::runtime_error("Missing native game argument");
-        if(key==L"--asset-pack")options.paths.pack=args[n];
-        else if(key==L"--recordings-dir")options.paths.recordings=args[n];
-        else if(key==L"--save-file")options.paths.save=args[n];
-        else if(key==L"--settings-file")options.paths.settings=args[n];
-        else if(key==L"--data-dir"){options.paths.dataRoot=args[n];options.isolatedHall=true;}
-        else throw std::runtime_error("Unknown native game argument");
-    }}catch(...){LocalFree(args);throw;}
-    LocalFree(args);
-    return options;
+    try{
+        std::vector<std::wstring> arguments;for(int n=1;n<count;++n)arguments.emplace_back(args[n]);
+        auto options=parseNativeLaunchOptions(defaultNativeLaunchPaths(),arguments);LocalFree(args);return options;
+    }catch(...){LocalFree(args);throw;}
 }
 struct WindowPaint {
     HWND window;
@@ -56,20 +40,10 @@ struct WindowPaint {
 };
 class GameWindow {
 public:
-    explicit GameWindow(const Options& options):launcher_(options.paths,options.fullscreen,options.interpolate),
-        settingsFile_(options.paths.settings),settings_(launcher_.preferences()),isolatedHall_(options.isolatedHall){}
-    ~GameWindow(){game_.reset();if(timer_)CloseHandle(timer_);if(instanceLock_)CloseHandle(instanceLock_);}
+    GameWindow(const NativeLaunchOptions& options,std::wstring instanceName):launcher_(options.paths,options.fullscreen,options.interpolate),
+        settingsFile_(options.paths.settings),settings_(launcher_.preferences()),dataLayout_(options.dataLayout),instanceName_(std::move(instanceName)){}
+    ~GameWindow(){game_.reset();if(timer_)CloseHandle(timer_);}
     int run(HINSTANCE instance,int show){
-        const auto root=std::filesystem::weakly_canonical(launcher_.paths().dataRoot).wstring();
-        std::wstring normalized=root;std::transform(normalized.begin(),normalized.end(),normalized.begin(),[](wchar_t c){return wchar_t(towlower(c));});
-        const auto key=scr::state::checkpoint::hash(reinterpret_cast<const std::uint8_t*>(normalized.data()),normalized.size()*sizeof(wchar_t));
-        instanceName_=L"StuntCarRacerNativeGame-"+std::to_wstring(key);
-        instanceLock_=CreateMutexW(nullptr,FALSE,(L"Local\\"+instanceName_).c_str());
-        if(!instanceLock_)throw std::runtime_error("Cannot reserve the save-data location");
-        if(GetLastError()==ERROR_ALREADY_EXISTS){
-            const auto window=FindWindowW(instanceName_.c_str(),nullptr);
-            if(window){ShowWindow(window,SW_RESTORE);SetForegroundWindow(window);}return 0;
-        }
         WNDCLASSEXW type{};type.cbSize=sizeof(type);type.hInstance=instance;type.lpfnWndProc=procedure;
         type.lpszClassName=instanceName_.c_str();type.hCursor=LoadCursorW(nullptr,IDC_ARROW);
         RegisterClassExW(&type);RECT extent{0,0,960,720};AdjustWindowRect(&extent,WS_OVERLAPPEDWINDOW,FALSE);
@@ -123,9 +97,8 @@ private:
     std::wstring settingsError_;
     bool muted_{},focused_{true},suppressInput_{},freshGame_{},showFps_{},displayEditing_{};
     bool leaveRaceRequested_{},closeFromMenu_{};
-    bool isolatedHall_{};
+    std::optional<PlayerDataLayout> dataLayout_;
     HANDLE timer_{};
-    HANDLE instanceLock_{};
     std::wstring instanceName_;
     unsigned frames_{};
     double fps_{};
@@ -144,11 +117,10 @@ private:
         try{
             const auto& paths=launcher_.paths();
             auto started=std::make_unique<NativeGameSession>(paths.pack,paths.recordings,NativeGameStart::OriginalOpening,paths.save);
-            auto hallRoot=paths.dataRoot/L"shared-hall";
-            if(!isolatedHall_){std::wstring executable(32768,L'\0');const auto count=GetModuleFileNameW(nullptr,executable.data(),DWORD(executable.size()));
+            if(dataLayout_)started->enableCareers(paths.dataRoot,dataLayout_->originalHall,dataLayout_->enhancedHall);
+            else{std::wstring executable(32768,L'\0');const auto count=GetModuleFileNameW(nullptr,executable.data(),DWORD(executable.size()));
                 if(!count||count>=executable.size())throw std::runtime_error("Cannot locate this game installation");executable.resize(count);
-                hallRoot=sharedHallPaths(std::filesystem::path(executable).parent_path()).root;}
-            started->enableCareers(paths.dataRoot,hallRoot);
+                started->enableCareers(paths.dataRoot,sharedHallPaths(std::filesystem::path(executable).parent_path()).root);}
             started->setNavigation(launcher_.preferences().navigation);
             started->setTimingCategory(launcher_.preferences().timing);
             settings_=NativeDisplaySettings(launcher_.preferences());
@@ -445,6 +417,15 @@ private:
 };
 }
 int WINAPI wWinMain(HINSTANCE instance,HINSTANCE,PWSTR,int show){
-    try{const auto options=parse();if(!SetProcessDpiAwarenessContext(DPI_AWARENESS_CONTEXT_PER_MONITOR_AWARE_V2))SetProcessDPIAware();GameWindow game(options);return game.run(instance,show);}
-    catch(const std::exception& error){MessageBoxA(nullptr,error.what(),"Stunt Car Racer",MB_OK|MB_ICONERROR);return 1;}
+    try{
+        const auto options=parse();PlayerDataOwnership ownership(options.paths.dataRoot);
+        if(!ownership.acquired()){
+            const auto window=FindWindowW(ownership.windowClassName().c_str(),nullptr);
+            if(window){ShowWindow(window,SW_RESTORE);SetForegroundWindow(window);}
+            else MessageBoxW(nullptr,L"This game data folder is already in use. Close its other game window before trying again.",L"Stunt Car Racer",MB_OK|MB_ICONINFORMATION);
+            return 0;
+        }
+        if(!SetProcessDpiAwarenessContext(DPI_AWARENESS_CONTEXT_PER_MONITOR_AWARE_V2))SetProcessDPIAware();
+        GameWindow game(options,ownership.windowClassName());return game.run(instance,show);
+    }catch(const std::exception& error){MessageBoxW(nullptr,launcherErrorText(error).c_str(),L"Stunt Car Racer",MB_OK|MB_ICONERROR);return 1;}
 }

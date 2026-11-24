@@ -1,9 +1,16 @@
 #pragma once
 #include "state/native_checkpoint_io.h"
 #include <functional>
+#include <filesystem>
 #include <memory>
 
 namespace scr::runtime {
+enum class HallDirectoryAccess { Inherited,SharedUsers };
+// An explicit category root; Enhanced must not derive a sibling from this path.
+struct HallArchiveLocation {
+    std::filesystem::path root;
+    HallDirectoryAccess access{HallDirectoryAccess::Inherited};
+};
 using HallBytes=state::checkpoint::Bytes;
 enum class HallArchiveState {Missing,Valid,Recovered,Corrupt,Unsupported};
 template<class Model>struct HallArchiveReadFor {

@@ -57,7 +57,8 @@ template<class Traits>class HallArchiveEngine {
     using Submission=typename Traits::Submission;
     using UnsupportedTable=typename Traits::UnsupportedTable;using UnsupportedGhost=typename Traits::UnsupportedGhost;
     using ArchiveRead=HallArchiveReadFor<Model>;using GhostRead=HallGhostReadFor<Ghost>;
-    fs::path root_;Catalog catalog_;HallWriteObserver observer_;
+    fs::path root_;HallDirectoryAccess access_;Catalog catalog_;HallWriteObserver observer_;
+void prepare(const fs::path& path)const{prepareHallDirectory(path,access_);}
 Bytes envelope(const Model& hall,std::uint64_t generation)const{
     const auto table=Traits::encodeTable(hall);Writer w;w.u32(Traits::indexMagic);w.u32(Traits::indexVersion);w.u64(generation);w.u32(unsigned(table.size()));w.bytes(table.data(),table.size());
     w.u64(hash(w.data.data(),w.data.size()));return std::move(w.data);
@@ -119,10 +120,10 @@ void collect(const fs::path& root,Catalog catalog)const{
     }
 }
 public:
-ArchiveRead read()const{prepareSharedHallDirectory(root_);SharedHallLock lock(root_);auto l=load(root_,catalog_);select(l,catalog_);return l.result;}
+ArchiveRead read()const{prepare(root_);SharedHallLock lock(root_);auto l=load(root_,catalog_);select(l,catalog_);return l.result;}
 GhostRead readGhost(const Attempt& attempt)const{
     if(!attempt.ghost)return {};
-    try{prepareSharedHallDirectory(root_);SharedHallLock lock(root_);auto bytes=readBytes(root_/L"ghosts"/Traits::objectName(attempt.id),Traits::ghostMaximum);if(!bytes)return {};
+    try{prepare(root_);SharedHallLock lock(root_);auto bytes=readBytes(root_/L"ghosts"/Traits::objectName(attempt.id),Traits::ghostMaximum);if(!bytes)return {};
         if(digest(*bytes)!=*attempt.ghost)return {HallGhostState::Corrupt,{}};
         auto ghost=std::make_shared<const Ghost>(Traits::decodeGhost(*bytes));Traits::requireBinding(*ghost,attempt,catalog_);return {HallGhostState::Valid,std::move(ghost)};
     }catch(const HallIoError&){return {HallGhostState::Unavailable,{}};}
@@ -134,7 +135,7 @@ std::uint64_t commit(const std::vector<std::shared_ptr<const Submission>>& submi
     std::vector<Attempt> attempts;attempts.reserve(submissions.size());
     for(const auto& s:submissions){if(!s)throw std::invalid_argument("Empty Hall submission");Traits::validateSubmission(*s,catalog_);
         attempts.push_back(s->recording?Traits::makeSubmission(s->attempt,s->recording.get()).attempt:s->attempt);}
-    prepareSharedHallDirectory(root_);prepareSharedHallDirectory(root_/L"ghosts");
+    prepare(root_);prepare(root_/L"ghosts");
     SharedHallLock lock(root_);auto l=load(root_,catalog_);select(l,catalog_);
     if(!l.result.hall)throw std::runtime_error(l.result.state==HallArchiveState::Unsupported?"Shared Hall uses unsupported content, rules or format":"Shared Hall has no readable generation; existing files preserved");
     // Reclaim leftovers from an interrupted writer before creating more objects.
@@ -168,6 +169,7 @@ std::uint64_t commit(const std::vector<std::shared_ptr<const Submission>>& submi
     collect(root_,catalog_);if(observer_)observer_(HallWriteStage::Collected);return l.result.generation;
 }
 
-    HallArchiveEngine(fs::path root,Catalog catalog,HallWriteObserver observer={}):root_(std::move(root)),catalog_(catalog),observer_(std::move(observer)){}
+    HallArchiveEngine(HallArchiveLocation location,Catalog catalog,HallWriteObserver observer={}):
+        root_(std::move(location.root)),access_(location.access),catalog_(catalog),observer_(std::move(observer)){}
 };
 } // namespace scr::runtime::archive_detail

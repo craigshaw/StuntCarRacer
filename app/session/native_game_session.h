@@ -42,6 +42,7 @@ public:
         NativeGameStart start=NativeGameStart::OriginalOpening,const std::filesystem::path& saveFile={});
     NativeGameUpdate update(double elapsed,const NativeGameInput&);
     void enableCareers(const std::filesystem::path& dataRoot,const std::filesystem::path& sharedHallRoot={});
+    void enableCareers(const std::filesystem::path& dataRoot,HallArchiveLocation original,HallArchiveLocation enhanced);
     bool requestClose();
     bool closeReady()const noexcept{return closeReady_;}
     bool closePending()const noexcept{return departure_==Departure::Close;}

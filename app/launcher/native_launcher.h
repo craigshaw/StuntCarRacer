@@ -1,12 +1,23 @@
 #pragma once
 #include "launcher/native_display_settings.h"
+#include "persistence/player_data_layout.h"
 #include <optional>
+#include <string>
+#include <vector>
 
 namespace scr::runtime {
 struct NativeLaunchPaths {
     std::filesystem::path pack,settings,save,recordings,dataRoot;
 };
 NativeLaunchPaths defaultNativeLaunchPaths();
+struct NativeLaunchOptions {
+    NativeLaunchPaths paths;
+    std::optional<bool> interpolate,fullscreen;
+    std::optional<PlayerDataLayout> dataLayout;
+};
+// Arguments exclude argv[0]. Explicit file overrides win independently of order.
+NativeLaunchOptions parseNativeLaunchOptions(const NativeLaunchPaths& defaults,
+    const std::vector<std::wstring>& arguments);
 std::wstring launcherErrorText(const std::exception&);
 
 // Host setup owns no game state and never advances simulation clocks.

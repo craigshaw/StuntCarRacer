@@ -24,6 +24,10 @@ std::string description(const NativeCareerInfo& info){
 }
 }
 void NativeGameSession::enableCareers(const std::filesystem::path& root,const std::filesystem::path& sharedRoot){
+    const auto original=sharedRoot.empty()?root/"shared-hall":sharedRoot;
+    enableCareers(root,{original,HallDirectoryAccess::SharedUsers},{enhancedHallRoot(original),HallDirectoryAccess::SharedUsers});
+}
+void NativeGameSession::enableCareers(const std::filesystem::path& root,HallArchiveLocation original,HallArchiveLocation enhanced){
     if(careerStore_||!openingActive()||opening_->page()!=NativeOpeningPage::Mode)throw std::logic_error("Careers must start at the mode chooser");
     careerBaseline_=std::make_unique<NativeMemory>(*data_.memory);careerStore_=std::make_unique<NativeCareerStore>(root,[this](const CareerBytes& data){
         try{CareerBytes bytes;(void)decodeCareerInfo(data,&bytes);(void)decodeNativeCheckpoint(*careerBaseline_,bytes);return CareerFileState::Valid;}
@@ -31,12 +35,12 @@ void NativeGameSession::enableCareers(const std::filesystem::path& root,const st
         catch(...){return CareerFileState::Corrupt;}
     });
     lastCareer_=careerStore_->lastUsed();
-    sharedHallStore_=std::make_unique<SharedHallStore>(sharedRoot.empty()?root/"shared-hall":sharedRoot,
+    sharedHallStore_=std::make_unique<SharedHallStore>(std::move(original),
         HallCatalog{ghostTrackContentIdentity(data_.payload),1},HallWriteObserver{},hallCapturePendingMaximumBytes);
     sharedHallStore_->retry(); // Check/open off-thread; a failure cannot block career loading.
     const EnhancedCatalog enhancedCatalog{ghostTrackContentIdentity(data_.payload),1,enhancedTimingMethodVersion};
     enhancedBests_=std::make_unique<EnhancedPersonalBests>(enhancedCatalog);
-    enhancedHallStore_=std::make_unique<EnhancedHallStore>(sharedRoot.empty()?root/"shared-hall":sharedRoot,
+    enhancedHallStore_=std::make_unique<EnhancedHallStore>(std::move(enhanced),
         enhancedCatalog,HallWriteObserver{},enhancedCapturePendingMaximumBytes);
     if(careerPanel_==CareerPanel::None&&careerStore_->lastUsedState()==CareerFileState::Recovered){
         notice_="Last career recovery restored";returnPanel_=CareerPanel::None;showCareerPanel(CareerPanel::Notice);

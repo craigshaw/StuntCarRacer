@@ -34,14 +34,15 @@ struct HallBrowserRead {
 class SharedHallArchive {
 public:
     SharedHallArchive(std::filesystem::path root,HallCatalog,HallWriteObserver observer={});
-    const std::filesystem::path& root()const noexcept{return root_;}
+    SharedHallArchive(HallArchiveLocation,HallCatalog,HallWriteObserver observer={});
+    const std::filesystem::path& root()const noexcept{return location_.root;}
     HallArchiveRead read()const;
     HallGhostRead readGhost(const HallAttempt&)const;
     // Short locked transaction: merge latest, publish objects, backups, head, GC.
     // Exceptions leave the caller responsible for retrying these same attempts.
     std::uint64_t commit(const std::vector<std::shared_ptr<const HallSubmission>>&);
 private:
-    std::filesystem::path root_;
+    HallArchiveLocation location_;
     HallCatalog catalog_;
     HallWriteObserver observer_;
 };
@@ -58,6 +59,8 @@ constexpr std::size_t hallCapturePendingMaximumBytes=hallBoardCount*hallEntriesP
 class SharedHallStore {
 public:
     SharedHallStore(std::filesystem::path,HallCatalog,HallWriteObserver observer={},
+        std::size_t pendingByteLimit=hallPendingMaximumBytes);
+    SharedHallStore(HallArchiveLocation,HallCatalog,HallWriteObserver observer={},
         std::size_t pendingByteLimit=hallPendingMaximumBytes);
     ~SharedHallStore();
     SharedHallStore(const SharedHallStore&)=delete;

@@ -73,6 +73,12 @@ SharedHallPaths sharedHallPaths(const std::filesystem::path& directory,const std
     const auto key=installationKey(installationPath(directory));
     return {key,std::filesystem::absolute(common)/L"Stunt Car Racer"/L"instances"/key/L"hall"};
 }
+void prepareHallDirectory(const std::filesystem::path& root,HallDirectoryAccess access){
+    if(access==HallDirectoryAccess::SharedUsers){prepareSharedHallDirectory(root);return;}
+    const auto target=std::filesystem::absolute(root).lexically_normal();
+    if(root.empty()||target==target.root_path())throw std::invalid_argument("Hall directory must be a named folder");
+    std::filesystem::create_directories(target);
+}
 void prepareSharedHallDirectory(const std::filesystem::path& root){
     const auto target=std::filesystem::absolute(root).lexically_normal();
     if(target==target.root_path())throw std::invalid_argument("Hall directory cannot be a filesystem root");

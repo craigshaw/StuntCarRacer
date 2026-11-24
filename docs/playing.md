@@ -284,10 +284,15 @@ Enhanced records sit beside it in `hall-enhanced-v1/`. Both are shared across
 Windows accounts using that installation directory. Replacing
 the executable in place keeps it; another installation directory has a separate
 archive. Old per-user `hall.scr-hall` files remain untouched and are not imported.
-Development launches with `--data-dir` use isolated `shared-hall/` and
-`shared-hall-enhanced-v1/` directories below that directory instead.
+Development launches with `--data-dir` use isolated `hall-of-fame/original/` and
+`hall-of-fame/enhanced/` directories instead. That override also supplies assets,
+`settings.ini` and saves unless individual development file paths are specified.
+The complete portable default and save-folder migration are still in development.
 
-A second launch using the same data directory brings the existing window forward.
+A second launch using the same data directory brings the existing window forward
+where accessible, otherwise reports that the folder is in use. A process-held
+file lock prevents competing writers across Windows logon sessions and releases
+on exit; a leftover `player.lock` filename does not block the next launch.
 Saving/Saved appears in menus/pause; Not saved persists after failure. Retry or
 Continue without saving retains current RAM progress, and later checkpoints retry.
 Switching careers or closing waits for writes and offers Retry/Leave unsaved/Cancel

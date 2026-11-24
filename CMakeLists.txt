@@ -99,6 +99,18 @@ add_library(scr_state INTERFACE)
 target_include_directories(scr_state INTERFACE "${PROJECT_SOURCE_DIR}/src")
 target_compile_features(scr_state INTERFACE cxx_std_17)
 
+add_library(scr_player_data STATIC app/persistence/player_data_layout.cpp)
+target_include_directories(scr_player_data PUBLIC app src)
+target_compile_features(scr_player_data PUBLIC cxx_std_17)
+if(WIN32)
+  target_sources(scr_player_data PRIVATE app/platform/windows/player_data_ownership.cpp)
+endif()
+if(MSVC)
+  target_compile_options(scr_player_data PRIVATE /W4 /WX /permissive-)
+else()
+  target_compile_options(scr_player_data PRIVATE -Wall -Wextra -Werror -pedantic)
+endif()
+
 # Shared Hall models/codecs remain independent of live simulation state.
 add_library(scr_records STATIC app/records/hall_of_fame.cpp app/persistence/hall_table_codec.cpp app/persistence/hall_ghost_codec.cpp app/race/practice_ghost_target.cpp)
 target_sources(scr_records PRIVATE app/records/enhanced_time.cpp app/records/enhanced_records.cpp app/persistence/enhanced_record_codec.cpp)
@@ -182,11 +194,12 @@ if(WIN32)
     app/launcher/native_display_settings.cpp
     app/platform/windows/game_display.cpp
     app/launcher/native_launcher.cpp
+    app/launcher/native_launch_options.cpp
     app/platform/windows/launcher.cpp
   )
   target_include_directories(scr_host_ui PUBLIC app)
   target_include_directories(scr_host_ui PRIVATE "${PROJECT_BINARY_DIR}/generated")
-  target_link_libraries(scr_host_ui PUBLIC scr_runtime user32 gdi32 gdiplus shell32 ole32 comctl32)
+  target_link_libraries(scr_host_ui PUBLIC scr_runtime scr_player_data user32 gdi32 gdiplus shell32 ole32 comctl32)
   target_compile_features(scr_host_ui PUBLIC cxx_std_17)
   if(MSVC)
     target_compile_options(scr_host_ui PRIVATE /W4 /utf-8 /permissive-)

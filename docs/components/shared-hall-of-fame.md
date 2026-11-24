@@ -231,9 +231,13 @@ Users modification rights and never re-permissions existing ancestors. Its bound
 byte-range transaction lock prevents replacement of an active lock file and is
 released by process exit.
 
-Normal player launches now use that common root. An explicit `--data-dir` keeps
-the Hall under its isolated `shared-hall/` subtree. `enableCareers(privateRoot,
-sharedRoot)` also supports separate private roots using one injected archive.
+Normal player launches use that common root. An explicit `--data-dir` now supplies
+`hall-of-fame/original/` and `hall-of-fame/enhanced/` category roots, inheriting the
+chosen folder's permissions without the ProgramData directory-creation ACL policy.
+`enableCareers(privateRoot, sharedRoot)` retains the old injected/sibling layout
+for existing test/tool callers; an overload accepts two explicit
+`HallArchiveLocation` values. The Windows host takes its process-held data-root
+lock before constructing the launcher. See [portable data](portable-player-data.md).
 Directory creation and initial validation happen on the existing writer. Hall
 failures share the safe-boundary Retry/Continue/unsaved-departure flow with career
 writes, never a new notice during driving. Closing drains both stores.

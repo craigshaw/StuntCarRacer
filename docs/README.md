@@ -26,12 +26,13 @@
   a design decision by ADR 0004; still describes current runtime paths.
 - [0004 — Portable player data and native multiplayer continuation](adr/0004-portable-player-data.md).
 
-## Accepted designs awaiting implementation
+## Implementation plans
 
 - [Portable player data and multiplayer saves](components/portable-player-data.md):
   agreed ownership and folder structure, native multiplayer autosave/Resume,
-  copying, recovery, migration and a staged implementation plan. Runtime paths
-  and multiplayer saves remain as described in the player guide until delivered.
+  copying, recovery, migration and a staged implementation plan. Stage 1 provides
+  whole-root development overrides and process-held ownership; normal-launch
+  defaults and native multiplayer saves remain pending.
 
 ## Optional features
 

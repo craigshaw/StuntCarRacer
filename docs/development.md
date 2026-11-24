@@ -94,9 +94,15 @@ assets and `working/` data; ordinary launches use per-user Windows data.
 root ADF filename. Development imports stay under `analysis/`.
 
 Native `--asset-pack`, `--settings-file` and `--save-file` override individual paths;
-`--data-dir` isolates careers, the new Hall under `shared-hall/` and instance ownership. The helper defaults
-that directory to `working/player-data/`. `--recordings-dir` explicitly enables
-recording. See [scripts](../scripts/README.md), [player data](playing.md#data-and-recovery)
+`--data-dir` now supplies the complete isolated layout: assets, `settings.ini`,
+careers, the temporary legacy manual-save file and `hall-of-fame/original/` and
+`hall-of-fame/enhanced/`. Explicit individual file overrides still win regardless
+of argument order; the helper retains these for existing checkout-local paths and
+defaults its data root to `working/player-data/`. `--recordings-dir` explicitly
+enables recording. Normal launches still use the existing Windows data locations.
+Older explicit-root `shared-hall/` archives are not moved automatically; migration
+is a later [portable-data stage](components/portable-player-data.md).
+See [scripts](../scripts/README.md), [player data](playing.md#data-and-recovery)
 and [asset import](components/assets.md).
 
 `-SkipBuild` still checks source/executable identities and runs verification.

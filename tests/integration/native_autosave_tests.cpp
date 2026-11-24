@@ -2,6 +2,7 @@
 #define WIN32_LEAN_AND_MEAN
 #include <windows.h>
 #include "session/native_game_session.h"
+#include "persistence/player_data_layout.h"
 #include "state/race_timing_adapter.h"
 #include <algorithm>
 #include <fstream>
@@ -62,6 +63,22 @@ void create(NativeGameSession& game,const std::string& name){
     tap(game);require(game.careerHome()&&game.menuState().count==0&&!game.enteringName(),"Empty Single Player entry did not show only New Career");tap(game);
     require(game.enteringName(),"New Career did not open name entry");text(game,name);tap(game);require(game.openingPage()==NativeOpeningPage::Roster,"Career roster omitted");tap(game);
     require(game.activeCareer().has_value()&&game.page()==NativeMenuPage::Main&&game.menuState().count==2&&!game.hasSuspendedSeason(),"First career was not durably registered at its three-row menu");
+}
+void explicitRoots(const std::filesystem::path& pack,const std::filesystem::path& root){
+    const auto layout=playerDataLayout(root);
+    const auto open=[&]{
+        auto game=std::make_unique<NativeGameSession>(pack,std::filesystem::path{});
+        game->enableCareers(layout.root,layout.originalHall,layout.enhancedHall);
+        game->setNavigation(NativeMenuNavigation::Responsive);game->update(0,{});return game;
+    };
+    auto game=open();create(*game,"ISOLATED");const auto id=game->activeCareer()->id;
+    require(game->sharedHall().state==HallArchiveState::Missing&&game->enhancedHall().state==HallArchiveState::Missing,"Explicit-root session changed empty Hall state");
+    const auto state=progress(game->memory());require(game->requestClose(),"Explicit-root close did not flush");game.reset();
+    require(std::filesystem::exists(layout.originalHall.root)&&std::filesystem::exists(layout.enhancedHall.root),"Session ignored its explicit Hall categories");
+    require(!std::filesystem::exists(root/"shared-hall")&&!std::filesystem::exists(enhancedHallRoot(layout.originalHall.root)),"Session wrote a legacy Hall despite explicit category roots");
+    game=open();continueLast(*game);
+    require(game->activeCareer()->id==id&&progress(game->memory())==state,"Explicit-root reopening changed career state or RNG");
+    require(game->requestClose(),"Reopened explicit-root session did not close");
 }
 void practiseFromMenu(NativeGameSession& game,bool finish=true){
     require(game.page()==NativeMenuPage::Main,"Practice did not begin at the profile menu");choose(game,1);tap(game);
@@ -300,6 +317,7 @@ void checkpointContexts(const std::filesystem::path& pack){
 int main(int argc,char** argv)try{
     if(argc!=3&&argc!=4)throw std::invalid_argument("native_autosave_tests pack output [alternate-pack]");const std::filesystem::path root=argv[2];
     if(argc==4)diskVariants(argv[1],argv[3],root/"disk-variants");
+    explicitRoots(argv[1],root/"explicit-roots");
     std::filesystem::create_directories(root);storage(root/"storage");checkpointContexts(argv[1]);careerFlow(argv[1],root/"flow");failures(argv[1],root/"failures");practicePolicies(argv[1],root/"policies");leaveRacePersistence(argv[1],root/"leave-race");paging(argv[1],root/"paging");draftsAndRecovery(argv[1],root/"recovery");seasonEndings(argv[1],root/"endings");legacyRecordsNotImported(argv[1],root/"records");
     std::cout<<"{\"status\":\"passed\",\"checkpoint_contexts\":8,\"checkpoint_phases\":9,\"season_ending_contexts\":8,\"practice_policy_cases\":4,\"listed_careers\":36,\"legacy_record_mode_league_cases\":4,\"finish_before_acknowledgement\":true,\"finish_scoring_matches_uninterrupted\":true,\"interrupted_fixture\":true,\"duplicate_names\":true,\"delete\":true,\"recovery\":true,\"write_retry\":true,\"record_merge\":true,\"legacy_records_not_imported\":true,\"setup_draft\":true,\"conditional_entry_rows\":true,\"three_row_main_menu\":true,\"continue_opens_main_menu\":true,\"resume_season\":true,\"practice_preserves_suspended_season\":true,\"existing_native_careers\":true,\"career_switch_isolation\":true}\n";return 0;
 }catch(const std::exception& e){std::cerr<<e.what()<<'\n';return 1;}

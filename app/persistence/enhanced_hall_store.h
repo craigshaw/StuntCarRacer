@@ -25,19 +25,20 @@ struct EnhancedSubmission {
 };
 EnhancedSubmission makeEnhancedSubmission(EnhancedHallAttempt,const EnhancedHallGhost* ghost=nullptr);
 EnhancedSubmission captureEnhancedSubmission(EnhancedHallAttempt,std::shared_ptr<const EnhancedHallGhost>);
-// Always a sibling namespace, for both installed and --data-dir Original roots.
+// Legacy path-only constructors retain the old sibling-namespace convention.
 std::filesystem::path enhancedHallRoot(const std::filesystem::path& originalRoot);
 std::string enhancedObjectName(const HallAttemptId&);
 HallAttemptId enhancedCompletionId(const HallAttemptId& run,std::uint64_t crossing,HallRecordKind,unsigned method=enhancedTimingMethodVersion);
 class EnhancedHallArchive {
 public:
     EnhancedHallArchive(std::filesystem::path originalRoot,EnhancedCatalog,HallWriteObserver observer={});
-    const std::filesystem::path& root()const noexcept{return root_;}
+    EnhancedHallArchive(HallArchiveLocation,EnhancedCatalog,HallWriteObserver observer={});
+    const std::filesystem::path& root()const noexcept{return location_.root;}
     EnhancedHallRead read()const;
     EnhancedGhostRead readGhost(const EnhancedHallAttempt&)const;
     std::uint64_t commit(const std::vector<std::shared_ptr<const EnhancedSubmission>>&);
 private:
-    std::filesystem::path root_;EnhancedCatalog catalog_;HallWriteObserver observer_;
+    HallArchiveLocation location_;EnhancedCatalog catalog_;HallWriteObserver observer_;
 };
 enum class EnhancedSubmitResult {Queued,Duplicate,OutsideTable,Full,Ineligible};
 constexpr std::size_t enhancedPendingMaximumBytes=64*1024*1024;
@@ -50,6 +51,7 @@ constexpr std::size_t enhancedCapturePendingMaximumBytes=hallBoardCount*hallEntr
 class EnhancedHallStore {
 public:
     EnhancedHallStore(std::filesystem::path originalRoot,EnhancedCatalog,HallWriteObserver observer={},std::size_t byteLimit=enhancedPendingMaximumBytes);
+    EnhancedHallStore(HallArchiveLocation,EnhancedCatalog,HallWriteObserver observer={},std::size_t byteLimit=enhancedPendingMaximumBytes);
     ~EnhancedHallStore();
     EnhancedHallStore(const EnhancedHallStore&)=delete;
     EnhancedHallStore& operator=(const EnhancedHallStore&)=delete;

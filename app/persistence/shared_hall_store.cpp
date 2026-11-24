@@ -68,13 +68,19 @@ HallSubmission captureHallSubmission(HallAttempt attempt,std::shared_ptr<const H
     return s;
 }
 SharedHallArchive::SharedHallArchive(fs::path root,HallCatalog catalog,HallWriteObserver observer)
-    :root_(fs::absolute(std::move(root)).lexically_normal()),catalog_(catalog),observer_(std::move(observer)){
+    :SharedHallArchive(HallArchiveLocation{std::move(root),HallDirectoryAccess::SharedUsers},catalog,std::move(observer)){}
+SharedHallArchive::SharedHallArchive(HallArchiveLocation location,HallCatalog catalog,HallWriteObserver observer)
+    :location_(std::move(location)),catalog_(catalog),observer_(std::move(observer)){
+    if(location_.root.empty())throw std::invalid_argument("Missing Hall category root");
+    location_.root=fs::absolute(location_.root).lexically_normal();
     (void)HallOfFame(catalog_);
 }
-HallArchiveRead SharedHallArchive::read()const{return OriginalEngine(root_,catalog_,observer_).read();}
-HallGhostRead SharedHallArchive::readGhost(const HallAttempt& a)const{return OriginalEngine(root_,catalog_,observer_).readGhost(a);}
-std::uint64_t SharedHallArchive::commit(const std::vector<std::shared_ptr<const HallSubmission>>& submissions){return OriginalEngine(root_,catalog_,observer_).commit(submissions);}
+HallArchiveRead SharedHallArchive::read()const{return OriginalEngine(location_,catalog_,observer_).read();}
+HallGhostRead SharedHallArchive::readGhost(const HallAttempt& a)const{return OriginalEngine(location_,catalog_,observer_).readGhost(a);}
+std::uint64_t SharedHallArchive::commit(const std::vector<std::shared_ptr<const HallSubmission>>& submissions){return OriginalEngine(location_,catalog_,observer_).commit(submissions);}
 SharedHallStore::SharedHallStore(fs::path root,HallCatalog catalog,HallWriteObserver observer,std::size_t limit)
+    :SharedHallStore(HallArchiveLocation{std::move(root),HallDirectoryAccess::SharedUsers},catalog,std::move(observer),limit){}
+SharedHallStore::SharedHallStore(HallArchiveLocation root,HallCatalog catalog,HallWriteObserver observer,std::size_t limit)
     :archive_(std::move(root),catalog,std::move(observer)),catalog_(catalog),limit_(limit){
     if(!limit_||limit_>hallCapturePendingMaximumBytes)throw std::invalid_argument("Invalid Hall pending byte limit");
     worker_=std::thread([this]{run();});

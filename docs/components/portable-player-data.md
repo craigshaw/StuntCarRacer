@@ -1,10 +1,11 @@
 # Portable player data and multiplayer saves
 
-Status: design accepted on 23 November 2026; implementation has not started.
-All six implementation stages below are pending. This document defines the
-target; [sessions](sessions.md) and [player paths](../playing.md#data-and-recovery)
-describe the current build. [ADR 0004](../adr/0004-portable-player-data.md) records
-the ownership decision and supersedes the per-user storage decision.
+Status: design accepted on 23 November 2026. Stage 1 is implemented with automated
+verification; a real second-Windows-account acceptance check remains pending.
+Stages 2–6 are pending. Normal launches still use the existing Windows data
+locations and manual multiplayer saves. [Sessions](sessions.md) and
+[player paths](../playing.md#data-and-recovery) describe the current build.
+[ADR 0004](../adr/0004-portable-player-data.md) records the ownership decision.
 
 The [portable-app request](https://github.com/craigshaw/StuntCarRacer/issues/1)
 motivated a unified storage model. Portable storage will be the normal player
@@ -218,8 +219,8 @@ helpers together; the current switch controls only part of player storage.
 
 Take a process-held data-root lock before the launcher imports assets, saves
 settings or constructs sessions. It must work across Windows accounts and logon
-sessions, and treat aliases of the same directory as one root. The current
-`Local\\` named mutex is not sufficient for the new shared ownership. Use a
+sessions, and treat aliases of the same directory as one root. The former
+`Local\\` named mutex was not sufficient for the new shared ownership. Use a
 Windows file-lock protocol with crash release; a leftover lock filename alone
 does not mean a writer exists. A second launch activates the existing window
 where possible, otherwise reports that the root is in use without writing.
@@ -324,11 +325,12 @@ Reuse range encoding and worker mechanics where helpful, not career-only rules.
 
 ## Implementation stages
 
-Implement in dependency order. No stage is complete and no new test target exists
-by virtue of this plan. Keep intermediate work exercised through explicit test
-roots until migration and the new player routes are ready.
+Implement in dependency order. Keep intermediate work exercised through explicit
+test roots until migration and the new player routes are ready. Stage 1 now has
+`player_data_layout_tests` and `player_data_ownership_tests`; later-stage targets
+and completion must be supported by their own implementation and evidence.
 
-### 1. Resolve one layout and protect its writers — pending
+### 1. Resolve one layout and protect its writers — implemented, account acceptance pending
 
 Add a typed player-data layout and a Windows root-ownership adapter. Derive every
 default path from one canonical root; make category roots explicit. Add the
@@ -338,6 +340,27 @@ under an explicit `--data-dir` without switching the normal launch default yet.
 Exit: executable/working-directory independence, path aliases, complete CLI
 override, unwritable roots, two processes/accounts and crash-released locks pass
 isolated tests. No real user data is touched by development checks.
+
+Implemented foundations: `persistence/player_data_layout.*`,
+`launcher/native_launch_options.cpp` and Windows `player_data_ownership.*` resolve
+the whole explicit root and protect it before launcher initialization. The lock
+uses filesystem directory identity for window activation and a process-held byte
+lock released by exit/crash. Hall locations are explicit and portable directories
+inherit normal permissions; path-only archive constructors retain legacy test/tool
+semantics. Normal launch defaults remain unchanged. Careers still use their old
+flat files/PB directories until stage 2; manual multiplayer is replaced in stage 4.
+
+Automated checks cover CLI precedence/working-directory independence, aliases,
+competing processes, stale filenames, forced process termination, deny-ACL roots,
+inherited Hall ACLs and the real player's isolated startup/duplicate launch/close.
+Career integration also checks state/RNG preservation across a save/reopen using
+both explicit Hall roots.
+The deny-ACL fixture requires a run outside the Codex filesystem sandbox, which
+replaces those fixture permissions. A real second Windows account/logon-session
+exercise remains pending; the automated suite does not claim that coverage.
+The local receipt at `analysis/portable-player-data/stage-1/check-results.json`
+identifies the checked sources, fixtures, test executables and matching staged
+player. Its companion `ctest.log` records the seven focused Release suites.
 
 ### 2. Make careers self-contained and discoverable — pending
 

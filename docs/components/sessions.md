@@ -5,9 +5,10 @@
 [app/persistence/](../../app/persistence/) owns codecs and storage.
 [Playing](../playing.md) documents the user-facing routes and recovery choices.
 
-The accepted [portable-data and multiplayer-save design](portable-player-data.md)
-will replace the current storage locations and manual multiplayer save flow.
-Its implementation is pending; the contracts below describe the current build.
+The [portable-data and multiplayer-save design](portable-player-data.md) is being
+implemented in stages. Explicit-root path resolution and host ownership are in
+place; default storage, career regrouping and native multiplayer saves remain
+pending. The contracts below describe the current build.
 
 ## Transitions
 
@@ -67,7 +68,10 @@ completion, not job submission.
 Write failure retains the latest RAM state and last good disk copy. Retry at safe
 boundaries; switching careers and closing must drain writes or offer an explicit
 unsaved exit/cancel. Never silently reset damaged or unsupported progress.
-A per-data-directory mutex prevents competing player writers.
+The Windows host acquires a process-held data-root file lock before constructing
+the launcher, and releases it after session workers stop. It prevents competing
+player writers across Windows accounts/logon sessions and resolves directory
+aliases through their filesystem identity.
 The separate shared Hall worker merges against the latest index under a short
 cross-account file lock. Its immutable objects and recovery indexes are independent
 of career deletion/PB replacement; both workers participate in departure checks.

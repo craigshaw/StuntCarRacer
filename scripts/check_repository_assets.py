@@ -15,6 +15,8 @@ FORBIDDEN_DIRECTORIES = {'analysis', 'working', 'captures', 'build', 'out', 'dis
 FORBIDDEN_SUFFIXES = {'.adf', '.adz', '.ipf', '.dms', '.hdf', '.rom', '.uss', '.bin', '.dump',
                       '.png', '.jpg', '.jpeg', '.gif', '.webp', '.bmp', '.wav', '.mp3', '.ogg', '.flac',
                       '.scr-assets', '.scr-save', '.scr-career', '.scr-hall', '.scr-index', '.scr-ghost', '.pack', '.exe', '.dll', '.lib', '.obj', '.o', '.pdb', '.gpr', '.zip', '.7z'}
+RUNTIME_SUFFIXES = {'.scr-assets', '.scr-save', '.scr-career', '.scr-hall', '.scr-index', '.scr-ghost',
+                    '.scr-ebest', '.scr-ehall', '.scr-eghost', '.scr-hghost', '.scr-multiplayer', '.scr-transaction', '.scr-folder'}
 TEXT_SUFFIXES = {'.cpp', '.h', '.c', '.java', '.py', '.md', '.json', '.csv', '.txt', '.cmake', '.cmd', '.ps1', '.sh', '.mjs', '.yml', '.yaml'}
 TEXT_NAMES = {'.gitignore', '.gitattributes', 'CMakeLists.txt', 'pre-commit', 'LICENSE'}
 SCREENSHOTS = {entry['path']: entry for entry in json.loads(
@@ -31,6 +33,8 @@ def violations(path, blob):
         reasons.append('local/generated data directory')
     if p.suffix.lower() in FORBIDDEN_SUFFIXES:
         reasons.append('original media, asset pack or generated binary extension')
+    if any(suffix in {part.lower() for part in p.suffixes} for suffix in RUNTIME_SUFFIXES):
+        reasons.append('local runtime data or recovery/temporary file')
     if p.suffix.lower() not in TEXT_SUFFIXES and p.name not in TEXT_NAMES:
         reasons.append('unapproved file type; review the source-only policy')
     if len(blob) > 256 * 1024:

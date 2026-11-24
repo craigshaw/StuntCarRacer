@@ -103,7 +103,7 @@ add_library(scr_player_data STATIC app/persistence/player_data_layout.cpp)
 target_include_directories(scr_player_data PUBLIC app src)
 target_compile_features(scr_player_data PUBLIC cxx_std_17)
 if(WIN32)
-  target_sources(scr_player_data PRIVATE app/platform/windows/player_data_ownership.cpp)
+  target_sources(scr_player_data PRIVATE app/platform/windows/player_data_ownership.cpp app/persistence/player_preferences.cpp)
 endif()
 if(MSVC)
   target_compile_options(scr_player_data PRIVATE /W4 /WX /permissive-)
@@ -173,6 +173,8 @@ if(WIN32)
     app/presentation/hall_browser_render.cpp
     app/session/native_career_session.cpp
     app/persistence/native_career_store.cpp
+    app/persistence/career_folders.cpp
+    app/persistence/folder_transactions.cpp
     app/persistence/ghost_lap_codec.cpp
     app/persistence/native_career_checkpoint.cpp
     app/persistence/native_save_store.cpp
@@ -188,7 +190,7 @@ if(WIN32)
     app/audio/game_audio.cpp
   )
   target_include_directories(scr_game PUBLIC app)
-  target_link_libraries(scr_game PUBLIC scr_runtime scr_hall_storage)
+  target_link_libraries(scr_game PUBLIC scr_runtime scr_hall_storage scr_player_data)
   target_compile_features(scr_game PUBLIC cxx_std_17)
   add_library(scr_host_ui STATIC
     app/launcher/native_display_settings.cpp

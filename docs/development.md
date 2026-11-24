@@ -100,8 +100,13 @@ careers, the temporary legacy manual-save file and `hall-of-fame/original/` and
 of argument order; the helper retains these for existing checkout-local paths and
 defaults its data root to `working/player-data/`. `--recordings-dir` explicitly
 enables recording. Normal launches still use the existing Windows data locations.
-Older explicit-root `shared-hall/` archives are not moved automatically; migration
-is a later [portable-data stage](components/portable-player-data.md).
+Explicit roots now discover self-contained `careers/<label>/career.scr-career`
+folders, with both PB categories and recovery files inside each career. Copy or
+rename complete career folders while the game is closed; duplicate identities
+offer Replace / Keep Both / Cancel. Last-used IDs share the resolved settings file,
+including a `--settings-file` override, through coordinated preference writes.
+Older explicit-root flat career/PB layouts and `shared-hall/` archives are not moved
+automatically; migration is a later [portable-data stage](components/portable-player-data.md).
 See [scripts](../scripts/README.md), [player data](playing.md#data-and-recovery)
 and [asset import](components/assets.md).
 

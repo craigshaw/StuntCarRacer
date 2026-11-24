@@ -2,6 +2,7 @@
 #define WIN32_LEAN_AND_MEAN
 #include <windows.h>
 #include "launcher/native_display_settings.h"
+#include "persistence/player_preferences.h"
 #include <algorithm>
 #include <charconv>
 #include <fstream>
@@ -15,12 +16,13 @@ void validatePath(const std::filesystem::path& path){
 }
 }
 NativeDisplayPreferences loadDisplayPreferences(const std::filesystem::path& path){
+    std::lock_guard<std::mutex> lock(playerPreferencesMutex());
     validatePath(path);NativeDisplayPreferences preferences;
     std::error_code error;const auto size=std::filesystem::file_size(path,error);
     if(error||size>1024)return preferences;
     std::ifstream input(path);std::string header,full,scale,motion,extra;
     if(!std::getline(input,header)||!std::getline(input,full)||!std::getline(input,scale)||!std::getline(input,motion))return {};
-    const bool version5=header=="SCR display 5",version6=header=="SCR display 6",version7=header=="SCR display 7",version8=header=="SCR display 8",version9=header=="SCR display 9",version10=header=="SCR display 10";
+    const bool version5=header=="SCR display 5",version6=header=="SCR display 6",version7=header=="SCR display 7",version8=header=="SCR display 8",version9=header=="SCR display 9",version10=header=="SCR display 10"||header=="SCR display 11";
     const bool current=header=="SCR display 4"||version5||version6||version7||version8||version9||version10;
     if((header!="SCR display 1"&&header!="SCR display 2"&&header!="SCR display 3"&&!current)||(full!="fullscreen=0"&&full!="fullscreen=1")||
        (motion!="interpolate=0"&&motion!="interpolate=1"))return {};
@@ -68,7 +70,7 @@ NativeDisplayPreferences loadDisplayPreferences(const std::filesystem::path& pat
     if(version9||version10){std::string ghost;if(!std::getline(input,ghost)||(ghost!="practice-ghost=0"&&ghost!="practice-ghost=1"))return {};preferences.practiceGhost=ghost=="practice-ghost=1";}
     if(version10){std::string timing;if(!std::getline(input,timing))return {};
         if(timing=="timing=original")preferences.timing=TimingCategory::Original;else if(timing!="timing=enhanced")return {};}
-    while(std::getline(input,extra))if(!extra.empty())return {};
+    while(std::getline(input,extra))if(!extra.empty()&&!playerSelectionLine(extra))return {};
     preferences.fullscreen=full=="fullscreen=1";preferences.interpolate=motion=="interpolate=1";return preferences;
 }
 bool saveDisplayPreferences(const std::filesystem::path& path,const NativeDisplayPreferences& preferences){
@@ -76,7 +78,7 @@ bool saveDisplayPreferences(const std::filesystem::path& path,const NativeDispla
     std::error_code error;if(path.has_parent_path())std::filesystem::create_directories(path.parent_path(),error);
     if(error)return false;
     if(preferences.integerScale>maximumIntegerScale)return false;
-    std::ostringstream output;output<<"SCR display 10\nfullscreen="<<preferences.fullscreen<<"\nscaling=";
+    std::ostringstream output;output<<"SCR display 11\nfullscreen="<<preferences.fullscreen<<"\nscaling=";
     switch(preferences.scaling){case NativeScaling::Integer:output<<"integer";break;
         case NativeScaling::Fit:output<<"fit";break;case NativeScaling::Stretch:output<<"stretch";break;default:return false;}
     output<<"\ninterpolate="<<preferences.interpolate<<"\ncontrols=";
@@ -92,16 +94,7 @@ bool saveDisplayPreferences(const std::filesystem::path& path,const NativeDispla
     switch(preferences.view){case NativeView::Original:output<<"original";break;case NativeView::Extended:output<<"extended";break;case NativeView::Widescreen:output<<"widescreen";break;case NativeView::Ultrawide:output<<"ultrawide";break;default:return false;}
     output<<"\npractice-ghost="<<preferences.practiceGhost<<"\ntiming=";
     switch(preferences.timing){case TimingCategory::Original:output<<"original";break;case TimingCategory::Enhanced:output<<"enhanced";break;default:return false;}
-    output<<'\n';const auto bytes=output.str();
-    const std::filesystem::path pending=path.wstring()+L".tmp";
-    const auto handle=CreateFileW(pending.c_str(),GENERIC_WRITE,0,nullptr,CREATE_ALWAYS,FILE_ATTRIBUTE_NORMAL,nullptr);
-    if(handle==INVALID_HANDLE_VALUE)return false;
-    DWORD written{};const bool complete=WriteFile(handle,bytes.data(),DWORD(bytes.size()),&written,nullptr)&&written==bytes.size()&&FlushFileBuffers(handle);
-    CloseHandle(handle);
-    if(!complete||!MoveFileExW(pending.c_str(),path.c_str(),MOVEFILE_REPLACE_EXISTING|MOVEFILE_WRITE_THROUGH)){
-        DeleteFileW(pending.c_str());return false;
-    }
-    return true;
+    output<<'\n';return saveDisplayDocument(path,output.str());
 }
 const wchar_t* scalingName(NativeScaling scaling)noexcept{
     switch(scaling){case NativeScaling::Fit:return L"Fit";case NativeScaling::Stretch:return L"Stretch";default:return L"Integer";}

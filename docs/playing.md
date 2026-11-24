@@ -287,7 +287,25 @@ archive. Old per-user `hall.scr-hall` files remain untouched and are not importe
 Development launches with `--data-dir` use isolated `hall-of-fame/original/` and
 `hall-of-fame/enhanced/` directories instead. That override also supplies assets,
 `settings.ini` and saves unless individual development file paths are specified.
-The complete portable default and save-folder migration are still in development.
+Explicit roots use self-contained `careers/<label>/` folders. Each contains
+`career.scr-career`, its recovery copies and `personal-bests/original/` and
+`personal-bests/enhanced/` with their recordings and recoveries. Copy or rename
+the whole career folder with the game closed; it appears in Browse Careers
+without editing settings. The full stored identity is independent of its name.
+Copying a career does not add its past results to the shared Hall.
+
+If two folders hold the same identity, Browse Careers marks them as copies and
+offers Replace / Keep Both / Cancel. Replace uses the selected version and keeps
+the other complete folders under its `recovery/replaced/` directory. Keep Both
+gives the selected copy a new identity while retaining its progress and bests.
+Cancel leaves both untouched; a conflict cannot load or autosave until resolved.
+Progress is never merged. A format that cannot safely be rekeyed blocks Keep Both.
+Copy to a distinct folder first: overwriting files outside the game bypasses
+these choices. Deleting a career removes its complete folder, including private
+bests and recoveries, while the shared Hall remains independent.
+
+The portable default and migration of old flat career/PB files are still in
+development; existing explicit-root data is not converted automatically.
 
 A second launch using the same data directory brings the existing window forward
 where accessible, otherwise reports that the folder is in use. A process-held
@@ -298,7 +316,9 @@ Continue without saving retains current RAM progress, and later checkpoints retr
 Switching careers or closing waits for writes and offers Retry/Leave unsaved/Cancel
 if needed. Leaving unsaved can lose progress since the last successful write.
 
-Careers, the last-used index and shared records keep two previous valid generations.
+Careers and shared records keep two previous valid generations; the legacy
+last-used index does too. Explicit roots store last-used identities in settings,
+so losing preferences does not hide saved careers.
 A damaged/missing current file recovers the newest valid copy with a notice.
 With no usable copy a career stays unavailable until explicit selection/creation/deletion.
 An unreadable or unsupported shared archive is preserved and reports a save

@@ -122,9 +122,16 @@ NativeMenuImage makeNativeChoiceImage(const NativeMemory& m,const std::string& h
         NativeMenuTextCursor cursor;cursor.column=column;cursor.row=row;cursor.colour=colour;cursor.yOffset=4;
         for(unsigned char c:value.substr(0,31))character(m,image,cursor,c>=32&&c<127?c:'?');
     };
-    text(heading,5,11,15);
-    for(unsigned n=0;n<options.size();++n){const unsigned row=m[0x64af4+n];strip(m,image,row,n==selected?1:2);text(std::to_string(n+1)+". "+options[n],5,row,0);}
-    if(!detail.empty())text(detail,5,22,1);
+    std::vector<std::string> lines;std::size_t first=0;
+    if(!detail.empty())do{const auto end=detail.find('\n',first);lines.push_back(detail.substr(first,end==std::string::npos?end:end-first));if(end==std::string::npos)break;first=end+1;}while(lines.size()<(options.size()==4?4u:5u));
+    // Host-authored copy summaries need room below the choices. Existing short
+    // menus retain their original rows; no recovered menu state is changed.
+    const bool compact=lines.size()>2;
+    text(heading,5,compact?9:11,15);
+    for(unsigned n=0;n<options.size();++n){const unsigned row=compact?11+2*n:m[0x64af4+n];strip(m,image,row,n==selected?1:2);text(std::to_string(n+1)+". "+options[n],5,row,0);}
+    if(!lines.empty()){
+        const auto start=23-unsigned(lines.size());for(unsigned n=0;n<lines.size();++n)text(lines[n],5,start+n,1);
+    }
     if(!status.empty())text(status,5,24,15);
     return image;
 }

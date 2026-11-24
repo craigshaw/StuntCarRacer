@@ -25,15 +25,15 @@ std::string description(const NativeCareerInfo& info){
 }
 void NativeGameSession::enableCareers(const std::filesystem::path& root,const std::filesystem::path& sharedRoot){
     const auto original=sharedRoot.empty()?root/"shared-hall":sharedRoot;
-    enableCareers(root,{original,HallDirectoryAccess::SharedUsers},{enhancedHallRoot(original),HallDirectoryAccess::SharedUsers});
+    enableCareers(root,{original,HallDirectoryAccess::SharedUsers},{enhancedHallRoot(original),HallDirectoryAccess::SharedUsers},{});
 }
-void NativeGameSession::enableCareers(const std::filesystem::path& root,HallArchiveLocation original,HallArchiveLocation enhanced){
+void NativeGameSession::enableCareers(const std::filesystem::path& root,HallArchiveLocation original,HallArchiveLocation enhanced,CareerStorageOptions storage){
     if(careerStore_||!openingActive()||opening_->page()!=NativeOpeningPage::Mode)throw std::logic_error("Careers must start at the mode chooser");
     careerBaseline_=std::make_unique<NativeMemory>(*data_.memory);careerStore_=std::make_unique<NativeCareerStore>(root,[this](const CareerBytes& data){
         try{CareerBytes bytes;(void)decodeCareerInfo(data,&bytes);(void)decodeNativeCheckpoint(*careerBaseline_,bytes);return CareerFileState::Valid;}
         catch(const UnsupportedNativeCheckpoint&){return CareerFileState::Unsupported;}
         catch(...){return CareerFileState::Corrupt;}
-    });
+    },std::move(storage));
     lastCareer_=careerStore_->lastUsed();
     sharedHallStore_=std::make_unique<SharedHallStore>(std::move(original),
         HallCatalog{ghostTrackContentIdentity(data_.payload),1},HallWriteObserver{},hallCapturePendingMaximumBytes);
@@ -53,11 +53,13 @@ std::string NativeGameSession::saveStatus()const{
 }
 void NativeGameSession::refreshCareerHome(){
     careerList_=careerStore_->list();homeActions_.clear();recentCareerName_.clear();
+    if(listSelection_>=careerList_.size())listSelection_=0;
     // The newest metadata can still be queued for disk. Keep browsing and
     // last-played ordering consistent with the career already open in RAM.
     if(activeCareer_&&!checkpoint_.empty()){
         const auto current=std::find_if(careerList_.begin(),careerList_.end(),[&](const auto& item){return item.id==activeCareer_->id;});
-        if(current==careerList_.end())careerList_.push_back(*activeCareer_);else *current=*activeCareer_;
+        if(current==careerList_.end())careerList_.push_back(*activeCareer_);
+        else if(current->state!=CareerFileState::Conflict){const auto folder=current->folder;*current=*activeCareer_;current->folder=folder;}
         std::sort(careerList_.begin(),careerList_.end(),[](const auto& a,const auto& b){return a.lastPlayed!=b.lastPlayed?a.lastPlayed>b.lastPlayed:a.id<b.id;});
     }
     if(!lastCareer_.empty()){
@@ -70,7 +72,7 @@ void NativeGameSession::refreshCareerHome(){
 }
 void NativeGameSession::showCareerPanel(CareerPanel panel){
     if(panel==CareerPanel::Home)refreshCareerHome();
-    careerPanel_=panel;careerSelection_=0;careerClock_.clear();releaseInput();
+    careerPanel_=panel;careerSelection_=panel==CareerPanel::Conflict?2u:0u;careerClock_.clear();releaseInput();
 }
 void NativeGameSession::showCareerHome(){
     if(activeCareer_&&!openingActive()&&careerPanel_==CareerPanel::None)saveCheckpoint(raceEnded());
@@ -104,9 +106,10 @@ NativeMenuImage NativeGameSession::careerImage()const{
         detail=recentCareerName_;break;
     case CareerPanel::List:{
         heading="Browse Careers";const unsigned first=(listSelection_/3)*3;
-        for(unsigned n=first;n<careerList_.size()&&n<first+3;++n)rows.push_back(careerList_[n].name);
+        for(unsigned n=first;n<careerList_.size()&&n<first+3;++n)rows.push_back(careerList_[n].name+(careerList_[n].state==CareerFileState::Conflict?" [copy]":""));
         if(rows.empty()){rows={"Back"};detail="No careers";selected=0;}
-        else{selected=listSelection_-first;detail=description(careerList_[listSelection_]);}
+        else{selected=listSelection_-first;const auto& info=careerList_[listSelection_];detail=description(info);
+            if(!info.folder.empty())detail=info.folder.filename().u8string()+"\n"+detail;}
         break;}
     case CareerPanel::Actions:heading=careerList_[listSelection_].name;detail=description(careerList_[listSelection_]);rows={"Continue","Delete Career","Back"};break;
     case CareerPanel::Delete:heading="Delete "+careerList_[listSelection_].name+"?";detail="Career and recovery copies";rows={"Cancel","Delete permanently"};break;
@@ -114,6 +117,14 @@ NativeMenuImage NativeGameSession::careerImage()const{
     case CareerPanel::SaveError:heading=storeFailureSummary();detail="Check storage and permissions";rows={"Retry","Continue without saving"};break;
     case CareerPanel::CreateError:heading="Career not created";detail="A first save is required";rows={"Retry","Cancel"};break;
     case CareerPanel::Departure:heading=storeFailureSummary();detail="Leave loses unsaved changes";rows={"Retry","Leave unsaved","Cancel"};break;
+    case CareerPanel::Conflict:{
+        const auto& incoming=careerList_[listSelection_];heading="Resolve "+incoming.name;
+        detail="Use: "+incoming.folder.filename().u8string()+"\n"+description(incoming);unsigned others=0;
+        for(const auto& copy:careerList_)if(copy.id==incoming.id&&copy.folder!=incoming.folder){
+            if(!others)detail+="\nOther: "+copy.folder.filename().u8string()+"\n"+description(copy);++others;}
+        if(others>1)detail+="\nAnd "+std::to_string(others-1)+" other copies";
+        rows={"Replace other copies","Keep Both","Cancel"};break;}
+    case CareerPanel::CopyWorking:heading=deletingCareer_?"Deleting career":"Copying career";detail="Please wait";rows={"Working..."};break;
     default:rows={"Back"};break;
     }
     return makeNativeChoiceImage(*data_.memory,heading,rows,selected,detail,saveStatus());
@@ -182,6 +193,7 @@ void NativeGameSession::restoreCheckpoint(const CareerBytes& bytes){
 }
 bool NativeGameSession::loadCareer(const std::string& id){
     try{
+        if(careerStore_->folderLayout()&&careerStore_->readCareer(id).state==CareerFileState::Conflict)throw std::runtime_error("Resolve the copied career conflict first");
         CareerBytes bytes;NativeCareerInfo info;CareerFileState state=CareerFileState::Valid;
         if(activeCareer_&&activeCareer_->id==id&&!checkpoint_.empty()){bytes=checkpoint_;info=*activeCareer_;}
         else{
@@ -214,6 +226,7 @@ void NativeGameSession::completeDeparture(){
     }
 }
 bool NativeGameSession::requestClose(){
+    if(careerCopy_.valid()){closeAfterCareerCopy_=true;return false;}
     if(!careerStore_)return true;
     if(careerPanel_==CareerPanel::Departure)return false;
     if(!transitioning()&&careerPanel_==CareerPanel::None&&!openingActive())saveCheckpoint(raceEnded());
@@ -259,6 +272,23 @@ void NativeGameSession::checkSaveFailure(){
 }
 bool NativeGameSession::updateCareers(double elapsed,const NativeGameInput& held,NativeGameUpdate& result){
     if(!careerStore_)return false;
+    if(careerPanel_==CareerPanel::CopyWorking){
+        if(careerCopy_.valid()&&careerCopy_.wait_for(std::chrono::seconds(0))==std::future_status::ready){
+            const auto copy=careerCopy_.get();
+            personalBestLaps_.forgetCareer(copiedCareerId_);enhancedBests_->forgetCareer(copiedCareerId_);
+            if(activeCareer_&&activeCareer_->id==copiedCareerId_){activeCareer_.reset();checkpoint_.clear();suspendedSeason_.clear();}
+            const bool closing=closeAfterCareerCopy_;closeAfterCareerCopy_=false;
+            if(deletingCareer_&&copy.error.empty()&&lastCareer_==copiedCareerId_)lastCareer_.clear();
+            if(!copy.error.empty()){notice_=copy.error;returnPanel_=CareerPanel::List;refreshCareerHome();showCareerPanel(CareerPanel::Notice);}
+            else{
+                refreshCareerHome();listSelection_=0;
+                if(!copy.id.empty())for(unsigned n=0;n<careerList_.size();++n)if(careerList_[n].id==copy.id){listSelection_=n;break;}
+                showCareerPanel(CareerPanel::List);
+                if(closing)(void)depart(Departure::Close);
+            }
+            releaseInput(held.menu);
+        }return true;
+    }
     if(!storesFailed())errorAcknowledged_=false;
     if(storesFailed()&&!errorAcknowledged_&&(careerPanel_==CareerPanel::Home||careerPanel_==CareerPanel::List||careerPanel_==CareerPanel::Actions)){
         returnPanel_=careerPanel_;showCareerPanel(CareerPanel::SaveError);careerClock_.enterScreen(held.menu);return true;
@@ -267,7 +297,7 @@ bool NativeGameSession::updateCareers(double elapsed,const NativeGameInput& held
         const auto input=careerClock_.sample(held.menu,elapsed);unsigned count=1;
         switch(careerPanel_){
         case CareerPanel::Home:count=unsigned(homeActions_.size());break;
-        case CareerPanel::Actions:case CareerPanel::Departure:count=3;break;
+        case CareerPanel::Actions:case CareerPanel::Departure:case CareerPanel::Conflict:count=3;break;
         case CareerPanel::Delete:case CareerPanel::SaveError:case CareerPanel::CreateError:count=2;break;
         case CareerPanel::List:count=unsigned(careerList_.size());break;default:break;}
         if(careerPanel_==CareerPanel::List){
@@ -286,6 +316,7 @@ bool NativeGameSession::updateCareers(double elapsed,const NativeGameInput& held
                 careerPanel_=CareerPanel::None;opening_=std::make_unique<NativeOpeningFlow>(*data_.memory);opening_->setNavigation(navigation_);transition_=Transition::None;multiplayerSetup_=false;break;
             case CareerPanel::List:showCareerPanel(CareerPanel::Home);break;
             case CareerPanel::Actions:showCareerPanel(CareerPanel::List);break;
+            case CareerPanel::Conflict:showCareerPanel(CareerPanel::List);break;
             case CareerPanel::Delete:showCareerPanel(CareerPanel::Actions);break;
             case CareerPanel::CreateError:cancelCareerCreation();break;
             case CareerPanel::SaveError:errorAcknowledged_=true;showCareerPanel(returnPanel_);break;
@@ -304,7 +335,11 @@ bool NativeGameSession::updateCareers(double elapsed,const NativeGameInput& held
             case HomeAction::NewCareer:(void)depart(Departure::NewCareer);break;
             case HomeAction::Browse:refreshCareerHome();listSelection_=0;showCareerPanel(CareerPanel::List);break;
             }break;
-        case CareerPanel::List:if(!careerList_.empty())showCareerPanel(CareerPanel::Actions);else showCareerPanel(CareerPanel::Home);break;
+        case CareerPanel::List:if(!careerList_.empty())showCareerPanel(careerList_[listSelection_].state==CareerFileState::Conflict?CareerPanel::Conflict:CareerPanel::Actions);else showCareerPanel(CareerPanel::Home);break;
+        case CareerPanel::Conflict:
+            if(choice==2)showCareerPanel(CareerPanel::List);
+            else try{deletingCareer_=false;copiedCareerId_=careerList_[listSelection_].id;careerCopy_=careerStore_->resolveCopy(careerList_[listSelection_],choice==0?CareerCopyChoice::Replace:CareerCopyChoice::KeepBoth);showCareerPanel(CareerPanel::CopyWorking);}
+            catch(const std::exception& error){notice_=error.what();returnPanel_=CareerPanel::List;showCareerPanel(CareerPanel::Notice);}break;
         case CareerPanel::Actions:
             if(choice==0)(void)depart(Departure::LoadCareer,careerList_[listSelection_].id);
             if(choice==1)showCareerPanel(CareerPanel::Delete);
@@ -312,7 +347,10 @@ bool NativeGameSession::updateCareers(double elapsed,const NativeGameInput& held
         case CareerPanel::Delete:
             if(choice==0)showCareerPanel(CareerPanel::Actions);
             else{const auto id=careerList_[listSelection_].id;
-                if(careerStore_->removeCareer(id)){
+                if(careerStore_->folderLayout()){
+                    deletingCareer_=true;copiedCareerId_=id;careerCopy_=careerStore_->eraseEntry(careerList_[listSelection_]);showCareerPanel(CareerPanel::CopyWorking);break;
+                }
+                if(careerStore_->removeEntry(careerList_[listSelection_])){
                     personalBestLaps_.forgetCareer(id);
                     enhancedBests_->forgetCareer(id);
                     if(activeCareer_&&activeCareer_->id==id){activeCareer_.reset();checkpoint_.clear();suspendedSeason_.clear();}

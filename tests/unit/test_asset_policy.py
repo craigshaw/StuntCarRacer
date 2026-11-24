@@ -66,6 +66,13 @@ class AssetPolicyTests(unittest.TestCase):
         self.assertTrue(policy.violations('src/asset.h', b'"' + b'A' * 600 + b'"'))
         self.assertTrue(policy.violations('src/asset.h', b'{'+b'0x10,' * 300+b'}'))
 
+    def test_runtime_generations_cannot_be_disguised_as_text(self):
+        for suffix in policy.RUNTIME_SUFFIXES:
+            for tail in ('', '.tmp', '.bak1', '.bak2', '.damaged-1', '.bak1.json'):
+                with self.subTest(suffix=suffix, tail=tail):
+                    self.assertTrue(policy.violations('local/data' + suffix + tail, b'local runtime data'))
+                    self.assertTrue(policy.violations('local/DATA' + suffix.upper() + tail.upper(), b'local runtime data'))
+
     def test_unknown_file_type_requires_review(self):
         self.assertTrue(policy.violations('assets/car.unusual', b'opaque original data'))
 

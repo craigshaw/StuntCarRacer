@@ -60,3 +60,10 @@ __pycache__/
 *.scr-career*
 *.scr-hall*
 *.scr-index*
+*.scr-ebest*
+*.scr-ehall*
+*.scr-eghost*
+*.scr-hghost*
+*.scr-multiplayer*
+*.scr-transaction*
+*.scr-folder*

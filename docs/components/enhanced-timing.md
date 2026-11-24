@@ -281,9 +281,10 @@ in the other.
 Preserve existing Original archives, PB files, recovery copies and readers. Give
 Enhanced Hall data a separate versioned namespace beside the current Hall root,
 with its own index, object directory, lock and recovery generations. Give
-Enhanced career PBs their own namespace beside the current `ghosts/` tree.
-Use the same isolation for normal Windows paths and development `--data-dir`
-overrides. This keeps older executables and Original garbage collection from
+Enhanced career PBs their own namespace beside the current `ghosts/` tree for
+legacy paths, or under the career's separate `personal-bests/enhanced/` directory
+with explicit `--data-dir`. Keep category isolation for both layouts.
+This keeps older executables and Original garbage collection from
 interpreting or removing Enhanced objects.
 
 Keep gameplay-rules identity, track-content identity, timing category, timing
@@ -328,7 +329,7 @@ Original files are neither imported nor reinterpreted.
 
 | Data | Enhanced namespace |
 | --- | --- |
-| Private career PB | `ghosts-enhanced-v1/<career>/<track>-normal.scr-ebest` or `-super.scr-ebest` under the existing private data root |
+| Private career PB | Legacy `ghosts-enhanced-v1/<career>/<track>-normal.scr-ebest` or `-super.scr-ebest`; explicit roots use those filenames in `careers/<label>/personal-bests/enhanced/` |
 | Shared Hall | Installation `hall-enhanced-v1/`; explicit player `--data-dir` uses `hall-of-fame/enhanced/`. Legacy path-only test/tool constructors retain `<original-hall-name>-enhanced-v1/` |
 | Shared index | `index.scr-ehall` and its own two backups, temporary file and lock |
 | Shared lap recording | `ghosts/<attempt-id>.scr-eghost` inside the Enhanced Hall root |

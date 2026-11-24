@@ -117,7 +117,7 @@ private:
         try{
             const auto& paths=launcher_.paths();
             auto started=std::make_unique<NativeGameSession>(paths.pack,paths.recordings,NativeGameStart::OriginalOpening,paths.save);
-            if(dataLayout_)started->enableCareers(paths.dataRoot,dataLayout_->originalHall,dataLayout_->enhancedHall);
+            if(dataLayout_)started->enableCareers(paths.dataRoot,dataLayout_->originalHall,dataLayout_->enhancedHall,{CareerStorageLayout::Folders,paths.settings,{}});
             else{std::wstring executable(32768,L'\0');const auto count=GetModuleFileNameW(nullptr,executable.data(),DWORD(executable.size()));
                 if(!count||count>=executable.size())throw std::runtime_error("Cannot locate this game installation");executable.resize(count);
                 started->enableCareers(paths.dataRoot,sharedHallPaths(std::filesystem::path(executable).parent_path()).root);}
@@ -187,10 +187,10 @@ private:
         value.quit=(p.connected&&(p.buttons&0x0020));return value;
     }
     void update(HWND window,double elapsed){
-        if(!focused_||settings_.blocksGame())return;
-        game_->setNavigation(settings_.preferences().navigation);
-        game_->setTimingCategory(settings_.preferences().timing);
-        const auto changes=game_->update(elapsed,input());
+        const bool active=focused_&&!settings_.blocksGame();
+        if(!active&&!game_->careerCopyPending())return;
+        if(active){game_->setNavigation(settings_.preferences().navigation);game_->setTimingCategory(settings_.preferences().timing);}
+        const auto changes=game_->update(active?elapsed:0,active?input():NativeGameInput{});
         if(game_->closeReady()){DestroyWindow(window);return;}
         if(closeFromMenu_&&!game_->closePending()){closeFromMenu_=false;openGameMenu(window);return;}
         if(changes.raceStarted||changes.raceExited||game_->raceEnded())leaveRaceRequested_=false;

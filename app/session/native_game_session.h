@@ -42,10 +42,12 @@ public:
         NativeGameStart start=NativeGameStart::OriginalOpening,const std::filesystem::path& saveFile={});
     NativeGameUpdate update(double elapsed,const NativeGameInput&);
     void enableCareers(const std::filesystem::path& dataRoot,const std::filesystem::path& sharedHallRoot={});
-    void enableCareers(const std::filesystem::path& dataRoot,HallArchiveLocation original,HallArchiveLocation enhanced);
+    void enableCareers(const std::filesystem::path& dataRoot,HallArchiveLocation original,HallArchiveLocation enhanced,
+        CareerStorageOptions storage={CareerStorageLayout::Folders,{},{}});
     bool requestClose();
     bool closeReady()const noexcept{return closeReady_;}
-    bool closePending()const noexcept{return departure_==Departure::Close;}
+    bool closePending()const noexcept{return departure_==Departure::Close||closeAfterCareerCopy_;}
+    bool careerCopyPending()const noexcept{return careerCopy_.valid();}
     bool multiplayer()const noexcept{return (*data_.memory)[0x5eb76]!=0;}
     bool competitive()const noexcept{return menu_&&menu_->competitive();}
     std::string saveStatus()const;
@@ -65,7 +67,7 @@ public:
     NativeMenuRenderState menuState()const{
         if(careerPanel_!=CareerPanel::None){
             NativeMenuRenderState state;state.selected=careerPanel_==CareerPanel::List?listSelection_%3:careerSelection_;state.division=(*data_.memory)[0x1c9ce];
-            if(careerPanel_==CareerPanel::Notice)state.count=0;
+            if(careerPanel_==CareerPanel::Notice||careerPanel_==CareerPanel::CopyWorking)state.count=0;
             else if(careerPanel_==CareerPanel::Home)state.count=unsigned(homeActions_.size()-1);
             else if(careerPanel_==CareerPanel::Delete||careerPanel_==CareerPanel::SaveError||careerPanel_==CareerPanel::CreateError)state.count=1;
             else if(careerPanel_==CareerPanel::List){const auto first=(listSelection_/3)*3;state.count=careerList_.empty()?0:unsigned(std::min<std::size_t>(3,careerList_.size()-first))-1;}
@@ -104,7 +106,7 @@ public:
     bool transitioning()const noexcept{return transition_!=Transition::None;}
     void releaseInput(const NativeMenuInput& held={})noexcept;
 private:
-    enum class CareerPanel {None,Home,List,Actions,Delete,Notice,SaveError,CreateError,Departure};
+    enum class CareerPanel {None,Home,List,Actions,Delete,Notice,SaveError,CreateError,Departure,Conflict,CopyWorking};
     enum class Departure {None,Close,NewCareer,LoadCareer,Multiplayer};
     enum class HomeAction {Continue,NewCareer,Browse};
     std::unique_ptr<NativeMemory> careerBaseline_;
@@ -138,6 +140,10 @@ private:
     Departure departure_{Departure::None};
     unsigned careerSelection_{},listSelection_{};
     std::vector<NativeCareerInfo> careerList_;
+    std::future<CareerCopyResult> careerCopy_;
+    bool closeAfterCareerCopy_{};
+    bool deletingCareer_{};
+    std::string copiedCareerId_;
     std::optional<NativeCareerInfo> activeCareer_,newCareer_;
     CareerBytes checkpoint_,newCheckpoint_,suspendedSeason_;
     std::vector<HomeAction> homeActions_;

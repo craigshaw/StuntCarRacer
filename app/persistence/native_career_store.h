@@ -10,19 +10,31 @@
 #include <string>
 #include <thread>
 #include <functional>
+#include <future>
+#include "persistence/folder_transactions.h"
 
 namespace scr::runtime {
 struct GhostLap;struct GhostLapKey;
+class CareerFolders;
 using CareerBytes=state::checkpoint::Bytes;
 using NativeHallBanks=std::array<std::uint8_t,512>;
-enum class CareerFileState { Missing,Valid,Recovered,Corrupt,Unsupported };
+enum class CareerFileState { Missing,Valid,Recovered,Corrupt,Unsupported,Conflict };
 struct CareerRead {
     CareerFileState state{CareerFileState::Missing};CareerBytes data;std::uint64_t generation{};
 };
 struct NativeCareerInfo {
     std::string id,name;unsigned division{},league{};std::uint64_t lastPlayed{};
     CareerFileState state{CareerFileState::Valid};
+    std::filesystem::path folder;
 };
+enum class CareerStorageLayout {LegacyFlat,Folders};
+struct CareerStorageOptions {
+    CareerStorageLayout layout{CareerStorageLayout::LegacyFlat};
+    std::filesystem::path settings;
+    FolderTransactionObserver observer;
+};
+enum class CareerCopyChoice {Replace,KeepBoth};
+struct CareerCopyResult {std::string id,error;};
 // Immutable, bounded native payloads. All generated data stays outside source.
 CareerBytes encodeCareerInfo(const NativeCareerInfo&,const CareerBytes& checkpoint);
 NativeCareerInfo decodeCareerInfo(const CareerBytes&,CareerBytes* checkpoint=nullptr);
@@ -32,7 +44,7 @@ bool validNativeHall(const NativeHallBanks&)noexcept;
 class NativeCareerStore {
 public:
     using Validator=std::function<CareerFileState(const CareerBytes&)>;
-    explicit NativeCareerStore(std::filesystem::path root,Validator validator={});
+    explicit NativeCareerStore(std::filesystem::path root,Validator validator={},CareerStorageOptions options={});
     ~NativeCareerStore();
     NativeCareerStore(const NativeCareerStore&)=delete;
     NativeCareerStore& operator=(const NativeCareerStore&)=delete;
@@ -61,12 +73,19 @@ public:
     std::string error()const;
     std::string failureSummary()const;
     bool removeCareer(const std::string&);
+    bool removeEntry(const NativeCareerInfo&);
+    std::future<CareerCopyResult> eraseEntry(const NativeCareerInfo&);
+    std::future<CareerCopyResult> resolveCopy(const NativeCareerInfo&,CareerCopyChoice);
+    bool folderLayout()const noexcept{return bool(folders_);}
     bool resetHall(const NativeHallBanks&);
     void acknowledgeFailures();
 private:
-    struct Job {std::filesystem::path path;unsigned kind{};CareerBytes data;std::uint64_t serial{};Validator validator;};
+    friend class CareerFolders;
+    struct Job {std::filesystem::path path;unsigned kind{};CareerBytes data;std::uint64_t serial{};Validator validator;std::function<void()> task;};
     std::filesystem::path root_;
     Validator validator_;
+    std::filesystem::path settings_;
+    std::unique_ptr<CareerFolders> folders_;
     mutable std::mutex mutex_;
     std::condition_variable changed_,idle_;
     std::deque<Job> jobs_;
@@ -78,6 +97,7 @@ private:
     std::filesystem::path ghostPath(const GhostLapKey&)const;
     std::filesystem::path enhancedBestPath(const EnhancedBestKey&)const;
     bool clearRecord(const std::filesystem::path&);
+    bool removeEntryFiles(const NativeCareerInfo&);
     static CareerRead readFile(const std::filesystem::path&,unsigned kind,const Validator& validator={});
     static bool writeFile(const Job&,std::string& error,const Validator&);
     void submit(std::filesystem::path,unsigned,CareerBytes,Validator validator={});

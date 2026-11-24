@@ -1,8 +1,8 @@
 # Portable player data and multiplayer saves
 
-Status: design accepted on 23 November 2026. Stage 1 is implemented with automated
-verification; a real second-Windows-account acceptance check remains pending.
-Stages 2–6 are pending. Normal launches still use the existing Windows data
+Status: design accepted on 23 November 2026. Stages 1–2 are implemented with
+automated verification; a real second-Windows-account acceptance check remains
+pending. Stages 3–6 are pending. Normal launches still use the existing Windows data
 locations and manual multiplayer saves. [Sessions](sessions.md) and
 [player paths](../playing.md#data-and-recovery) describe the current build.
 [ADR 0004](../adr/0004-portable-player-data.md) records the ownership decision.
@@ -65,8 +65,9 @@ Stunt Car Racer/
         ghosts/
 ```
 
-This is the planned naming convention, not a claim that the new paths or
-`.scr-multiplayer` codec already exist. The two Hall categories retain their
+Explicit `--data-dir` launches implement the career and Hall paths above. The
+normal-launch default, migration and `.scr-multiplayer` codec remain pending.
+The two Hall categories retain their
 independent indexes, retained recordings and recovery generations. Version
 numbers belong in file headers, rather than ordinary category directory names.
 
@@ -215,7 +216,8 @@ working directory, shortcut location and executable basename. Make `--data-dir`
 the override for the entire layout, including assets, settings and both Hall
 categories. Resolve an explicit relative CLI path against the caller's working
 directory once, then use its canonical root consistently. Update development
-helpers together; the current switch controls only part of player storage.
+helpers together; `--data-dir` now supplies the whole explicit layout. Individual
+development file overrides still take precedence.
 
 Take a process-held data-root lock before the launcher imports assets, saves
 settings or constructs sessions. It must work across Windows accounts and logon
@@ -326,9 +328,8 @@ Reuse range encoding and worker mechanics where helpful, not career-only rules.
 ## Implementation stages
 
 Implement in dependency order. Keep intermediate work exercised through explicit
-test roots until migration and the new player routes are ready. Stage 1 now has
-`player_data_layout_tests` and `player_data_ownership_tests`; later-stage targets
-and completion must be supported by their own implementation and evidence.
+test roots until migration and the new player routes are ready. Each completed
+stage records its scoped verification below.
 
 ### 1. Resolve one layout and protect its writers — implemented, account acceptance pending
 
@@ -347,8 +348,8 @@ the whole explicit root and protect it before launcher initialization. The lock
 uses filesystem directory identity for window activation and a process-held byte
 lock released by exit/crash. Hall locations are explicit and portable directories
 inherit normal permissions; path-only archive constructors retain legacy test/tool
-semantics. Normal launch defaults remain unchanged. Careers still use their old
-flat files/PB directories until stage 2; manual multiplayer is replaced in stage 4.
+semantics. Normal launch defaults remain unchanged. Stage 2 adds folder careers
+under explicit roots; manual multiplayer is replaced in stage 4.
 
 Automated checks cover CLI precedence/working-directory independence, aliases,
 competing processes, stale filenames, forced process termination, deny-ACL roots,
@@ -362,7 +363,7 @@ The local receipt at `analysis/portable-player-data/stage-1/check-results.json`
 identifies the checked sources, fixtures, test executables and matching staged
 player. Its companion `ctest.log` records the seven focused Release suites.
 
-### 2. Make careers self-contained and discoverable — pending
+### 2. Make careers self-contained and discoverable — implemented
 
 Refactor storage addresses away from ID-derived global paths. Discover/validate
 career folders, colocate both PB categories and recoveries, and store last-used
@@ -376,6 +377,51 @@ Exit: a copied/renamed folder works without catalogue edits; duplicate names are
 independent; Replace/Keep Both/Cancel and interruption recovery preserve complete
 career data. Supported older checkpoints still load, all rekeyed PB/recovery files
 validate, and the Hall is unchanged by career operations.
+
+`persistence/career_folders.*` discovers immediate career folders by stored
+identity, including usable backups and unavailable damaged/future versions.
+Portable checkpoints use `career.scr-career`; both PB categories, all recovery
+generations and preserved damaged files travel inside the folder. Folder names
+are labels and duplicate display names remain independent. Discovery is cached
+in memory and rebuilt at startup; copy or rename folders with the game closed.
+Legacy default launches and path-only test/tool constructors retain flat storage.
+
+Version-11 settings coordinate `last-career` and `last-multiplayer` preferences
+with display writes through `persistence/player_preferences.*`; existing display
+versions remain readable. Missing preferences do not hide copied careers.
+
+`persistence/folder_transactions.*` stages complete contents with a checksummed
+journal and manifest under `.transactions/`, parks old folders, publishes the new
+folder and commits before cleanup. Recovery completes a prepared transaction
+before discovery. Unknown/damaged journals and directory links stop the operation
+and preserve files. Incomplete staging without a journal is inert and retained.
+Limits are 4,096 files and 2 GiB per transaction tree. This service also accepts
+multiplayer folder paths for the later codec/UI stages.
+
+Browse Careers exposes Replace / Keep Both / Cancel for duplicate identities,
+defaulting to Cancel. Replace uses the explicitly selected complete copy and
+retains the others under `recovery/replaced/` inside it. Keep Both assigns a new
+host identity and rekeys supported career/PB/ghost generations without changing
+checkpoint state or times; unknown owner-bound formats block that operation.
+Conflicted identities cannot load or autosave. Copy resolution and deletion run
+on the serial storage worker after pending writes drain; closing waits for them.
+The shared Hall is independent of every career-folder operation.
+
+`career_folder_tests` covers catalogue-free discovery, renamed/Unicode folders,
+duplicate names/identities, both PB categories across every track/league, all
+recovery generations, settings-write coordination and failure preservation.
+`folder_transaction_tests` terminates child processes at eleven create/replace/
+delete boundaries and checks restart recovery plus blocked I/O and unsafe journals.
+`native_career_folder_session_tests` exercises Cancel/Replace/Keep Both and
+deletion/close in both navigation modes, checks full native memory during conflict
+UI, full native memory on Resume and through sixteen subsequent gameplay updates,
+and captures eight menu images for visual inspection. Existing career/autosave, ghost, Enhanced,
+launcher/display and Hall regressions cover compatibility.
+
+The local receipt `analysis/portable-player-data/stage-2/check-results.json`
+identifies sources, fixtures, test executables and the matching staged player;
+companion CTest logs and menu images record the checked scope. No original-code
+comparison or real controller/second-account acceptance is claimed by this stage.
 
 ### 3. Add complete native multiplayer checkpoints — pending
 

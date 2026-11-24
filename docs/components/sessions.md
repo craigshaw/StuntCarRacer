@@ -6,9 +6,9 @@
 [Playing](../playing.md) documents the user-facing routes and recovery choices.
 
 The [portable-data and multiplayer-save design](portable-player-data.md) is being
-implemented in stages. Explicit-root path resolution and host ownership are in
-place; default storage, career regrouping and native multiplayer saves remain
-pending. The contracts below describe the current build.
+implemented in stages. Explicit-root paths, host ownership and self-contained
+career folders are in place; default storage/migration and native multiplayer
+saves remain pending. The contracts below describe the current build.
 
 ## Transitions
 
@@ -49,8 +49,8 @@ retain their timing gates. Computer Link remains disabled and deferred.
 [Enhanced timing](enhanced-timing.md#session-delivery-and-ghost-targets) now delivers
 the same live completions to separate PB/Hall storage, with conservative confidence,
 independent failures and category-specific targets. Pinned Enhanced challenges use
-the same isolated career continuation. Version-10 settings select timing and the
-Hall's default category. Pending-finish checkpoints may carry optional Enhanced
+the same isolated career continuation. Settings select timing and the Hall's
+default category. Pending-finish checkpoints may carry optional Enhanced
 display values in version 3 alongside their Original bitmap. Version 4 also
 retains the category-specific Enhanced record notice through pending finishes
 and record-page resumes; versions 1–3 remain readable. Normal checkpoints
@@ -64,6 +64,26 @@ the head and retains two valid recovery generations. Ignore stale temporary
 files, preserve unknown formats and validate checkpoint bodies during recovery.
 Deletion drains writes before removing all generations. Saved means worker
 completion, not job submission.
+
+Explicit `--data-dir` launches use `careers/<label>/career.scr-career` and private
+`personal-bests/original/` and `personal-bests/enhanced/` trees inside that folder.
+`CareerFolders` discovers immediate child folders by their stored identities;
+names, suffixes and paths do not identify a career. It preserves unavailable
+formats and rejects directory links. Its cache is rebuildable; copy/rename with
+the game closed. Legacy default launches retain flat career/PB files.
+
+Duplicate identities require Replace / Keep Both / Cancel before load or autosave.
+The serial worker stages complete folder transactions under `.transactions/`,
+recovers them before discovery and retains replaced versions inside the winner's
+`recovery/replaced/` tree. Keep Both rekeys supported owner-bound metadata and
+every recovery generation, preserving checkpoint bytes, times and RNG. Unknown
+formats block rekeying. Folder deletion uses the same worker/transaction boundary;
+close waits for completion. Career operations do not restore or change the Hall.
+
+Portable last-used IDs are separate `last-career`/`last-multiplayer` preferences
+in version-11 settings, with serialized read/merge/atomic writes shared by display
+and selection updates. No on-disk catalogue is needed. Legacy flat storage keeps
+`last.scr-index`; older settings/checkpoint readers remain supported.
 
 Write failure retains the latest RAM state and last good disk copy. Retry at safe
 boundaries; switching careers and closing must drain writes or offer an explicit

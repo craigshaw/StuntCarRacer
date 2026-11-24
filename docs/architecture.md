@@ -15,6 +15,7 @@ only to separate verification executables.
 | `scr_state` | `src/state/` | Recovered-layout adapters, race-stage order, checkpoint/replay I/O |
 | `scr_records` | `app/records/`, Hall/Enhanced codecs in `app/persistence/`, `app/race/practice_ghost_target.*` | Original/Enhanced record models, timing values and formats, pinned Practice targets |
 | `scr_hall_storage` | `app/persistence/*hall_store.*`, `hall_archive_engine.h`, `app/platform/windows/shared_hall_storage.*` | Separate category archives sharing file locking, recovery and background reads and writes |
+| `scr_player_data` | `app/persistence/player_data_layout.*`, `player_preferences.*`, Windows `player_data_ownership.*` | Canonical layout, coordinated selection/display preferences and process-held root ownership |
 | `scr_runtime` | `app/assets/`, `menus/`, `presentation/`, shared rule adapters | Initialization, original menus/text/screens and competition helpers |
 | `scr_game` | `app/session/`, `race/`, `persistence/`, `input/`, `audio/`, Hall browser in `menus/` and `presentation/` | Session handoff, career storage, gameplay orchestration, snapshots, lap recording and Hall completion delivery |
 | `scr_host_ui` | `app/launcher/`, Windows launcher/display adapters | Setup, preferences, overlays, image scaling and fullscreen |
@@ -26,6 +27,11 @@ identify ownership without forwarding headers. The compatibility layout preserve
 original byte/word semantics but is constructed by native code. `tests/support/`
 owns oracle ranges, comparison projections and historical test namespaces;
 production neither includes those headers nor links Musashi.
+
+`scr_game` owns career codecs, storage and folder discovery. Its reusable
+`FolderTransactions` service stages, validates, publishes and recovers complete
+saved-game folders within the owned root. Legacy default paths remain active;
+explicit roots use [portable career folders](components/portable-player-data.md).
 
 `RaceScene`, presentation poses and `SoftwareRenderer` are shared by live racing
 and development replay tools. CMake defines production linkage; `cmake/DevTools.cmake`

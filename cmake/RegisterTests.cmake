@@ -61,6 +61,12 @@ scr_test(player_data_layout_tests "native;unit;storage" "" "${test_output}/playe
 scr_test(software_renderer_tests "native;assets" "${SCR_TEST_PAYLOAD}" "${SCR_TEST_PAYLOAD}")
 
 if(WIN32)
+  scr_test(career_folder_tests "native;unit;storage" "" "${test_output}/career_folder_tests")
+  scr_test(folder_transaction_tests "native;unit;storage" "" "${test_output}/folder_transaction_tests")
+  set_tests_properties(career_folder_tests folder_transaction_tests PROPERTIES RUN_SERIAL TRUE)
+  scr_test(native_career_folder_session_tests "native;assets;storage;ui" "${SCR_TEST_ASSET_PACK}"
+    "${SCR_TEST_ASSET_PACK}" "${test_output}/native_career_folder_session_tests")
+  set_tests_properties(native_career_folder_session_tests PROPERTIES RUN_SERIAL TRUE)
   scr_test(player_data_ownership_tests "native;unit;storage" "" "${test_output}/player_data_ownership_tests" "$<TARGET_FILE:native_game>")
   set_tests_properties(player_data_ownership_tests PROPERTIES RUN_SERIAL TRUE)
   scr_test(native_enhanced_ui_tests "native;assets;capture;ui" "${SCR_TEST_ASSET_PACK}"

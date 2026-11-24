@@ -11,6 +11,13 @@ Use the CMake/CTest presets and [development guide](../docs/development.md) to
 choose checks. Private fixtures and retained receipts stay at their existing
 `analysis/` paths; disposable test output belongs under `build/`.
 
+`native_multiplayer_checkpoint_tests` validates the asset-free multiplayer format
+and unchanged career bytes. `native_multiplayer_checkpoint_session_tests` compares
+all player counts/divisions/leagues across repeated fresh-session restores, both
+tracks, reports, forfeits, bonuses and reset. See the [checkpoint contract](../docs/components/multiplayer-checkpoints.md)
+for the distinction between natural race finishes and controlled bonus/record
+fixtures, plus the stage-4 player integration boundary.
+
 Hall coverage separates pure ranking/codec tests, the Windows merge/recovery
 store, and accepted-completion delivery. `hall_completion_tests` drives the native
 timing routine through real accepted events, including overflow and partial-entry

@@ -7,8 +7,9 @@
 
 The [portable-data and multiplayer-save design](portable-player-data.md) is being
 implemented in stages. Explicit-root paths, host ownership and self-contained
-career folders are in place; default storage/migration and native multiplayer
-saves remain pending. The contracts below describe the current build.
+career folders are in place. Native multiplayer checkpoint capture/restore is
+implemented; its player menus/autosave and default storage/migration remain pending.
+The contracts below distinguish the implemented foundation from player routing.
 
 ## Transitions
 
@@ -57,6 +58,14 @@ and record-page resumes; versions 1–3 remain readable. Normal checkpoints
 continue to use version 2.
 
 ## Storage
+
+[Native multiplayer checkpoints](multiplayer-checkpoints.md) retain full memory,
+both RNG stores, host report/track-end flags, prepared matchups and optional finish/
+record displays. A private terminal copy commits exit/scoring once. Restoring an
+unfinished race returns to its retained pre-race matchup; restoring a report does
+not acknowledge it or deliver old Hall attempts. The version-1 saved-game codec
+adds independent host metadata; stage 4 integrates it with durable storage and
+player routes. Existing manual multiplayer routes remain active meanwhile.
 
 Private career/index files use bounded, checksummed, versioned envelopes. A serial
 worker writes immutable jobs to a flushed temporary file, atomically replaces

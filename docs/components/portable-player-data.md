@@ -1,8 +1,8 @@
 # Portable player data and multiplayer saves
 
-Status: design accepted on 23 November 2026. Stages 1–2 are implemented with
+Status: design accepted on 23 November 2026. Stages 1–3 are implemented with
 automated verification; a real second-Windows-account acceptance check remains
-pending. Stages 3–6 are pending. Normal launches still use the existing Windows data
+pending. Stages 4–6 are pending. Normal launches still use the existing Windows data
 locations and manual multiplayer saves. [Sessions](sessions.md) and
 [player paths](../playing.md#data-and-recovery) describe the current build.
 [ADR 0004](../adr/0004-portable-player-data.md) records the ownership decision.
@@ -66,7 +66,8 @@ Stunt Car Racer/
 ```
 
 Explicit `--data-dir` launches implement the career and Hall paths above. The
-normal-launch default, migration and `.scr-multiplayer` codec remain pending.
+normal-launch default, migration and multiplayer saved-game routes remain pending.
+Stage 3 supplies the native `.scr-multiplayer` codec and capture/restore foundation.
 The two Hall categories retain their
 independent indexes, retained recordings and recovery generations. Version
 numbers belong in file headers, rather than ordinary category directory names.
@@ -423,7 +424,7 @@ identifies sources, fixtures, test executables and the matching staged player;
 companion CTest logs and menu images record the checked scope. No original-code
 comparison or real controller/second-account acceptance is claimed by this stage.
 
-### 3. Add complete native multiplayer checkpoints — pending
+### 3. Add complete native multiplayer checkpoints — implemented
 
 Specify a bounded, versioned multiplayer envelope and validator. Reuse compatible
 memory-delta primitives, with explicit mode/page/roster/turn/report constraints.
@@ -435,6 +436,25 @@ Exit: fresh-session round trips at every multiplayer boundary preserve memory,
 both RNG stores and future progression for 2–8 humans. Consecutive resumed and
 uninterrupted runs agree through both tracks, forfeits, bonus awards and the
 four-championship reset. Existing career byte formats/validation remain compatible.
+
+`persistence/native_multiplayer_checkpoint.*` implements distinct bounded,
+checksummed version-1 checkpoint and saved-game envelopes. The latter carries host
+identity/title/time/generation metadata independently of native progression.
+`session/native_multiplayer_checkpoint_session.cpp` captures prepared matchups,
+private terminal exit/scoring, pending finishes and committed reports, then restores
+validated state without replaying progression or Hall delivery. The shared memory
+delta primitive preserves existing career bytes. Player autosave/menu integration
+is stage 4; existing launches retain their current multiplayer journey.
+
+The [checkpoint contract](multiplayer-checkpoints.md) inventories native and host
+state, supported boundaries, validation and finite comparison scope. New codec
+tests cover 448 page/count/division/league round trips plus malformed/future data
+and career format compatibility. Repeated fresh-session comparisons cover all 56
+multiplayer configurations, both tracks, every human, preparation, interruption,
+bonuses, F1 forfeits, all reports and fourth-championship reset. Finish/record
+display and populated Hall isolation are checked under both navigation policies.
+Scoped native/original CTest logs, eight reviewed images and matching staged-player
+identities are retained at `analysis/portable-player-data/stage-3/`.
 
 ### 4. Integrate the multiplayer saved-game journey — pending
 

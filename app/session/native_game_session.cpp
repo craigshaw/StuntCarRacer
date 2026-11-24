@@ -83,10 +83,11 @@ NativeGameSession::NativeGameSession(const std::filesystem::path& pack,const std
     const auto image=makeNativeMenuFrame(*data_.memory,(*data_.memory)[0x1c9ce],start==NativeGameStart::EstablishedMenu);
     transitionIndices_.assign(image.indices.begin(),image.indices.end());
     fade_.reset({});fade_.animateTo(readNativePalette(*data_.memory,0x23c32));
+    checkpointBaseline_=std::make_unique<NativeMemory>(*data_.memory);
 }
 void NativeGameSession::preparePreview(){
     const unsigned track=menu_->trackId(),league=(*data_.memory)[0x1c9d0];
-    if((careerStore_||navigation_==NativeMenuNavigation::Responsive)&&previewPrepared_&&preparedTrack_==track&&
+    if((careerStore_||navigation_==NativeMenuNavigation::Responsive||!multiplayerRaceCheckpoint_.empty())&&previewPrepared_&&preparedTrack_==track&&
             preparedLeague_==league&&preparedCompetitive_==menu_->competitive()){
         preview_.load(*data_.memory,(*data_.memory)[0x1bb57]);return;
     }
@@ -102,6 +103,7 @@ void NativeGameSession::startRace(){
     // Commit the prepared fixture while still in the menu handoff. Active
     // driving never waits for disk I/O; a failure is offered before tick one.
     if(careerStore_)(void)flushStores();
+    if(multiplayerCheckpointEnabled_&&menu_->multiplayer())retainMultiplayerMatchup();
     previewPrepared_=false;
     restoreCockpit(*data_.memory);initializeNativeRace(*data_.memory);
     race_.loadNativeState(*data_.memory,data_.payload,recordings_);
@@ -287,7 +289,7 @@ NativeGameUpdate NativeGameSession::update(double elapsed,const NativeGameInput&
     if(!std::isfinite(elapsed)||elapsed<0)throw std::invalid_argument("Invalid native game elapsed time");
     ghostNoticeSeconds_=std::max(0.0,ghostNoticeSeconds_-elapsed);
     if(careerStore_&&menu_)menu_->setHallEnabled(activeCareer_.has_value()&&!multiplayer());
-    NativeGameUpdate managed;if(updateCareers(elapsed,held,managed))return managed;
+    NativeGameUpdate managed;if(updateMultiplayerFinish(elapsed,held,managed)||updateCareers(elapsed,held,managed))return managed;
     const auto oldPage=page();
     if(navigation_==NativeMenuNavigation::Original){const auto screen=navigationScreen();auto result=updateImpl(elapsed,held);observeCareerState(oldPage);if(screen!=navigationScreen())careerClock_.enterScreen(held.menu);return result;}
     NativeGameUpdate initial;finishResponsiveTransitions(initial);

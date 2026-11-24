@@ -30,10 +30,10 @@
 
 - [Portable player data and multiplayer saves](components/portable-player-data.md):
   agreed ownership and folder structure, native multiplayer autosave/Resume,
-  copying, recovery, migration and a staged implementation plan. Stages 1–2 provide
+  copying, recovery, migration and a staged implementation plan. Stages 1–3 provide
   whole-root development overrides, process-held ownership and self-contained
-  career folders with copy resolution; normal-launch defaults/migration and native
-  multiplayer saves remain pending.
+  career folders with copy resolution, plus [native multiplayer checkpoints](components/multiplayer-checkpoints.md).
+  Multiplayer player menus/autosave and normal-launch defaults/migration remain pending.
 
 ## Optional features
 

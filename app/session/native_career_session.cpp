@@ -29,8 +29,8 @@ void NativeGameSession::enableCareers(const std::filesystem::path& root,const st
 }
 void NativeGameSession::enableCareers(const std::filesystem::path& root,HallArchiveLocation original,HallArchiveLocation enhanced,CareerStorageOptions storage){
     if(careerStore_||!openingActive()||opening_->page()!=NativeOpeningPage::Mode)throw std::logic_error("Careers must start at the mode chooser");
-    careerBaseline_=std::make_unique<NativeMemory>(*data_.memory);careerStore_=std::make_unique<NativeCareerStore>(root,[this](const CareerBytes& data){
-        try{CareerBytes bytes;(void)decodeCareerInfo(data,&bytes);(void)decodeNativeCheckpoint(*careerBaseline_,bytes);return CareerFileState::Valid;}
+    checkpointBaseline_=std::make_unique<NativeMemory>(*data_.memory);careerStore_=std::make_unique<NativeCareerStore>(root,[this](const CareerBytes& data){
+        try{CareerBytes bytes;(void)decodeCareerInfo(data,&bytes);(void)decodeNativeCheckpoint(*checkpointBaseline_,bytes);return CareerFileState::Valid;}
         catch(const UnsupportedNativeCheckpoint&){return CareerFileState::Unsupported;}
         catch(...){return CareerFileState::Corrupt;}
     },std::move(storage));
@@ -130,7 +130,7 @@ NativeMenuImage NativeGameSession::careerImage()const{
     return makeNativeChoiceImage(*data_.memory,heading,rows,selected,detail,saveStatus());
 }
 void NativeGameSession::beginCareer(){
-    *data_.memory=careerDraft_?*careerDraft_:*careerBaseline_;menu_.reset();opening_=std::make_unique<NativeOpeningFlow>(*data_.memory);
+    *data_.memory=careerDraft_?*careerDraft_:*checkpointBaseline_;menu_.reset();opening_=std::make_unique<NativeOpeningFlow>(*data_.memory);
     opening_->setNavigation(navigation_);nameLengths_.fill(0);if(careerDraft_)nameLengths_[0]=draftNameLength_;creatingCareer_=true;finishPending_=false;previewPrepared_=false;suspendedSeason_.clear();
     careerPanel_=CareerPanel::None;transition_=Transition::None;fade_.reset(readNativePalette(*data_.memory,0x23c32));NativeGameUpdate ignored;
     handleOpeningAction(opening_->beginSingleName(),makeNativeMenuFrame(*data_.memory,(*data_.memory)[0x1c9ce]),ignored);
@@ -140,7 +140,7 @@ void NativeGameSession::registerCareer(){
     menu_->setMainRowCount(3);
     newCareer_=NativeCareerInfo{NativeCareerStore::newId(),driverName(*data_.memory),(*data_.memory)[0x1c9ce],(*data_.memory)[0x1c9d0],now()};
     NativeCareerCheckpoint checkpoint;checkpoint.memory=std::make_unique<NativeMemory>(*data_.memory);checkpoint.menu=menu_->continuation();
-    newCheckpoint_=encodeNativeCheckpoint(*careerBaseline_,checkpoint);
+    newCheckpoint_=encodeNativeCheckpoint(*checkpointBaseline_,checkpoint);
     careerStore_->saveCareer(*newCareer_,newCheckpoint_);
     completeCareerCreation();
 }
@@ -180,12 +180,12 @@ void NativeGameSession::saveCheckpoint(bool terminal){
         NativeMenuFlow main(*c.memory);main.setMainRowCount(3);main.setNavigation(navigation_);c.menu=main.continuation();c.previewPrepared=false;
     }else if(c.menu.page==NativeMenuPage::HallOfFame){NativeMenuFlow main(*c.memory);main.setMainRowCount(3);c.menu=main.continuation();}
     if(c.menu.competitive&&(c.menu.page==NativeMenuPage::Results||c.menu.page==NativeMenuPage::Records))c.enhancedRecordNotice=enhancedRecordNotice_;
-    checkpoint_=encodeNativeCheckpoint(*careerBaseline_,c);
+    checkpoint_=encodeNativeCheckpoint(*checkpointBaseline_,c);
     activeCareer_->division=(*c.memory)[0x1c9ce];activeCareer_->league=(*c.memory)[0x1c9d0];
     careerStore_->retry();careerStore_->saveCareer(*activeCareer_,checkpoint_);
 }
 void NativeGameSession::restoreCheckpoint(const CareerBytes& bytes){
-    auto c=decodeNativeCheckpoint(*careerBaseline_,bytes);*data_.memory=*c.memory;
+    auto c=decodeNativeCheckpoint(*checkpointBaseline_,bytes);*data_.memory=*c.memory;
     opening_.reset();saveMenu_.reset();saveReturn_=SaveReturn::None;menu_=std::make_unique<NativeMenuFlow>(*data_.memory,c.menu);menu_->setMainRowCount(3);menu_->setNavigation(navigation_);
     suspendedSeason_=std::move(c.suspendedSeason);
     previewPrepared_=c.previewPrepared;preparedTrack_=c.preparedTrack;preparedLeague_=c.preparedLeague;preparedCompetitive_=c.menu.competitive;
@@ -219,7 +219,7 @@ void NativeGameSession::completeDeparture(){
     if(action==Departure::NewCareer){beginCareer();return;}
     if(action==Departure::LoadCareer){(void)loadCareer(loadCareer_);return;}
     if(action==Departure::Multiplayer){
-        *data_.memory=*careerBaseline_;menu_.reset();opening_=std::make_unique<NativeOpeningFlow>(*data_.memory);
+        *data_.memory=*checkpointBaseline_;menu_.reset();opening_=std::make_unique<NativeOpeningFlow>(*data_.memory);
         opening_->setNavigation(navigation_);multiplayerSetup_=true;creatingCareer_=false;finishPending_=false;previewPrepared_=false;suspendedSeason_.clear();
         careerPanel_=CareerPanel::None;transition_=Transition::None;fade_.reset(readNativePalette(*data_.memory,0x23c32));nameLengths_.fill(0);NativeGameUpdate ignored;
         handleOpeningAction(opening_->beginMultiplayerName(),makeNativeMenuFrame(*data_.memory,(*data_.memory)[0x1c9ce]),ignored);releaseInput();

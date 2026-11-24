@@ -32,6 +32,10 @@ production neither includes those headers nor links Musashi.
 `FolderTransactions` service stages, validates, publishes and recovers complete
 saved-game folders within the owned root. Legacy default paths remain active;
 explicit roots use [portable career folders](components/portable-player-data.md).
+Career and [multiplayer checkpoints](components/multiplayer-checkpoints.md) share
+bounded memory-delta primitives while keeping mode-specific formats and validators.
+Multiplayer capture/restore is implemented independently of its pending autosave/UI
+integration; terminal scoring is staged on private memory.
 
 `RaceScene`, presentation poses and `SoftwareRenderer` are shared by live racing
 and development replay tools. CMake defines production linkage; `cmake/DevTools.cmake`

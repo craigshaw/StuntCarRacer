@@ -13,6 +13,7 @@
 #include "persistence/native_save_state.h"
 #include "persistence/native_save_store.h"
 #include "persistence/native_career_checkpoint.h"
+#include "persistence/native_multiplayer_checkpoint.h"
 #include "menus/hall_browser.h"
 #include <optional>
 
@@ -45,6 +46,10 @@ public:
     void enableCareers(const std::filesystem::path& dataRoot,HallArchiveLocation original,HallArchiveLocation enhanced,
         CareerStorageOptions storage={CareerStorageLayout::Folders,{},{}});
     bool requestClose();
+    // Native continuation foundation; storage/menu routing is added separately.
+    // Restore validates on private memory before replacing the active session.
+    MultiplayerBytes captureMultiplayerCheckpoint();
+    void restoreMultiplayerCheckpoint(const MultiplayerBytes&,const NativeMenuInput& held={});
     bool closeReady()const noexcept{return closeReady_;}
     bool closePending()const noexcept{return departure_==Departure::Close||closeAfterCareerCopy_;}
     bool careerCopyPending()const noexcept{return careerCopy_.valid();}
@@ -109,7 +114,12 @@ private:
     enum class CareerPanel {None,Home,List,Actions,Delete,Notice,SaveError,CreateError,Departure,Conflict,CopyWorking};
     enum class Departure {None,Close,NewCareer,LoadCareer,Multiplayer};
     enum class HomeAction {Continue,NewCareer,Browse};
-    std::unique_ptr<NativeMemory> careerBaseline_;
+    std::unique_ptr<NativeMemory> checkpointBaseline_;
+    MultiplayerBytes multiplayerRaceCheckpoint_;
+    bool multiplayerCheckpointEnabled_{};
+    NativeMultiplayerCheckpoint multiplayerContinuation()const;
+    void retainMultiplayerMatchup();
+    bool updateMultiplayerFinish(double,const NativeGameInput&,NativeGameUpdate&);
     std::unique_ptr<NativeMemory> careerDraft_;
     unsigned draftNameLength_{};
     std::unique_ptr<NativeCareerStore> careerStore_;

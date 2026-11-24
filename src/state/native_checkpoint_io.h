@@ -26,4 +26,22 @@ struct Reader {
     std::string text(std::size_t maximum){const auto size=u32();if(size>maximum)throw std::runtime_error("Checkpoint text exceeds limit");require(size);std::string value(data.begin()+position,data.begin()+position+size);position+=size;return value;}
     void end()const{if(position!=data.size())throw std::runtime_error("Trailing checkpoint data");}
 };
+// Ordered changed-byte runs preserve the complete state without embedding the
+// unchanged asset image. Both native checkpoint modes use the same primitive.
+template<class Memory>void writeMemoryDelta(Writer& w,const Memory& baseline,const Memory& memory){
+    Writer ranges;unsigned count=0;
+    for(unsigned n=0;n<baseline.size();){
+        if(memory[n]==baseline[n]){++n;continue;}
+        const auto first=n;while(n<baseline.size()&&memory[n]!=baseline[n])++n;
+        ranges.u32(first);ranges.u32(n-first);ranges.bytes(memory.data()+first,n-first);++count;
+    }
+    w.u32(count);w.bytes(ranges.data.data(),ranges.data.size());
+}
+template<class Memory>void readMemoryDelta(Reader& r,Memory& memory){
+    const auto count=r.u32();if(count>memory.size()/2)throw std::runtime_error("Too many checkpoint ranges");
+    unsigned end=0;for(unsigned n=0;n<count;++n){const auto first=r.u32(),size=r.u32();
+        if(first<end||first>=memory.size()||!size||size>memory.size()-first)throw std::runtime_error("Invalid checkpoint range");
+        r.bytes(memory.data()+first,size);end=first+size;
+    }
+}
 } // namespace scr::state::checkpoint

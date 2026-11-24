@@ -1,4 +1,5 @@
 #include "persistence/native_career_checkpoint.h"
+#include "persistence/native_checkpoint_identity.h"
 #include <algorithm>
 #include <limits>
 #include <stdexcept>
@@ -6,13 +7,6 @@
 namespace scr::runtime {
 namespace {
 using namespace state::checkpoint;
-std::uint64_t checkpointBaselineHash(const NativeMemory& baseline){
-    const auto identity=hash(baseline.data(),baseline.size());
-    // These two verified mode-chooser baselines differ only in unused loader
-    // code and preview help text. Keep the existing QTX save identity without
-    // changing either disk's payload or accepting any other altered baseline.
-    return identity==0x5bddbb6119b27c96ULL?0x885427bc82f0893cULL:identity;
-}
 bool allowed(NativeMenuPage page){
     switch(page){
     case NativeMenuPage::Main:case NativeMenuPage::Matchup:case NativeMenuPage::Results:
@@ -54,19 +48,13 @@ CareerBytes encodeNativeCheckpoint(const NativeMemory& baseline,const NativeCare
         if(!season.menu.competitive)throw std::runtime_error("Suspended checkpoint is not a season");
     }
     if(c.finishTiming&&!c.finishPending)throw std::runtime_error("Enhanced finish has no pending finish");
-    Writer w;w.u32(c.enhancedRecordNotice?4:c.finishTiming?3:2);w.u64(checkpointBaselineHash(baseline));
+    Writer w;w.u32(c.enhancedRecordNotice?4:c.finishTiming?3:2);w.u64(nativeCheckpointBaselineIdentity(baseline));
     w.u32(unsigned(c.menu.page));w.u32(c.menu.competitive);w.u32(c.menu.division);w.u32(c.menu.context);
     for(int value:{c.menu.mainSelection,c.menu.divisionSelection,c.menu.saveSelection,c.menu.trackSelections[0],c.menu.trackSelections[1],c.menu.trackSelections[2],c.menu.trackSelections[3]})w.u32(unsigned(value+1));
     w.u32(c.previewPrepared);w.u32(c.preparedTrack);w.u32(c.preparedLeague);w.u32(c.finishPending);
     // Range encoding preserves every changed native byte, including both RNG
     // stores, without persisting unchanged assets or invoking a game routine.
-    Writer ranges;unsigned count=0;
-    for(unsigned n=0;n<baseline.size();){
-        if((*c.memory)[n]==baseline[n]){++n;continue;}
-        const auto first=n;while(n<baseline.size()&&(*c.memory)[n]!=baseline[n])++n;
-        ranges.u32(first);ranges.u32(n-first);ranges.bytes(c.memory->data()+first,n-first);++count;
-    }
-    w.u32(count);w.bytes(ranges.data.data(),ranges.data.size());
+    writeMemoryDelta(w,baseline,*c.memory);
     if(c.finishPending)for(auto colour:c.finishPixels)w.u32(colour);
     w.u32(std::uint32_t(c.suspendedSeason.size()));w.bytes(c.suspendedSeason.data(),c.suspendedSeason.size());
     if(c.enhancedRecordNotice)w.u32(c.finishTiming.has_value());
@@ -79,7 +67,7 @@ CareerBytes encodeNativeCheckpoint(const NativeMemory& baseline,const NativeCare
 namespace {
 NativeCareerCheckpoint decode(const NativeMemory& baseline,const CareerBytes& bytes,bool allowSeason){
     Reader r{bytes};const auto version=r.u32();
-    if((version<1||version>4)||r.u64()!=checkpointBaselineHash(baseline))throw UnsupportedNativeCheckpoint("Unsupported career checkpoint or asset pack");
+    if((version<1||version>4)||r.u64()!=nativeCheckpointBaselineIdentity(baseline))throw UnsupportedNativeCheckpoint("Unsupported career checkpoint or asset pack");
     NativeCareerCheckpoint c;c.memory=std::make_unique<NativeMemory>(baseline);c.menu.page=NativeMenuPage(r.u32());
     const auto flag=[&](){const auto value=r.u32();if(value>1)throw std::runtime_error("Invalid checkpoint flag");return bool(value);};
     c.menu.competitive=flag();c.menu.division=r.u32();c.menu.context=r.u32();
@@ -87,11 +75,7 @@ NativeCareerCheckpoint decode(const NativeMemory& baseline,const CareerBytes& by
     c.menu.mainSelection=selection();c.menu.divisionSelection=selection();c.menu.saveSelection=selection();
     for(auto& value:c.menu.trackSelections)value=selection();
     c.previewPrepared=flag();c.preparedTrack=r.u32();c.preparedLeague=r.u32();c.finishPending=flag();
-    const auto count=r.u32();if(count>baseline.size()/2)throw std::runtime_error("Too many checkpoint ranges");
-    unsigned end=0;for(unsigned n=0;n<count;++n){const auto first=r.u32(),size=r.u32();
-        if(first<end||first>=baseline.size()||!size||size>baseline.size()-first)throw std::runtime_error("Invalid checkpoint range");
-        r.bytes(c.memory->data()+first,size);end=first+size;
-    }
+    readMemoryDelta(r,*c.memory);
     if(c.finishPending){c.finishPixels.resize(64000);for(auto& colour:c.finishPixels)colour=r.u32();}
     if(version>=2){const auto size=r.u32();if(size>2*1024*1024||(!allowSeason&&size))throw std::runtime_error("Invalid suspended-season size or nesting");
         r.require(size);c.suspendedSeason.assign(bytes.begin()+r.position,bytes.begin()+r.position+size);r.position+=size;

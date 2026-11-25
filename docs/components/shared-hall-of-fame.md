@@ -223,7 +223,7 @@ flush before normal departure; destruction cannot rescue uncommitted data after
 an unresolved failure. Process interruption proofs do not establish arbitrary
 hardware/power-loss durability.
 
-`app/platform/windows/shared_hall_storage.*` resolves installation identity from
+Legacy-source `app/platform/windows/shared_hall_storage.*` resolves installation identity from
 the canonical installation directory, independent of user and EXE contents. Its
 default location is under common Windows application data, with an injectable
 common root for tests. It creates missing Hall directories with inherited local
@@ -231,9 +231,12 @@ Users modification rights and never re-permissions existing ancestors. Its bound
 byte-range transaction lock prevents replacement of an active lock file and is
 released by process exit.
 
-Normal player launches use that common root. An explicit `--data-dir` now supplies
-`hall-of-fame/original/` and `hall-of-fame/enhanced/` category roots, inheriting the
-chosen folder's permissions without the ProgramData directory-creation ACL policy.
+Normal player launches and `--data-dir` use `hall-of-fame/original/` and
+`hall-of-fame/enhanced/` under the complete player root, inheriting its permissions.
+ProgramData installation hashing is retained only for explicit legacy-source
+discovery and old test/tool constructors. Import copies full compatible archives
+and referenced recordings without offering attempts again; an existing category
+requires explicit archive replacement, with its prior contents retained.
 `enableCareers(privateRoot, sharedRoot)` retains the old injected/sibling layout
 for existing test/tool callers; an overload accepts two explicit
 `HallArchiveLocation` values. The Windows host takes its process-held data-root

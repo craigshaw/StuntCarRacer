@@ -5,8 +5,8 @@ status: superseded by ADR-0004
 # Store player data in per-user Windows application data
 
 [ADR 0004](0004-portable-player-data.md) replaces this decision with portable
-game-folder ownership. The implementation still uses the paths below until the
-[portable-data plan](../components/portable-player-data.md) is delivered.
+game-folder ownership. The paths below now describe historical import sources;
+the player uses the implemented [portable-data plan](../components/portable-player-data.md).
 
 Normal launches store imported assets, preferences and saves in per-user Windows
 application data so the application also works from a read-only installation

@@ -31,8 +31,9 @@ Legacy thirty-slot multiplayer saves are excluded from compatibility and migrati
 there is no requirement for an importer or dedicated preservation/archive step.
 Existing native career, PB and Hall compatibility is retained.
 
-Portable defaults and migration remain pending. Stages 1–4 provide explicit
+Stages 1–5 implement portable defaults, copy-based import and explicit
 data-root resolution, process-held ownership, self-contained career folders and
 named native multiplayer autosave/Resume, with shared copy resolution and
-recoverable folder transactions. See the [design and staged implementation plan](../components/portable-player-data.md)
+recoverable folder/collection transactions. Final acceptance remains in stage 6.
+See the [design and staged implementation plan](../components/portable-player-data.md)
 for delivery status, compatibility boundaries, migration and verification.

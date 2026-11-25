@@ -16,7 +16,7 @@ using namespace scr::runtime;
 void require(bool value,const char* message){if(!value)throw std::runtime_error(message);}
 std::string bytes(const std::filesystem::path& path){std::ifstream input(path,std::ios::binary);return {std::istreambuf_iterator<char>(input),{}};}
 void write(const std::filesystem::path& path,const std::string& value){std::ofstream output(path,std::ios::binary);output.write(value.data(),std::streamsize(value.size()));}
-NativeLaunchPaths paths(const std::filesystem::path& root){return {root/L"game.scr-assets",root/L"display.ini",root/L"game.scr-save",{}};}
+NativeLaunchPaths paths(const std::filesystem::path& root){return {root/L"game.scr-assets",root/L"display.ini",{},root};}
 void assets(const std::filesystem::path& pack,const std::filesystem::path& root,const std::filesystem::path& adf){
     auto files=paths(root);NativeLauncher missing(paths(root/L"never-imported"));require(!missing.ready(),"Missing data enabled Play");
     std::filesystem::copy_file(pack,files.pack,std::filesystem::copy_options::overwrite_existing);
@@ -54,6 +54,8 @@ void preferences(const std::filesystem::path& root){
     require(overridden.saveForPlay()&&loadDisplayPreferences(files.settings)==faithful,"Play persisted a launch-only override");
     overridden.change(2);overridden.change(2);require(overridden.saveForPlay()&&loadDisplayPreferences(files.settings).interpolate,"Explicit preference edit did not override launch policy");
     require(defaultNativeLaunchPaths().pack.is_absolute()&&defaultNativeLaunchPaths().recordings.empty(),"Player defaults depend on working directory or enable recording");
+    write(files.settings,"SCR display 99\nfuture settings\n");NativeLauncher future(files);require(!future.saveForPlay()&&bytes(files.settings)=="SCR display 99\nfuture settings\n","Play silently overwrote unsupported settings");future.resetPreferences();require(future.saveForPlay(),"Explicit defaults could not replace preserved future settings");
+    bool preserved=false;for(const auto& file:std::filesystem::directory_iterator(root))if(file.path().filename().wstring().find(L"display.ini.unsupported-")==0)preserved|=bytes(file.path())=="SCR display 99\nfuture settings\n";require(preserved,"Reset did not preserve unknown settings bytes");
 }
 void recording(const std::filesystem::path& pack,const std::filesystem::path& root){
     RaceScene normal,recorded;normal.loadNative(pack,{});recorded.loadNative(pack,root/L"explicit-recording");
@@ -85,10 +87,11 @@ void snapshot(const std::filesystem::path& root,NativeLauncher& model,int width,
     const auto window=CreateWindowExW(WS_EX_TOOLWINDOW,type.lpszClassName,L"Launcher test",WS_POPUP,-30000,-30000,width,height,nullptr,nullptr,type.hInstance,nullptr);
     require(window!=nullptr,"Cannot create launcher test window");
     WindowsLauncher view;activeView=&view;activeModel=&model;view.create(window);view.sync(model);ShowWindow(window,SW_SHOWNOACTIVATE);view.focusInitial(model);
-    require(GetFocus()==GetDlgItem(window,model.ready()?LauncherPlay:LauncherAdf),"Initial launcher focus differs");
+    const bool importing=model.importPage()!=LauncherImportPage::None;
+    if(model.importPage()!=LauncherImportPage::Working)require(GetFocus()==GetDlgItem(window,importing?LauncherImportBack:model.ready()?LauncherPlay:LauncherAdf),"Initial launcher focus differs");
     require(view.navigate(16,model)==LauncherAction::None,"Held confirm activated launcher");view.navigate(0,model);
-    require(view.navigate(16,model)==(model.ready()?LauncherAction::Play:LauncherAction::ChooseAdf),"Fresh controller confirm differs");view.navigate(0,model);
-    if(model.ready()){
+    if(!importing)require(view.navigate(16,model)==(model.ready()?LauncherAction::Play:LauncherAction::ChooseAdf),"Fresh controller confirm differs");view.navigate(0,model);
+    if(model.ready()&&!importing){
         SetFocus(GetDlgItem(window,LauncherMotion));const bool previous=model.preferences().interpolate;
         view.navigate(8,model);view.navigate(8,model);require(model.preferences().interpolate!=previous,"Controller setting change or held-input gate differs");view.navigate(0,model);model.resetPreferences();view.sync(model);
         const auto sizing=GetDlgItem(window,LauncherScaling),detail=GetDlgItem(window,LauncherScaleDetail);
@@ -117,11 +120,11 @@ void snapshot(const std::filesystem::path& root,NativeLauncher& model,int width,
         model.resetPreferences();if(width<800){model.change(1);model.change(5);}view.sync(model);
     }
     view.focusInitial(model);
-    if(width<800)view.command(LauncherDetails,model);
+    if(width<800&&!importing)view.command(LauncherDetails,model);
     const auto dc=CreateCompatibleDC(nullptr);BITMAPINFO info{};info.bmiHeader.biSize=sizeof(BITMAPINFOHEADER);info.bmiHeader.biWidth=width;info.bmiHeader.biHeight=-height;info.bmiHeader.biPlanes=1;info.bmiHeader.biBitCount=32;
     void* pixels{};const auto bitmap=CreateDIBSection(dc,&info,DIB_RGB_COLORS,&pixels,nullptr,0);const auto previous=SelectObject(dc,bitmap);
     view.paint(dc,width,height,model);
-    for(unsigned id=LauncherAdf;id<=LauncherTiming;++id){const auto child=GetDlgItem(window,int(id));RECT rect{};GetWindowRect(child,&rect);MapWindowPoints(nullptr,window,reinterpret_cast<POINT*>(&rect),2);
+    for(unsigned id=LauncherAdf;id<=LauncherImportEnhanced;++id){const auto child=GetDlgItem(window,int(id));if(!IsWindowVisible(child))continue;RECT rect{};GetWindowRect(child,&rect);MapWindowPoints(nullptr,window,reinterpret_cast<POINT*>(&rect),2);
         const auto saved=SaveDC(dc);SetViewportOrgEx(dc,rect.left,rect.top,nullptr);SendMessageW(child,WM_PRINT,reinterpret_cast<WPARAM>(dc),PRF_CLIENT);RestoreDC(dc,saved);}
     GdiFlush();UINT count{},size{};Gdiplus::GetImageEncodersSize(&count,&size);std::vector<std::uint8_t> encoders(size);auto codec=reinterpret_cast<Gdiplus::ImageCodecInfo*>(encoders.data());Gdiplus::GetImageEncoders(count,size,codec);
     for(UINT n=0;n<count;++n)if(std::wstring(codec[n].MimeType)==L"image/png"){Gdiplus::Bitmap image(bitmap,nullptr);require(image.Save((root/name).c_str(),&codec[n].Clsid,nullptr)==Gdiplus::Ok,"Cannot save launcher preview");}
@@ -134,9 +137,14 @@ int main(int argc,char** argv)try{
     const std::filesystem::path root=argv[2];std::filesystem::create_directories(root);const std::filesystem::path adf=argc==4?argv[3]:"";
     assets(argv[1],root,adf);preferences(root);recording(argv[1],root);
     ULONG_PTR token{};Gdiplus::GdiplusStartupInput input;require(Gdiplus::GdiplusStartup(&token,&input,nullptr)==Gdiplus::Ok,"Cannot initialize preview capture");
-    {NativeLauncher ready(paths(root));snapshot(root,ready,960,720,L"launcher-ready.png");snapshot(root,ready,740,640,L"launcher-compact.png");
-    NativeLauncher missing(paths(root/L"first-run"));snapshot(root,missing,960,720,L"launcher-first-run.png");}
+    {NativeLauncher ready(paths(root));ready.configureDataImport(false);snapshot(root,ready,960,720,L"launcher-ready.png");snapshot(root,ready,740,640,L"launcher-compact.png");
+    NativeLauncher missing(paths(root/L"first-run"));snapshot(root,missing,960,720,L"launcher-first-run.png");
+    const auto source=root/L"previous-version";std::filesystem::create_directories(source/L"assets");std::filesystem::copy_file(argv[1],source/L"assets/stunt-car-racer.scr-assets");
+    const auto layout=playerDataLayout(root/L"portable-data");NativeLauncher importing({layout.pack,layout.settings,{},layout.root});importing.configureDataImport(false,playerImportSource(source));
+    snapshot(root,importing,960,720,L"launcher-import.png");snapshot(root,importing,740,640,L"launcher-import-compact.png");
+    importing.applyDataImport();snapshot(root,importing,960,720,L"launcher-import-working.png");
+    for(unsigned n=0;importing.importPage()==LauncherImportPage::Working&&n<10000;++n){importing.pollDataImport();Sleep(1);}require(importing.importPage()==LauncherImportPage::Report,"Launcher import did not finish");snapshot(root,importing,960,720,L"launcher-import-report.png");}
     Gdiplus::GdiplusShutdown(token);
-    std::cout<<"{\"status\":\"passed\",\"supported_import\":"<<(adf.empty()?"false":"true")<<",\"atomic_import_failure\":true,\"shared_preferences\":true,\"launch_overrides_transient\":true,\"recording_isolation_ticks\":96,\"recording_final_memory_identical\":true,\"controller_navigation\":true,\"rendered_states\":3}\n";
+    std::cout<<"{\"status\":\"passed\",\"supported_import\":"<<(adf.empty()?"false":"true")<<",\"atomic_import_failure\":true,\"shared_preferences\":true,\"launch_overrides_transient\":true,\"recording_isolation_ticks\":96,\"recording_final_memory_identical\":true,\"controller_navigation\":true,\"rendered_states\":7,\"import_review_work_report\":true,\"future_settings_preserved\":true}\n";
     return 0;
 }catch(const std::exception& failure){std::cerr<<failure.what()<<'\n';return 1;}

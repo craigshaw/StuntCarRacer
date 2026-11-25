@@ -109,7 +109,8 @@ int wmain(int argc,wchar_t** argv)try{
         require(WaitForInputIdle(player.info.hProcess,10000)==0,"Player launcher did not become idle");
         HWND window{};
         {PlayerDataOwnership busy(startupRoot);require(!busy.acquired(),"Player did not hold data-root ownership");
-            window=FindWindowW(busy.windowClassName().c_str(),nullptr);require(window!=nullptr,"Player did not use the canonical root window identity");}
+            for(unsigned n=0;n<1000&&!window;++n){window=FindWindowW(busy.windowClassName().c_str(),nullptr);if(!window)Sleep(10);}
+            require(window!=nullptr,"Player did not use the canonical root window identity");}
         require(SetWindowPos(window,nullptr,-30000,-30000,0,0,SWP_NOSIZE|SWP_NOZORDER|SWP_NOACTIVATE)!=0,"Cannot isolate fixture window from desktop");
         Process duplicate(L"--data-dir "+quote((startupRoot/L".."/startupRoot.filename()).wstring()),argv[2]);
         require(duplicate.finish()==0&&WaitForSingleObject(player.info.hProcess,0)==WAIT_TIMEOUT,"Duplicate player did not leave the first launcher active");

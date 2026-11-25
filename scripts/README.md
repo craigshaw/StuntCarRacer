@@ -22,9 +22,15 @@ and test interface; see [development](../docs/development.md).
 | `check_driving_replay.py`, `replay_lap.py` | Replay comparisons and authored-lap evidence checks |
 | `prepare_wheel_oracle.py` | Validate or explicitly download pinned test-only Musashi sources |
 | `check_repository_assets.py` | Source-only Git asset policy |
-| `check_release.py` | Staged player file list, notices and embedded-resource safeguards |
+| `check_release.py` | Clean distribution file list, notices and embedded resources; `--installed` permits a played-in `data/` directory |
 | `native_build.py` | Shared build locations and source identities for wrappers |
 
 Optional disk inspection, emulator preparation, REA/Ghidra checks and reference
 analysis recipes live in [tools/research](../tools/research/README.md). Their
 existing output and evidence paths under `analysis/` are unchanged.
+
+`start-native-game.ps1` uses one `-DataDirectory` (default `working/player-data/`).
+`-ImportFrom` requests the launcher's copy-based import review; `-RecordingsDirectory`
+explicitly enables development recordings. Asset/settings/save file overrides are
+retired from the player helper. `check_native_game.py` verifies a separate clean
+CMake Install prefix before updating `dist/`, preserving an existing `dist/data/`.

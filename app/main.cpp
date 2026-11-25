@@ -3,6 +3,7 @@
 #include <windows.h>
 #include <shellapi.h>
 #include <commdlg.h>
+#include <shobjidl.h>
 #include <dwmapi.h>
 #include "platform/windows/launcher.h"
 #include "session/native_game_session.h"
@@ -41,7 +42,11 @@ struct WindowPaint {
 class GameWindow {
 public:
     GameWindow(const NativeLaunchOptions& options,std::wstring instanceName):launcher_(options.paths,options.fullscreen,options.interpolate),
-        settingsFile_(options.paths.settings),settings_(launcher_.preferences()),dataLayout_(options.dataLayout),instanceName_(std::move(instanceName)){}
+        settingsFile_(options.paths.settings),settings_(launcher_.preferences()),dataLayout_(options.dataLayout),instanceName_(std::move(instanceName)){
+        std::optional<PlayerImportSource> source;if(options.importFrom)source=playerImportSource(*options.importFrom);
+        if(options.importHallFrom){if(!source)source=playerImportSource(options.paths.dataRoot);source->originalHall=*options.importHallFrom;source->enhancedHall=enhancedHallRoot(*options.importHallFrom);}
+        launcher_.configureDataImport(!options.explicitDataRoot,source);
+    }
     ~GameWindow(){game_.reset();if(timer_)CloseHandle(timer_);}
     int run(HINSTANCE instance,int show){
         WNDCLASSEXW type{};type.cbSize=sizeof(type);type.hInstance=instance;type.lpfnWndProc=procedure;
@@ -105,6 +110,13 @@ private:
     std::chrono::steady_clock::time_point fpsStart_=std::chrono::steady_clock::now();
     void launcherAction(HWND window,LauncherAction action){
         if(action==LauncherAction::Quit){DestroyWindow(window);return;}
+        if(action==LauncherAction::ChooseImportFolder||action==LauncherAction::ChooseImportHall){
+            IFileDialog* chooser{};if(SUCCEEDED(CoCreateInstance(CLSID_FileOpenDialog,nullptr,CLSCTX_INPROC_SERVER,IID_PPV_ARGS(&chooser)))){
+                chooser->SetOptions(FOS_PICKFOLDERS|FOS_FORCEFILESYSTEM|FOS_PATHMUSTEXIST|FOS_NOCHANGEDIR);
+                chooser->SetTitle(action==LauncherAction::ChooseImportHall?L"Choose the old Original Hall folder (containing index.scr-hall)":L"Choose the old player-data folder");
+                if(SUCCEEDED(chooser->Show(window))){IShellItem* item{};if(SUCCEEDED(chooser->GetResult(&item))){PWSTR path{};if(SUCCEEDED(item->GetDisplayName(SIGDN_FILESYSPATH,&path))){launcher_.importFolder(path,action==LauncherAction::ChooseImportHall);CoTaskMemFree(path);}item->Release();}}chooser->Release();}
+            launcherView_.sync(launcher_);launcherView_.focusInitial(launcher_);launcherView_.releaseNavigation();return;
+        }
         if(action==LauncherAction::ChooseAdf){
             std::vector<wchar_t> filename(32768);OPENFILENAMEW chooser{};chooser.lStructSize=sizeof(chooser);chooser.hwndOwner=window;
             chooser.lpstrFilter=L"Amiga disk images (*.adf)\0*.adf\0All files\0*.*\0\0";chooser.lpstrFile=filename.data();chooser.nMaxFile=DWORD(filename.size());
@@ -116,11 +128,8 @@ private:
         if(!launcher_.saveForPlay()){launcherView_.sync(launcher_);return;}
         try{
             const auto& paths=launcher_.paths();
-            auto started=std::make_unique<NativeGameSession>(paths.pack,paths.recordings,NativeGameStart::OriginalOpening,paths.save);
-            if(dataLayout_)started->enableCareers(paths.dataRoot,dataLayout_->originalHall,dataLayout_->enhancedHall,{CareerStorageLayout::Folders,paths.settings,{}});
-            else{std::wstring executable(32768,L'\0');const auto count=GetModuleFileNameW(nullptr,executable.data(),DWORD(executable.size()));
-                if(!count||count>=executable.size())throw std::runtime_error("Cannot locate this game installation");executable.resize(count);
-                started->enableCareers(paths.dataRoot,sharedHallPaths(std::filesystem::path(executable).parent_path()).root);}
+            auto started=std::make_unique<NativeGameSession>(paths.pack,paths.recordings,NativeGameStart::OriginalOpening);
+            started->enableCareers(paths.dataRoot,dataLayout_->originalHall,dataLayout_->enhancedHall,{CareerStorageLayout::Folders,paths.settings,{}});
             started->enableMultiplayerGames(paths.settings);
             started->setNavigation(launcher_.preferences().navigation);
             started->setTimingCategory(launcher_.preferences().timing);
@@ -212,7 +221,7 @@ private:
         }
     }
     void tickGame(HWND window,double elapsed){
-        if(!game_){pad_=controller_.poll();if(focused_)launcherAction(window,launcherView_.navigate(displayPadNavigation(pad_.pad),launcher_));return;}
+        if(!game_){if(launcher_.pollDataImport()){launcherView_.sync(launcher_);launcherView_.focusInitial(launcher_);}pad_=controller_.poll();if(focused_)launcherAction(window,launcherView_.navigate(displayPadNavigation(pad_.pad),launcher_));return;}
         if(freshGame_){elapsed=0;freshGame_=false;}
         const bool wasBlocked=settings_.blocksGame();
         const bool wasConnected=pad_.pad.connected;pad_=controller_.poll();
@@ -418,6 +427,8 @@ private:
 };
 }
 int WINAPI wWinMain(HINSTANCE instance,HINSTANCE,PWSTR,int show){
+    const auto com=CoInitializeEx(nullptr,COINIT_APARTMENTTHREADED);
+    struct ComLifetime {bool active;~ComLifetime(){if(active)CoUninitialize();}} comLifetime{SUCCEEDED(com)};
     try{
         const auto options=parse();PlayerDataOwnership ownership(options.paths.dataRoot);
         if(!ownership.acquired()){
@@ -427,6 +438,7 @@ int WINAPI wWinMain(HINSTANCE instance,HINSTANCE,PWSTR,int show){
             return 0;
         }
         if(!SetProcessDpiAwarenessContext(DPI_AWARENESS_CONTEXT_PER_MONITOR_AWARE_V2))SetProcessDPIAware();
+        PlayerDataImport startupRecovery(options.paths.dataRoot);
         GameWindow game(options,ownership.windowClassName());return game.run(instance,show);
     }catch(const std::exception& error){MessageBoxW(nullptr,launcherErrorText(error).c_str(),L"Stunt Car Racer",MB_OK|MB_ICONERROR);return 1;}
 }

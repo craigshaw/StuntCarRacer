@@ -15,11 +15,11 @@ void validatePath(const std::filesystem::path& path){
     if(path.extension()!=L".ini")throw std::invalid_argument("Display preferences require an .ini file");
 }
 }
-NativeDisplayPreferences loadDisplayPreferences(const std::filesystem::path& path){
+std::optional<NativeDisplayPreferences> readDisplayPreferences(const std::filesystem::path& path){
     std::lock_guard<std::mutex> lock(playerPreferencesMutex());
     validatePath(path);NativeDisplayPreferences preferences;
     std::error_code error;const auto size=std::filesystem::file_size(path,error);
-    if(error||size>1024)return preferences;
+    if(error||size>1024)return {};
     std::ifstream input(path);std::string header,full,scale,motion,extra;
     if(!std::getline(input,header)||!std::getline(input,full)||!std::getline(input,scale)||!std::getline(input,motion))return {};
     const bool version5=header=="SCR display 5",version6=header=="SCR display 6",version7=header=="SCR display 7",version8=header=="SCR display 8",version9=header=="SCR display 9",version10=header=="SCR display 10"||header=="SCR display 11";
@@ -73,6 +73,7 @@ NativeDisplayPreferences loadDisplayPreferences(const std::filesystem::path& pat
     while(std::getline(input,extra))if(!extra.empty()&&!playerSelectionLine(extra))return {};
     preferences.fullscreen=full=="fullscreen=1";preferences.interpolate=motion=="interpolate=1";return preferences;
 }
+NativeDisplayPreferences loadDisplayPreferences(const std::filesystem::path& path){return readDisplayPreferences(path).value_or(NativeDisplayPreferences{});}
 bool saveDisplayPreferences(const std::filesystem::path& path,const NativeDisplayPreferences& preferences){
     validatePath(path);
     std::error_code error;if(path.has_parent_path())std::filesystem::create_directories(path.parent_path(),error);

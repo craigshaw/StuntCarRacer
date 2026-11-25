@@ -5,6 +5,7 @@ import hashlib
 import json
 from pathlib import Path
 import subprocess
+import uuid
 
 from native_build import NATIVE_BUILD, ORACLE_BUILD, build_sources, configure_command
 from check_native_startup import sources as startup_sources
@@ -309,15 +310,19 @@ def main():
         raise RuntimeError('Sources changed during native game checks')
     if (identity(ROOT / 'logo.png') if (ROOT / 'logo.png').exists() else None) != artwork:
         raise RuntimeError('Launcher artwork changed during native game checks')
+    clean_release = output / ('release-' + uuid.uuid4().hex)
+    build([['cmake', '--install', binary_dir, '--config', 'Release', '--prefix', clean_release]], output / 'install-release.log')
+    release = check_release(clean_release)
+    if release['status'] != 'passed':
+        raise RuntimeError('Clean distribution failed release safeguards: ' + '; '.join(release['problems']))
     build([['cmake', '--install', binary_dir, '--config', 'Release', '--prefix', ROOT / 'dist']], output / 'install.log')
     staged = ROOT / 'dist/Stunt Car Racer.exe'
     if identity(staged)['sha256'] != identity(executable)['sha256']:
         raise RuntimeError('Staged player executable differs from the checked build')
-    release = check_release(ROOT / 'dist')
-    if release['status'] != 'passed':
-        raise RuntimeError('Staged player failed release safeguards: ' + '; '.join(release['problems']))
+    if identity(clean_release / 'Stunt Car Racer.exe')['sha256'] != identity(staged)['sha256']:
+        raise RuntimeError('Clean distribution and installed player differ')
     report = {'status': 'passed', 'capture_input': False, 'rom_input': False, 'cpu_emulation': False,
-              'pack': identity(pack), 'game': identity(staged), 'build_game': identity(executable), 'sources': records, 'artwork': artwork, 'release': release, 'launcher_disk': disk_fixture, 'launcher': launcher,
+              'pack': identity(pack), 'game': identity(staged), 'build_game': identity(executable), 'sources': records, 'artwork': artwork, 'release': release, 'release_directory': str(clean_release), 'launcher_disk': disk_fixture, 'launcher': launcher,
               'integration': integration, 'navigation': navigation, 'opening': opening, 'startup': startup, 'bridge_driving': bridge,
               'season': season, 'multiplayer': multiplayer, 'career': career, 'autosave': autosave, 'hall_browser': browser, 'saves': saves, 'save_store': storage, 'display': display, 'controls': controls, 'original_comparisons': original}
     (output / 'check-results.json').write_text(json.dumps(report, indent=2) + '\n')

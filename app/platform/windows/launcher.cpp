@@ -16,7 +16,7 @@ namespace {
 constexpr COLORREF background=RGB(16,21,28),panel=RGB(28,35,44),ink=RGB(241,242,235),muted=RGB(172,184,197),line=RGB(53,65,79),amber=RGB(239,186,75);
 bool isCombo(unsigned id){return (id>=LauncherDisplay&&id<=LauncherNavigation)||id==LauncherScaleDetail||id==LauncherView||id==LauncherTiming;}
 unsigned preferenceRow(unsigned id){return id==LauncherScaleDetail?5:id==LauncherView?6:id==LauncherTiming?8:id-LauncherDisplay;}
-constexpr unsigned focusOrder[]{0,1,2,3,10,4,5,6,11,12,7,8,9};
+constexpr unsigned focusOrder[]{0,1,2,3,10,4,5,6,11,12,7,13,14,15,19,20,21,16,17,18,8,9};
 void fill(HDC dc,RECT rect,COLORREF colour){const auto brush=CreateSolidBrush(colour);FillRect(dc,&rect,brush);DeleteObject(brush);}
 void text(HDC dc,HFONT font,RECT rect,const std::wstring& value,COLORREF colour,unsigned flags=DT_LEFT|DT_VCENTER|DT_SINGLELINE){
     const auto previous=SelectObject(dc,font);SetTextColor(dc,colour);SetBkMode(dc,TRANSPARENT);
@@ -92,6 +92,8 @@ void WindowsLauncher::create(HWND parent){
     for(const auto label:{L"Original",L"Enhanced (milliseconds)"})SendMessageW(controls_[12],CB_ADDSTRING,0,reinterpret_cast<LPARAM>(label));
     SetWindowTextW(controls_[1],L"Details");SetWindowTextW(controls_[7],L"Restore original defaults");
     SetWindowTextW(controls_[8],L"Quit");SetWindowTextW(controls_[9],L"Play");
+    SetWindowTextW(controls_[13],L"Import saved data...");SetWindowTextW(controls_[14],L"Choose data folder...");SetWindowTextW(controls_[15],L"Choose old Hall folder...");
+    SetWindowTextW(controls_[16],L"Import copies");SetWindowTextW(controls_[17],L"Start fresh");SetWindowTextW(controls_[18],L"Back");
     SetWindowPos(controls_[10],controls_[3],0,0,0,0,SWP_NOMOVE|SWP_NOSIZE|SWP_NOACTIVATE);
     SetWindowPos(controls_[11],controls_[6],0,0,0,0,SWP_NOMOVE|SWP_NOSIZE|SWP_NOACTIVATE);
     SetWindowPos(controls_[12],controls_[11],0,0,0,0,SWP_NOMOVE|SWP_NOSIZE|SWP_NOACTIVATE);
@@ -122,11 +124,25 @@ void WindowsLauncher::layout(HWND window){
     MoveWindow(controls_[7],margin_,settingsY_+8*rowHeight_+px(5),px(200),px(28),TRUE);
     MoveWindow(controls_[8],right-px(224),footerY_+px(21),px(82),buttonHeight,TRUE);
     MoveWindow(controls_[9],right-px(130),footerY_+px(21),px(130),buttonHeight,TRUE);
+    MoveWindow(controls_[13],right-px(190),assetY_+assetHeight_+px(5),px(190),px(28),TRUE);
+    MoveWindow(controls_[14],margin_,assetY_+assetHeight_+px(20),px(220),buttonHeight,TRUE);
+    MoveWindow(controls_[15],right-px(240),assetY_+assetHeight_+px(20),px(240),buttonHeight,TRUE);
+    for(unsigned n=0;n<3;++n)MoveWindow(controls_[19+n],margin_,assetY_+assetHeight_+px(182+42*n),right-margin_,px(36),TRUE);
+    MoveWindow(controls_[16],right-px(160),footerY_+px(21),px(160),buttonHeight,TRUE);
+    MoveWindow(controls_[17],margin_,footerY_+px(21),px(120),buttonHeight,TRUE);
+    MoveWindow(controls_[18],margin_+px(130),footerY_+px(21),px(100),buttonHeight,TRUE);
     InvalidateRect(window,nullptr,FALSE);
 }
 void WindowsLauncher::sync(const NativeLauncher& model){
     if(!parent_)return;
-    SetWindowTextW(controls_[0],model.ready()?L"Change ADF…":L"Choose ADF…");EnableWindow(controls_[9],model.ready());
+    const auto page=model.importPage();const bool importing=page!=LauncherImportPage::None;
+    for(unsigned n=0;n<controls_.size();++n){const bool shown=importing?(n==0||n==18||(page==LauncherImportPage::Review&&(n==14||n==15||n==16||n>=19))||(model.importRequired()&&n==17)):(n<14&&(n!=13||model.importEnabled()));
+        ShowWindow(controls_[n],visible_&&shown?SW_SHOW:SW_HIDE);EnableWindow(controls_[n],page!=LauncherImportPage::Working);}
+    SetWindowTextW(controls_[18],page==LauncherImportPage::Report?L"Done":model.importRequired()?L"Quit":L"Back");
+    const auto& options=model.importOptions();SetWindowTextW(controls_[19],options.replaceSettings?L"Settings: replace with imported choices":L"Settings: keep this collection's choices");
+    SetWindowTextW(controls_[20],options.replaceOriginalHall?L"Original Hall: replace complete archive":L"Original Hall: keep existing archive");
+    SetWindowTextW(controls_[21],options.replaceEnhancedHall?L"Enhanced Hall: replace complete archive":L"Enhanced Hall: keep existing archive");
+    SetWindowTextW(controls_[0],model.ready()?L"Change ADF…":L"Choose ADF…");EnableWindow(controls_[9],model.ready()&&!importing);
     for(unsigned row=0;row<5;++row)SendMessageW(controls_[row+2],CB_SETCURSEL,valueAt(model.preferences(),row),0);
     SendMessageW(controls_[11],CB_SETCURSEL,unsigned(model.preferences().view),0);
     SendMessageW(controls_[12],CB_SETCURSEL,unsigned(model.preferences().timing),0);
@@ -140,7 +156,7 @@ void WindowsLauncher::sync(const NativeLauncher& model){
     SendMessageW(detail,CB_SETCURSEL,valueAt(model.preferences(),5),0);
     InvalidateRect(parent_,nullptr,FALSE);for(const auto control:controls_)InvalidateRect(control,nullptr,FALSE);
 }
-void WindowsLauncher::focusInitial(const NativeLauncher& model){SetFocus(controls_[model.ready()?9:0]);previous_=~0u;}
+void WindowsLauncher::focusInitial(const NativeLauncher& model){SetFocus(controls_[model.importPage()!=LauncherImportPage::None?18:model.ready()?9:0]);previous_=~0u;}
 void WindowsLauncher::paint(HDC dc,int width,int height,const NativeLauncher& model){
     fill(dc,{0,0,width,height},background);
     const auto px=[&](int value){return int(std::lround(value*scale_));};
@@ -163,6 +179,15 @@ void WindowsLauncher::paint(HDC dc,int width,int height,const NativeLauncher& mo
     fill(dc,{margin_,assetY_,right,assetY_+assetHeight_},panel);
     text(dc,fonts_[1],{margin_+px(20),assetY_+px(14),right-px(170),assetY_+px(42)},model.ready()?L"✓  Game data ready":L"Original game data needed",model.ready()?RGB(146,211,168):ink);
     text(dc,fonts_[2],{margin_+px(20),assetY_+px(44),right-px(170),assetY_+px(68)},model.ready()?model.sourceName():L"Choose your supported Amiga ADF to get started.",muted,DT_LEFT|DT_VCENTER|DT_SINGLELINE|DT_END_ELLIPSIS);
+    if(model.importPage()!=LauncherImportPage::None){
+        const auto& source=model.importSource();const int top=assetY_+assetHeight_;
+        if(model.importPage()==LauncherImportPage::Review){
+            text(dc,fonts_[1],{margin_,top+px(70),right,top+px(100)},L"Bring your saved games",ink);
+            text(dc,fonts_[2],{margin_,top+px(104),right,top+px(176)},L"Player data: "+(source.root.empty()?L"Choose a folder":source.root.wstring())+L"\nOriginal Hall: "+source.originalHall.wstring()+L"\nEnhanced Hall: "+source.enhancedHall.wstring(),muted,DT_LEFT|DT_TOP|DT_WORDBREAK|DT_END_ELLIPSIS);
+            text(dc,fonts_[2],{margin_,top+px(318),right,footerY_-px(20)},L"Into this game: "+model.paths().dataRoot.wstring()+L"\nImport copies; old files stay unchanged. Duplicate games need a choice in Browse.\nAn empty Hall receives imported records. Replace archives the previous complete Hall.\nMoved the game? Choose its old Hall folder to include those records.\nStart fresh keeps this collection independent and never imports in the background.\n"+model.importMessage(),muted,DT_LEFT|DT_TOP|DT_WORDBREAK);
+        }else text(dc,fonts_[1],{margin_,top+px(50),right,footerY_-px(20)},model.importMessage(),ink,DT_LEFT|DT_TOP|DT_WORDBREAK);
+        fill(dc,{0,footerY_,width,height},panel);return;
+    }
     if(details_){
         text(dc,fonts_[2],{margin_,assetY_+assetHeight_+px(33),right,settingsY_-px(20)},
             L"Supported ADFs: "+supportedAdfNames()+L"\nGame data: "+model.paths().pack.wstring(),muted,DT_LEFT|DT_TOP|DT_WORDBREAK);
@@ -210,6 +235,18 @@ void WindowsLauncher::drawButton(const DRAWITEMSTRUCT& item){
 }
 HBRUSH WindowsLauncher::controlColour(HDC dc){SetTextColor(dc,ink);SetBkColor(dc,background);return inputBrush_;}
 LauncherAction WindowsLauncher::command(unsigned id,NativeLauncher& model){
+    if(id==LauncherImportData){model.openDataImport();sync(model);focusInitial(model);return LauncherAction::None;}
+    if(model.importPage()!=LauncherImportPage::None){
+        if(model.importPage()==LauncherImportPage::Working)return LauncherAction::None;
+        if(id==LauncherImportFolder)return LauncherAction::ChooseImportFolder;
+        if(id==LauncherImportHall)return LauncherAction::ChooseImportHall;
+        if(id==LauncherAdf)return LauncherAction::ChooseAdf;
+        if(id>=LauncherImportSettings&&id<=LauncherImportEnhanced)model.changeImportOption(id-LauncherImportSettings);
+        if(id==LauncherImportApply)model.applyDataImport();
+        if(id==LauncherImportFresh)model.freshData();
+        if(id==LauncherImportBack){if(model.importRequired()&&model.importPage()==LauncherImportPage::Review)return LauncherAction::Quit;model.closeDataImport();}
+        sync(model);if(id<LauncherImportSettings||id>LauncherImportEnhanced)focusInitial(model);return LauncherAction::None;
+    }
     if(id==LauncherAdf)return LauncherAction::ChooseAdf;
     if(id==LauncherPlay)return model.ready()?LauncherAction::Play:LauncherAction::None;
     if(id==LauncherQuit)return LauncherAction::Quit;
@@ -223,12 +260,13 @@ void WindowsLauncher::selectFocus(int direction,const NativeLauncher& model){
     const auto focus=GetFocus();int current=-1;
     for(unsigned n=0;n<controls_.size();++n)if(controls_[focusOrder[n]]==focus)current=int(n);
     for(unsigned n=0;n<controls_.size();++n){current=(current+int(controls_.size())+direction)%int(controls_.size());
-        const auto index=focusOrder[current];if(index!=9||model.ready()){SetFocus(controls_[index]);return;}}
+        const auto index=focusOrder[current];if(IsWindowVisible(controls_[index])&&IsWindowEnabled(controls_[index])&&(index!=9||model.ready())){SetFocus(controls_[index]);return;}}
 }
 LauncherAction WindowsLauncher::navigate(unsigned navigation,NativeLauncher& model){
     const unsigned pressed=navigation&~previous_;previous_=navigation;
     if(!pressed)return LauncherAction::None;
-    if(pressed&32)return LauncherAction::Quit;
+    if(pressed&32){if(model.importPage()==LauncherImportPage::Working)return LauncherAction::None;
+        if(model.importPage()!=LauncherImportPage::None&&!model.importRequired()){model.closeDataImport();sync(model);focusInitial(model);return LauncherAction::None;}return LauncherAction::Quit;}
     if(pressed&1)selectFocus(-1,model);else if(pressed&2)selectFocus(1,model);
     const auto id=unsigned(GetDlgCtrlID(GetFocus()));
     if(isCombo(id)&&(pressed&(4|8|16))){model.change(preferenceRow(id),(pressed&4)?-1:1);sync(model);return LauncherAction::None;}

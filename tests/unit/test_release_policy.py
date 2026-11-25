@@ -109,6 +109,17 @@ class ReleasePolicyTests(unittest.TestCase):
             self.assertEqual(result['status'], 'failed')
             self.assertEqual(len(result['problems']), 2)
 
+    def test_installed_check_preserves_player_data(self):
+        with temporary_directory('release-policy') as directory:
+            root = self.bundle(directory)
+            data = root / 'data' / 'careers'
+            data.mkdir(parents=True)
+            saved = data / 'example.scr-career'
+            saved.write_bytes(b'player data')
+            self.assertEqual(check_release(root, installed=True)['status'], 'passed')
+            self.assertEqual(check_release(root)['status'], 'failed')
+            self.assertEqual(saved.read_bytes(), b'player data')
+
     def test_missing_directory_is_rejected(self):
         with temporary_directory('release-policy') as directory:
             self.assertEqual(check_release(Path(directory) / 'absent')['status'], 'failed')

@@ -1,9 +1,8 @@
 param(
     [string]$Adf,
-    [string]$AssetPack = 'analysis/assets/stunt-car-racer.scr-assets',
-    [string]$SaveFile = 'working/saves/stunt-car-racer.scr-save',
-    [string]$SettingsFile = 'working/settings/display.ini',
     [string]$DataDirectory = 'working/player-data',
+    [string]$ImportFrom,
+    [string]$RecordingsDirectory,
     [switch]$Fullscreen,
     [switch]$Interpolate,
     [switch]$SkipBuild
@@ -12,10 +11,8 @@ $ErrorActionPreference = 'Stop'
 $taskRoot = Split-Path -Parent $PSScriptRoot
 . (Join-Path $PSScriptRoot 'env.ps1')
 $pythonTool = Get-ScrPython
-if (-not [System.IO.Path]::IsPathRooted($AssetPack)) { $AssetPack = Join-Path $taskRoot $AssetPack }
-if (-not [System.IO.Path]::IsPathRooted($SaveFile)) { $SaveFile = Join-Path $taskRoot $SaveFile }
-if (-not [System.IO.Path]::IsPathRooted($SettingsFile)) { $SettingsFile = Join-Path $taskRoot $SettingsFile }
 if (-not [System.IO.Path]::IsPathRooted($DataDirectory)) { $DataDirectory = Join-Path $taskRoot $DataDirectory }
+$AssetPack = Join-Path $DataDirectory 'assets/stunt-car-racer.scr-assets'
 $checkArguments = @((Join-Path $PSScriptRoot 'check_native_game.py'), '--pack', $AssetPack)
 if ($Adf) { $checkArguments += @('--adf', $Adf) }
 if ($SkipBuild) { $checkArguments += '--skip-build' }
@@ -27,9 +24,9 @@ try {
     if ($LASTEXITCODE -ne 0) { throw 'Native game checks failed. See analysis/native-game/.' }
     $checked = Get-Content (Join-Path $taskRoot 'analysis/native-game/check-results.json') -Raw | ConvertFrom-Json
     $executable = Join-Path $taskRoot $checked.game.path
-    $arguments = @('--asset-pack', $AssetPack, '--recordings-dir', (Join-Path $taskRoot 'analysis/live-driving'), '--save-file', $SaveFile)
-    $arguments += @('--settings-file', $SettingsFile)
-    $arguments += @('--data-dir', $DataDirectory)
+    $arguments = @('--data-dir', $DataDirectory)
+    if ($ImportFrom) { $arguments += @('--import-from', $ImportFrom) }
+    if ($RecordingsDirectory) { $arguments += @('--recordings-dir', $RecordingsDirectory) }
     if ($Fullscreen) { $arguments += '--fullscreen' }
     if ($Interpolate) { $arguments += '--interpolate' }
     $quotedArguments = ($arguments | ForEach-Object { '"' + $_ + '"' }) -join ' '

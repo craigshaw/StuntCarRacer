@@ -67,3 +67,4 @@ __pycache__/
 *.scr-multiplayer*
 *.scr-transaction*
 *.scr-folder*
+*.scr-import*

@@ -329,7 +329,7 @@ Original files are neither imported nor reinterpreted.
 
 | Data | Enhanced namespace |
 | --- | --- |
-| Private career PB | Legacy `ghosts-enhanced-v1/<career>/<track>-normal.scr-ebest` or `-super.scr-ebest`; explicit roots use those filenames in `careers/<label>/personal-bests/enhanced/` |
+| Private career PB | `careers/<label>/personal-bests/enhanced/<track>-normal.scr-ebest` or `-super.scr-ebest`; the old flat tree is an explicit import source |
 | Shared Hall | Installation `hall-enhanced-v1/`; explicit player `--data-dir` uses `hall-of-fame/enhanced/`. Legacy path-only test/tool constructors retain `<original-hall-name>-enhanced-v1/` |
 | Shared index | `index.scr-ehall` and its own two backups, temporary file and lock |
 | Shared lap recording | `ghosts/<attempt-id>.scr-eghost` inside the Enhanced Hall root |

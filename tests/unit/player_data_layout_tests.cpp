@@ -34,18 +34,18 @@ int main(int argc,char** argv)try{
     require(playerDataLayout("relative-data").root==output/"cwd/relative-data","Explicit relative root used the wrong working directory");
     require(playerDataLayout(layout.root/".."/"data").root==layout.root,"Lexical root alias changed the layout");
 #ifdef _WIN32
-    const NativeLaunchPaths defaults{output/"old.pack",output/"old.ini",output/"old.save",{},output/"old-root"};
+    const auto defaultLayout=playerDataLayout(output/"default-root");
+    const NativeLaunchPaths defaults{defaultLayout.pack,defaultLayout.settings,{},defaultLayout.root};
     const auto normal=parseNativeLaunchOptions(defaults,{});
-    require(!normal.dataLayout&&normal.paths.pack==defaults.pack&&normal.paths.settings==defaults.settings&&normal.paths.save==defaults.save&&normal.paths.dataRoot==defaults.dataRoot,"Stage 1 changed normal launch defaults");
+    require(normal.dataLayout&&normal.paths.dataRoot==defaults.dataRoot&&!normal.explicitDataRoot,"Normal launches are not portable");
     const auto isolated=parseNativeLaunchOptions(defaults,{L"--data-dir",L"relative-data",L"--fullscreen",L"--windowed",L"--interpolate"});
-    require(isolated.dataLayout.has_value()&&isolated.paths.dataRoot==output/"cwd/relative-data","CLI root was not resolved once");
+    require(isolated.dataLayout&&isolated.explicitDataRoot&&isolated.paths.dataRoot==output/"cwd/relative-data","CLI root was not resolved once");
     const auto& paths=isolated.paths;
-    require(paths.pack==isolated.dataLayout->pack&&paths.settings==isolated.dataLayout->settings&&paths.save==isolated.dataLayout->save,"Whole-root override leaked legacy paths");
+    require(paths.pack==isolated.dataLayout->pack&&paths.settings==isolated.dataLayout->settings,"Whole-root override leaked legacy paths");
     require(paths.recordings.empty()&&isolated.fullscreen==false&&isolated.interpolate==true,"CLI enabled recording or lost transient presentation overrides");
-    const auto before=parseNativeLaunchOptions(defaults,{L"--asset-pack",L"external.pack",L"--settings-file",L"external.ini",L"--save-file",L"external.save",L"--recordings-dir",L"recordings",L"--data-dir",L"data"});
-    const auto after=parseNativeLaunchOptions(defaults,{L"--data-dir",L"data",L"--asset-pack",L"external.pack",L"--settings-file",L"external.ini",L"--save-file",L"external.save",L"--recordings-dir",L"recordings"});
-    require(before.paths.pack==after.paths.pack&&before.paths.settings==after.paths.settings&&before.paths.save==after.paths.save&&before.paths.recordings==after.paths.recordings,"Explicit file override depends on option order");
-    require(before.paths.pack==output/"cwd/external.pack"&&before.paths.settings==output/"cwd/external.ini"&&before.paths.save==output/"cwd/external.save","Explicit compatibility overrides were lost");
+    const auto imported=parseNativeLaunchOptions(defaults,{L"--import-from",L"old-data",L"--import-hall-from",L"old-hall",L"--recordings-dir",L"recordings"});
+    require(imported.importFrom==output/"cwd/old-data"&&imported.importHallFrom==output/"cwd/old-hall"&&imported.paths.recordings==output/"cwd/recordings","Explicit import or recording option differs");
+    for(const auto* retired:{L"--asset-pack",L"--settings-file",L"--save-file"})rejected([&]{parseNativeLaunchOptions(defaults,{retired,L"external"});});
     require(!fs::exists(paths.dataRoot),"Parsing arguments created the data root");
     rejected([&]{parseNativeLaunchOptions(defaults,{L"--unknown"});});
     rejected([&]{parseNativeLaunchOptions(defaults,{L"--data-dir"});});

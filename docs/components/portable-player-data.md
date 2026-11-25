@@ -1,9 +1,10 @@
 # Portable player data and multiplayer saves
 
-Status: design accepted on 23 November 2026. Stages 1–4 are implemented with
+Status: design accepted on 23 November 2026. Stages 1–5 are implemented with
 automated verification; a real second-Windows-account acceptance check remains
-pending. Stages 5–6 are pending. Normal launches still use the existing Windows data
-locations; multiplayer now uses native named games and autosave. [Sessions](sessions.md) and
+pending. Stage 6 final acceptance remains pending. Normal launches use the
+executable's `data/`, with explicit copy-based import and native multiplayer
+autosave/Resume. [Sessions](sessions.md) and
 [player paths](../playing.md#data-and-recovery) describe the current build.
 [ADR 0004](../adr/0004-portable-player-data.md) records the ownership decision.
 
@@ -65,9 +66,9 @@ Stunt Car Racer/
         ghosts/
 ```
 
-Explicit `--data-dir` launches implement the career and Hall paths above. The
-normal-launch portable default and migration remain pending. Named multiplayer
-folders are active on both explicit and existing default roots.
+Normal and explicit `--data-dir` launches implement the paths above.
+[Copy-based import](player-data-import.md) converts recognised older layouts
+through an explicit launcher choice, preserving source files.
 The two Hall categories retain their
 independent indexes, retained recordings and recovery generations. Version
 numbers belong in file headers, rather than ordinary category directory names.
@@ -349,7 +350,8 @@ the whole explicit root and protect it before launcher initialization. The lock
 uses filesystem directory identity for window activation and a process-held byte
 lock released by exit/crash. Hall locations are explicit and portable directories
 inherit normal permissions; path-only archive constructors retain legacy test/tool
-semantics. Normal launch defaults remain unchanged. Stage 2 adds folder careers
+semantics. Stage 1 kept normal launch defaults unchanged; stage 5 enables portable
+defaults. Stage 2 adds folder careers
 under explicit roots; stage 4 replaces player manual multiplayer with named games.
 
 Automated checks cover CLI precedence/working-directory independence, aliases,
@@ -496,7 +498,7 @@ images, scoped CTest results and source/fixture/executable identities live under
 `analysis/portable-player-data/stage-4/`. Host input is synthetic; physical controller,
 real second-account and clean-machine portability acceptance remain pending.
 
-### 5. Deliver migration and enable portable defaults — pending
+### 5. Deliver migration and enable portable defaults — implemented
 
 Implement source discovery, explicit import/fresh-start choices and validated
 transactional publication, including both Hall categories and all supported
@@ -510,6 +512,31 @@ Exit: fresh install, existing install, moved old install, interrupted/repeated
 import, incompatible sources, another Windows account and explicit developer
 roots behave as specified. Originals remain untouched. A later launch reads only
 the chosen root and does not silently repopulate it from old Windows locations.
+
+`PlayerDataImport` supplies read-only source discovery/validation, grouping of flat
+careers and both PB categories, native-folder copying, settings/selection migration
+and complete Hall copying. Unknown or damaged files and orphan bests are retained
+and reported. Populated destinations preserve existing games for the common
+conflict service; Hall replacement requires an explicit category choice and keeps
+the previous complete archive. Content receipts prevent duplicate imports.
+
+The launcher offers review/folder selection, Import copies and Start fresh, then
+performs import off-thread. Collection journals extend `FolderTransactions` while
+keeping version-1 saved-game recovery compatible; recovery finishes under the root
+lock before any launcher/session reads. Portable defaults now follow the executable
+directory. The player exposes one data-root override and explicit import/recording
+options; helpers no longer split player settings/assets/save paths or enable
+recording implicitly. Clean distribution checks are separate from updating a
+played-in installation, whose `data/` is preserved.
+
+Automated checks cover all PB recoveries, exact native memory/RNG and subsequent
+driving, fifteen collection process-interruption boundaries, future/corrupt sources,
+junction rejection, repeat/fresh choices, existing-root conflicts and Hall integrity.
+The real player is launched from another working directory, moved and renamed,
+then copied into an independently editable collection without its ADF. Launcher
+review/working/report images, CTest logs and matching source/fixture/executable
+receipts live in `analysis/portable-player-data/stage-5/`. Actual second-account,
+physical-controller and separate clean-machine acceptance remain stage 6 work.
 
 ### 6. Verify portability and stage the release — pending
 

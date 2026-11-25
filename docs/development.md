@@ -44,8 +44,9 @@ Use the same preset for configure, build and CTest. An app-only build uses
 can omit tests/viewers with `-DBUILD_TESTING=OFF -DSCR_BUILD_DEV_TOOLS=OFF`.
 `SCR_BUILD_ORACLE` defaults to OFF and requires testing.
 
-Install produces exactly `Stunt Car Racer.exe`, `LICENSE` and
-`THIRD_PARTY_NOTICES.md` under `dist/`. Assets, settings and saves are not bundled.
+Install updates `Stunt Car Racer.exe`, `LICENSE` and `THIRD_PARTY_NOTICES.md`
+under `dist/`, preserving any existing `data/`. Distribute a separate clean install
+prefix; player data is never part of a release bundle.
 The approved launcher logo is the sole embedded-artwork exception: a local
 `logo.png` must match `setup/branding.json`. Unknown artwork fails configuration;
 replacement requires provenance review and a pin update. Builds without it use
@@ -56,7 +57,10 @@ Before distributing the folder, run:
 python scripts/check_release.py
 ```
 
-This checks the file list, current notices, x64 executable and embedded resources.
+This checks a clean distribution's file list, notices, x64 executable and resources.
+Use `--installed` to check a played-in folder without rejecting its `data/`; that
+check does not certify a distributable bundle. The game wrapper verifies a separate
+clean CMake Install prefix before updating `dist/`.
 Only version information, the Windows manifest and the exact approved logo are
 accepted. The game wrapper also runs it after staging.
 
@@ -89,27 +93,28 @@ git config core.hooksPath .githooks
 ```
 
 `Drive Native.cmd` is a provisional build/check/launch helper. It uses checkout-local
-assets and `working/` data; ordinary launches use per-user Windows data.
+assets and `working/player-data/`; ordinary launches use the executable's `data/`.
 `-Adf <path>` imports through the helper; otherwise a missing pack uses the default
 root ADF filename. Development imports stay under `analysis/`.
 
-Native `--asset-pack`, `--settings-file` and `--save-file` override individual paths;
-`--data-dir` now supplies the complete isolated layout: assets, `settings.ini`,
-careers, named `multiplayer/` games and `hall-of-fame/original/` and
-`hall-of-fame/enhanced/`. Explicit individual file overrides still win regardless
-of argument order; the helper retains these for existing checkout-local paths and
-defaults its data root to `working/player-data/`. `--recordings-dir` explicitly
-enables recording. Normal launches still use the existing Windows data locations.
+`--data-dir` overrides the complete layout: assets, `settings.ini`, careers,
+named `multiplayer/` games and both `hall-of-fame/` categories. The player no longer
+accepts `--asset-pack`, `--settings-file` or `--save-file`; direct-race/replay tools
+keep their separate interfaces. `--recordings-dir` explicitly enables recording;
+the development launch helper records only when `-RecordingsDirectory` is supplied.
+`--import-from <old-data-root>` opens an explicit import review. For an old
+ProgramData archive, add `--import-hall-from <old-Original-Hall-folder>`; its
+Enhanced sibling is identified separately. The launcher also offers folder pickers.
 Explicit roots now discover self-contained `careers/<label>/career.scr-career`
 folders, with both PB categories and recovery files inside each career. Copy or
 rename complete career folders while the game is closed; duplicate identities
 offer Replace / Keep Both / Cancel. Last-used IDs share the resolved settings file,
-including a `--settings-file` override, through coordinated preference writes.
-Older explicit-root flat career/PB layouts and `shared-hall/` archives are not moved
-automatically; migration is a later [portable-data stage](components/portable-player-data.md).
-The player uses native named multiplayer games on both explicit and default roots;
-`--save-file` remains accepted for existing helpers but its legacy slots are unused
-by the player. Isolated original/development sessions retain the old codec routes.
+through coordinated preference writes. An old explicit root offers its own flat
+layout conversion without discovering real AppData. Choose Import explicitly;
+Start fresh preserves the old files and keeps the new folder layout independent.
+See the [import contract](components/player-data-import.md) for validation, recovery
+and conflict handling. Isolated original/development sessions retain legacy codec
+routes; player migration excludes manual multiplayer slot files.
 See [scripts](../scripts/README.md), [player data](playing.md#data-and-recovery)
 and [asset import](components/assets.md).
 

@@ -6,6 +6,7 @@
 #include <filesystem>
 #include <iterator>
 #include <string>
+#include <optional>
 
 namespace scr::runtime {
 enum class NativeScaling { Integer, Fit, Stretch };
@@ -28,6 +29,8 @@ struct NativeDisplayPreferences {
     }
 };
 NativeDisplayPreferences loadDisplayPreferences(const std::filesystem::path&);
+// Migration distinguishes a supported document from fallback display defaults.
+std::optional<NativeDisplayPreferences> readDisplayPreferences(const std::filesystem::path&);
 bool saveDisplayPreferences(const std::filesystem::path&,const NativeDisplayPreferences&);
 const wchar_t* scalingName(NativeScaling)noexcept;
 const wchar_t* filteringName(NativeFiltering)noexcept;

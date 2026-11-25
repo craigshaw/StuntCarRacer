@@ -61,6 +61,8 @@ scr_test(player_data_layout_tests "native;unit;storage" "" "${test_output}/playe
 scr_test(software_renderer_tests "native;assets" "${SCR_TEST_PAYLOAD}" "${SCR_TEST_PAYLOAD}")
 
 if(WIN32)
+  scr_test(player_data_import_tests "native;assets;storage;ui" "${SCR_TEST_ASSET_PACK}" "${SCR_TEST_ASSET_PACK}" "${test_output}/player_data_import_tests" "$<TARGET_FILE:native_game>")
+  set_tests_properties(player_data_import_tests PROPERTIES RUN_SERIAL TRUE)
   scr_test(native_multiplayer_store_tests "native;unit;storage" "" "${test_output}/native_multiplayer_store_tests")
   set_tests_properties(native_multiplayer_store_tests PROPERTIES RUN_SERIAL TRUE)
   scr_test(native_multiplayer_saved_session_tests "native;assets;storage;ui" "${SCR_TEST_ASSET_PACK}"

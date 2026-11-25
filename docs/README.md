@@ -23,7 +23,7 @@
 - [0001 — Native career checkpoints and independent Hall](adr/0001-native-career-checkpoints.md).
 - [0002 — Application-owned asset import](adr/0002-native-application-owns-asset-import.md).
 - [0003 — Per-user player data](adr/0003-per-user-player-data.md), superseded as
-  a design decision by ADR 0004; still describes current runtime paths.
+  a design decision by ADR 0004; retained as the historical migration source layout.
 - [0004 — Portable player data and native multiplayer continuation](adr/0004-portable-player-data.md).
 
 ## Implementation plans
@@ -34,7 +34,9 @@
   whole-root development overrides, process-held ownership and self-contained
   career folders with copy resolution, plus [native multiplayer checkpoints](components/multiplayer-checkpoints.md).
   Named multiplayer games now use autosave/Resume and the shared folder lifecycle.
-  Normal-launch portable defaults and migration remain pending.
+  [Portable defaults and copy-based import](components/player-data-import.md) are
+  implemented. Final physical-controller, second-account and clean-machine
+  acceptance remains pending.
 
 ## Optional features
 

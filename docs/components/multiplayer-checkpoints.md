@@ -3,7 +3,8 @@
 Status: native checkpoint capture/restore and the stage-4 named-game player journey
 are implemented. `NativeMultiplayerStore` supplies durable autosave and the shared
 folder lifecycle; `native_multiplayer_session.cpp` owns setup/home/library routes.
-Portable default paths and migration remain later [stages](portable-player-data.md).
+Portable default paths and copy-based migration are implemented in
+[stage 5](player-data-import.md).
 There is no legacy-slot importer.
 
 `app/persistence/native_multiplayer_checkpoint.*` owns validation and encoding.

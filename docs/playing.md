@@ -270,26 +270,23 @@ second; it is independent of simulation and types normally during name entry.
 
 ## Data and recovery
 
-Normal launches use `%LOCALAPPDATA%/Stunt Car Racer/`:
+All player data lives in `data/` beside `Stunt Car Racer.exe`. Everyone using that
+game folder sees the same settings, careers and records. Move the whole folder
+to carry them with you; a copy is independent. Use a writable folder if Windows
+denies access. The game does not fall back to AppData.
 
 | Location | Content |
 | --- | --- |
 | `assets/` | Imported pack and provenance |
-| `settings/display.ini` | Shared preferences |
-| `careers/`, `last.scr-index` | Native careers and last-used identity |
-| `ghosts/<career-id>/` | Saved personal bests and their ghost recordings |
-| `ghosts-enhanced-v1/<career-id>/` | Independent Enhanced PBs and recordings |
+| `settings.ini` | Shared preferences and separate last-used career/game choices |
+| `careers/<driver>-<short-id>/` | Career checkpoint, private bests/ghosts and recoveries |
 | `multiplayer/<title>-<short-id>/game.scr-multiplayer` | Named multiplayer game and adjacent recovery generations |
+| `hall-of-fame/original/`, `hall-of-fame/enhanced/` | Independent shared records, recordings and recoveries |
+| `migration.scr-import`, `migration-recovery/` | Import decision/receipts and any preserved unavailable or replaced contents |
 
-The Original archive uses `%PROGRAMDATA%/Stunt Car Racer/instances/<installation-id>/hall/`.
-Enhanced records sit beside it in `hall-enhanced-v1/`. Both are shared across
-Windows accounts using that installation directory. Replacing
-the executable in place keeps it; another installation directory has a separate
-archive. Old per-user `hall.scr-hall` files remain untouched and are not imported.
-Development launches with `--data-dir` use isolated `hall-of-fame/original/` and
-`hall-of-fame/enhanced/` directories instead. That override also supplies assets,
-`settings.ini` and saves unless individual development file paths are specified.
-Explicit roots use self-contained `careers/<label>/` folders. Each contains
+Replacing the executable preserves `data/`; do not replace that folder when
+updating the game. Development launches can select another complete root with
+`--data-dir`. Self-contained career folders contain
 `career.scr-career`, its recovery copies and `personal-bests/original/` and
 `personal-bests/enhanced/` with their recordings and recoveries. Copy or rename
 the whole career folder with the game closed; it appears in Browse Careers
@@ -306,8 +303,19 @@ Copy to a distinct folder first: overwriting files outside the game bypasses
 these choices. Deleting a career removes its complete folder, including private
 bests and recoveries, while the shared Hall remains independent.
 
-The portable default and migration of old flat career/PB files are still in
-development; existing explicit-root data is not converted automatically.
+On first use, an empty game folder offers Import copies or Start fresh when it
+finds your old Windows data. Import copies supported assets, settings, careers,
+personal bests, native multiplayer games and both Hall categories. Original files
+stay unchanged. Start fresh records your choice; later launches or another
+Windows user will not silently fill the folder from their old data.
+
+Import saved data in the launcher opens the review again. Choose the old player
+data folder and check the Hall paths. If the executable has moved, choose its old
+Original Hall folder explicitly to include those records. Existing settings/Halls
+are kept unless you select replacement; replacing a Hall retains its previous
+complete contents in migration recovery. Duplicate games use the same Browse
+conflict choices as copied folders. Damaged/unsupported data is retained and
+reported. Old manual multiplayer slots and per-user winning banks are excluded.
 
 A second launch using the same data directory brings the existing window forward
 where accessible, otherwise reports that the folder is in use. A process-held
@@ -318,8 +326,8 @@ Continue without saving retains current RAM progress, and later checkpoints retr
 Switching saved games or closing waits for writes and offers Retry/Leave unsaved/Cancel
 if needed. Leaving unsaved can lose progress since the last successful write.
 
-Careers and shared records keep two previous valid generations; the legacy
-last-used index does too. Explicit roots store last-used identities in settings,
+Careers, multiplayer games and shared records keep two previous valid generations.
+Last-used identities are preferences in settings,
 so losing preferences does not hide saved careers.
 A damaged/missing current file recovers the newest valid copy with a notice.
 With no usable copy a career stays unavailable until explicit selection/creation/deletion.
@@ -328,8 +336,10 @@ failure; there is no Hall reset or individual delete action.
 Ghost recordings also keep two recovery copies. An unavailable saved ghost can
 be explicitly cleared from the Practice Game menu; a write failure keeps the
 best in memory and the last good file. Unsupported formats are left untouched.
-Preferences also replace files atomically; invalid/missing preferences use defaults,
-while supported older versions migrate. Failed Apply offers retry.
+Preferences also replace files atomically; missing settings use defaults and
+supported older versions migrate. Damaged/unsupported settings require explicit
+Restore original defaults in the launcher, preserving the old document before
+replacement. Failed Apply offers retry.
 
 See [development](development.md) for checkout-local paths, command-line overrides,
 recording and checks. The direct-race and captured replay viewers have different

@@ -92,7 +92,7 @@ def player_resources(data):
     return result
 
 
-def check_release(directory, *, branding=None):
+def check_release(directory, *, branding=None, installed=False):
     directory = Path(directory)
     problems = []
     files = []
@@ -105,6 +105,8 @@ def check_release(directory, *, branding=None):
     for name in sorted(expected - entries.keys()):
         problems.append('Missing release file: ' + name)
     for name, path in sorted(entries.items()):
+        if installed and name == 'data' and path.is_dir() and not path.is_symlink():
+            continue
         if name not in expected:
             problems.append('Unexpected release entry: ' + name)
             continue
@@ -133,8 +135,9 @@ def check_release(directory, *, branding=None):
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('directory', nargs='?', type=Path, default=ROOT / 'dist')
+    parser.add_argument('--installed', action='store_true', help='Check an installed player while preserving its existing data directory; never a distribution check')
     args = parser.parse_args()
-    result = check_release(args.directory)
+    result = check_release(args.directory, installed=args.installed)
     print(json.dumps(result, indent=2))
     return result['status'] != 'passed'
 

@@ -5,7 +5,7 @@
 namespace scr::runtime {
 // Resolution is read-only. Session codecs decide how their contents are stored.
 struct PlayerDataLayout {
-    std::filesystem::path root,pack,settings,save,careers,multiplayer;
+    std::filesystem::path root,pack,settings,careers,multiplayer;
     HallArchiveLocation originalHall,enhancedHall;
 };
 PlayerDataLayout playerDataLayout(const std::filesystem::path& root);

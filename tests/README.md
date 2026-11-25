@@ -11,6 +11,15 @@ Use the CMake/CTest presets and [development guide](../docs/development.md) to
 choose checks. Private fixtures and retained receipts stay at their existing
 `analysis/` paths; disposable test output belongs under `build/`.
 
+`player_data_import_tests` covers copy-based legacy/folder migration, all PB
+recoveries, full native/RNG continuation and subsequent updates, Hall preservation,
+idempotent/fresh choices, conflicts and unavailable sources. It terminates fifteen
+child imports across collection publication and launches the real copied/moved/
+renamed player from a different working directory without the ADF. Its junction
+fixture requires execution outside the Codex filesystem sandbox, like the existing
+deny-ACL ownership fixture. This is separate from real second-account/clean-machine
+acceptance. See the [import contract](../docs/components/player-data-import.md).
+
 `native_multiplayer_checkpoint_tests` validates the asset-free multiplayer format
 and unchanged career bytes. `native_multiplayer_checkpoint_session_tests` compares
 all player counts/divisions/leagues across repeated fresh-session restores, both

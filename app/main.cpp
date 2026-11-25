@@ -121,6 +121,7 @@ private:
             else{std::wstring executable(32768,L'\0');const auto count=GetModuleFileNameW(nullptr,executable.data(),DWORD(executable.size()));
                 if(!count||count>=executable.size())throw std::runtime_error("Cannot locate this game installation");executable.resize(count);
                 started->enableCareers(paths.dataRoot,sharedHallPaths(std::filesystem::path(executable).parent_path()).root);}
+            started->enableMultiplayerGames(paths.settings);
             started->setNavigation(launcher_.preferences().navigation);
             started->setTimingCategory(launcher_.preferences().timing);
             settings_=NativeDisplaySettings(launcher_.preferences());

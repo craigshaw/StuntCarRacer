@@ -34,4 +34,6 @@ struct NativeMultiplayerSave {
 };
 MultiplayerBytes encodeNativeMultiplayerSave(const NativeMemory& baseline,const NativeMultiplayerSave&);
 NativeMultiplayerSave decodeNativeMultiplayerSave(const NativeMemory& baseline,const MultiplayerBytes&);
+// Inspect a known outer envelope without accepting its checkpoint for play.
+NativeMultiplayerSave decodeNativeMultiplayerEnvelope(const MultiplayerBytes&);
 } // namespace scr::runtime

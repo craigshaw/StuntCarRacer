@@ -16,8 +16,8 @@
   Practice, with an optional translucent ghost. Practice and career races save best laps.
 - **[Enhanced timing](#enhanced-timing).** Millisecond clocks and separate records,
   with Original timing selectable in Settings and the Hall of Fame.
-- **Local multiplayer.** Championships for 2–8 drivers taking turns, with thirty
-  manual save slots.
+- **Local multiplayer.** Named games for 2–8 drivers, autosave and Resume
+  Championship, with every division and league available during setup.
 - **Widescreen and ultrawide.** Original and Extended 4:3, 16:9 and 32:9 views,
   keeping the original car artwork at the same scale.
 - **Display options.** Optional 60 FPS smoothing, fullscreen, integer scaling

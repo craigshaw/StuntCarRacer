@@ -122,11 +122,12 @@ MultiplayerBytes encodeNativeMultiplayerSave(const NativeMemory& baseline,const 
     Writer w;w.text(saved.info.id);w.text(saved.info.title);w.u64(saved.info.lastPlayed);w.u64(saved.generation);w.u32(std::uint32_t(saved.checkpoint.size()));w.bytes(saved.checkpoint.data(),saved.checkpoint.size());
     return envelope(saveMagic,w.data,nativeMultiplayerSaveMaximumBytes);
 }
-NativeMultiplayerSave decodeNativeMultiplayerSave(const NativeMemory& baseline,const MultiplayerBytes& bytes){
+NativeMultiplayerSave decodeNativeMultiplayerEnvelope(const MultiplayerBytes& bytes){
     const auto body=payload(saveMagic,bytes,nativeMultiplayerSaveMaximumBytes);Reader r{body};NativeMultiplayerSave saved;
     saved.info.id=r.text(32);saved.info.title=r.text(32);saved.info.lastPlayed=r.u64();saved.generation=r.u64();const auto size=r.u32();
     if(size>nativeMultiplayerCheckpointMaximumBytes)throw std::runtime_error("Multiplayer checkpoint exceeds limit");r.require(size);
     saved.checkpoint.assign(body.begin()+r.position,body.begin()+r.position+size);r.position+=size;r.end();validateInfo(saved.info,saved.generation);
-    (void)decodeNativeMultiplayerCheckpoint(baseline,saved.checkpoint);return saved;
+    return saved;
 }
+NativeMultiplayerSave decodeNativeMultiplayerSave(const NativeMemory& baseline,const MultiplayerBytes& bytes){auto saved=decodeNativeMultiplayerEnvelope(bytes);(void)decodeNativeMultiplayerCheckpoint(baseline,saved.checkpoint);return saved;}
 } // namespace scr::runtime

@@ -57,6 +57,9 @@ public:
     void setRecordNotice(std::optional<bool> show)noexcept{recordNotice_=show;}
     NativeMenuAction back();
     void returnFromRace();
+    // Saved-game homes enter the existing Main handlers directly.
+    NativeMenuAction startCompetition();
+    NativeMenuAction startPracticeSelection();
     void cancelPreview();
     void returnFromSave(bool cancelled=false);
     [[nodiscard]] NativeMenuPage page()const noexcept{return page_;}

@@ -28,14 +28,16 @@ original byte/word semantics but is constructed by native code. `tests/support/`
 owns oracle ranges, comparison projections and historical test namespaces;
 production neither includes those headers nor links Musashi.
 
-`scr_game` owns career codecs, storage and folder discovery. Its reusable
-`FolderTransactions` service stages, validates, publishes and recovers complete
+`scr_game` owns career/multiplayer codecs, storage and folder discovery.
+`SavedGameFolders` supplies mode-specific readers/rekeying over shared discovery
+and conflict handling. `FolderTransactions` stages, validates, publishes and recovers complete
 saved-game folders within the owned root. Legacy default paths remain active;
 explicit roots use [portable career folders](components/portable-player-data.md).
 Career and [multiplayer checkpoints](components/multiplayer-checkpoints.md) share
 bounded memory-delta primitives while keeping mode-specific formats and validators.
-Multiplayer capture/restore is implemented independently of its pending autosave/UI
-integration; terminal scoring is staged on private memory.
+`NativeMultiplayerStore` shares the career writer's serial queue, retries and
+departure checks, so both modes' folder transactions cannot race. Its named-game
+controller uses the checkpoint adapter; terminal scoring is staged on private memory.
 
 `RaceScene`, presentation poses and `SoftwareRenderer` are shared by live racing
 and development replay tools. CMake defines production linkage; `cmake/DevTools.cmake`

@@ -173,8 +173,11 @@ if(WIN32)
     app/presentation/hall_browser_render.cpp
     app/session/native_career_session.cpp
     app/session/native_multiplayer_checkpoint_session.cpp
+    app/session/native_multiplayer_session.cpp
     app/persistence/native_career_store.cpp
     app/persistence/career_folders.cpp
+    app/persistence/saved_game_folders.cpp
+    app/persistence/native_multiplayer_store.cpp
     app/persistence/folder_transactions.cpp
     app/persistence/ghost_lap_codec.cpp
     app/persistence/native_career_checkpoint.cpp

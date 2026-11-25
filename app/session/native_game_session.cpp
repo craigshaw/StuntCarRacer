@@ -52,6 +52,7 @@ std::optional<NativeMultiplayerScreen> multiplayerScreen(NativeMenuPage page){
 }
 NativeMenuImage NativeGameSession::menuImage()const{
     if(careerPanel_!=CareerPanel::None)return careerImage();
+    if(multiplayerPanel_!=MultiplayerPanel::None)return multiplayerImage();
     if(saveReturn_==SaveReturn::Roster)return makeNativeCompetitionImage(*data_.memory,NativeMenuPage::Roster,(*data_.memory)[0x1c9ce]);
     if(saveReturn_==SaveReturn::Standings)return makeNativeOpeningStandingsImage(*data_.memory);
     if(saveMenu_)return saveMenu_->image();
@@ -103,7 +104,10 @@ void NativeGameSession::startRace(){
     // Commit the prepared fixture while still in the menu handoff. Active
     // driving never waits for disk I/O; a failure is offered before tick one.
     if(careerStore_)(void)flushStores();
-    if(multiplayerCheckpointEnabled_&&menu_->multiplayer())retainMultiplayerMatchup();
+    if(multiplayerCheckpointEnabled_&&menu_->multiplayer()){
+        retainMultiplayerMatchup();
+        if(multiplayerStore_&&activeMultiplayer_&&!multiplayerPractice_){multiplayerCheckpoint_=multiplayerRaceCheckpoint_;multiplayerStore_->save({activeMultiplayer_->id,activeMultiplayer_->name,activeMultiplayer_->lastPlayed},multiplayerCheckpoint_);(void)flushStores();}
+    }
     previewPrepared_=false;
     restoreCockpit(*data_.memory);initializeNativeRace(*data_.memory);
     race_.loadNativeState(*data_.memory,data_.payload,recordings_);
@@ -274,6 +278,7 @@ void NativeGameSession::setNavigation(NativeMenuNavigation mode){
     if(saveMenu_)saveMenu_->setNavigation(mode);
 }
 unsigned NativeGameSession::navigationScreen()const noexcept{
+    if(multiplayerPanel_!=MultiplayerPanel::None)return 700+unsigned(multiplayerPanel_);
     if(openingActive())return 100+unsigned(opening_->page());
     if(saveMenu_)return 200+unsigned(saveMenu_->phase());
     if(saveReturn_!=SaveReturn::None)return 300+unsigned(saveReturn_);
@@ -289,7 +294,7 @@ NativeGameUpdate NativeGameSession::update(double elapsed,const NativeGameInput&
     if(!std::isfinite(elapsed)||elapsed<0)throw std::invalid_argument("Invalid native game elapsed time");
     ghostNoticeSeconds_=std::max(0.0,ghostNoticeSeconds_-elapsed);
     if(careerStore_&&menu_)menu_->setHallEnabled(activeCareer_.has_value()&&!multiplayer());
-    NativeGameUpdate managed;if(updateMultiplayerFinish(elapsed,held,managed)||updateCareers(elapsed,held,managed))return managed;
+    NativeGameUpdate managed;if(updateMultiplayer(elapsed,held,managed)||updateMultiplayerFinish(elapsed,held,managed)||updateCareers(elapsed,held,managed))return managed;
     const auto oldPage=page();
     if(navigation_==NativeMenuNavigation::Original){const auto screen=navigationScreen();auto result=updateImpl(elapsed,held);observeCareerState(oldPage);if(screen!=navigationScreen())careerClock_.enterScreen(held.menu);return result;}
     NativeGameUpdate initial;finishResponsiveTransitions(initial);
@@ -415,6 +420,7 @@ void NativeGameSession::releaseInput(const NativeMenuInput& held)noexcept{
     driveLatch_.clear();quitPending_=false;
     navigationClock_.clear();navigationClock_.enterScreen(held);
     careerClock_.clear();careerClock_.enterScreen(held);
+    multiplayerClock_.clear();multiplayerClock_.enterScreen(held);
     std::fill_n(data_.memory->begin()+0xead6,128,std::uint8_t{});
 }
 void NativeGameSession::handleSaveAction(const NativeSaveMenuResult& result){
@@ -490,6 +496,7 @@ void NativeGameSession::replayGame(const NativeMenuImage& previous){
 }
 void NativeGameSession::handleOpeningAction(NativeOpeningAction action,const NativeMenuImage& previous,NativeGameUpdate& result){
     if(action==NativeOpeningAction::BeginName){
+        if(multiplayerStore_&&opening_->multiplayer()&&!multiplayerDraft_){(void)depart(Departure::MultiplayerSelect);return;}
         if(careerStore_&&opening_->multiplayer()&&!multiplayerSetup_){(void)depart(Departure::Multiplayer);return;}
         if(careerStore_&&!opening_->multiplayer()&&!creatingCareer_){
             showCareerPanel(CareerPanel::Home);
@@ -518,6 +525,7 @@ void NativeGameSession::handleOpeningAction(NativeOpeningAction action,const Nat
             fade_.fadeToColor(readNativePalette(*data_.memory,0x23c32)[0]);transition_=Transition::OutOpening;
         }
         if(careerStore_&&creatingCareer_&&single)registerCareer();
+        if(multiplayerStore_&&multiplayerDraft_&&!single)registerMultiplayer();
     }
 }
 void NativeGameSession::updateOpening(const NativeGameInput& input,double elapsed,NativeGameUpdate& result){
@@ -547,6 +555,7 @@ const std::vector<std::uint32_t>& NativeGameSession::render(bool interpolate,boo
     ghostConditionsDiffer_=false;
     presentationView_=view;
     if(careerPanel_!=CareerPanel::None){packNativeMenuPixels(careerImage(),pixels_);return pixels_;}
+    if(multiplayerPanel_!=MultiplayerPanel::None){packNativeMenuPixels(multiplayerImage(),pixels_);return pixels_;}
     if(finishPending_){pixels_=finishPixels_;
         if(effectiveTimingCategory()==TimingCategory::Enhanced){std::array<std::uint8_t,96*8> font;std::copy_n(data_.memory->begin()+0x1fe82,font.size(),font.begin());
             const auto colours=readNativePalette(*data_.memory,0x20184);std::array<std::uint32_t,16> palette{};for(unsigned n=0;n<16;++n)palette[n]=originalPaletteRgb(colours[n]);

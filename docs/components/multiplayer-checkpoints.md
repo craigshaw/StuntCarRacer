@@ -1,9 +1,10 @@
 # Native multiplayer checkpoints
 
-Status: the stage-3 codec and session capture/restore foundation are implemented.
-Named-game menus, durable autosave, folder discovery and departure/failure handling
-are stage 4 of the [portable-data plan](portable-player-data.md). The player still
-uses its existing multiplayer journey; this foundation has no legacy-slot importer.
+Status: native checkpoint capture/restore and the stage-4 named-game player journey
+are implemented. `NativeMultiplayerStore` supplies durable autosave and the shared
+folder lifecycle; `native_multiplayer_session.cpp` owns setup/home/library routes.
+Portable default paths and migration remain later [stages](portable-player-data.md).
+There is no legacy-slot importer.
 
 `app/persistence/native_multiplayer_checkpoint.*` owns validation and encoding.
 `app/session/native_multiplayer_checkpoint_session.cpp` captures and restores the
@@ -19,13 +20,15 @@ native memory. The shared primitives in `src/state/native_checkpoint_io.h` retai
 the previous career encoding exactly. The two verified compatible ADF baselines
 use the same existing compatibility identity; arbitrary altered baselines fail.
 
-A separate version-1 saved-game envelope is ready for `game.scr-multiplayer`. It
+A separate version-1 saved-game envelope wraps `game.scr-multiplayer`. It
 adds a full 32-character lowercase hexadecimal host identity, printable nonblank
 title of up to 32 ASCII characters, last-played timestamp and nonzero generation.
 Its checksum covers metadata and the checkpoint. Changing this host identity does
 not rewrite native driver names, memory or progression. Neither codec creates IDs
-or consumes gameplay randomness. Folder publication and generation rotation remain
-the storage worker's stage-4 responsibility.
+or consumes gameplay randomness. The multiplayer store uses the career actor for
+serialized publication, atomic generation rotation, retries and preference writes.
+Copy conflict resolution rekeys the outer envelopes of all supported generations
+without changing their checkpoints. Unknown owner-bound formats block Keep Both.
 
 Checkpoints are limited to 4 MiB including their header; the complete saved-game
 envelope allows an additional 256 bytes. Lengths, delta ranges, flags, names,
@@ -67,10 +70,13 @@ an active race is resumed from its prepared matchup.
 ## Capture and restore boundaries
 
 `NativeGameSession::captureMultiplayerCheckpoint()` enables native checkpoint
-retention after confirmed setup. `restoreMultiplayerCheckpoint(bytes, held)`
+retention after confirmed setup. `restoreMultiplayerCheckpoint(bytes, held, allowUnsaved)`
 validates on private memory and constructs a validated continuation before
 replacing the active session. Rejection leaves the active state intact. Outstanding
-folder work must finish and existing stores must flush before replacement. Held
+folder work must finish and existing stores must flush before replacement. The
+default `allowUnsaved=false` enforces that drain; the player may restore its own
+retained RAM copy after explicit Continue Without Saving, keeping the failure
+visible. Held
 host input is blocked until released. The adapter retains the existing memory
 object because native input/name adapters refer to it.
 
@@ -89,9 +95,11 @@ Only Main, Matchup, Results, Records, RoundResults, Standings, RaceResults and
 TrackResults are serialized menu pages. Race/Preview, single-player season-ending
 pages, name entry and legacy save-disc pages are not accepted checkpoint pages.
 Direct capture during an unsettled transition is rejected. In normal play the
-stage-4 lifecycle will capture these boundaries automatically; callers must capture
-setup before entering the first race. Existing player launches do not enable this
-retention merely by choosing multiplayer.
+lifecycle captures these boundaries automatically, including a drained prepared
+matchup before the first driving tick. Modal home/library rendering does not mutate
+native memory. Opening Continue does not acknowledge a finish or report. Setup is
+published only after confirmed roster/first save; cancellation removes its failed
+jobs, and close waits for copy/delete/cancel operations.
 
 ## Verification
 
@@ -115,8 +123,16 @@ retained display images cover both policies. Populated Original and Enhanced Hal
 archives must keep identical files/generations through restore and notice display.
 
 Existing multiplayer, career/autosave, portable-career and Enhanced UI suites guard
-the current player routes. Focused original-code comparisons use
+the player routes. `native_multiplayer_store_tests` adds generation/recovery,
+catalogue-free discovery, preference coordination, identity conflicts/rekeying and
+transaction fault coverage. `native_multiplayer_saved_session_tests` covers both
+navigation policies, 2/8-player setup across every division/league, interrupted
+races, natural pending finishes, report/track/championship resumes, Practice,
+cross-mode/game independence and failed-save/copy/delete/departure handling.
+The controlled Enhanced notice tests display restoration, not a driven human record.
+Physical-controller acceptance remains separate from synthetic host-input checks.
+Focused original-code comparisons use
 `native_multiplayer_state_tests`, `native_menu_flow_tests` and
 `native_career_state_tests` in `windows-oracle`; Musashi remains test-only.
 Scoped source/fixture/executable identities and CTest logs live in
-`analysis/portable-player-data/stage-3/`.
+`analysis/portable-player-data/stage-3/` and `stage-4/`.

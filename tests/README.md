@@ -16,7 +16,13 @@ and unchanged career bytes. `native_multiplayer_checkpoint_session_tests` compar
 all player counts/divisions/leagues across repeated fresh-session restores, both
 tracks, reports, forfeits, bonuses and reset. See the [checkpoint contract](../docs/components/multiplayer-checkpoints.md)
 for the distinction between natural race finishes and controlled bonus/record
-fixtures, plus the stage-4 player integration boundary.
+fixtures. `native_multiplayer_store_tests` checks shared-worker durability,
+folder discovery, copy resolution, rekeyed generations and publication faults.
+`native_multiplayer_saved_session_tests` covers named-game setup, autosave/Resume,
+failures/departures, copying/deletion, independent careers/games and four-championship
+completion in both navigation policies. It uses synthetic host input rather than
+physical controller acceptance; its Enhanced record notice is a controlled display
+fixture. Rendered menus and source/fixture/executable receipts stay under `analysis/`.
 
 Hall coverage separates pure ranking/codec tests, the Windows merge/recovery
 store, and accepted-completion delivery. `hall_completion_tests` drives the native

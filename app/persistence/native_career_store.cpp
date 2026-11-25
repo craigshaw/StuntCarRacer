@@ -5,6 +5,7 @@
 #include "persistence/native_career_store.h"
 #include "persistence/ghost_lap_codec.h"
 #include "persistence/career_file_io.h"
+#include "persistence/windows_file_path.h"
 #include "persistence/career_folders.h"
 #include "persistence/player_preferences.h"
 #include <algorithm>
@@ -26,7 +27,7 @@ std::filesystem::path generationPath(const std::filesystem::path& path,unsigned 
 CareerRead readOne(const std::filesystem::path& path,unsigned kind){
     std::error_code error;if(!std::filesystem::exists(path,error))return {error?CareerFileState::Corrupt:CareerFileState::Missing};
     const auto size=std::filesystem::file_size(path,error);if(error||size<32||size>maximumFile)return {CareerFileState::Corrupt};
-    std::ifstream file(path,std::ios::binary);Bytes bytes(std::size_t(size),0);file.read(reinterpret_cast<char*>(bytes.data()),std::streamsize(bytes.size()));
+    std::ifstream file(windowsFilePath(path),std::ios::binary);Bytes bytes(std::size_t(size),0);file.read(reinterpret_cast<char*>(bytes.data()),std::streamsize(bytes.size()));
     if(!file)return {CareerFileState::Corrupt};
     try{
         Reader r{bytes};if(r.u32()!=magic)return {CareerFileState::Corrupt};
@@ -48,12 +49,12 @@ bool atomicWrite(const std::filesystem::path& path,const Bytes& bytes,std::strin
     std::error_code code;std::filesystem::create_directories(path.parent_path(),code);
     if(code){error="Cannot create save folder: "+code.message();return false;}
     const auto temporary=std::filesystem::path(path.wstring()+L".tmp");
-    const auto handle=CreateFileW(temporary.c_str(),GENERIC_WRITE,0,nullptr,CREATE_ALWAYS,FILE_ATTRIBUTE_NORMAL,nullptr);
+    const auto handle=CreateFileW(windowsFilePath(temporary).c_str(),GENERIC_WRITE,0,nullptr,CREATE_ALWAYS,FILE_ATTRIBUTE_NORMAL,nullptr);
     if(handle==INVALID_HANDLE_VALUE){error="Cannot write save (Windows error "+std::to_string(GetLastError())+")";return false;}
     DWORD count{};bool okay=WriteFile(handle,bytes.data(),DWORD(bytes.size()),&count,nullptr)&&count==bytes.size()&&FlushFileBuffers(handle);
     auto failure=okay?ERROR_SUCCESS:GetLastError();CloseHandle(handle);
-    if(okay){okay=MoveFileExW(temporary.c_str(),path.c_str(),MOVEFILE_REPLACE_EXISTING|MOVEFILE_WRITE_THROUGH)!=0;if(!okay)failure=GetLastError();}
-    if(!okay){DeleteFileW(temporary.c_str());error="Cannot commit save (Windows error "+std::to_string(failure)+")";}return okay;
+    if(okay){okay=MoveFileExW(windowsFilePath(temporary).c_str(),windowsFilePath(path).c_str(),MOVEFILE_REPLACE_EXISTING|MOVEFILE_WRITE_THROUGH)!=0;if(!okay)failure=GetLastError();}
+    if(!okay){DeleteFileW(windowsFilePath(temporary).c_str());error="Cannot commit save (Windows error "+std::to_string(failure)+")";}return okay;
 }
 Bytes envelope(unsigned kind,std::uint64_t sequence,const Bytes& payload){
     Writer w;w.u32(magic);w.u32(version);w.u32(kind);w.u32(std::uint32_t(payload.size()));w.u64(sequence);w.u64(hash(payload.data(),payload.size()));w.bytes(payload.data(),payload.size());return std::move(w.data);
@@ -193,6 +194,19 @@ void NativeCareerStore::saveCareer(const NativeCareerInfo& info,const CareerByte
     const auto bytes=encodeCareerInfo(info,checkpoint);
     submit(folders_?folders_->reserve(info)/L"career.scr-career":careerPath(info.id),1,bytes);
 }
+void NativeCareerStore::submitSavedGame(std::filesystem::path path,CareerBytes bytes,CustomWriter writer){
+    std::lock_guard<std::mutex> lock(mutex_);Job job{std::move(path),7,std::move(bytes),++serial_};job.custom=std::move(writer);
+    latest_[job.path]=job;jobs_.erase(std::remove_if(jobs_.begin(),jobs_.end(),[&](const auto& old){return old.path==job.path;}),jobs_.end());jobs_.push_back(std::move(job));changed_.notify_one();
+}
+std::future<SavedGameCopyResult> NativeCareerStore::executeSavedGame(std::function<SavedGameCopyResult()> operation){
+    auto promise=std::make_shared<std::promise<SavedGameCopyResult>>();auto future=promise->get_future();Job job;
+    job.task=[operation=std::move(operation),promise]{try{promise->set_value(operation());}catch(const std::exception& error){promise->set_value({{},error.what()});}};
+    {std::lock_guard<std::mutex> lock(mutex_);jobs_.push_back(std::move(job));changed_.notify_one();}return future;
+}
+void NativeCareerStore::forgetWrites(const std::filesystem::path& folder){
+    std::lock_guard<std::mutex> lock(mutex_);for(auto it=latest_.begin();it!=latest_.end();){const auto rel=it->first.lexically_relative(folder);
+        if(!rel.empty()&&*rel.begin()!=L".."){errors_.erase(it->first);it=latest_.erase(it);}else ++it;}
+}
 void NativeCareerStore::saveHall(const NativeHallBanks& hall){if(!validNativeHall(hall))throw std::invalid_argument("Invalid Hall records");submit(root_/L"hall.scr-hall",2,Bytes(hall.begin(),hall.end()));}
 void NativeCareerStore::setLastUsed(const std::string& id){if(!id.empty()&&!validId(id))throw std::invalid_argument("Invalid last career");Writer w;w.text(id);submit(folders_?settings_:root_/L"last.scr-index",folders_?6u:3u,std::move(w.data));}
 void NativeCareerStore::saveGhost(const GhostLap& lap){
@@ -258,6 +272,8 @@ void NativeCareerStore::run(){
         if(job.task){job.task();std::lock_guard<std::mutex> lock(mutex_);writing_=false;if(jobs_.empty())idle_.notify_all();continue;}
         std::string error;bool okay=false;
         try{
+            if(job.custom)okay=job.custom(job.data,error);
+            else{
             if(folders_)folders_->recover();
             if(folders_&&(job.kind==1||job.kind==4||job.kind==5)){
                 const auto expected=job.kind==1?careerPath(decodeCareerInfo(job.data).id):job.kind==4?ghostPath(decodeGhostLap(job.data).context.key):enhancedBestPath(decodeEnhancedBest(job.data).key);
@@ -268,9 +284,10 @@ void NativeCareerStore::run(){
                     if(!writeFile(staged,error,validator_))throw std::runtime_error(error);});okay=true;
             }else okay=writeFile(job,error,validator_);
             if(okay&&folders_&&job.kind==1)folders_->update(decodeCareerInfo(job.data),job.path.parent_path());
+            }
         }catch(const std::exception& failure){error=failure.what();}
         {std::lock_guard<std::mutex> lock(mutex_);if(okay){errors_.erase(job.path);
-                if(job.kind==5)if(const auto latest=latest_.find(job.path);latest!=latest_.end()&&latest->second.serial==job.serial)latest_.erase(latest);
+                if(job.kind==5||job.custom)if(const auto latest=latest_.find(job.path);latest!=latest_.end()&&latest->second.serial==job.serial)latest_.erase(latest);
             }else errors_[job.path]=std::move(error);writing_=false;if(jobs_.empty())idle_.notify_all();}
     }
 }
@@ -281,8 +298,9 @@ bool NativeCareerStore::ghostFailed()const{std::lock_guard<std::mutex> lock(mute
 bool NativeCareerStore::enhancedBestFailed()const{std::lock_guard<std::mutex> lock(mutex_);return std::any_of(errors_.begin(),errors_.end(),[](const auto& e){return e.first.extension()==L".scr-ebest";});}
 std::string NativeCareerStore::error()const{std::lock_guard<std::mutex> lock(mutex_);return errors_.empty()?std::string{}:errors_.begin()->second;}
 std::string NativeCareerStore::failureSummary()const{
-    std::lock_guard<std::mutex> lock(mutex_);bool hall=false,career=false,ghost=false,enhanced=false;
-    for(const auto& item:errors_){if(item.first.filename()==L"hall.scr-hall")hall=true;else if(item.first.extension()==L".scr-ghost")ghost=true;else if(item.first.extension()==L".scr-ebest")enhanced=true;else career=true;}
+    std::lock_guard<std::mutex> lock(mutex_);bool hall=false,career=false,ghost=false,enhanced=false,multiplayer=false;
+    for(const auto& item:errors_){if(item.first.filename()==L"hall.scr-hall")hall=true;else if(item.first.extension()==L".scr-ghost")ghost=true;else if(item.first.extension()==L".scr-ebest")enhanced=true;else if(item.first.extension()==L".scr-multiplayer"||item.first.filename()==L".multiplayer-preference")multiplayer=true;else career=true;}
+    if(multiplayer)return hall?"Progress and Hall not saved":career||ghost||enhanced?"Saved games not saved":"Multiplayer game not saved";
     if(enhanced)return hall||career||ghost?"Progress and records not saved":"Enhanced PB not saved";
     if(ghost)return hall?(career?"Career, Hall and ghosts not saved":"Hall records and ghosts not saved"):(career?"Career and ghosts not saved":"Ghost not saved");
     return hall?(career?"Career and Hall not saved":"Hall records not saved"):"Career progress not saved";

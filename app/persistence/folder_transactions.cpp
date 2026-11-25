@@ -5,6 +5,7 @@
 #include "persistence/native_career_store.h"
 #include "persistence/player_data_layout.h"
 #include "persistence/career_file_io.h"
+#include "persistence/windows_file_path.h"
 #include "persistence/player_preferences.h"
 #include <algorithm>
 #include <array>
@@ -37,7 +38,7 @@ void ordinaryDirectory(const fs::path& path){
     if(!fs::is_directory(path))throw std::runtime_error("Saved-game folder is unavailable");
 }
 std::uint64_t fileHash(const fs::path& path){
-    std::ifstream file(path,std::ios::binary);if(!file)throw std::runtime_error("Cannot read folder transaction file");
+    std::ifstream file(windowsFilePath(path),std::ios::binary);if(!file)throw std::runtime_error("Cannot read folder transaction file");
     std::array<char,65536> buffer{};std::uint64_t result=14695981039346656037ULL;
     while(file){file.read(buffer.data(),std::streamsize(buffer.size()));for(std::streamsize n=0;n<file.gcount();++n){result^=std::uint8_t(buffer[std::size_t(n)]);result*=1099511628211ULL;}}
     if(!file.eof())throw std::runtime_error("Cannot finish reading folder transaction file");return result;
@@ -58,7 +59,7 @@ void write(const fs::path& path,const Bytes& bytes){std::string error;if(!career
 Bytes bytes(const fs::path& path){
     if(FolderTransactions::directoryLink(path))throw std::runtime_error("Transaction file links are not followed");
     const auto size=fs::file_size(path);if(size>8*1024*1024)throw std::runtime_error("Folder transaction journal exceeds limit");
-    std::ifstream file(path,std::ios::binary);Bytes result(std::size_t(size),0);file.read(reinterpret_cast<char*>(result.data()),std::streamsize(result.size()));
+    std::ifstream file(windowsFilePath(path),std::ios::binary);Bytes result(std::size_t(size),0);file.read(reinterpret_cast<char*>(result.data()),std::streamsize(result.size()));
     if(!file)throw std::runtime_error("Cannot read folder transaction journal");return result;
 }
 Bytes encode(const Plan& plan){
@@ -85,10 +86,10 @@ void verify(const fs::path& folder,const std::vector<File>& expected){
 }
 void move(const fs::path& from,const fs::path& to){
     ordinaryDirectory(from);if(fs::exists(to))throw std::runtime_error("Saved-game transaction destination already exists");
-    fs::create_directories(to.parent_path());if(!MoveFileExW(from.c_str(),to.c_str(),MOVEFILE_WRITE_THROUGH))failed("Cannot publish saved-game folder");
+    fs::create_directories(to.parent_path());if(!MoveFileExW(windowsFilePath(from).c_str(),windowsFilePath(to).c_str(),MOVEFILE_WRITE_THROUGH))failed("Cannot publish saved-game folder");
 }
 }
-bool FolderTransactions::directoryLink(const fs::path& path){const auto attributes=GetFileAttributesW(path.c_str());return attributes!=INVALID_FILE_ATTRIBUTES&&(attributes&FILE_ATTRIBUTE_REPARSE_POINT)!=0;}
+bool FolderTransactions::directoryLink(const fs::path& path){const auto attributes=GetFileAttributesW(windowsFilePath(path).c_str());return attributes!=INVALID_FILE_ATTRIBUTES&&(attributes&FILE_ATTRIBUTE_REPARSE_POINT)!=0;}
 FolderTransactions::FolderTransactions(fs::path root,FolderTransactionObserver observer):root_(playerDataLayout(root).root),work_(root_/L".transactions"),observer_(std::move(observer)){}
 std::string FolderTransactions::relative(const fs::path& path)const{
     const auto absolute=fs::absolute(path).lexically_normal();const auto result=absolute.lexically_relative(root_).generic_u8string();
@@ -102,8 +103,8 @@ void FolderTransactions::copy(const fs::path& source,const fs::path& destination
     const auto files=manifest(source);fs::create_directories(destination);
     for(const auto& entry:fs::recursive_directory_iterator(source))if(entry.is_directory())fs::create_directories(destination/entry.path().lexically_relative(source));
     for(const auto& f:files){const auto target=destination/fs::u8path(f.name);fs::create_directories(target.parent_path());
-        if(!CopyFileW((source/fs::u8path(f.name)).c_str(),target.c_str(),TRUE))failed("Cannot copy saved-game file");
-        const auto file=CreateFileW(target.c_str(),GENERIC_WRITE,FILE_SHARE_READ,nullptr,OPEN_EXISTING,FILE_ATTRIBUTE_NORMAL,nullptr);
+        if(!CopyFileW(windowsFilePath(source/fs::u8path(f.name)).c_str(),windowsFilePath(target).c_str(),TRUE))failed("Cannot copy saved-game file");
+        const auto file=CreateFileW(windowsFilePath(target).c_str(),GENERIC_WRITE,FILE_SHARE_READ,nullptr,OPEN_EXISTING,FILE_ATTRIBUTE_NORMAL,nullptr);
         if(file==INVALID_HANDLE_VALUE)failed("Cannot flush copied saved-game file");const bool flushed=FlushFileBuffers(file)!=0;const auto error=GetLastError();CloseHandle(file);
         if(!flushed)throw std::system_error(int(error),std::system_category(),"Cannot flush saved-game copy");
     }
@@ -150,7 +151,7 @@ void FolderTransactions::finish(const fs::path& transaction){
     }
     // Cleanup is confined to this verified, inert transaction directory. Reject
     // reparse points before recursive removal so no external tree is traversed.
-    (void)manifest(transaction);fs::remove_all(transaction);
+    (void)manifest(transaction);fs::remove_all(windowsFilePath(transaction));
 }
 bool FolderTransactions::recover(){
     if(!fs::exists(work_))return false;ordinaryDirectory(work_);

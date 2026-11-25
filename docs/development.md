@@ -95,7 +95,7 @@ root ADF filename. Development imports stay under `analysis/`.
 
 Native `--asset-pack`, `--settings-file` and `--save-file` override individual paths;
 `--data-dir` now supplies the complete isolated layout: assets, `settings.ini`,
-careers, the temporary legacy manual-save file and `hall-of-fame/original/` and
+careers, named `multiplayer/` games and `hall-of-fame/original/` and
 `hall-of-fame/enhanced/`. Explicit individual file overrides still win regardless
 of argument order; the helper retains these for existing checkout-local paths and
 defaults its data root to `working/player-data/`. `--recordings-dir` explicitly
@@ -107,6 +107,9 @@ offer Replace / Keep Both / Cancel. Last-used IDs share the resolved settings fi
 including a `--settings-file` override, through coordinated preference writes.
 Older explicit-root flat career/PB layouts and `shared-hall/` archives are not moved
 automatically; migration is a later [portable-data stage](components/portable-player-data.md).
+The player uses native named multiplayer games on both explicit and default roots;
+`--save-file` remains accepted for existing helpers but its legacy slots are unused
+by the player. Isolated original/development sessions retain the old codec routes.
 See [scripts](../scripts/README.md), [player data](playing.md#data-and-recovery)
 and [asset import](components/assets.md).
 

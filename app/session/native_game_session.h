@@ -14,6 +14,7 @@
 #include "persistence/native_save_store.h"
 #include "persistence/native_career_checkpoint.h"
 #include "persistence/native_multiplayer_checkpoint.h"
+#include "persistence/native_multiplayer_store.h"
 #include "menus/hall_browser.h"
 #include <optional>
 
@@ -46,13 +47,18 @@ public:
     void enableCareers(const std::filesystem::path& dataRoot,HallArchiveLocation original,HallArchiveLocation enhanced,
         CareerStorageOptions storage={CareerStorageLayout::Folders,{},{}});
     bool requestClose();
-    // Native continuation foundation; storage/menu routing is added separately.
+    void enableMultiplayerGames(const std::filesystem::path& settings={});
+    bool multiplayerHome()const noexcept{return multiplayerPanel_==MultiplayerPanel::Home;}
+    bool multiplayerSelection()const noexcept{return multiplayerPanel_==MultiplayerPanel::Select;}
+    const std::optional<SavedGameEntry>& activeMultiplayer()const noexcept{return activeMultiplayer_;}
+    bool hasSuspendedChampionship()const noexcept{return multiplayerSuspended_;}
     // Restore validates on private memory before replacing the active session.
+    // allowUnsaved is reserved for explicitly acknowledged retained-RAM Resume.
     MultiplayerBytes captureMultiplayerCheckpoint();
-    void restoreMultiplayerCheckpoint(const MultiplayerBytes&,const NativeMenuInput& held={});
+    void restoreMultiplayerCheckpoint(const MultiplayerBytes&,const NativeMenuInput& held={},bool allowUnsaved=false);
     bool closeReady()const noexcept{return closeReady_;}
     bool closePending()const noexcept{return departure_==Departure::Close||closeAfterCareerCopy_;}
-    bool careerCopyPending()const noexcept{return careerCopy_.valid();}
+    bool careerCopyPending()const noexcept{return careerCopy_.valid()||multiplayerWork_.valid();}
     bool multiplayer()const noexcept{return (*data_.memory)[0x5eb76]!=0;}
     bool competitive()const noexcept{return menu_&&menu_->competitive();}
     std::string saveStatus()const;
@@ -63,6 +69,7 @@ public:
     const std::vector<std::uint32_t>& render(bool interpolate=false,bool paused=false,NativeView view=NativeView::Original);
     NativeMenuPage page()const noexcept{
         if(careerPanel_!=CareerPanel::None)return NativeMenuPage::Opening;
+        if(multiplayerPanel_!=MultiplayerPanel::None)return NativeMenuPage::Opening;
         if(finishPending_)return NativeMenuPage::Race;
         if(openingActive())return NativeMenuPage::Opening;
         if(saveReturn_==SaveReturn::Roster)return NativeMenuPage::Roster;
@@ -70,6 +77,7 @@ public:
         return menu_->page();
     }
     NativeMenuRenderState menuState()const{
+        if(careerPanel_==CareerPanel::None&&multiplayerPanel_!=MultiplayerPanel::None)return multiplayerMenuState();
         if(careerPanel_!=CareerPanel::None){
             NativeMenuRenderState state;state.selected=careerPanel_==CareerPanel::List?listSelection_%3:careerSelection_;state.division=(*data_.memory)[0x1c9ce];
             if(careerPanel_==CareerPanel::Notice||careerPanel_==CareerPanel::CopyWorking)state.count=0;
@@ -81,10 +89,10 @@ public:
         }
         return openingActive()?opening_->renderState():menu_->renderState();
     }
-    bool openingActive()const noexcept{return careerPanel_==CareerPanel::None&&opening_&&!opening_->complete();}
+    bool openingActive()const noexcept{return careerPanel_==CareerPanel::None&&multiplayerPanel_==MultiplayerPanel::None&&opening_&&!opening_->complete();}
     NativeOpeningPage openingPage()const noexcept{return opening_?opening_->page():NativeOpeningPage::Complete;}
     bool enteringName()const noexcept{return openingActive()&&opening_->page()==NativeOpeningPage::Name;}
-    bool usingTextInput()const noexcept{return enteringName()||bool(saveMenu_);}
+    bool usingTextInput()const noexcept{return enteringName()||bool(saveMenu_)||multiplayerPanel_==MultiplayerPanel::Title;}
     std::optional<NativeSaveMenuPhase> savePhase()const noexcept{return saveMenu_?std::optional{saveMenu_->phase()}:std::nullopt;}
     const NativeMemory& memory()const noexcept{return *data_.memory;}
     const RaceScene& race()const noexcept{return race_;}
@@ -112,7 +120,7 @@ public:
     void releaseInput(const NativeMenuInput& held={})noexcept;
 private:
     enum class CareerPanel {None,Home,List,Actions,Delete,Notice,SaveError,CreateError,Departure,Conflict,CopyWorking};
-    enum class Departure {None,Close,NewCareer,LoadCareer,Multiplayer};
+    enum class Departure {None,Close,NewCareer,LoadCareer,Multiplayer,MultiplayerSelect,NewMultiplayer,LoadMultiplayer,Mode};
     enum class HomeAction {Continue,NewCareer,Browse};
     std::unique_ptr<NativeMemory> checkpointBaseline_;
     MultiplayerBytes multiplayerRaceCheckpoint_;
@@ -123,6 +131,38 @@ private:
     std::unique_ptr<NativeMemory> careerDraft_;
     unsigned draftNameLength_{};
     std::unique_ptr<NativeCareerStore> careerStore_;
+    std::unique_ptr<NativeMultiplayerStore> multiplayerStore_;
+    enum class MultiplayerPanel {None,Select,Home,List,Actions,Delete,Conflict,Working,Title,Configuration,CreateError,Notice};
+    MultiplayerPanel multiplayerPanel_{MultiplayerPanel::None};
+    MultiplayerPanel multiplayerNoticeReturn_{MultiplayerPanel::Select};
+    enum class MultiplayerWork {Copy,Delete,CancelDraft};
+    MultiplayerWork multiplayerWorkKind_{MultiplayerWork::Copy};
+    std::future<SavedGameCopyResult> multiplayerWork_;
+    std::string multiplayerWorkId_;
+    std::optional<SavedGameEntry> activeMultiplayer_,newMultiplayer_;
+    MultiplayerBytes multiplayerCheckpoint_,newMultiplayerCheckpoint_;
+    bool multiplayerSuspended_{},multiplayerDraft_{},multiplayerPractice_{},multiplayerDirty_{},multiplayerTextFresh_{},multiplayerTextReady_{};
+    unsigned multiplayerChoice_{},multiplayerListChoice_{},multiplayerDivision_{},multiplayerLeague_{};
+    std::string multiplayerTitle_,lastMultiplayer_,multiplayerNotice_;
+    std::vector<SavedGameEntry> multiplayerList_;
+    std::vector<HomeAction> multiplayerActions_;
+    NativeMenuInputClock multiplayerClock_;
+    std::unique_ptr<NativeMemory> multiplayerTextMemory_;
+    void showMultiplayerPanel(MultiplayerPanel);
+    void refreshMultiplayer();
+    NativeMenuImage multiplayerImage()const;
+    NativeMenuRenderState multiplayerMenuState()const;
+    bool updateMultiplayer(double,const NativeGameInput&,NativeGameUpdate&);
+    void beginMultiplayer();
+    void beginMultiplayerRoster();
+    void registerMultiplayer();
+    void completeMultiplayerCreation();
+    void cancelMultiplayerDraft();
+    void loadMultiplayer(const std::string&);
+    void showMultiplayerHome();
+    void resumeMultiplayer(bool practice=false);
+    void saveMultiplayerCheckpoint(bool terminal=false);
+    void observeMultiplayerState(NativeMenuPage);
     std::unique_ptr<SharedHallStore> sharedHallStore_;
     std::unique_ptr<EnhancedHallStore> enhancedHallStore_;
     std::unique_ptr<EnhancedPersonalBests> enhancedBests_;
@@ -148,6 +188,7 @@ private:
     bool creatingCareer_{},finishPending_{},closeReady_{},errorAcknowledged_{},multiplayerSetup_{};
     CareerPanel careerPanel_{CareerPanel::None},returnPanel_{CareerPanel::None},departureReturnPanel_{CareerPanel::None};
     Departure departure_{Departure::None};
+    bool discardOnDeparture_{};
     unsigned careerSelection_{},listSelection_{};
     std::vector<NativeCareerInfo> careerList_;
     std::future<CareerCopyResult> careerCopy_;

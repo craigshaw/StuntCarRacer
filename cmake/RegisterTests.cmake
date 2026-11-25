@@ -61,6 +61,11 @@ scr_test(player_data_layout_tests "native;unit;storage" "" "${test_output}/playe
 scr_test(software_renderer_tests "native;assets" "${SCR_TEST_PAYLOAD}" "${SCR_TEST_PAYLOAD}")
 
 if(WIN32)
+  scr_test(native_multiplayer_store_tests "native;unit;storage" "" "${test_output}/native_multiplayer_store_tests")
+  set_tests_properties(native_multiplayer_store_tests PROPERTIES RUN_SERIAL TRUE)
+  scr_test(native_multiplayer_saved_session_tests "native;assets;storage;ui" "${SCR_TEST_ASSET_PACK}"
+    "${SCR_TEST_ASSET_PACK}" "${test_output}/native_multiplayer_saved_session_tests")
+  set_tests_properties(native_multiplayer_saved_session_tests PROPERTIES RUN_SERIAL TRUE)
   scr_test(native_multiplayer_checkpoint_tests "native;unit;storage" "")
   scr_test(native_multiplayer_checkpoint_session_tests "native;assets;storage" "${SCR_TEST_ASSET_PACK}"
     "${SCR_TEST_ASSET_PACK}" "${test_output}/native_multiplayer_checkpoint_session_tests")

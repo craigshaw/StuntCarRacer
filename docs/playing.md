@@ -154,13 +154,22 @@ matchup forfeits the remaining fixtures using the original scoring rules.
 Winning normal Division 1 begins Super League Division 4. Super League victory
 uses its original message without the separate division-winner award image.
 
-Multiplayer supports two to eight local drivers taking turns against a computer
-pace car. Add Player retains names; Continue requires two, and the eighth name
+Multiplayer opens Continue, New Game and Browse Saved Games. New Game asks for a
+title, any division and Normal/Super League, independently of careers. Add Player
+retains names; Continue requires two, and the eighth name
 automatically completes setup. Every driver races the first track, then the
 second. Race/track summaries retain wins, lap/race bonuses and individual damage.
 Scores accumulate across four championships before reset; there is no promotion
 or relegation. F1 at a matchup forfeits the remaining turns on that track.
-Computer Link remains greyed out and unavailable.
+Computer Link remains greyed out and unavailable. Setup stays a draft until the
+roster is confirmed and its first save succeeds. A failed first save offers Retry
+or Cancel without entering a championship.
+
+Continue opens the game's home. Resume Championship returns to the exact pending
+matchup, finish or report without acknowledging it; Start Championship begins the
+next one after completion. Back returns home without advancing a report. Practise
+uses a temporary session and leaves the championship intact. An unfinished race
+resumes at that human's prepared matchup, retaining earlier completed turns.
 
 ## Game menu and leaving a race
 
@@ -178,33 +187,26 @@ At a finish message, release fire and press again to continue.
 
 Quit to Desktop starts with Cancel selected. Escape/B, P or Start cancels back
 to the Game menu. Quitting an unfinished career race resumes later at its saved
-matchup; multiplayer loses progress since its last manual save. Quitting, closing
-the window and Alt+F4 all flush career/Hall/ghost writes. If saving fails, Retry/Leave
+matchup; multiplayer does the same for the current human driver. Quitting, closing
+the window and Alt+F4 all flush saved-game/Hall/ghost writes. If saving fails, Retry/Leave
 Without Saving/Cancel remains available; cancelling returns to the Game menu
 without resuming racing. There is no return-to-launcher action.
 
-## Manual multiplayer saves
+## Multiplayer saved games
 
-Load/Save/Replay retains the original save-disc prompt; press a key to use the
-local save file. Thirty slots occupy three columns: Up/Down wraps through rows,
-Left/Right changes column. Names have eight uppercase characters and Backspace;
-Enter/A confirms a name or loads a populated slot. Responsive confirms the slot
-before editing and backs out editor → slots → Load/Save → main, discarding only
-unconfirmed edits. Completed operations stay committed. Original retains its
-editor and Escape handling. First save to a new file shows the format warning.
+Each named game lives in `multiplayer/<title>-<short-id>/game.scr-multiplayer`,
+with its roster, configuration, damage, accumulated scores and recovery copies.
+Copy or rename complete folders while the game is closed. Browse Saved Games
+discovers them automatically; titles need not be unique. Duplicate identities
+require Replace, Keep Both or Cancel, with Cancel selected initially. Replace
+keeps the chosen complete version and archives the others inside its recovery
+folder. Keep Both gives the incoming version a separate identity. The game never
+merges scores or selects a winner by date.
 
-`MP` names save local names, scores and damage. Other allowed names retain the
-original driver/access data, including division and league context; loading that
-data in multiplayer preserves the local roster. MP files do not retain track
-access or the four-championship counter, so restore access separately when needed.
-`HALL` operations are retired in favour of automatic shared records. The original
-mode-compatibility warning remains.
-
-Replay restores the retained season setup and resets its race tables before the
-roster/standings route. Holding F1 while confirming Replay returns to mode/name
-startup. This is separate from the development recording viewer. Manual saves
-replace a flushed temporary file atomically; failed writes retain the prior file,
-and malformed states are rejected before application.
+Browse also offers Delete Game, with a separate confirmation. Deletion includes
+that game's recovery copies and leaves careers and shared Hall records intact.
+The original slot, save-disc, format, access-file and manual Replay routes are
+retired from the player. Legacy multiplayer saves are not imported.
 
 ## Settings
 
@@ -277,7 +279,7 @@ Normal launches use `%LOCALAPPDATA%/Stunt Car Racer/`:
 | `careers/`, `last.scr-index` | Native careers and last-used identity |
 | `ghosts/<career-id>/` | Saved personal bests and their ghost recordings |
 | `ghosts-enhanced-v1/<career-id>/` | Independent Enhanced PBs and recordings |
-| `saves/stunt-car-racer.scr-save` | Manual multiplayer saves |
+| `multiplayer/<title>-<short-id>/game.scr-multiplayer` | Named multiplayer game and adjacent recovery generations |
 
 The Original archive uses `%PROGRAMDATA%/Stunt Car Racer/instances/<installation-id>/hall/`.
 Enhanced records sit beside it in `hall-enhanced-v1/`. Both are shared across
@@ -313,7 +315,7 @@ file lock prevents competing writers across Windows logon sessions and releases
 on exit; a leftover `player.lock` filename does not block the next launch.
 Saving/Saved appears in menus/pause; Not saved persists after failure. Retry or
 Continue without saving retains current RAM progress, and later checkpoints retry.
-Switching careers or closing waits for writes and offers Retry/Leave unsaved/Cancel
+Switching saved games or closing waits for writes and offers Retry/Leave unsaved/Cancel
 if needed. Leaving unsaved can lose progress since the last successful write.
 
 Careers and shared records keep two previous valid generations; the legacy

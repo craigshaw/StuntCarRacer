@@ -1,9 +1,9 @@
 # Portable player data and multiplayer saves
 
-Status: design accepted on 23 November 2026. Stages 1–3 are implemented with
+Status: design accepted on 23 November 2026. Stages 1–4 are implemented with
 automated verification; a real second-Windows-account acceptance check remains
-pending. Stages 4–6 are pending. Normal launches still use the existing Windows data
-locations and manual multiplayer saves. [Sessions](sessions.md) and
+pending. Stages 5–6 are pending. Normal launches still use the existing Windows data
+locations; multiplayer now uses native named games and autosave. [Sessions](sessions.md) and
 [player paths](../playing.md#data-and-recovery) describe the current build.
 [ADR 0004](../adr/0004-portable-player-data.md) records the ownership decision.
 
@@ -66,8 +66,8 @@ Stunt Car Racer/
 ```
 
 Explicit `--data-dir` launches implement the career and Hall paths above. The
-normal-launch default, migration and multiplayer saved-game routes remain pending.
-Stage 3 supplies the native `.scr-multiplayer` codec and capture/restore foundation.
+normal-launch portable default and migration remain pending. Named multiplayer
+folders are active on both explicit and existing default roots.
 The two Hall categories retain their
 independent indexes, retained recordings and recovery generations. Version
 numbers belong in file headers, rather than ordinary category directory names.
@@ -350,7 +350,7 @@ uses filesystem directory identity for window activation and a process-held byte
 lock released by exit/crash. Hall locations are explicit and portable directories
 inherit normal permissions; path-only archive constructors retain legacy test/tool
 semantics. Normal launch defaults remain unchanged. Stage 2 adds folder careers
-under explicit roots; manual multiplayer is replaced in stage 4.
+under explicit roots; stage 4 replaces player manual multiplayer with named games.
 
 Automated checks cover CLI precedence/working-directory independence, aliases,
 competing processes, stale filenames, forced process termination, deny-ACL roots,
@@ -443,8 +443,8 @@ identity/title/time/generation metadata independently of native progression.
 `session/native_multiplayer_checkpoint_session.cpp` captures prepared matchups,
 private terminal exit/scoring, pending finishes and committed reports, then restores
 validated state without replaying progression or Hall delivery. The shared memory
-delta primitive preserves existing career bytes. Player autosave/menu integration
-is stage 4; existing launches retain their current multiplayer journey.
+delta primitive preserves existing career bytes. Stage 4 connects the foundation
+to the player without changing the checkpoint format.
 
 The [checkpoint contract](multiplayer-checkpoints.md) inventories native and host
 state, supported boundaries, validation and finite comparison scope. New codec
@@ -456,7 +456,7 @@ display and populated Hall isolation are checked under both navigation policies.
 Scoped native/original CTest logs, eight reviewed images and matching staged-player
 identities are retained at `analysis/portable-player-data/stage-3/`.
 
-### 4. Integrate the multiplayer saved-game journey — pending
+### 4. Integrate the multiplayer saved-game journey — implemented
 
 Implement named-game setup with unrestricted division/league selection,
 Continue/Browse, home/Resume, deletion and autosave using the shared lifecycle.
@@ -471,6 +471,30 @@ work. Every division/league combination works without a career, and its saved
 configuration survives copying and changes to other saved games. No scoring,
 damage transfer, preparation, RNG advance or Hall completion is repeated by
 reopening a saved stage. Inspect the new menus visually.
+
+`NativeMultiplayerStore` uses the existing serial career actor and the extracted
+`SavedGameFolders` service for discovery, reservations, conflicts and transactions.
+Native game heads retain two valid recovery generations; Keep Both changes only
+outer multiplayer identities in all supported generations. Replace archives every
+other complete copy inside the winner. Windows extended paths cover nested recovery
+histories. Settings updates preserve the independent career/multiplayer selections.
+
+The player now offers title/configuration/roster setup, Continue/New/Browse,
+home/Resume/Practise, copying and deletion in both navigation policies. Confirmed
+setup requires its first durable save; failed setup supports Retry/Cancel. Safe
+boundaries autosave, unfinished racing retains its prepared matchup, and pending
+finishes/reports reopen without acknowledgement. Modal rendering and temporary
+Practice preserve the saved competition. Departure failures offer Retry, Leave
+Unsaved and Cancel; explicit Continue Without Saving retains RAM for Resume.
+Legacy multiplayer files remain untouched and no longer provide player routes.
+
+Storage and saved-session tests cover recoveries/future data, all division/league
+choices with 2/8 humans, both copy choices, blocked writes, cancellation, deletion,
+close, game switching, career deletion/restoration and four-championship resets.
+Full native/RNG continuation comparisons remain in the stage-3 suites. Retained
+images, scoped CTest results and source/fixture/executable identities live under
+`analysis/portable-player-data/stage-4/`. Host input is synthetic; physical controller,
+real second-account and clean-machine portability acceptance remain pending.
 
 ### 5. Deliver migration and enable portable defaults — pending
 

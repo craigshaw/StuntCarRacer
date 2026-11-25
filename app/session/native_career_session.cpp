@@ -130,6 +130,7 @@ NativeMenuImage NativeGameSession::careerImage()const{
     return makeNativeChoiceImage(*data_.memory,heading,rows,selected,detail,saveStatus());
 }
 void NativeGameSession::beginCareer(){
+    activeMultiplayer_.reset();multiplayerCheckpoint_.clear();multiplayerPanel_=MultiplayerPanel::None;multiplayerPractice_=false;
     *data_.memory=careerDraft_?*careerDraft_:*checkpointBaseline_;menu_.reset();opening_=std::make_unique<NativeOpeningFlow>(*data_.memory);
     opening_->setNavigation(navigation_);nameLengths_.fill(0);if(careerDraft_)nameLengths_[0]=draftNameLength_;creatingCareer_=true;finishPending_=false;previewPrepared_=false;suspendedSeason_.clear();
     careerPanel_=CareerPanel::None;transition_=Transition::None;fade_.reset(readNativePalette(*data_.memory,0x23c32));NativeGameUpdate ignored;
@@ -158,6 +159,7 @@ void NativeGameSession::cancelCareerCreation(){
     careerStore_->setLastUsed(lastCareer_);(void)careerStore_->flush();showCareerPanel(CareerPanel::Home);
 }
 void NativeGameSession::saveCheckpoint(bool terminal){
+    if(multiplayerStore_&&activeMultiplayer_){saveMultiplayerCheckpoint(terminal);return;}
     if(!activeCareer_||creatingCareer_||!menu_||(*data_.memory)[0x5eb76]||openingActive())return;
     // A challenge is a temporary world. Persist the career's safe continuation,
     // never its temporary league, preview RNG or Practice race state.
@@ -201,7 +203,7 @@ bool NativeGameSession::loadCareer(const std::string& id){
             if(state!=CareerFileState::Valid&&state!=CareerFileState::Recovered)throw std::runtime_error(state==CareerFileState::Unsupported?"Unsupported career version":"Career is unavailable");
             info=decodeCareerInfo(saved.data,&bytes);if(info.id!=id)throw std::runtime_error("Career identity mismatch");
         }
-        restoreCheckpoint(bytes);activeCareer_=info;checkpoint_=std::move(bytes);activeCareer_->lastPlayed=now();lastCareer_=id;
+        restoreCheckpoint(bytes);activeMultiplayer_.reset();multiplayerCheckpoint_.clear();multiplayerPanel_=MultiplayerPanel::None;multiplayerPractice_=false;activeCareer_=info;checkpoint_=std::move(bytes);activeCareer_->lastPlayed=now();lastCareer_=id;
         openSinglePlayerMenu(false);careerStore_->setLastUsed(id);
         if(state==CareerFileState::Recovered){notice_="Career recovery copy restored";returnPanel_=CareerPanel::None;showCareerPanel(CareerPanel::Notice);}
         return true;
@@ -209,15 +211,20 @@ bool NativeGameSession::loadCareer(const std::string& id){
 }
 bool NativeGameSession::depart(Departure action,const std::string& id){
     if(action==Departure::LoadCareer&&activeCareer_&&id==activeCareer_->id&&!checkpoint_.empty())return loadCareer(id);
-    departure_=action;loadCareer_=id;departureReturnPanel_=careerPanel_;
+    discardOnDeparture_=false;departure_=action;loadCareer_=id;departureReturnPanel_=careerPanel_;
     if(!flushStores(true)){showCareerPanel(CareerPanel::Departure);return false;}
     completeDeparture();return true;
 }
 void NativeGameSession::completeDeparture(){
+    if(discardOnDeparture_&&activeMultiplayer_){activeMultiplayer_.reset();multiplayerCheckpoint_.clear();multiplayerSuspended_=false;multiplayerPractice_=false;multiplayerDirty_=false;}discardOnDeparture_=false;
     const auto action=departure_;departure_=Departure::None;
     if(action==Departure::Close){closeReady_=true;return;}
     if(action==Departure::NewCareer){beginCareer();return;}
     if(action==Departure::LoadCareer){(void)loadCareer(loadCareer_);return;}
+    if(action==Departure::MultiplayerSelect){careerPanel_=CareerPanel::None;showMultiplayerPanel(MultiplayerPanel::Select);return;}
+    if(action==Departure::NewMultiplayer){careerPanel_=CareerPanel::None;beginMultiplayer();return;}
+    if(action==Departure::LoadMultiplayer){careerPanel_=CareerPanel::None;loadMultiplayer(loadCareer_);return;}
+    if(action==Departure::Mode){careerPanel_=CareerPanel::None;multiplayerPanel_=MultiplayerPanel::None;finishPending_=false;finishPixels_.clear();finishTiming_.reset();previewPrepared_=false;multiplayerPractice_=false;*data_.memory=*checkpointBaseline_;menu_.reset();opening_=std::make_unique<NativeOpeningFlow>(*data_.memory);opening_->setNavigation(navigation_);multiplayerSetup_=false;transition_=Transition::None;releaseInput();return;}
     if(action==Departure::Multiplayer){
         *data_.memory=*checkpointBaseline_;menu_.reset();opening_=std::make_unique<NativeOpeningFlow>(*data_.memory);
         opening_->setNavigation(navigation_);multiplayerSetup_=true;creatingCareer_=false;finishPending_=false;previewPrepared_=false;suspendedSeason_.clear();
@@ -226,10 +233,10 @@ void NativeGameSession::completeDeparture(){
     }
 }
 bool NativeGameSession::requestClose(){
-    if(careerCopy_.valid()){closeAfterCareerCopy_=true;return false;}
+    if(careerCopyPending()){closeAfterCareerCopy_=true;return false;}
     if(!careerStore_)return true;
     if(careerPanel_==CareerPanel::Departure)return false;
-    if(!transitioning()&&careerPanel_==CareerPanel::None&&!openingActive())saveCheckpoint(raceEnded());
+    if(!transitioning()&&careerPanel_==CareerPanel::None&&multiplayerPanel_==MultiplayerPanel::None&&!openingActive())saveCheckpoint(raceEnded());
     (void)depart(Departure::Close);return closeReady_;
 }
 void NativeGameSession::observeHallCompletions(){
@@ -259,8 +266,10 @@ bool NativeGameSession::flushStores(bool retry){
 }
 bool NativeGameSession::flushRecords(){return flushStores();}
 void NativeGameSession::observeCareerState(NativeMenuPage previous){
+    observeMultiplayerState(previous);
     if(!careerStore_)return;
-    if(careerPanel_!=CareerPanel::None||openingActive()||!menu_)return;
+    if(careerPanel_!=CareerPanel::None||multiplayerPanel_!=MultiplayerPanel::None||openingActive()||!menu_)return;
+    if(multiplayerStore_&&activeMultiplayer_){checkSaveFailure();return;}
     if(activeCareer_&&!(*data_.memory)[0x5eb76])menu_->setMainRowCount(3);
     if(page()!=previous&&page()!=NativeMenuPage::Race)saveCheckpoint();
     checkSaveFailure();
@@ -366,7 +375,7 @@ bool NativeGameSession::updateCareers(double elapsed,const NativeGameInput& held
             else cancelCareerCreation();break;
         case CareerPanel::Departure:
             if(choice==0){if(flushStores(true))completeDeparture();}
-            else if(choice==1){careerStore_->acknowledgeFailures();errorAcknowledged_=true;completeDeparture();}
+            else if(choice==1){discardOnDeparture_=true;careerStore_->acknowledgeFailures();errorAcknowledged_=true;completeDeparture();}
             else{departure_=Departure::None;showCareerPanel(departureReturnPanel_);}break;
         default:break;
         }
@@ -381,7 +390,7 @@ bool NativeGameSession::updateCareers(double elapsed,const NativeGameInput& held
         careerDraft_=std::make_unique<NativeMemory>(*data_.memory);draftNameLength_=nameEntry_.state().position;creatingCareer_=false;
         showCareerPanel(CareerPanel::Home);releaseInput(held.menu);return true;
     }
-    if(finishPending_){
+    if(finishPending_&&!multiplayer()){
         if(pulse.back)openSinglePlayerMenu();
         else if(pulse.controls&16){finishPending_=false;saveCheckpoint();}
         if(pulse.back||(pulse.controls&16)){releaseInput(held.menu);result.raceExited=true;}

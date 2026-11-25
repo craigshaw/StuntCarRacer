@@ -33,7 +33,8 @@
   copying, recovery, migration and a staged implementation plan. Stages 1–3 provide
   whole-root development overrides, process-held ownership and self-contained
   career folders with copy resolution, plus [native multiplayer checkpoints](components/multiplayer-checkpoints.md).
-  Multiplayer player menus/autosave and normal-launch defaults/migration remain pending.
+  Named multiplayer games now use autosave/Resume and the shared folder lifecycle.
+  Normal-launch portable defaults and migration remain pending.
 
 ## Optional features
 

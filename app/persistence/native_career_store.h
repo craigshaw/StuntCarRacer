@@ -1,6 +1,7 @@
 #pragma once
 #include "persistence/enhanced_record_codec.h"
 #include "state/native_checkpoint_io.h"
+#include "persistence/saved_game_types.h"
 #include <array>
 #include <condition_variable>
 #include <deque>
@@ -16,25 +17,13 @@
 namespace scr::runtime {
 struct GhostLap;struct GhostLapKey;
 class CareerFolders;
-using CareerBytes=state::checkpoint::Bytes;
 using NativeHallBanks=std::array<std::uint8_t,512>;
-enum class CareerFileState { Missing,Valid,Recovered,Corrupt,Unsupported,Conflict };
-struct CareerRead {
-    CareerFileState state{CareerFileState::Missing};CareerBytes data;std::uint64_t generation{};
-};
-struct NativeCareerInfo {
-    std::string id,name;unsigned division{},league{};std::uint64_t lastPlayed{};
-    CareerFileState state{CareerFileState::Valid};
-    std::filesystem::path folder;
-};
 enum class CareerStorageLayout {LegacyFlat,Folders};
 struct CareerStorageOptions {
     CareerStorageLayout layout{CareerStorageLayout::LegacyFlat};
     std::filesystem::path settings;
     FolderTransactionObserver observer;
 };
-enum class CareerCopyChoice {Replace,KeepBoth};
-struct CareerCopyResult {std::string id,error;};
 // Immutable, bounded native payloads. All generated data stays outside source.
 CareerBytes encodeCareerInfo(const NativeCareerInfo&,const CareerBytes& checkpoint);
 NativeCareerInfo decodeCareerInfo(const CareerBytes&,CareerBytes* checkpoint=nullptr);
@@ -77,11 +66,16 @@ public:
     std::future<CareerCopyResult> eraseEntry(const NativeCareerInfo&);
     std::future<CareerCopyResult> resolveCopy(const NativeCareerInfo&,CareerCopyChoice);
     bool folderLayout()const noexcept{return bool(folders_);}
+    // Both modes share this actor's coalescing, retry and departure lifecycle.
+    using CustomWriter=std::function<bool(const CareerBytes&,std::string&)>;
+    void submitSavedGame(std::filesystem::path,CareerBytes,CustomWriter);
+    std::future<SavedGameCopyResult> executeSavedGame(std::function<SavedGameCopyResult()>);
+    void forgetWrites(const std::filesystem::path&);
     bool resetHall(const NativeHallBanks&);
     void acknowledgeFailures();
 private:
     friend class CareerFolders;
-    struct Job {std::filesystem::path path;unsigned kind{};CareerBytes data;std::uint64_t serial{};Validator validator;std::function<void()> task;};
+    struct Job {std::filesystem::path path;unsigned kind{};CareerBytes data;std::uint64_t serial{};Validator validator;std::function<void()> task;CustomWriter custom;};
     std::filesystem::path root_;
     Validator validator_;
     std::filesystem::path settings_;

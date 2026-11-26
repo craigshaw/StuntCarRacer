@@ -276,17 +276,4 @@ void composeBoostFlames(const RaceRenderAssets& assets,const CockpitFrame& frame
         compositeMaskedObject(assets,right,frame.objects[right],pixels);
     }
 }
-void drawRaceText(const RaceRenderAssets& assets,std::vector<std::uint32_t>& pixels,
-        int x,int y,std::string_view text,std::uint8_t colour) {
-    frameSize(pixels);const auto rgb=assets.palette.at(colour);
-    for(unsigned char character:text) {
-        if(character<32||character>=128)continue;
-        for(unsigned row=0;row<8;++row)for(unsigned column=0;column<7;++column) {
-            const int xx=x+int(column),yy=y+int(row);
-            if(xx>=0&&xx<320&&yy>=0&&yy<200&&(assets.font[(character-32)*8+row]&(0x80u>>column)))
-                pixels[unsigned(yy)*320+unsigned(xx)]=rgb;
-        }
-        x+=7;
-    }
-}
 } // namespace scr::runtime

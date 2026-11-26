@@ -111,9 +111,6 @@ NativeMenuImage makeNativeMenuImage(const NativeMemory& m,const NativeMenuRender
     }
     return image;
 }
-void renderNativeMenu(const NativeMemory& m,const NativeMenuRenderState& state,std::vector<std::uint32_t>& pixels) {
-    packNativeMenuPixels(makeNativeMenuImage(m,state),pixels);
-}
 NativeMenuImage makeNativeChoiceImage(const NativeMemory& m,const std::string& heading,
         const std::vector<std::string>& options,unsigned selected,const std::string& detail,const std::string& status){
     if(options.empty()||options.size()>4||selected>=options.size())throw std::invalid_argument("Invalid career menu options");

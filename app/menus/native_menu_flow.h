@@ -60,7 +60,6 @@ public:
     // Saved-game homes enter the existing Main handlers directly.
     NativeMenuAction startCompetition();
     NativeMenuAction startPracticeSelection();
-    void cancelPreview();
     void returnFromSave(bool cancelled=false);
     [[nodiscard]] NativeMenuPage page()const noexcept{return page_;}
     [[nodiscard]] NativeMenuRenderState renderState()const;

@@ -7,12 +7,13 @@
 #include "ghost_lap_fixture.h"
 #include "state/replay_io.h"
 #include <chrono>
+#include "career_store_fixture.h"
 #include <fstream>
 #include <iostream>
 #include <set>
 
 namespace {
-using namespace scr;using namespace scr::runtime;namespace fs=std::filesystem;namespace replay=scr::state::replay;
+using namespace scr;using namespace scr::runtime;namespace cf=scr::test::career;namespace fs=std::filesystem;namespace replay=scr::state::replay;
 unsigned checks{},freshContexts{},capturedLaps{},capturedRaces{},failureRoutes{},viewMask{};
 void check(bool value,const char* message){++checks;if(!value)throw std::runtime_error(message);}
 void tap(NativeGameSession& g,unsigned controls=16,unsigned number=0,bool back=false){NativeGameInput in;in.menu={std::uint8_t(controls),std::uint8_t(number),back};g.update(0,{});g.update(0,in);g.update(0,{});}
@@ -84,7 +85,7 @@ void capturedModes(const NativeMemory& captured,const std::vector<std::uint8_t>&
 }
 void privateSession(const fs::path& pack,const NativeMemory& captured,const std::vector<std::uint8_t>& payload,const std::vector<replay::ReplayInput>& plan,const fs::path& root){
     const auto data=root/"private",shared=root/"shared";auto g=career(pack,data,shared);const auto id=g->activeCareer()->id;const EnhancedBestKey key{id,0,false};const EnhancedCatalog catalog{ghostTrackContentIdentity(payload),1,1};
-    auto old=scr::test::ghost::lap(id);old.context.trackContentIdentity=catalog.trackContent;old.hundredths=1;old.completedTime={0,0,1};{NativeCareerStore store(data);store.saveGhost(old);check(store.flush(),"Cannot seed Original PB");}
+    auto old=scr::test::ghost::lap(id);old.context.trackContentIdentity=catalog.trackContent;old.hundredths=1;old.completedTime={0,0,1};{NativeCareerStore store(data);cf::select(store,id);store.saveGhost(old);check(store.flush(),"Cannot seed Original PB");}
     g->setTimingCategory(TimingCategory::Enhanced);practice(*g);handoff(*g,captured,payload);drive(*g,plan,1);check(g->flushRecords(),"Dual session did not save");
     check(g->personalBestLaps().best({id,0,false})->hundredths==1&&g->enhancedPersonalBests()->best(key),"Private category improvements were coupled");
     const auto best=g->enhancedPersonalBests()->best(key);check(best->recording&&g->race().lapGhostPlayback(1)->enhancedTarget==best->recording,"Enhanced session target differs from its PB");
@@ -99,7 +100,7 @@ void privateSession(const fs::path& pack,const NativeMemory& captured,const std:
     g=career(pack,data,shared,false);g->setTimingCategory(TimingCategory::Enhanced);practice(*g);check(g->enhancedPersonalBests()->best(key)&&!g->personalBestLaps().best({id,0,false}),"Reload did not restore categories independently");
     check(g->flushRecords()&&entries(g->enhancedHall())==3,"Restoring saved records minted Enhanced attempts");
     auto timeOnly=*g->enhancedPersonalBests()->best(key);timeOnly.recording.reset();timeOnly.time.elapsedMicroseconds-=1000000;timeOnly.time.scoredMicroseconds-=1000000;
-    check(g->requestClose(),"Reload session did not close");g.reset();{NativeCareerStore store(data);store.saveEnhancedBest(timeOnly);check(store.flush(),"Time-only PB did not save");}
+    check(g->requestClose(),"Reload session did not close");g.reset();{NativeCareerStore store(data);cf::select(store,id);store.saveEnhancedBest(timeOnly);check(store.flush(),"Time-only PB did not save");}
     g=career(pack,data,shared,false);g->setTimingCategory(TimingCategory::Enhanced);practice(*g);handoff(*g,captured,payload);
     while(g->race().lapRecordingStatistics()->starts==0){const auto input=plan.at(g->race().liveTicks());NativeGameInput in;in.driveControls=input.controls;g->update(.12,in);}
     check(!g->enhancedPersonalBests()->best(key)->recording&&!g->race().lapGhostPlayback(1)&&g->practiceGhostTime()==formatEnhancedTime(timeOnly.time),"Time-only PB restored a slower ghost");check(g->requestClose(),"Time-only session did not close");
@@ -108,11 +109,11 @@ struct HeldFile {HANDLE value{INVALID_HANDLE_VALUE};void release(){if(value!=INV
 void failures(const fs::path& pack,const NativeMemory& captured,const std::vector<std::uint8_t>& payload,const std::vector<replay::ReplayInput>& plan,const fs::path& root){
     for(unsigned route=0;route<4;++route){const auto data=root/std::to_string(route)/"private",shared=root/std::to_string(route)/"shared";auto g=career(pack,data,shared);const auto id=g->activeCareer()->id;practice(*g);handoff(*g,captured,payload);check(g->flushRecords(),"Initial category check failed");
         fs::path blocked;if(route==0)blocked=shared/"index.scr-hall.tmp";if(route==1)blocked=enhancedHallRoot(shared)/"index.scr-ehall.tmp";
-        if(route==2)blocked=data/"ghosts"/id/"0-normal.scr-ghost.tmp";if(route==3)blocked=data/"ghosts-enhanced-v1"/id/"0-normal.scr-ebest.tmp";
+        if(route==2)blocked=g->activeCareer()->folder/"personal-bests/original"/"0-normal.scr-ghost.tmp";if(route==3)blocked=g->activeCareer()->folder/"personal-bests/enhanced"/"0-normal.scr-ebest.tmp";
         fs::create_directories(blocked.parent_path());HeldFile held;held.value=CreateFileW(blocked.c_str(),GENERIC_WRITE,0,nullptr,CREATE_ALWAYS,FILE_ATTRIBUTE_NORMAL,nullptr);check(held.value!=INVALID_HANDLE_VALUE,"Cannot lock category publication fixture");
         drive(*g,plan,1);check(!g->flushRecords()&&g->page()==NativeMenuPage::Race,"Category write failure was hidden or interrupted driving");
         if(route==0)check(entries(g->enhancedHall())==1,"Original Hall failure blocked Enhanced publication");if(route==1)check(entries(g->sharedHall())==1,"Enhanced Hall failure blocked Original publication");
-        if(route>=2){NativeCareerStore disk(data);if(route==2)check(disk.readEnhancedBest({id,0,false},{ghostTrackContentIdentity(payload),1,1}).state==CareerFileState::Valid,"Original PB failure blocked Enhanced PB");else check(disk.readGhost({id,0,false},ghostTrackContentIdentity(payload)).state==CareerFileState::Valid,"Enhanced PB failure blocked Original PB");}
+        if(route>=2){NativeCareerStore disk(data);cf::select(disk,g->activeCareer()->id);if(route==2)check(disk.readEnhancedBest({id,0,false},{ghostTrackContentIdentity(payload),1,1}).state==CareerFileState::Valid,"Original PB failure blocked Enhanced PB");else check(disk.readGhost({id,0,false},ghostTrackContentIdentity(payload)).state==CareerFileState::Valid,"Enhanced PB failure blocked Original PB");}
         check(!g->requestClose()&&g->closePending(),"Failed category write allowed silent departure");held.release();tap(*g);check(g->closeReady(),"Category retry did not finish safe close");
         check(entries(g->sharedHall())==1&&entries(g->enhancedHall())==1,"Retry lost or duplicated a completion");++failureRoutes;
     }
@@ -123,13 +124,13 @@ void challenge(const fs::path& pack,const NativeMemory& captured,const std::vect
     EnhancedHallArchive source(root.parent_path()/"modes"/"0",catalog);const auto a=source.read().hall->entries({}).front().attempt;const auto loaded=source.readGhost(a);check(loaded.state==HallGhostState::Valid,"Driven Enhanced rival unavailable");
     const auto pinned=pinEnhancedHallGhost(a,*loaded.ghost,catalog);tap(*g,0,1);tap(*g);waitHall(*g);const auto memory=std::make_unique<NativeMemory>(g->memory());
     EnhancedHallArchive destination(shared,catalog);auto publish=a;publish.ghost.reset();destination.commit({std::make_shared<const EnhancedSubmission>(makeEnhancedSubmission(publish,loaded.ghost.get()))});
-    check(g->flushRecords(),"Challenge menu checkpoint did not flush");NativeCareerStore disk(data);CareerBytes checkpoint;
+    check(g->flushRecords(),"Challenge menu checkpoint did not flush");NativeCareerStore disk(data);cf::select(disk,g->activeCareer()->id);CareerBytes checkpoint;
     g->startEnhancedHallChallenge(pinned);g->update(0,{});check(g->page()==NativeMenuPage::Preview&&g->effectiveTimingCategory()==TimingCategory::Enhanced,"Enhanced challenge did not pin its category");
     g->setTimingCategory(TimingCategory::Original);tap(*g,0,0,true);waitHall(*g);check(g->memory()==*memory&&g->effectiveTimingCategory()==TimingCategory::Original,"Preview cancel changed career/RNG or retained challenge category");
     g->requestEnhancedHallChallenge(a);NativeGameInput cancel;cancel.menu.back=true;g->update(0,cancel);g->update(0,{});
     check(g->page()==NativeMenuPage::Main&&g->effectiveTimingCategory()==TimingCategory::Original,"Cancel lost to asynchronous Enhanced resolution");
     tap(*g,0,1);tap(*g);waitHall(*g);*memory=g->memory();
-    check(g->flushRecords(),"Cancelled challenge checkpoint did not flush");decodeCareerInfo(disk.readCareer(g->activeCareer()->id).data,&checkpoint);
+    check(g->flushRecords(),"Cancelled challenge checkpoint did not flush");decodeCareerInfo(disk.readCareer(g->activeCareer()->key()).data,&checkpoint);
     auto missing=a;missing.id[15]^=1;g->requestEnhancedHallChallenge(missing);waitHall(*g);check(g->memory()==*memory&&g->effectiveTimingCategory()==TimingCategory::Original,"Missing asynchronous rival changed the continuation");
     g->requestEnhancedHallChallenge(a);const auto until=std::chrono::steady_clock::now()+std::chrono::seconds(8);
     while(g->page()==NativeMenuPage::HallOfFame&&std::chrono::steady_clock::now()<until){g->update(.02,{});Sleep(1);}g->update(0,{});tap(*g);
@@ -148,7 +149,7 @@ void challenge(const fs::path& pack,const NativeMemory& captured,const std::vect
     auto seed=std::make_unique<NativeMemory>(captured);std::copy_n(g->memory().begin()+0x1ecab,256,seed->begin()+0x1ecab);(*seed)[0x5eb79]=11;(*seed)[0x5eb76]=0;
     auto baseline=std::make_unique<RaceScene>();baseline->loadNativeState(*seed,payload,{});for(unsigned n=0;n<g->race().liveTicks();++n)baseline->stepLive(plan[n].controls,plan[n].quit);
     check(g->clearPracticeGhost()&&g->race().lapGhostPlayback(1)->enhancedHallTarget==resolved,"Clearing Enhanced PB removed the rival");
-    check(g->requestClose(),"Enhanced challenge could not close safely");CareerBytes saved;decodeCareerInfo(disk.readCareer(g->activeCareer()->id).data,&saved);check(saved==checkpoint,"Closing challenge persisted temporary world or RNG");
+    check(g->requestClose(),"Enhanced challenge could not close safely");CareerBytes saved;decodeCareerInfo(disk.readCareer(g->activeCareer()->key()).data,&saved);check(saved==checkpoint,"Closing challenge persisted temporary world or RNG");
     scene.quitLive();baseline->quitLive();auto actual=std::make_unique<NativeMemory>(),expected=std::make_unique<NativeMemory>();scene.copyLiveExit(*actual);baseline->copyLiveExit(*expected);check(*actual==*expected,"Enhanced ghost rendering or clearing changed simulation/RNG");
     NativeGameInput quit;quit.leaveRace=true;g->update(0,quit);waitHall(*g);check(g->memory()==*memory&&g->effectiveTimingCategory()==TimingCategory::Original,"Leaving Enhanced challenge changed career continuation or preference");
 }

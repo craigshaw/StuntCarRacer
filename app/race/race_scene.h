@@ -81,7 +81,6 @@ public:
     void finishLiveExit(std::array<std::uint8_t,0x80000>& sessionMemory);
     // Observation/copy boundaries for native persistence; no live mutation.
     void copyLiveExit(std::array<std::uint8_t,0x80000>& sessionMemory)const;
-    void copyLiveRecords(std::array<std::uint8_t,32>& entries)const;
     void resetLive();
     bool stepLive(unsigned controls,bool quit=false,DriveControlPreset preset=DriveControlPreset::Original);
     // In-memory career targets only. No file, settings or automatic draw path.

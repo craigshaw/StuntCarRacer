@@ -28,7 +28,6 @@ void drawNativeMenuString(const NativeMemory&,NativeMenuImage&,NativeMenuTextCur
 void drawNativeMenuCharacter(const NativeMemory&,NativeMenuImage&,NativeMenuTextCursor&,unsigned character);
 void packNativeMenuPixels(const NativeMenuImage&,std::vector<std::uint32_t>&);
 [[nodiscard]] NativeMenuImage makeNativeMenuImage(const NativeMemory&,const NativeMenuRenderState&);
-void renderNativeMenu(const NativeMemory&,const NativeMenuRenderState&,std::vector<std::uint32_t>&);
 // Authored options reuse the supplied artwork, strips and original glyphs.
 NativeMenuImage makeNativeChoiceImage(const NativeMemory&,const std::string& heading,
     const std::vector<std::string>& options,unsigned selected,const std::string& detail={},const std::string& status={});

@@ -1,11 +1,11 @@
 #define NOMINMAX
 #define WIN32_LEAN_AND_MEAN
 #include "persistence/saved_game_folders.h"
-#include "persistence/native_career_store.h"
 #include "persistence/career_file_io.h"
 #include "persistence/player_preferences.h"
 #include "persistence/windows_file_path.h"
 #include <algorithm>
+#include <stdexcept>
 
 namespace scr::runtime {
 namespace fs=std::filesystem;

@@ -6,12 +6,14 @@
 #include "persistence/ghost_lap_codec.h"
 #include "ghost_lap_fixture.h"
 #include "state/replay_io.h"
+#include "career_store_fixture.h"
+#include "persistence/career_file_io.h"
 #include <fstream>
 #include <iostream>
 #include <set>
 
 namespace {
-using namespace scr;using namespace scr::runtime;namespace fs=std::filesystem;namespace replay=scr::state::replay;
+using namespace scr;using namespace scr::runtime;namespace cf=scr::test::career;namespace fs=std::filesystem;namespace replay=scr::state::replay;
 unsigned checks{};
 void require(bool v,const char* m){++checks;if(!v)throw std::runtime_error(m);}
 void tap(NativeGameSession& g,unsigned controls=16,unsigned number=0){NativeGameInput in;in.menu={std::uint8_t(controls),std::uint8_t(number)};g.update(0,{});g.update(0,in);g.update(0,{});}
@@ -40,7 +42,8 @@ void drive(NativeGameSession& g,const std::vector<replay::ReplayInput>& plan,uns
 unsigned entries(const HallArchiveRead& r,HallRecordKind kind=HallRecordKind::Lap){require(bool(r.hall),"Missing shared Hall snapshot");return unsigned(r.hall->entries({0,HallLeague::Normal,kind}).size());}
 void legacy(const fs::path& pack,const fs::path& output){
     for(unsigned variant=0;variant<3;++variant){const auto root=output/std::to_string(variant);fs::create_directories(root);
-        {NativeCareerStore old(root);NativeHallBanks banks{};for(unsigned n=0;n<512;n+=16){std::fill_n(banks.begin()+n,12,'A');banks[n+13]=1;}old.saveHall(banks);require(old.flush(),"Cannot seed legacy Hall");}
+        {CareerBytes banks(512);for(unsigned n=0;n<512;n+=16){std::fill_n(banks.begin()+n,12,'A');banks[n+13]=1;}
+            const auto file=career_files::envelope(2,1,banks);std::ofstream out(root/"hall.scr-hall",std::ios::binary);out.write(reinterpret_cast<const char*>(file.data()),std::streamsize(file.size()));require(bool(out),"Cannot seed ignored legacy Hall");}
         if(variant==1){std::ofstream(root/"hall.scr-hall",std::ios::trunc)<<"corrupt";std::ofstream(root/"hall.scr-hall.bak1")<<"corrupt";}
         if(variant==2){std::fstream file(root/"hall.scr-hall",std::ios::binary|std::ios::in|std::ios::out);file.seekp(4);file.put(99);}
         const auto before=fs::file_size(root/"hall.scr-hall");auto g=career(pack,root,root/"shared-hall",true);
@@ -51,7 +54,7 @@ void legacy(const fs::path& pack,const fs::path& output){
 void sessions(const fs::path& pack,const fs::path& output,const NativeMemory& captured,const std::vector<std::uint8_t>& payload,const std::vector<replay::ReplayInput>& plan){
     const auto shared=output/"shared",root=output/"private-a";auto g=career(pack,root,shared,true);const auto id=g->activeCareer()->id;
     auto old=scr::test::ghost::lap(id);old.context.trackContentIdentity=ghostTrackContentIdentity(payload);old.completedTime={0,0,1};old.hundredths=1;
-    {NativeCareerStore store(root);store.saveGhost(old);require(store.flush(),"Cannot seed existing private PB");}
+    {NativeCareerStore store(root);cf::select(store,id);store.saveGhost(old);require(store.flush(),"Cannot seed existing private PB");}
     practice(*g);require(g->flushRecords()&&entries(g->sharedHall())==0,"Loaded PB or preview created a Hall row");
     handoff(*g,captured,payload);drive(*g,plan);require(g->flushRecords(),"Session completion stream did not flush");
     const auto saved=g->sharedHall();require(entries(saved)==3&&entries(saved,HallRecordKind::Race)==0,"Practice failed to save every lap or saved a race total");
@@ -68,7 +71,7 @@ void sessions(const fs::path& pack,const fs::path& output,const NativeMemory& ca
     for(std::size_t n=g->race().liveTicks();n<plan.size()&&g->race().lapRecordingStatistics()->completions<2;++n){NativeGameInput in;in.driveControls=plan[n].controls;in.quit=plan[n].quit;g->update(.12,in);}
     require(g->flushRecords()&&entries(g->sharedHall())==5&&!g->personalBestLaps().best({id,0,false}),"PB clear interrupted Hall capture or saved cleared partial PB");
     require(g->requestClose(),"Cleared session did not flush");g.reset();
-    fs::remove_all(root/L"careers");fs::remove_all(root/L"ghosts");fs::remove_all(root/L"ghosts-enhanced-v1");
+    fs::remove_all(root/L"careers");
     require(entries(archive.read())==5&&archive.readGhost(original).state==HallGhostState::Valid&&pinned.ghost->samples.size()>2,"Career deletion removed independently retained Hall ghosts");
     auto other=career(pack,output/"private-b",shared,true);require(other->flushRecords()&&entries(other->sharedHall())==5,"Separate private data root did not share installation Hall");require(other->requestClose(),"Second private root did not close");
 }

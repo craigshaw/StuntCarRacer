@@ -128,7 +128,7 @@ if(WIN32)
   target_sources(scr_hall_storage PRIVATE app/persistence/enhanced_hall_store.cpp)
   target_include_directories(scr_hall_storage PUBLIC app)
   target_compile_features(scr_hall_storage PUBLIC cxx_std_17)
-  target_link_libraries(scr_hall_storage PUBLIC scr_records PRIVATE advapi32 bcrypt shell32 ole32)
+  target_link_libraries(scr_hall_storage PUBLIC scr_records PRIVATE advapi32 bcrypt)
   if(MSVC)
     target_compile_options(scr_hall_storage PRIVATE /W4 /WX /permissive-)
   endif()
@@ -175,7 +175,6 @@ if(WIN32)
     app/session/native_multiplayer_checkpoint_session.cpp
     app/session/native_multiplayer_session.cpp
     app/persistence/native_career_store.cpp
-    app/persistence/career_folders.cpp
     app/persistence/saved_game_folders.cpp
     app/persistence/native_multiplayer_store.cpp
     app/persistence/ghost_lap_codec.cpp
@@ -205,7 +204,7 @@ if(WIN32)
   )
   target_include_directories(scr_host_ui PUBLIC app)
   target_include_directories(scr_host_ui PRIVATE "${PROJECT_BINARY_DIR}/generated")
-  target_link_libraries(scr_host_ui PUBLIC scr_runtime scr_player_data user32 gdi32 gdiplus shell32 ole32 comctl32)
+  target_link_libraries(scr_host_ui PUBLIC scr_runtime scr_player_data user32 gdi32 gdiplus ole32 comctl32)
   target_compile_features(scr_host_ui PUBLIC cxx_std_17)
   if(MSVC)
     target_compile_options(scr_host_ui PRIVATE /W4 /utf-8 /permissive-)

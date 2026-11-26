@@ -328,14 +328,6 @@ void RaceScene::copyLiveExit(std::array<std::uint8_t,0x80000>& memory)const{
     namespace t=scr::state::transitions;
     auto state=t::readState(memory.data());(void)finishLocalRaceExit(t::readInputs(memory.data()),state);t::writeState(memory.data(),state);
 }
-void RaceScene::copyLiveRecords(std::array<std::uint8_t,32>& entries)const{
-    const auto& memory=simulation_->native.ram;
-    for(unsigned kind=0;kind<2;++kind){
-        const unsigned name=kind?0x5ec55:0x5ec48;std::copy_n(memory.begin()+name,12,entries.begin()+kind*16);
-        for(unsigned field=0;field<3;++field)entries[kind*16+12+field]=memory[0x1c916+kind+24*field];
-        entries[kind*16+15]=0;
-    }
-}
 void RaceScene::beginLiveRecording(const std::filesystem::path& directory){
     recordingsDirectory_=directory;
     if(!directory.empty()){

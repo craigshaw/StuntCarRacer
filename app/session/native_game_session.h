@@ -45,7 +45,7 @@ public:
     NativeGameUpdate update(double elapsed,const NativeGameInput&);
     void enableCareers(const std::filesystem::path& dataRoot,const std::filesystem::path& sharedHallRoot={});
     void enableCareers(const std::filesystem::path& dataRoot,HallArchiveLocation original,HallArchiveLocation enhanced,
-        CareerStorageOptions storage={CareerStorageLayout::Folders,{}});
+        const std::filesystem::path& settings={});
     bool requestClose();
     void enableMultiplayerGames(const std::filesystem::path& settings={});
     bool multiplayerHome()const noexcept{return multiplayerPanel_==MultiplayerPanel::Home;}

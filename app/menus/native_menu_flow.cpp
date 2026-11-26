@@ -319,9 +319,6 @@ void NativeMenuFlow::returnFromRace(){
     // previous successful Practice choice set divisionSelectedFlag.
     if(memory_[0x5eb7d])openPractice();
 }
-void NativeMenuFlow::cancelPreview(){
-    memory_[0x5eb7d]=0;openMain();
-}
 NativeMenuAction NativeMenuFlow::startCompetition(){if(page_!=NativeMenuPage::Main)throw std::logic_error("Competition must start at Main");memory_[0x1bb1a]=memory_[0x1bb1b]=0;memory_[selection]=2;return confirm();}
 NativeMenuAction NativeMenuFlow::startPracticeSelection(){if(page_!=NativeMenuPage::Main)throw std::logic_error("Practice must start at Main");memory_[0x1bb1a]=memory_[0x1bb1b]=0;memory_[selection]=1;return confirm();}
 void NativeMenuFlow::returnFromSave(bool cancelled){

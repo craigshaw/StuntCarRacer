@@ -41,7 +41,7 @@ void scenario(const fs::path& pack,const fs::path& root,NativeMenuNavigation nav
     const auto fixtureMemory=std::make_unique<NativeMemory>(game->memory());
     tap(*game,0,true);check(game->hasSuspendedSeason(),"Season did not suspend before copying");check(game->requestClose(),"Initial folder career did not close");game.reset();
     NativeCareerInfo original;
-    {NativeCareerStore store(data,{}, {CareerStorageLayout::Folders,{}});check(store.list().size()==1,"Fresh folder discovery failed");original=store.list().front();}
+    {NativeCareerStore store(data,{}, {});check(store.list().size()==1,"Fresh folder discovery failed");original=store.list().front();}
     const auto controlData=root/L"control";fs::copy(data,controlData,fs::copy_options::recursive);
     auto control=open(pack,controlData);tap(*control);tap(*control);choose(*control,2);tap(*control);
     check(control->page()==NativeMenuPage::Matchup&&control->memory()==*fixtureMemory,"Ordinary Resume changed full native memory");
@@ -52,7 +52,7 @@ void scenario(const fs::path& pack,const fs::path& root,NativeMenuNavigation nav
     check(game->render()==game->render()&&game->memory()==*unchanged,"Browsing changed native state");
     check(snapshot(data/L"careers")==sources,"Discovery rewrote copied files");
     // Equal timestamps sort by folder. Select the incoming copy directly.
-    unsigned row=0;{NativeCareerStore store(data,{}, {CareerStorageLayout::Folders,{}});const auto entries=store.list();
+    unsigned row=0;{NativeCareerStore store(data,{}, {});const auto entries=store.list();
         check(entries.size()==2,"Copy was not independently discoverable");for(unsigned n=0;n<entries.size();++n)if(entries[n].folder.filename()==L"incoming")row=n;}
     for(unsigned n=0;n<row;++n)tap(*game,2);tap(*game);image(*game,root/L"loaded.ppm");
     check(game->activeCareer()&&game->activeCareer()->id==id&&game->activeCareer()->folder.filename()==L"incoming"&&game->hasSuspendedSeason(),"Choosing copied career added an action screen or lost continuation");

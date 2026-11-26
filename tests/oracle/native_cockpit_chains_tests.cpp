@@ -23,7 +23,6 @@ bool invalid{},returned{},drawPixels{};
 std::string failure;
 NativeChainDraws originalDraws;
 unsigned word(const Memory& m,unsigned a){return (unsigned(m.at(a))<<8)|m.at(a+1);}
-unsigned longword(const Memory& m,unsigned a){return (word(m,a)<<16)|word(m,a+2);}
 void putWord(Memory& m,unsigned a,unsigned value){m.at(a)=std::uint8_t(value>>8);m.at(a+1)=std::uint8_t(value);}
 void putLong(Memory& m,unsigned a,unsigned value){putWord(m,a,value>>16);putWord(m,a+2,value);}
 bool in(unsigned a,unsigned begin,unsigned end){return a>=begin&&a<end;}

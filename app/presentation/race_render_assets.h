@@ -3,7 +3,6 @@
 #include <array>
 #include <cstddef>
 #include <cstdint>
-#include <string_view>
 #include <vector>
 
 namespace scr::runtime {
@@ -71,7 +70,4 @@ void composeCockpit(const RaceRenderAssets&,const CockpitFrame&,
     std::vector<std::uint32_t>& pixels,bool extendedCorners=false,bool includeCage=true);
 void composeCage(const RaceRenderAssets&,const CockpitFrame&,
     std::vector<std::uint32_t>& pixels,bool extendedCorners=false);
-// Native text using original96-glyph7x8 font. No host font substitution.
-void drawRaceText(const RaceRenderAssets&,std::vector<std::uint32_t>& pixels,
-    int x,int y,std::string_view text,std::uint8_t colourIndex);
 } // namespace scr::runtime

@@ -37,11 +37,11 @@ int main(int argc,char** argv)try{
     const auto defaultLayout=playerDataLayout(output/"default-root");
     const NativeLaunchPaths defaults{defaultLayout.pack,defaultLayout.settings,{},defaultLayout.root};
     const auto normal=parseNativeLaunchOptions(defaults,{});
-    require(normal.dataLayout&&normal.paths.dataRoot==defaults.dataRoot,"Normal launches are not portable");
+    require(normal.dataLayout.root==defaults.dataRoot&&normal.paths.dataRoot==defaults.dataRoot,"Normal launches are not portable");
     const auto isolated=parseNativeLaunchOptions(defaults,{L"--data-dir",L"relative-data",L"--fullscreen",L"--windowed",L"--interpolate"});
-    require(isolated.dataLayout&&isolated.paths.dataRoot==output/"cwd/relative-data","CLI root was not resolved once");
+    require(isolated.dataLayout.root==isolated.paths.dataRoot&&isolated.paths.dataRoot==output/"cwd/relative-data","CLI root was not resolved once");
     const auto& paths=isolated.paths;
-    require(paths.pack==isolated.dataLayout->pack&&paths.settings==isolated.dataLayout->settings,"Whole-root override leaked legacy paths");
+    require(paths.pack==isolated.dataLayout.pack&&paths.settings==isolated.dataLayout.settings,"Whole-root override leaked legacy paths");
     require(paths.recordings.empty()&&isolated.fullscreen==false&&isolated.interpolate==true,"CLI enabled recording or lost transient presentation overrides");
     const auto recorded=parseNativeLaunchOptions(defaults,{L"--recordings-dir",L"recordings"});
     require(recorded.paths.recordings==output/"cwd/recordings","Recording option differs");

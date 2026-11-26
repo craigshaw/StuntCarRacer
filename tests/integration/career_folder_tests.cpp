@@ -21,7 +21,7 @@ void check(bool value,const char* message){++checks;if(!value)throw std::runtime
 CareerBytes bytes(const fs::path& path){std::ifstream file(path,std::ios::binary);return {std::istreambuf_iterator<char>(file),{}};}
 void write(const fs::path& path,const CareerBytes& data){std::string error;check(career_files::atomicWrite(path,data,error),"Cannot write synthetic fixture");}
 std::map<fs::path,CareerBytes> snapshot(const fs::path& root){std::map<fs::path,CareerBytes> result;if(fs::exists(root))for(const auto& e:fs::recursive_directory_iterator(root))if(e.is_regular_file())result[e.path().lexically_relative(root)]=bytes(e.path());return result;}
-std::unique_ptr<NativeCareerStore> open(const fs::path& root){return std::make_unique<NativeCareerStore>(root,NativeCareerStore::Validator{},CareerStorageOptions{CareerStorageLayout::Folders,{}});}
+std::unique_ptr<NativeCareerStore> open(const fs::path& root){return std::make_unique<NativeCareerStore>(root,NativeCareerStore::Validator{},std::filesystem::path{});}
 NativeCareerInfo seed(NativeCareerStore& store,const std::string& name="Craig",bool recordings=true){
     NativeCareerInfo info{NativeCareerStore::newId(),name,0,0,1};
     for(unsigned generation=1;generation<=3;++generation){info.lastPlayed=generation;store.saveCareer(info,{2,std::uint8_t(generation)});

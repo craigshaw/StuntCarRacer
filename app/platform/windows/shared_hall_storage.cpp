@@ -3,12 +3,9 @@
 #include <windows.h>
 #include <aclapi.h>
 #include <bcrypt.h>
-#include <shlobj.h>
 #include "platform/windows/shared_hall_storage.h"
 #include <algorithm>
 #include <array>
-#include <iomanip>
-#include <sstream>
 #include <stdexcept>
 #include <vector>
 
@@ -40,38 +37,6 @@ struct HallSecurity {
         attributes={sizeof(attributes),&descriptor,FALSE};
     }
 };
-std::wstring installationPath(const std::filesystem::path& directory){
-    Handle h;h.value=CreateFileW(directory.c_str(),FILE_READ_ATTRIBUTES,FILE_SHARE_READ|FILE_SHARE_WRITE|FILE_SHARE_DELETE,nullptr,OPEN_EXISTING,FILE_FLAG_BACKUP_SEMANTICS,nullptr);
-    if(h.value==INVALID_HANDLE_VALUE)failed("Open Hall installation directory");
-    BY_HANDLE_FILE_INFORMATION info{};if(!GetFileInformationByHandle(h.value,&info))failed("Read Hall installation directory");
-    if(!(info.dwFileAttributes&FILE_ATTRIBUTE_DIRECTORY))throw std::invalid_argument("Hall installation path must be a directory");
-    const auto size=GetFinalPathNameByHandleW(h.value,nullptr,0,FILE_NAME_NORMALIZED|VOLUME_NAME_DOS);if(!size)failed("Resolve Hall installation directory");
-    std::wstring path(size,L'\0');const auto used=GetFinalPathNameByHandleW(h.value,path.data(),size,FILE_NAME_NORMALIZED|VOLUME_NAME_DOS);
-    if(!used||used>=size)failed("Resolve Hall installation directory");path.resize(used);
-    const auto length=LCMapStringEx(LOCALE_NAME_INVARIANT,LCMAP_LOWERCASE,path.data(),int(path.size()),nullptr,0,nullptr,nullptr,0);
-    if(!length)failed("Normalise Hall installation directory");std::wstring normal(std::size_t(length),L'\0');
-    if(!LCMapStringEx(LOCALE_NAME_INVARIANT,LCMAP_LOWERCASE,path.data(),int(path.size()),normal.data(),length,nullptr,nullptr,0))failed("Normalise Hall installation directory");
-    return normal;
-}
-std::string installationKey(const std::wstring& path){
-    BCRYPT_ALG_HANDLE algorithm{};BCRYPT_HASH_HANDLE hash{};
-    auto status=BCryptOpenAlgorithmProvider(&algorithm,BCRYPT_SHA256_ALGORITHM,nullptr,0);
-    if(status<0)throw std::runtime_error("Cannot open Hall installation hash");
-    std::array<UCHAR,32> bytes{};
-    status=BCryptCreateHash(algorithm,&hash,nullptr,0,nullptr,0,0);
-    if(status>=0)status=BCryptHashData(hash,reinterpret_cast<PUCHAR>(const_cast<wchar_t*>(path.data())),ULONG(path.size()*sizeof(wchar_t)),0);
-    if(status>=0)status=BCryptFinishHash(hash,bytes.data(),ULONG(bytes.size()),0);
-    if(hash)BCryptDestroyHash(hash);BCryptCloseAlgorithmProvider(algorithm,0);
-    if(status<0)throw std::runtime_error("Cannot hash Hall installation directory");
-    std::ostringstream out;for(auto b:bytes)out<<std::hex<<std::setw(2)<<std::setfill('0')<<unsigned(b);return out.str();
-}
-}
-SharedHallPaths sharedHallPaths(const std::filesystem::path& directory,const std::filesystem::path& commonRoot){
-    auto common=commonRoot;
-    if(common.empty()){PWSTR folder{};if(FAILED(SHGetKnownFolderPath(FOLDERID_ProgramData,KF_FLAG_DEFAULT,nullptr,&folder)))throw std::runtime_error("Cannot locate common Windows application data");
-        common=folder;CoTaskMemFree(folder);}
-    const auto key=installationKey(installationPath(directory));
-    return {key,std::filesystem::absolute(common)/L"Stunt Car Racer"/L"instances"/key/L"hall"};
 }
 void prepareHallDirectory(const std::filesystem::path& root,HallDirectoryAccess access){
     if(access==HallDirectoryAccess::SharedUsers){prepareSharedHallDirectory(root);return;}

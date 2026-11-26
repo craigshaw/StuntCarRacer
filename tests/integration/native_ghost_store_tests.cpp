@@ -3,11 +3,12 @@
 #include "persistence/native_career_store.h"
 #include "persistence/ghost_lap_codec.h"
 #include "ghost_lap_fixture.h"
+#include "career_store_fixture.h"
 #include <fstream>
 #include <iostream>
 
 namespace {
-using namespace scr::runtime;using namespace scr::state::checkpoint;
+using namespace scr::runtime;namespace cf=scr::test::career;using namespace scr::state::checkpoint;
 void require(bool value,const char* message){if(!value)throw std::runtime_error(message);}
 void corrupt(const std::filesystem::path& path){std::ofstream out(path,std::ios::binary|std::ios::trunc);out<<"damaged";}
 Bytes read(const std::filesystem::path& path){std::ifstream in(path,std::ios::binary);return {std::istreambuf_iterator<char>(in),{}};}
@@ -15,7 +16,7 @@ Bytes read(const std::filesystem::path& path){std::ifstream in(path,std::ios::bi
 int main(int argc,char** argv)try{
     require(argc==2,"Usage: native_ghost_store_tests output");const std::filesystem::path root=argv[1];NativeCareerStore store(root);
     const auto id=NativeCareerStore::newId();auto lap=scr::test::ghost::lap(id);const auto key=lap.context.key;
-    const auto file=root/"ghosts"/id/"0-normal.scr-ghost";
+    cf::create(store,id);const auto file=cf::find(store,id).folder/"personal-bests/original/0-normal.scr-ghost";
     for(unsigned n=0;n<4;++n){lap.completedTime.subseconds=std::uint8_t(0x23+n);lap.hundredths=ghostLapHundredths(lap.completedTime);store.saveGhost(lap);require(store.flush(),"Ghost replacement failed");}
     require(store.readGhost(key,1234).generation==4,"Ghost generations did not advance");
     corrupt(file);auto saved=store.readGhost(key,1234);require(saved.state==CareerFileState::Recovered&&saved.generation==3,"Newest valid ghost recovery was not selected");
@@ -33,9 +34,10 @@ int main(int argc,char** argv)try{
     const auto unknown=read(file);store.saveGhost(lap);require(!store.flush()&&read(file)==unknown,"Unsupported ghost was overwritten");
     require(store.clearGhost(key),"Explicit ghost clear failed");store.retry();require(store.flush()&&store.readGhost(key,1234).state==CareerFileState::Missing,"Retry resurrected an explicitly cleared ghost");
     store.saveGhost(lap);require(store.clearGhost(key),"Clear did not drain an in-flight ghost replacement");store.retry();require(store.flush()&&store.readGhost(key,1234).state==CareerFileState::Missing,"Pending write restored a cleared target");
-    const auto otherId=NativeCareerStore::newId();auto other=scr::test::ghost::lap(otherId,5,true);store.saveGhost(other);store.saveGhost(lap);
-    store.saveCareer({id,"TEST",0,0,1},{1});require(store.flush()&&store.clearGhost(key),"Career deletion did not remove its ghosts");
-    require(store.readGhost(key,1234).state==CareerFileState::Missing&&store.readGhost(other.context.key,1234).state==CareerFileState::Valid,"Ghost deletion crossed career boundaries");
+    const auto otherId=NativeCareerStore::newId();auto other=scr::test::ghost::lap(otherId,5,true);cf::create(store,otherId);store.saveGhost(other);cf::select(store,id);store.saveGhost(lap);
+    require(store.flush()&&store.clearGhost(key),"Cannot clear selected career ghost");
+    require(store.readGhost(key,1234).state==CareerFileState::Missing,"Cleared ghost was retained");cf::select(store,otherId);
+    require(store.readGhost(other.context.key,1234).state==CareerFileState::Valid,"Clear crossed career boundaries");
     require(store.readGhost(other.context.key,5678).state==CareerFileState::Unsupported,"Track content compatibility was ignored");
     std::cout<<"Ghost storage recovery, failure, deletion and unsupported-format checks passed\n";return 0;
 }catch(const std::exception& e){std::cerr<<e.what()<<'\n';return 1;}

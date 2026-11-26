@@ -9,7 +9,6 @@
 #include "platform/windows/drive_input.h"
 #include "platform/windows/audio_output.h"
 #include "platform/windows/game_display.h"
-#include "platform/windows/shared_hall_storage.h"
 #include "platform/windows/player_data_ownership.h"
 #include <algorithm>
 #include <array>
@@ -18,7 +17,6 @@
 #include <filesystem>
 #include <iomanip>
 #include <memory>
-#include <optional>
 #include <sstream>
 #include <stdexcept>
 
@@ -98,7 +96,7 @@ private:
     std::wstring settingsError_;
     bool muted_{},focused_{true},suppressInput_{},freshGame_{},showFps_{},displayEditing_{};
     bool leaveRaceRequested_{},closeFromMenu_{};
-    std::optional<PlayerDataLayout> dataLayout_;
+    PlayerDataLayout dataLayout_;
     HANDLE timer_{};
     std::wstring instanceName_;
     unsigned frames_{};
@@ -118,7 +116,7 @@ private:
         try{
             const auto& paths=launcher_.paths();
             auto started=std::make_unique<NativeGameSession>(paths.pack,paths.recordings,NativeGameStart::OriginalOpening);
-            started->enableCareers(paths.dataRoot,dataLayout_->originalHall,dataLayout_->enhancedHall,{CareerStorageLayout::Folders,paths.settings});
+            started->enableCareers(paths.dataRoot,dataLayout_.originalHall,dataLayout_.enhancedHall,paths.settings);
             started->enableMultiplayerGames(paths.settings);
             started->setNavigation(launcher_.preferences().navigation);
             started->setTimingCategory(launcher_.preferences().timing);

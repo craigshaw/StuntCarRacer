@@ -1,7 +1,7 @@
 #pragma once
 #include "persistence/enhanced_record_codec.h"
 #include "state/native_checkpoint_io.h"
-#include "persistence/saved_game_types.h"
+#include "persistence/saved_game_folders.h"
 #include <array>
 #include <condition_variable>
 #include <deque>
@@ -14,35 +14,23 @@
 
 namespace scr::runtime {
 struct GhostLap;struct GhostLapKey;
-class CareerFolders;
-using NativeHallBanks=std::array<std::uint8_t,512>;
-enum class CareerStorageLayout {LegacyFlat,Folders};
-struct CareerStorageOptions {
-    CareerStorageLayout layout{CareerStorageLayout::LegacyFlat};
-    std::filesystem::path settings;
-};
 // Immutable, bounded native payloads. All generated data stays outside source.
 CareerBytes encodeCareerInfo(const NativeCareerInfo&,const CareerBytes& checkpoint);
 NativeCareerInfo decodeCareerInfo(const CareerBytes&,CareerBytes* checkpoint=nullptr);
-bool mergeNativeHall(NativeHallBanks&,const NativeHallBanks&);
-bool validNativeHall(const NativeHallBanks&)noexcept;
 
 class NativeCareerStore {
 public:
     using Validator=std::function<CareerFileState(const CareerBytes&)>;
-    explicit NativeCareerStore(std::filesystem::path root,Validator validator={},CareerStorageOptions options={});
+    explicit NativeCareerStore(std::filesystem::path root,Validator validator={},std::filesystem::path settings={});
     ~NativeCareerStore();
     NativeCareerStore(const NativeCareerStore&)=delete;
     NativeCareerStore& operator=(const NativeCareerStore&)=delete;
     const std::filesystem::path& root()const noexcept{return root_;}
     static std::string newId();
     CareerRead readCareer(const std::string&)const;
-    CareerRead readHall()const;
     std::string lastUsed()const;
-    CareerFileState lastUsedState()const;
     std::vector<NativeCareerInfo> list()const;
     std::filesystem::path saveCareer(const NativeCareerInfo&,const CareerBytes&);
-    void saveHall(const NativeHallBanks&);
     void setLastUsed(const std::string&);
     CareerRead readGhost(const GhostLapKey&,std::uint64_t trackContentIdentity)const;
     void saveGhost(const GhostLap&);
@@ -60,20 +48,17 @@ public:
     std::string failureSummary()const;
     void selectCareer(const NativeCareerInfo&);
     bool cancelCareerDraft(const NativeCareerInfo&);
-    bool folderLayout()const noexcept{return bool(folders_);}
     // Both modes share this actor's coalescing, retry and departure lifecycle.
     using CustomWriter=std::function<bool(const CareerBytes&,std::string&)>;
     void submitSavedGame(std::filesystem::path,CareerBytes,CustomWriter);
     void forgetWrites(const std::filesystem::path&);
-    bool resetHall(const NativeHallBanks&);
     void acknowledgeFailures();
 private:
-    friend class CareerFolders;
     struct Job {std::filesystem::path path;unsigned kind{};CareerBytes data;std::uint64_t serial{};Validator validator;CustomWriter custom;};
     std::filesystem::path root_;
     Validator validator_;
     std::filesystem::path settings_;
-    std::unique_ptr<CareerFolders> folders_;
+    SavedGameFolders folders_;
     NativeCareerInfo selectedCareer_;
     std::filesystem::path recordsFolder(const std::string&)const;
     mutable std::mutex mutex_;

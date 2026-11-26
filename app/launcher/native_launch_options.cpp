@@ -3,7 +3,7 @@
 
 namespace scr::runtime {
 NativeLaunchOptions parseNativeLaunchOptions(const NativeLaunchPaths& defaults,const std::vector<std::wstring>& args){
-    NativeLaunchOptions options;options.paths=defaults;
+    NativeLaunchOptions options;
     std::optional<std::filesystem::path> root,recordings;
     for(std::size_t n=0;n<args.size();++n){
         const auto& key=args[n];
@@ -17,7 +17,7 @@ NativeLaunchOptions parseNativeLaunchOptions(const NativeLaunchPaths& defaults,c
         if(key==L"--data-dir")root=value;
         else recordings=value;
     }
-    options.dataLayout=playerDataLayout(root?*root:defaults.dataRoot);const auto& layout=*options.dataLayout;
+    options.dataLayout=playerDataLayout(root?*root:defaults.dataRoot);const auto& layout=options.dataLayout;
     options.paths={layout.pack,layout.settings,{},layout.root};
     if(recordings)options.paths.recordings=*recordings;
     return options;

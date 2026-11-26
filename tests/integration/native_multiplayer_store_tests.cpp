@@ -11,7 +11,6 @@ namespace {
 using namespace scr::runtime;namespace fs=std::filesystem;
 unsigned checks{};
 void check(bool value,const char* message){++checks;if(!value)throw std::runtime_error(message);}
-template<class F>void rejected(F action,const char* message){bool caught=false;try{action();}catch(const std::exception&){caught=true;}check(caught,message);}
 MultiplayerBytes bytes(const fs::path& path){std::ifstream input(path,std::ios::binary);return {std::istreambuf_iterator<char>(input),{}};}
 void write(const fs::path& path,const MultiplayerBytes& data){std::string error;check(career_files::atomicWrite(path,data,error),"Cannot write storage fixture");}
 std::map<fs::path,MultiplayerBytes> snapshot(const fs::path& path){std::map<fs::path,MultiplayerBytes> result;if(fs::exists(path))for(const auto& file:fs::recursive_directory_iterator(path))if(file.is_regular_file())result[file.path().lexically_relative(path)]=bytes(file.path());return result;}
@@ -22,7 +21,7 @@ MultiplayerBytes checkpoint(const NativeMemory& baseline,unsigned marker){
 }
 struct Library {
     NativeCareerStore io;NativeMultiplayerStore games;
-    Library(const fs::path& root,const NativeMemory& baseline):io(root,{}, {CareerStorageLayout::Folders,{}}),games(io,baseline){}
+    Library(const fs::path& root,const NativeMemory& baseline):io(root,{}, {}),games(io,baseline){}
 };
 SavedGameEntry entry(const NativeMultiplayerStore& games,const std::string& id){for(const auto& item:games.list())if(item.id==id)return item;throw std::runtime_error("Fixture game missing");}
 void storage(const NativeMemory& baseline,const fs::path& root){

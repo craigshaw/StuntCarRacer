@@ -14,7 +14,7 @@ std::filesystem::path nativeExecutablePath();
 struct NativeLaunchOptions {
     NativeLaunchPaths paths;
     std::optional<bool> interpolate,fullscreen;
-    std::optional<PlayerDataLayout> dataLayout;
+    PlayerDataLayout dataLayout;
 };
 // Arguments exclude argv[0]. One data root owns every player file.
 NativeLaunchOptions parseNativeLaunchOptions(const NativeLaunchPaths& defaults,

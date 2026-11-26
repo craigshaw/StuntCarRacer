@@ -8,11 +8,12 @@
 #include "ghost_lap_fixture.h"
 #include "state/replay_io.h"
 #include <chrono>
+#include "career_store_fixture.h"
 #include <fstream>
 #include <iostream>
 
 namespace {
-using namespace scr;using namespace scr::runtime;namespace fs=std::filesystem;namespace fixture=scr::test::hall;namespace replay=scr::state::replay;
+using namespace scr;using namespace scr::runtime;namespace cf=scr::test::career;namespace fs=std::filesystem;namespace fixture=scr::test::hall;namespace replay=scr::state::replay;
 unsigned checks{},routes{},visible{},viewMask{};
 void require(bool v,const char* message){++checks;if(!v)throw std::runtime_error(message);}
 void update(NativeGameSession& g,double elapsed=0,unsigned controls=0,unsigned numbers=0,bool back=false){NativeGameInput in;in.menu={std::uint8_t(controls),std::uint8_t(numbers),back};g.update(elapsed,in);}
@@ -52,7 +53,7 @@ void journeys(const fs::path& pack,const fs::path& root,NativeMenuNavigation pol
     const auto shared=root/"shared",privateRoot=root/"private";auto g=career(pack,privateRoot,shared);const auto startup=startNativeGame(pack);HallCatalog catalog{ghostTrackContentIdentity(startup.payload),1};SharedHallArchive archive(shared,catalog);seed(archive,catalog);
     tap(*g,0,4);tap(*g);require(g->page()==NativeMenuPage::Matchup,"Missing pending season fixture");tap(*g,0,0,true);require(g->hasSuspendedSeason(),"Season did not suspend");
     const auto earned=*g->activeCareer();
-    {NativeCareerStore store(privateRoot);for(bool super:{false,true}){auto pb=scr::test::ghost::lap(earned.id,0,super);pb.context.trackContentIdentity=catalog.trackContent;store.saveGhost(pb);}require(store.flush(),"Cannot seed independent challenge PBs");}
+    {NativeCareerStore store(privateRoot);cf::select(store,earned.id);for(bool super:{false,true}){auto pb=scr::test::ghost::lap(earned.id,0,super);pb.context.trackContentIdentity=catalog.trackContent;store.saveGhost(pb);}require(store.flush(),"Cannot seed independent challenge PBs");}
     g->setNavigation(policy);open(*g);
     for(unsigned track=0;track<8;++track)for(unsigned league=0;league<2;++league){
         board(*g,track,league);const auto selected=g->hallBrowser()->entries()[g->hallBrowser()->selected()].attempt.id;auto before=std::make_unique<NativeMemory>(g->memory());

@@ -70,7 +70,7 @@ roster entry and requires a durable first save after roster confirmation. Contin
 opens home without acknowledging the checkpoint. Resume Championship restores it;
 Practise uses a temporary world. All modes retain their original progression rules.
 
-Private career/index files use bounded, checksummed, versioned envelopes. A serial
+Career and private PB files use bounded, checksummed, versioned envelopes. A serial
 worker writes immutable jobs to a flushed temporary file, atomically replaces
 the head and retains two valid recovery generations. Ignore stale temporary
 files, preserve unknown formats and validate checkpoint bodies during recovery.
@@ -79,7 +79,7 @@ Saved means worker completion, not job submission.
 All player launches discover `careers/<label>/career.scr-career` and
 `multiplayer/<label>/game.scr-multiplayer` in immediate child folders. Each career
 owns `personal-bests/original/` and `personal-bests/enhanced/`, including recovery
-files. `SavedGameFolders`, `CareerFolders` and `NativeMultiplayerStore` share
+files. `SavedGameFolders` and `NativeMultiplayerStore` share
 discovery while keeping mode-specific validation. Missing heads can use local
 backups; unsupported/damaged data is preserved. Links and nested histories are
 not followed. A first atomic checkpoint makes a new folder discoverable.
@@ -95,8 +95,8 @@ import/conversion or folder transaction service exists.
 Last-used folder names are separate `last-career-folder`/`last-multiplayer-folder`
 preferences with coordinated read/merge/atomic writes shared by display and
 selection updates. No on-disk catalogue is needed. A renamed/missing preference
-does not hide saves or choose another matching ID. Flat storage and original
-codecs remain isolated test/tool interfaces, unreachable from the player.
+does not hide saves or choose another matching ID. Original save-disc codecs
+remain isolated verification interfaces, unreachable from the player.
 
 Write failure retains the latest RAM state and last good disk copy. Retry at safe
 boundaries; switching careers and closing must drain writes or offer an explicit

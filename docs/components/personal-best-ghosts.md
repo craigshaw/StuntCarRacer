@@ -180,8 +180,7 @@ All player launches write Original PBs under
 `<track>-super.scr-ghost`, beside the checkpoint and independent Enhanced category.
 Copy/rename complete folders with the game closed. Matching internal IDs in copies
 keep their PB bindings and are selected/written independently; no rekeying or copy
-resolution is needed. See [portable data](portable-player-data.md). Isolated older
-test/tool stores keep their separate flat paths.
+resolution is needed. See [portable data](portable-player-data.md). Storage/session fixtures exercise the same convention paths as the player.
 Writes use the existing serial worker. Best time and poses
 form one immutable job and one checksummed replacement, with two validated
 recovery generations. Loading accepts a good recovery copy; replacement preserves

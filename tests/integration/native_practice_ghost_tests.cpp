@@ -4,12 +4,13 @@
 #include "persistence/ghost_lap_codec.h"
 #include "platform/windows/game_display.h"
 #include "state/replay_io.h"
+#include "career_store_fixture.h"
 #include <fstream>
 #include <iostream>
 #include <set>
 
 namespace {
-using namespace scr;using namespace scr::runtime;namespace replay=scr::state::replay;
+using namespace scr;using namespace scr::runtime;namespace cf=scr::test::career;namespace replay=scr::state::replay;
 void require(bool value,const char* message){if(!value)throw std::runtime_error(message);}
 void tap(NativeGameSession& game,unsigned controls=16,unsigned number=0){NativeGameInput in;in.menu={std::uint8_t(controls),std::uint8_t(number)};game.update(0,{});game.update(0,in);game.update(0,{});}
 void tap(NativeDisplaySettings& menu,unsigned controls){menu.navigate(0);menu.navigate(controls);menu.navigate(0);}
@@ -72,7 +73,7 @@ std::string record(const std::filesystem::path& pack,const std::filesystem::path
     const auto stats=game->race().lapRecordingStatistics();require(stats&&stats->recordedLaps==3&&stats->improvements>0&&notice,"Automatic saving/feedback did not observe completed laps");
     if(competitive)counts.leagueLaps=stats->recordedLaps;else counts.practiceLaps=stats->recordedLaps;++counts.feedback;
     const auto id=game->activeCareer()->id;require(game->requestClose(),"Completed ghost did not flush on close");game.reset();
-    NativeCareerStore store(root);const auto saved=store.readGhost({id,0,false},ghostTrackContentIdentity(payload));
+    NativeCareerStore store(root);cf::select(store,id);const auto saved=store.readGhost({id,0,false},ghostTrackContentIdentity(payload));
     require(saved.state==CareerFileState::Valid&&decodeGhostLap(saved.data).context.source==(competitive?GhostLapSource::League:GhostLapSource::Practice),"Saved ghost lost its mode or did not survive close");return id;
 }
 void player(const std::filesystem::path& pack,const std::filesystem::path& root,const NativeMemory& seed,const std::vector<std::uint8_t>& payload,
@@ -103,7 +104,7 @@ void player(const std::filesystem::path& pack,const std::filesystem::path& root,
     require(!game->race().lapGhostPlayback(1)&&!game->personalBestLaps().best(key),"Clear retained the active ghost");
     menu.setPracticeGhostContext(true,L"Not set",false);image(*game,display,menu,output/"cleared.ppm");
     menu.back();
-    const auto file=root/"ghosts"/key.career/"0-normal.scr-ghost";
+    const auto file=game->activeCareer()->folder/"personal-bests/original/0-normal.scr-ghost";
     for(unsigned tick=250;tick<=505;++tick){drive(*game,plan.at(tick));baseline->stepLive(plan[tick].controls,plan[tick].quit);}
     require(!game->personalBestLaps().best(key)&&!std::filesystem::exists(file),"Cleared in-progress candidate restored the deleted best");++counts.clearChecks;
     for(unsigned tick=506;tick<=961;++tick){drive(*game,plan.at(tick));baseline->stepLive(plan[tick].controls,plan[tick].quit);}
@@ -112,7 +113,7 @@ void player(const std::filesystem::path& pack,const std::filesystem::path& root,
     auto a=std::make_unique<NativeMemory>(),b=std::make_unique<NativeMemory>();const_cast<RaceScene&>(game->race()).quitLive();baseline->quitLive();game->race().copyLiveExit(*a);baseline->copyLiveExit(*b);
     require(*a==*b,"Player ghost/toggle/clear queries changed simulation or RNG");
     require(game->requestClose(),"New best after clear did not save");game.reset();
-    NativeCareerStore store(root);require(store.readGhost(key,ghostTrackContentIdentity(payload)).state==CareerFileState::Valid,"New best after clear did not survive close");
+    NativeCareerStore store(root);cf::select(store,key.career);require(store.readGhost(key,ghostTrackContentIdentity(payload)).state==CareerFileState::Valid,"New best after clear did not survive close");
 }
 }
 int main(int argc,char** argv)try{

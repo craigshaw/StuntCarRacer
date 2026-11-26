@@ -24,7 +24,6 @@ struct ScanState {std::array<std::uint8_t,128> keys{};std::uint8_t controls{};};
 std::vector<ScanState> script;
 unsigned scanIndex{};
 bool scripted{};
-unsigned word(const NativeMemory& m,unsigned a){return (unsigned(m.at(a))<<8)|m.at(a+1);}
 void putLong(NativeMemory& m,unsigned a,unsigned v){for(unsigned n=0;n<4;++n)m.at(a+n)=std::uint8_t(v>>(24-n*8));}
 void require(bool condition,const char* message){if(!condition)throw std::runtime_error(message);}
 unsigned read(unsigned a){

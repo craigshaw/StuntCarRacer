@@ -8,6 +8,7 @@
 #include "enhanced_record_fixture.h"
 #include "hall_ghost_fixture.h"
 #include "ghost_lap_fixture.h"
+#include "career_store_fixture.h"
 #include <fstream>
 #include <future>
 #include <iostream>
@@ -15,7 +16,7 @@
 #include <atomic>
 
 namespace {
-using namespace scr::runtime;namespace fixture=scr::test::enhanced;namespace old=scr::test::hall;namespace fs=std::filesystem;
+using namespace scr::runtime;namespace cf=scr::test::career;namespace fixture=scr::test::enhanced;namespace old=scr::test::hall;namespace fs=std::filesystem;
 std::atomic<unsigned> checks{};
 void check(bool value,const char* message){++checks;if(!value)throw std::runtime_error(message);}
 template<class F>void rejected(F action){bool failed=false;try{action();}catch(const std::exception&){failed=true;}check(failed,"Invalid storage operation succeeded");}
@@ -27,11 +28,11 @@ std::shared_ptr<const EnhancedSubmission> submission(unsigned n,std::int64_t ela
 }
 void privateBests(const fs::path& root){
     NativeCareerStore store(root);auto pb=fixture::best(120499);auto original=scr::test::ghost::lap(pb.key.career);
-    store.saveGhost(original);NativeCareerInfo info;info.id=pb.key.career;info.name="Craig";store.saveCareer(info,{1,2,3});check(store.flush(),"Original fixture did not save");
-    const auto originalFiles=files(root/"ghosts"),careerFiles=files(root/"careers");
+    NativeCareerInfo info;info.id=pb.key.career;info.name="Craig";info.folder=store.saveCareer(info,{1,2,3});store.saveGhost(original);check(store.flush(),"Original fixture did not save");
+    const auto originalFiles=files(info.folder/"personal-bests/original");const auto careerFile=bytes(info.folder/"career.scr-career");
     check(store.readEnhancedBest(pb.key,fixture::catalog).state==CareerFileState::Missing,"Original PB imported as Enhanced");
     store.saveEnhancedBest(pb);check(store.flush(),"Enhanced PB did not save");
-    const auto path=root/"ghosts-enhanced-v1"/pb.key.career/"0-normal.scr-ebest";
+    const auto path=info.folder/"personal-bests/enhanced"/"0-normal.scr-ebest";
     const auto held=bytes(path);auto tied=fixture::best(120001,false);store.saveEnhancedBest(tied);check(store.flush()&&bytes(path)==held,"PB tie changed the saved ghost or generation");
     store.saveEnhancedBest(fixture::best(119499,false));check(store.flush(),"Time-only PB failed");
     auto read=store.readEnhancedBest(pb.key,fixture::catalog);check(!decodeEnhancedBest(read.data).recording,"Time-only PB restored a slower ghost");
@@ -55,15 +56,15 @@ void privateBests(const fs::path& root){
     fs::create_directory(path.wstring()+L".tmp");store.saveEnhancedBest(fixture::best(999000,false));check(!store.flush(),"PB interruption fixture did not fail publication");
     auto latest=store.readEnhancedBest(pb.key,fixture::catalog);check(latest.state==CareerFileState::Recovered&&decodeEnhancedBest(latest.data).time.milliseconds()==109,"Sole fastest backup was lost before publication");
     fs::remove(path.wstring()+L".tmp");store.retry();check(store.flush(),"Sole-backup recovery did not retry");
-    auto foreign=fixture::best();foreign.key.career=std::string(32,'2');store.saveEnhancedBest(foreign);check(store.flush(),"Foreign-owner fixture did not save");
-    const auto foreignFile=root/"ghosts-enhanced-v1"/foreign.key.career/"0-normal.scr-ebest";const auto foreignBytes=bytes(foreignFile);write(path,foreignBytes);
+    auto foreign=fixture::best();foreign.key.career=std::string(32,'2');cf::create(store,foreign.key.career);store.saveEnhancedBest(foreign);check(store.flush(),"Foreign-owner fixture did not save");
+    const auto foreignFile=cf::find(store,foreign.key.career).folder/"personal-bests/enhanced"/"0-normal.scr-ebest";const auto foreignBytes=bytes(foreignFile);write(path,foreignBytes);cf::select(store,pb.key.career);
     store.saveEnhancedBest(fixture::best(108000,false));check(!store.flush()&&store.readEnhancedBest(pb.key,fixture::catalog).state==CareerFileState::Unsupported&&bytes(path)==foreignBytes,"Foreign-owner PB was replaced");
-    check(files(root/"ghosts")==originalFiles&&files(root/"careers")==careerFiles,"Enhanced writes changed Original PB or career checkpoint");
+    check(files(info.folder/"personal-bests/original")==originalFiles&&bytes(info.folder/"career.scr-career")==careerFile,"Enhanced writes changed Original PB or career checkpoint");
     check(store.clearEnhancedBest(pb.key)&&store.readEnhancedBest(pb.key,fixture::catalog).state==CareerFileState::Missing,"Enhanced clear did not remove its generations");
-    check(files(root/"ghosts")==originalFiles,"Enhanced clear removed Original PB");
+    check(files(info.folder/"personal-bests/original")==originalFiles,"Enhanced clear removed Original PB");
     store.saveEnhancedBest(pb);check(store.flush(),"PB resave failed");check(store.clearEnhancedBest(pb.key)&&store.clearGhost(original.context.key),"Cannot clear private records");
     check(store.readEnhancedBest(pb.key,fixture::catalog).state==CareerFileState::Missing&&store.readGhost(original.context.key,original.context.trackContentIdentity).state==CareerFileState::Missing,"Career deletion left a private timing category");
-    check(store.readEnhancedBest(foreign.key,fixture::catalog).state==CareerFileState::Valid,"Career deletion removed another Enhanced owner");
+    cf::select(store,foreign.key.career);check(store.readEnhancedBest(foreign.key,fixture::catalog).state==CareerFileState::Valid,"Career deletion removed another Enhanced owner");
 }
 void collection(const fs::path& base){
     EnhancedHallArchive archive(base,fixture::catalog);std::vector<std::shared_ptr<const EnhancedSubmission>> initial;

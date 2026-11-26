@@ -6,14 +6,12 @@
 #include "persistence/ghost_lap_codec.h"
 #include "persistence/career_file_io.h"
 #include "persistence/windows_file_path.h"
-#include "persistence/career_folders.h"
 #include "persistence/player_preferences.h"
 #include <algorithm>
 #include <chrono>
 #include <fstream>
 #include <iomanip>
 #include <sstream>
-#include <set>
 #include <limits>
 
 namespace scr::runtime {
@@ -39,8 +37,6 @@ CareerRead readOne(const std::filesystem::path& path,unsigned kind){
         if(length!=bytes.size()-r.position||checksum!=hash(bytes.data()+r.position,length))return {CareerFileState::Corrupt};
         Bytes payload(bytes.begin()+r.position,bytes.end());
         if(kind==1)(void)decodeCareerInfo(payload);
-        if(kind==2){if(payload.size()!=512)return {CareerFileState::Corrupt};NativeHallBanks hall{};std::copy(payload.begin(),payload.end(),hall.begin());if(!validNativeHall(hall))return {CareerFileState::Corrupt};}
-        if(kind==3){Reader index{payload};const auto id=index.text(32);index.end();if(!id.empty()&&!validId(id))return {CareerFileState::Corrupt};}
         if(kind==4)(void)decodeGhostLap(payload);
         if(kind==5)(void)decodeEnhancedBest(payload);
         return {CareerFileState::Valid,std::move(payload),sequence};
@@ -76,25 +72,13 @@ NativeCareerInfo decodeCareerInfo(const CareerBytes& data,CareerBytes* checkpoin
     if(!validId(info.id)||info.name.empty()||!std::all_of(info.name.begin(),info.name.end(),[](unsigned char c){return c>=32&&c<127;})||info.division>3||(info.league!=0&&info.league!=11)||count>2*1024*1024)throw std::runtime_error("Invalid career data");
     r.require(count);if(checkpoint)checkpoint->assign(data.begin()+r.position,data.begin()+r.position+count);r.position+=count;r.end();return info;
 }
-bool validNativeHall(const NativeHallBanks& data)noexcept{
-    for(unsigned n=0;n<512;n+=16){
-        for(unsigned i=0;i<12;++i)if(data[n+i]<32||data[n+i]>126)return false;
-        const auto seconds=data[n+13],hundredths=data[n+14];
-        if(data[n+12]>9||seconds>=0x60||(seconds&15)>9||(hundredths&15)>9||(hundredths>>4)>9)return false;
-    }return true;
-}
-bool mergeNativeHall(NativeHallBanks& target,const NativeHallBanks& source){
-    if(!validNativeHall(source))throw std::invalid_argument("Invalid record data");bool changed=false;
-    for(unsigned entry=0;entry<512;entry+=16){
-        if(std::lexicographical_compare(source.begin()+entry+12,source.begin()+entry+15,target.begin()+entry+12,target.begin()+entry+15)){
-            std::copy_n(source.begin()+entry,16,target.begin()+entry);changed=true;
-        }
-    }return changed;
-}
-NativeCareerStore::NativeCareerStore(std::filesystem::path root,Validator validator,CareerStorageOptions options):
+NativeCareerStore::NativeCareerStore(std::filesystem::path root,Validator validator,std::filesystem::path settings):
     root_(std::filesystem::absolute(std::move(root)).lexically_normal()),validator_(std::move(validator)),
-    settings_(options.settings.empty()?root_/L"settings.ini":std::filesystem::absolute(options.settings).lexically_normal()){
-    if(options.layout==CareerStorageLayout::Folders)folders_=std::make_unique<CareerFolders>(root_,validator_);
+    settings_(settings.empty()?root_/L"settings.ini":std::filesystem::absolute(settings).lexically_normal()),
+    folders_(root_,{L"careers",L"career.scr-career",
+        [this](const auto& path){return readFile(path,1,validator_);},
+        [](const auto& path){return career_files::readGeneration(path,1);},
+        [](const auto& data){return decodeCareerInfo(data);}}){
     worker_=std::thread([this]{run();});
 }
 NativeCareerStore::~NativeCareerStore(){flush();{std::lock_guard<std::mutex> lock(mutex_);stopping_=true;}changed_.notify_one();worker_.join();}
@@ -103,19 +87,18 @@ std::string NativeCareerStore::newId(){
     std::ostringstream value;value<<std::hex<<std::setfill('0');for(auto b:bytes)value<<std::setw(2)<<unsigned(b);return value.str();
 }
 std::filesystem::path NativeCareerStore::careerPath(const std::string& id)const{
-    if(!folders_&&!validId(id))throw std::invalid_argument("Invalid career identity");
-    return folders_?folders_->directory(id)/L"career.scr-career":root_/L"careers"/(id+".scr-career");
+    return folders_.directory(id)/L"career.scr-career";
 }
 std::filesystem::path NativeCareerStore::ghostPath(const GhostLapKey& key)const{
     if(!validId(key.career)||key.track>=8)throw std::invalid_argument("Invalid ghost identity");
-    const auto folder=folders_?recordsFolder(key.career)/L"personal-bests/original":root_/L"ghosts"/key.career;
-    if(folders_&&(windowsPathLink(folder)||windowsPathLink(folder.parent_path())))throw std::runtime_error("Personal-best folder links are not followed");
+    const auto folder=recordsFolder(key.career)/L"personal-bests/original";
+    if(windowsPathLink(folder)||windowsPathLink(folder.parent_path()))throw std::runtime_error("Personal-best folder links are not followed");
     return folder/(std::to_string(key.track)+(key.superLeague?"-super":"-normal")+".scr-ghost");
 }
 std::filesystem::path NativeCareerStore::enhancedBestPath(const EnhancedBestKey& key)const{
     validateEnhancedBestKey(key);
-    const auto folder=folders_?recordsFolder(key.career)/L"personal-bests/enhanced":root_/L"ghosts-enhanced-v1"/key.career;
-    if(folders_&&(windowsPathLink(folder)||windowsPathLink(folder.parent_path())))throw std::runtime_error("Personal-best folder links are not followed");
+    const auto folder=recordsFolder(key.career)/L"personal-bests/enhanced";
+    if(windowsPathLink(folder)||windowsPathLink(folder.parent_path()))throw std::runtime_error("Personal-best folder links are not followed");
     return folder/(std::to_string(key.track)+(key.superLeague?"-super":"-normal")+".scr-ebest");
 }
 CareerRead NativeCareerStore::readFile(const std::filesystem::path& path,unsigned kind,const Validator& validator){
@@ -130,7 +113,6 @@ CareerRead NativeCareerStore::readFile(const std::filesystem::path& path,unsigne
 CareerRead NativeCareerStore::readCareer(const std::string& id)const{
     try{return readFile(careerPath(id),1,validator_);}catch(const std::out_of_range&){return {CareerFileState::Missing};}
 }
-CareerRead NativeCareerStore::readHall()const{return readFile(root_/L"hall.scr-hall",2);}
 CareerRead NativeCareerStore::readGhost(const GhostLapKey& key,std::uint64_t content)const{
     try{return readFile(ghostPath(key),4,[key,content](const auto& data){try{(void)decodeGhostLap(data,key,content);return CareerFileState::Valid;}
         catch(const UnsupportedGhostLap&){return CareerFileState::Unsupported;}catch(...){return CareerFileState::Corrupt;}});}
@@ -152,33 +134,8 @@ CareerRead NativeCareerStore::readEnhancedBest(const EnhancedBestKey& key,Enhanc
     }
     if(result.state==CareerFileState::Missing&&corrupt)result.state=CareerFileState::Corrupt;return result;
 }
-std::string NativeCareerStore::lastUsed()const{
-    if(folders_)return loadPlayerSelections(settings_).career;
-    const auto saved=readFile(root_/L"last.scr-index",3);if(saved.state!=CareerFileState::Valid&&saved.state!=CareerFileState::Recovered)return {};
-    Reader r{saved.data};return r.text(32);
-}
-CareerFileState NativeCareerStore::lastUsedState()const{return folders_?(lastUsed().empty()?CareerFileState::Missing:CareerFileState::Valid):readFile(root_/L"last.scr-index",3).state;}
-std::vector<NativeCareerInfo> NativeCareerStore::list()const{
-    if(folders_)return folders_->list();
-    std::vector<NativeCareerInfo> result;std::error_code error;
-    const auto directory=root_/L"careers";
-    if(!std::filesystem::exists(directory,error))return result;
-    std::set<std::string> identities;
-    for(std::filesystem::directory_iterator it(directory,error),end;!error&&it!=end;it.increment(error)){
-        if(!it->is_regular_file())continue;
-        const auto filename=it->path().filename().string();
-        if(filename.size()<43||filename.substr(32,11)!=".scr-career")continue;
-        const auto suffix=filename.substr(43);if(!suffix.empty()&&suffix!=".bak1"&&suffix!=".bak2")continue;
-        const auto id=filename.substr(0,32);if(validId(id))identities.insert(id);
-    }
-    for(const auto& id:identities){
-        const auto saved=readCareer(id);NativeCareerInfo info;
-        if(saved.state==CareerFileState::Valid||saved.state==CareerFileState::Recovered){info=decodeCareerInfo(saved.data);if(info.id!=id){info={};info.id=id;info.name="Unreadable";info.state=CareerFileState::Corrupt;}else info.state=saved.state;}
-        else{info.id=id;info.name="Unreadable";info.state=saved.state;}
-        result.push_back(std::move(info));
-    }
-    std::sort(result.begin(),result.end(),[](const auto& a,const auto& b){return a.lastPlayed!=b.lastPlayed?a.lastPlayed>b.lastPlayed:a.id<b.id;});return result;
-}
+std::string NativeCareerStore::lastUsed()const{return loadPlayerSelections(settings_).career;}
+std::vector<NativeCareerInfo> NativeCareerStore::list()const{return folders_.list();}
 void NativeCareerStore::submit(std::filesystem::path path,unsigned kind,CareerBytes bytes,Validator validator){
     std::lock_guard<std::mutex> lock(mutex_);
     if(kind==5)if(const auto old=latest_.find(path);old!=latest_.end()){
@@ -193,15 +150,15 @@ void NativeCareerStore::submit(std::filesystem::path path,unsigned kind,CareerBy
     jobs_.erase(std::remove_if(jobs_.begin(),jobs_.end(),[&](const auto& old){return old.path==job.path;}),jobs_.end());jobs_.push_back(std::move(job));changed_.notify_one();
 }
 std::filesystem::path NativeCareerStore::saveCareer(const NativeCareerInfo& info,const CareerBytes& checkpoint){
-    const auto bytes=encodeCareerInfo(info,checkpoint);const auto folder=folders_?folders_->reserve(info):std::filesystem::path{};
-    if(folders_){auto selected=info;selected.folder=folder;selectCareer(selected);}
-    submit(folders_?folder/L"career.scr-career":careerPath(info.id),1,bytes);return folder;
+    const auto bytes=encodeCareerInfo(info,checkpoint);const auto folder=folders_.reserve(info);
+    auto selected=info;selected.folder=folder;selectCareer(selected);
+    submit(folder/L"career.scr-career",1,bytes);return folder;
 }
 void NativeCareerStore::selectCareer(const NativeCareerInfo& info){std::lock_guard<std::mutex> lock(mutex_);selectedCareer_=info;}
 std::filesystem::path NativeCareerStore::recordsFolder(const std::string& id)const{
     std::lock_guard<std::mutex> lock(mutex_);
     if(selectedCareer_.id!=id||selectedCareer_.folder.empty())throw std::out_of_range("No selected career folder");
-    folders_->check(selectedCareer_.folder);return selectedCareer_.folder;
+    folders_.check(selectedCareer_.folder);return selectedCareer_.folder;
 }
 void NativeCareerStore::submitSavedGame(std::filesystem::path path,CareerBytes bytes,CustomWriter writer){
     std::lock_guard<std::mutex> lock(mutex_);Job job{std::move(path),7,std::move(bytes),++serial_};job.custom=std::move(writer);
@@ -211,8 +168,7 @@ void NativeCareerStore::forgetWrites(const std::filesystem::path& folder){
     std::lock_guard<std::mutex> lock(mutex_);for(auto it=latest_.begin();it!=latest_.end();){const auto rel=it->first.lexically_relative(folder);
         if(!rel.empty()&&*rel.begin()!=L".."){errors_.erase(it->first);it=latest_.erase(it);}else ++it;}
 }
-void NativeCareerStore::saveHall(const NativeHallBanks& hall){if(!validNativeHall(hall))throw std::invalid_argument("Invalid Hall records");submit(root_/L"hall.scr-hall",2,Bytes(hall.begin(),hall.end()));}
-void NativeCareerStore::setLastUsed(const std::string& id){if(!id.empty()&&!(folders_?validSavedGameFolder(id):validId(id)))throw std::invalid_argument("Invalid last career");Writer w;w.text(id);submit(folders_?settings_:root_/L"last.scr-index",folders_?6u:3u,std::move(w.data));}
+void NativeCareerStore::setLastUsed(const std::string& id){if(!id.empty()&&!validSavedGameFolder(id))throw std::invalid_argument("Invalid last career");Writer w;w.text(id);submit(settings_,6u,std::move(w.data));}
 void NativeCareerStore::saveGhost(const GhostLap& lap){
     const auto key=lap.context.key;const auto content=lap.context.trackContentIdentity;
     submit(ghostPath(key),4,encodeGhostLap(lap),[key,content](const auto& data){try{(void)decodeGhostLap(data,key,content);return CareerFileState::Valid;}
@@ -277,19 +233,17 @@ void NativeCareerStore::run(){
         try{
             if(job.custom)okay=job.custom(job.data,error);
             else{
-            if(folders_){
                 const auto relative=job.path.lexically_relative(root_/L"careers");
                 if(relative.empty()||*relative.begin()==L".."){
                     if(job.kind!=6)throw std::runtime_error("Invalid career write location");
                 }else{
-                    auto folder=root_/L"careers"/ *relative.begin();folders_->check(folder);
+                    auto folder=root_/L"careers"/ *relative.begin();folders_.check(folder);
                     for(auto parent=job.path;parent!=folder;parent=parent.parent_path())if(windowsPathLink(parent))throw std::runtime_error("Saved-game file links are not followed");
                     if(job.kind==1){const auto existing=readOne(job.path,1);
                         if(existing.state==CareerFileState::Valid&&decodeCareerInfo(existing.data).id!=decodeCareerInfo(job.data).id)throw std::runtime_error("Career ownership changed; progress remains in memory");}
                 }
-            }
             okay=writeFile(job,error,validator_);
-            if(okay&&folders_&&job.kind==1)folders_->update(decodeCareerInfo(job.data),job.path.parent_path());
+            if(okay&&job.kind==1)folders_.update(decodeCareerInfo(job.data),job.path.parent_path());
             }
         }catch(const std::exception& failure){error=failure.what();}
         {std::lock_guard<std::mutex> lock(mutex_);if(okay){errors_.erase(job.path);
@@ -304,19 +258,18 @@ bool NativeCareerStore::ghostFailed()const{std::lock_guard<std::mutex> lock(mute
 bool NativeCareerStore::enhancedBestFailed()const{std::lock_guard<std::mutex> lock(mutex_);return std::any_of(errors_.begin(),errors_.end(),[](const auto& e){return e.first.extension()==L".scr-ebest";});}
 std::string NativeCareerStore::error()const{std::lock_guard<std::mutex> lock(mutex_);return errors_.empty()?std::string{}:errors_.begin()->second;}
 std::string NativeCareerStore::failureSummary()const{
-    std::lock_guard<std::mutex> lock(mutex_);bool hall=false,career=false,ghost=false,enhanced=false,multiplayer=false;
-    for(const auto& item:errors_){if(item.first.filename()==L"hall.scr-hall")hall=true;else if(item.first.extension()==L".scr-ghost")ghost=true;else if(item.first.extension()==L".scr-ebest")enhanced=true;else if(item.first.extension()==L".scr-multiplayer"||item.first.filename()==L".multiplayer-preference")multiplayer=true;else career=true;}
-    if(multiplayer)return hall?"Progress and Hall not saved":career||ghost||enhanced?"Saved games not saved":"Multiplayer game not saved";
-    if(enhanced)return hall||career||ghost?"Progress and records not saved":"Enhanced PB not saved";
-    if(ghost)return hall?(career?"Career, Hall and ghosts not saved":"Hall records and ghosts not saved"):(career?"Career and ghosts not saved":"Ghost not saved");
-    return hall?(career?"Career and Hall not saved":"Hall records not saved"):"Career progress not saved";
+    std::lock_guard<std::mutex> lock(mutex_);bool career=false,ghost=false,enhanced=false,multiplayer=false;
+    for(const auto& item:errors_){if(item.first.extension()==L".scr-ghost")ghost=true;else if(item.first.extension()==L".scr-ebest")enhanced=true;else if(item.first.extension()==L".scr-multiplayer"||item.first.filename()==L".multiplayer-preference")multiplayer=true;else career=true;}
+    if(multiplayer)return career||ghost||enhanced?"Saved games not saved":"Multiplayer game not saved";
+    if(enhanced)return career||ghost?"Progress and records not saved":"Enhanced PB not saved";
+    if(ghost)return career?"Career and ghosts not saved":"Ghost not saved";
+    return "Career progress not saved";
 }
 void NativeCareerStore::retry(){std::lock_guard<std::mutex> lock(mutex_);for(const auto& error:errors_)if(const auto job=latest_.find(error.first);job!=latest_.end())jobs_.push_back(job->second);changed_.notify_one();}
 void NativeCareerStore::acknowledgeFailures(){std::lock_guard<std::mutex> lock(mutex_);errors_.clear();}
 bool NativeCareerStore::cancelCareerDraft(const NativeCareerInfo& info){
     flush();try{
-        if(folders_){forgetWrites(info.folder);folders_->cancelDraft(info);}
-        else{const auto path=careerPath(info.id);forgetWrites(path);for(unsigned n=0;n<3;++n)std::filesystem::remove(generationPath(path,n));}
+        forgetWrites(info.folder);folders_.cancelDraft(info);
         return true;
     }catch(const std::exception&){return false;}
 }
@@ -342,12 +295,5 @@ bool NativeCareerStore::clearRecord(const std::filesystem::path& path){
     }
     if(error){std::lock_guard<std::mutex> lock(mutex_);errors_[path]="Could not clear ghost: "+error.message();return false;}
     return true;
-}
-bool NativeCareerStore::resetHall(const NativeHallBanks& hall){
-    flush();const auto path=root_/L"hall.scr-hall";std::error_code error;
-    for(unsigned n=0;n<3;++n)if(readOne(generationPath(path,n),2).state==CareerFileState::Unsupported)return false;
-    const auto stamp=std::to_string(std::chrono::system_clock::now().time_since_epoch().count());
-    for(unsigned n=0;n<3;++n){const auto old=generationPath(path,n);if(std::filesystem::exists(old,error)){std::filesystem::copy_file(old,old.wstring()+L".damaged-"+std::wstring(stamp.begin(),stamp.end()),error);if(error)return false;std::filesystem::remove(old,error);if(error)return false;}}
-    saveHall(hall);return flush();
 }
 } // namespace scr::runtime

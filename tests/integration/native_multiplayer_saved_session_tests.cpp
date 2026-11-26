@@ -23,7 +23,7 @@ void back(NativeGameSession& game){game.update(0,{});game.update(0,input(0,0,tru
 void key(NativeGameSession& game,unsigned code,bool down){NativeGameInput value;value.rawKeys.push_back({*nativeAmigaRawKey(code,0,false),down});game.update(0,value);}
 void text(NativeGameSession& game,const std::string& text){ready(game);for(unsigned char c:text){key(game,c,true);key(game,c,false);}}
 std::unique_ptr<NativeGameSession> open(const fs::path& pack,const fs::path& root,NativeMenuNavigation navigation){
-    const auto layout=playerDataLayout(root);auto game=std::make_unique<NativeGameSession>(pack,fs::path{},NativeGameStart::OriginalOpening,root/L"saves/legacy.scr-save");game->enableCareers(root,layout.originalHall,layout.enhancedHall,{CareerStorageLayout::Folders,{}});game->enableMultiplayerGames();game->setNavigation(navigation);ready(*game);return game;
+    const auto layout=playerDataLayout(root);auto game=std::make_unique<NativeGameSession>(pack,fs::path{},NativeGameStart::OriginalOpening,root/L"saves/legacy.scr-save");game->enableCareers(root,layout.originalHall,layout.enhancedHall,{});game->enableMultiplayerGames();game->setNavigation(navigation);ready(*game);return game;
 }
 void selectMode(NativeGameSession& game){choose(game,1);press(game);check(game.multiplayerSelection(),"Multiplayer mode did not open saved-game selection");}
 void image(NativeGameSession&,const fs::path&);
@@ -117,11 +117,6 @@ void independentGames(const fs::path& pack,const fs::path& root,NativeMenuNaviga
     const auto list=entries(pack,root);unsigned row=0;for(unsigned n=0;n<list.size();++n)if(list[n].id==first)row=n;
     game=open(pack,root,navigation);selectMode(*game);browse(*game,row);press(*game);check(game->multiplayerHome()&&game->activeMultiplayer()->id==first&&progression(game->memory())==state,"Switching games or deleting/restoring a career changed multiplayer configuration/progress");press(*game);check(game->page()==NativeMenuPage::Matchup&&game->memory()[0x1c9ce]==3&&game->memory()[0x1c9d0]==11,"Other saved-game configuration leaked on Resume");check(game->requestClose()&&files(root/L"careers")==careers,"Multiplayer switching rewrote a restored career");
 }
-void startupRecovery(const fs::path& pack,const fs::path& root){
-    const auto id=NativeCareerStore::newId();{NativeCareerStore actor(root);actor.setLastUsed(id);check(actor.flush(),"Cannot seed legacy last-used selection");actor.setLastUsed(id);check(actor.flush(),"Cannot seed last-used recovery");}
-    {std::ofstream damaged(root/L"last.scr-index",std::ios::binary|std::ios::trunc);damaged<<"damaged";}
-    NativeGameSession game(pack,{});game.enableCareers(root,root/L"hall");game.enableMultiplayerGames(root/L"settings/display.ini");check(!game.openingActive(),"Last-used recovery notice was omitted");press(game);check(game.openingActive(),"Recovery notice did not return to mode selection");selectMode(game);check(game.multiplayerSelection()&&game.requestClose(),"Recovered default-root startup failed native multiplayer initialization");
-}
 void finishAndChampionships(const fs::path& pack,const fs::path& root,NativeMenuNavigation navigation){
     const auto data=startNativeGame(pack);const auto base=baseline(pack);const auto layout=playerDataLayout(root);
     SharedHallArchive hall(layout.originalHall,{ghostTrackContentIdentity(data.payload),1});EnhancedHallArchive enhanced(layout.enhancedHall,{ghostTrackContentIdentity(data.payload),1,enhancedTimingMethodVersion});
@@ -143,7 +138,7 @@ void finishAndChampionships(const fs::path& pack,const fs::path& root,NativeMenu
 }
 int main(int argc,char** argv)try{
     check(argc==3,"Usage: native_multiplayer_saved_session_tests pack isolated-output");const fs::path pack=argv[1],root=argv[2];
-    startupRecovery(pack,root/L"startup-recovery");matrix(pack,root/L"matrix");liveFlow(pack,root/L"responsive",NativeMenuNavigation::Responsive);liveFlow(pack,root/L"original",NativeMenuNavigation::Original);
+    matrix(pack,root/L"matrix");liveFlow(pack,root/L"responsive",NativeMenuNavigation::Responsive);liveFlow(pack,root/L"original",NativeMenuNavigation::Original);
     for(auto navigation:{NativeMenuNavigation::Responsive,NativeMenuNavigation::Original}){const auto folder=root/(navigation==NativeMenuNavigation::Responsive?L"responsive-extra":L"original-extra");failures(pack,folder/L"failures",navigation);copiedFolders(pack,folder/L"copies",navigation);independentGames(pack,folder/L"independent",navigation);finishAndChampionships(pack,folder/L"championships",navigation);}
     std::cout<<"{\"status\":\"passed\",\"checks\":"<<checks<<",\"setups\":"<<setups<<",\"resumes\":"<<resumes<<",\"reopened_reports\":"<<reports<<",\"interrupted_races\":"<<races<<",\"failure_lifecycles\":"<<failureCases<<",\"independent_folder_copies\":"<<copyCases<<",\"championships\":"<<completedChampionships<<",\"both_navigation_modes\":true,\"unrestricted_division_league\":true,\"legacy_routes_excluded\":true,\"hall_isolation\":true}\n";return 0;
 }catch(const std::exception& error){std::cerr<<error.what()<<'\n';return 1;}

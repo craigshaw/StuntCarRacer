@@ -1,5 +1,5 @@
 #pragma once
-#include "persistence/native_career_store.h"
+#include "persistence/saved_game_types.h"
 
 namespace scr::runtime::career_files {
 CareerRead readGeneration(const std::filesystem::path&,unsigned kind);

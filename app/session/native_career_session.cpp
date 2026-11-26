@@ -27,13 +27,13 @@ void NativeGameSession::enableCareers(const std::filesystem::path& root,const st
     const auto original=sharedRoot.empty()?root/"shared-hall":sharedRoot;
     enableCareers(root,{original,HallDirectoryAccess::SharedUsers},{enhancedHallRoot(original),HallDirectoryAccess::SharedUsers},{});
 }
-void NativeGameSession::enableCareers(const std::filesystem::path& root,HallArchiveLocation original,HallArchiveLocation enhanced,CareerStorageOptions storage){
+void NativeGameSession::enableCareers(const std::filesystem::path& root,HallArchiveLocation original,HallArchiveLocation enhanced,const std::filesystem::path& settings){
     if(careerStore_||!openingActive()||opening_->page()!=NativeOpeningPage::Mode)throw std::logic_error("Careers must start at the mode chooser");
     checkpointBaseline_=std::make_unique<NativeMemory>(*data_.memory);careerStore_=std::make_unique<NativeCareerStore>(root,[this](const CareerBytes& data){
         try{CareerBytes bytes;(void)decodeCareerInfo(data,&bytes);(void)decodeNativeCheckpoint(*checkpointBaseline_,bytes);return CareerFileState::Valid;}
         catch(const UnsupportedNativeCheckpoint&){return CareerFileState::Unsupported;}
         catch(...){return CareerFileState::Corrupt;}
-    },std::move(storage));
+    },settings);
     lastCareer_=careerStore_->lastUsed();
     sharedHallStore_=std::make_unique<SharedHallStore>(std::move(original),
         HallCatalog{ghostTrackContentIdentity(data_.payload),1},HallWriteObserver{},hallCapturePendingMaximumBytes);
@@ -42,9 +42,7 @@ void NativeGameSession::enableCareers(const std::filesystem::path& root,HallArch
     enhancedBests_=std::make_unique<EnhancedPersonalBests>(enhancedCatalog);
     enhancedHallStore_=std::make_unique<EnhancedHallStore>(std::move(enhanced),
         enhancedCatalog,HallWriteObserver{},enhancedCapturePendingMaximumBytes);
-    if(careerPanel_==CareerPanel::None&&careerStore_->lastUsedState()==CareerFileState::Recovered){
-        notice_="Last career recovery restored";returnPanel_=CareerPanel::None;showCareerPanel(CareerPanel::Notice);
-    }
+
 }
 std::string NativeGameSession::saveStatus()const{
     if(!careerStore_)return {};
@@ -189,8 +187,7 @@ bool NativeGameSession::loadCareer(const std::string& id){
         else{
             const auto saved=careerStore_->readCareer(id);state=saved.state;
             if(state!=CareerFileState::Valid&&state!=CareerFileState::Recovered)throw std::runtime_error(state==CareerFileState::Unsupported?"Unsupported career version":"Career is unavailable");
-            info=decodeCareerInfo(saved.data,&bytes);if(careerStore_->folderLayout()){for(const auto& item:careerStore_->list())if(item.key()==id)info.folder=item.folder;}
-            else if(info.id!=id)throw std::runtime_error("Career identity mismatch");
+            info=decodeCareerInfo(saved.data,&bytes);for(const auto& item:careerStore_->list())if(item.key()==id)info.folder=item.folder;
         }
         if(activeCareer_&&activeCareer_->key()!=id){personalBestLaps_.forgetCareer(activeCareer_->id);enhancedBests_->forgetCareer(activeCareer_->id);}
         if(!activeCareer_||activeCareer_->key()!=id){personalBestLaps_.forgetCareer(info.id);enhancedBests_->forgetCareer(info.id);}

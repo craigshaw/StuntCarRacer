@@ -5,12 +5,13 @@
 #include "persistence/player_data_layout.h"
 #include "state/race_timing_adapter.h"
 #include <algorithm>
+#include "career_store_fixture.h"
 #include <fstream>
 #include <iostream>
 #include <set>
 
 namespace {
-using namespace scr::runtime;
+using namespace scr::runtime;namespace cf=scr::test::career;
 void require(bool value,const char* message){if(!value)throw std::runtime_error(message);}
 NativeGameInput input(unsigned controls=0,bool back=false,unsigned number=0){NativeGameInput i;i.menu={std::uint8_t(controls),std::uint8_t(number),back};return i;}
 void tap(NativeGameSession& game,unsigned controls=16,bool back=false,unsigned number=0){game.update(0,{});game.update(0,input(controls,back,number));game.update(0,{});}
@@ -37,26 +38,20 @@ void image(NativeGameSession& game,const std::filesystem::path& path){
     std::ofstream out(path,std::ios::binary);out<<"P6\n320 200\n255\n";for(auto pixel:game.render())for(unsigned shift:{16u,8u,0u})out.put(char(pixel>>shift));
 }
 void corrupt(const std::filesystem::path& path){std::ofstream out(path,std::ios::binary|std::ios::trunc);out<<"damaged";}
-NativeHallBanks hallTemplate(){NativeHallBanks hall;for(unsigned n=0;n<512;n+=16){std::fill_n(hall.begin()+n,12,' ');hall[n+12]=9;hall[n+13]=0x59;hall[n+14]=0x99;hall[n+15]=0;}return hall;}
 void storage(const std::filesystem::path& root){
     std::filesystem::create_directories(root);const auto id=NativeCareerStore::newId();NativeCareerInfo info{id,"duplicate",0,0,1};
     NativeCareerStore store(root);for(unsigned n=1;n<=4;++n){info.lastPlayed=n;store.saveCareer(info,{std::uint8_t(n)});require(store.flush(),"Career write failed");}
-    const auto path=root/"careers"/(id+".scr-career");
-    require(store.readCareer(id).generation==4,"Career generation did not advance");
-    corrupt(path);auto saved=store.readCareer(id);require(saved.state==CareerFileState::Recovered&&saved.generation==3,"Newest valid recovery copy was not selected");
-    corrupt(path.string()+".bak1");saved=store.readCareer(id);require(saved.state==CareerFileState::Recovered&&saved.generation==2,"Second recovery copy unavailable");
+    const auto path=cf::find(store,id).folder/"career.scr-career";
+    require(cf::read(store,id).generation==4,"Career generation did not advance");
+    corrupt(path);auto saved=cf::read(store,id);require(saved.state==CareerFileState::Recovered&&saved.generation==3,"Newest valid recovery copy was not selected");
+    corrupt(path.string()+".bak1");saved=cf::read(store,id);require(saved.state==CareerFileState::Recovered&&saved.generation==2,"Second recovery copy unavailable");
     std::filesystem::remove(path);require(store.list().size()==1,"Missing head hid recoverable career");
-    auto hall=hallTemplate();store.saveHall(hall);require(store.flush(),"Hall write failed");
-    auto better=hall;better[0]='A';better[12]=0;better[13]=1;require(mergeNativeHall(hall,better),"Better record not merged");
-    better[0]='B';require(!mergeNativeHall(hall,better)&&hall[0]=='A',"Tied record replaced its holder");
-    store.saveHall(hall);require(store.flush(),"Improved Hall write failed");corrupt(root/"hall.scr-hall");require(store.readHall().state==CareerFileState::Recovered,"Hall recovery failed");
-    corrupt(root/"hall.scr-hall.bak1");require(store.resetHall(hallTemplate()),"Explicit fresh Hall failed");
-    bool preserved=false;for(const auto& entry:std::filesystem::directory_iterator(root))preserved|=entry.path().string().find("damaged-")!=std::string::npos;require(preserved,"Damaged Hall evidence was removed");
-    const auto locked=CreateFileW((root/"hall.scr-hall.tmp").c_str(),GENERIC_WRITE,0,nullptr,CREATE_ALWAYS,FILE_ATTRIBUTE_NORMAL,nullptr);
-    require(locked!=INVALID_HANDLE_VALUE,"Cannot inject save failure");store.saveHall(hall);require(!store.flush()&&store.failed(),"Write failure was hidden");
-    require(store.readHall().state==CareerFileState::Valid,"Failure damaged last good head");CloseHandle(locked);store.retry();require(store.flush(),"Save retry failed");
-    {std::fstream file(root/"hall.scr-hall",std::ios::binary|std::ios::in|std::ios::out);file.seekp(4);file.put(99);}
-    require(store.readHall().state==CareerFileState::Unsupported,"Unknown envelope was accepted");store.saveHall(hall);require(!store.flush(),"Unsupported Hall was overwritten");
+    info.folder=cf::find(store,id).folder;store.saveCareer(info,{4});require(store.flush(),"Recovery candidate did not save");
+    const auto locked=CreateFileW((path.wstring()+L".tmp").c_str(),GENERIC_WRITE,0,nullptr,CREATE_ALWAYS,FILE_ATTRIBUTE_NORMAL,nullptr);
+    require(locked!=INVALID_HANDLE_VALUE,"Cannot inject save failure");store.saveCareer(info,{5});require(!store.flush()&&store.failed(),"Write failure was hidden");CloseHandle(locked);store.retry();require(store.flush(),"Retry lost the pending checkpoint");
+    {std::fstream file(path,std::ios::binary|std::ios::in|std::ios::out);file.seekp(4);file.put(99);}
+    store.saveCareer(info,{6});require(!store.flush()&&cf::read(store,id).state==CareerFileState::Unsupported,"Future career was overwritten");
+
 }
 void create(NativeGameSession& game,const std::string& name){
     tap(game);require(game.careerHome()&&game.menuState().count==0&&!game.enteringName(),"Empty Single Player entry did not show only New Career");tap(game);
@@ -139,12 +134,12 @@ void careerFlow(const std::filesystem::path& pack,const std::filesystem::path& r
     require(finishImage.size()==320*200,"Ultrawide changed the persisted career finish image codec");
     require(game->requestClose(),"Finish checkpoint did not flush");
     const auto pending=root/"pending-finish";CareerBytes finishCheckpoint;NativeCareerInfo finishInfo;
-    {NativeCareerStore source(root),target(pending);finishInfo=decodeCareerInfo(source.readCareer(first).data,&finishCheckpoint);target.saveCareer(finishInfo,finishCheckpoint);target.setLastUsed(first);require(target.flush(),"Cannot retain pending-finish comparison fixture");}
+    {NativeCareerStore source(root),target(pending);finishInfo=decodeCareerInfo(cf::read(source,first).data,&finishCheckpoint);auto copied=finishInfo;copied.folder=target.saveCareer(copied,finishCheckpoint);target.setLastUsed(copied.key());require(target.flush(),"Cannot retain pending-finish comparison fixture");}
     tap(*game);const auto scored=progress(game->memory());const auto scoredImage=game->render();
     {auto restored=start(pack,pending);continueLast(*restored,true);require(restored->raceEnded(),"Comparison fixture lost terminal stage");tap(*restored);
         require(progress(restored->memory())==scored&&restored->render()==scoredImage,"Restored finish differed from uninterrupted exit/scoring");}
     // Return the retained pre-acknowledgement checkpoint to this test's store.
-    game.reset();{NativeCareerStore target(root);target.saveCareer(finishInfo,finishCheckpoint);require(target.flush(),"Cannot restore pending finish fixture");}
+    game.reset();{NativeCareerStore target(root);finishInfo.folder=cf::find(target,first).folder;target.saveCareer(finishInfo,finishCheckpoint);require(target.flush(),"Cannot restore pending finish fixture");}
     game=start(pack,root);continueLast(*game,true);
     require(game->raceEnded(),"Finish stage was not durable before acknowledgement");require(game->render()==finishImage,"Restored finish message pixels differ");
     game->setTimingCategory(TimingCategory::Enhanced);require(game->render()==enhancedFinishImage,"Restored Enhanced finish lost its values or changed Original artwork");
@@ -172,7 +167,7 @@ void failures(const std::filesystem::path& pack,const std::filesystem::path& roo
     {std::ofstream block(root/"careers");block<<"blocked folder";}tap(*game);
     require(!game->activeCareer()&&game->page()==NativeMenuPage::Opening,"First-save failure allowed an unregistered career");image(*game,root/"first-save-error.ppm");
     std::filesystem::remove(root/"careers");tap(*game);require(game->activeCareer().has_value(),"Retry did not register first durable career");
-    const auto path=root/"careers"/(game->activeCareer()->id+".scr-career.tmp");
+    const auto path=game->activeCareer()->folder/"career.scr-career.tmp";
     const auto lock=CreateFileW(path.c_str(),GENERIC_WRITE,0,nullptr,CREATE_ALWAYS,FILE_ATTRIBUTE_NORMAL,nullptr);require(lock!=INVALID_HANDLE_VALUE,"Cannot lock checkpoint temporary file");
     choose(*game,2);tap(*game);const auto fixture=progress(game->memory());require(!game->requestClose(),"Failed write permitted silent close");
     require(game->closePending(),"Failed close did not expose its pending save decision");
@@ -229,7 +224,7 @@ void leaveRacePersistence(const std::filesystem::path& pack,const std::filesyste
 }
 void paging(const std::filesystem::path& pack,const std::filesystem::path& root){
     auto game=start(pack,root);create(*game,"MANY");require(game->requestClose(),"List fixture did not flush");const auto first=game->activeCareer()->id;game.reset();
-    {NativeCareerStore store(root);CareerBytes bytes;auto info=decodeCareerInfo(store.readCareer(first).data,&bytes);
+    {NativeCareerStore store(root);CareerBytes bytes;auto info=decodeCareerInfo(cf::read(store,first).data,&bytes);
         for(unsigned n=0;n<35;++n){info.id=NativeCareerStore::newId();info.name="CAREER "+std::to_string(n);info.lastPlayed+=n+1;store.saveCareer(info,bytes);}require(store.flush()&&store.list().size()==36,"Careers retained the old slot limit");}
     game=start(pack,root);tap(*game);choose(*game,2);tap(*game);tap(*game,8);tap(*game,2);image(*game,root/"scrolled-list.ppm");tap(*game);
     require(game->activeCareer()&&game->activeCareer()->id!=first&&game->page()==NativeMenuPage::Main,"Scrolled career could not be explicitly selected");
@@ -239,10 +234,10 @@ void draftsAndRecovery(const std::filesystem::path& pack,const std::filesystem::
     tap(*game);require(game->enteringName(),"New Career did not resume its draft");tap(*game);tap(*game);
     require(game->activeCareer()&&game->activeCareer()->name=="draft","Cancelled setup lost its draft name");
     const auto id=game->activeCareer()->id;const auto state=progress(game->memory());require(game->requestClose(),"Recovery fixture did not flush");game.reset();
-    {NativeCareerStore store(root);CareerBytes bytes;auto info=decodeCareerInfo(store.readCareer(id).data,&bytes);store.saveCareer(info,bytes);require(store.flush(),"Recovery fixture generation failed");store.saveCareer(info,{1,2,3});require(store.flush(),"Cannot inject semantically damaged checkpoint");}
+    {NativeCareerStore store(root);CareerBytes bytes;auto info=decodeCareerInfo(cf::read(store,id).data,&bytes);info.folder=cf::find(store,id).folder;store.saveCareer(info,bytes);require(store.flush(),"Recovery fixture generation failed");store.saveCareer(info,{1,2,3});require(store.flush(),"Cannot inject semantically damaged checkpoint");}
     game=start(pack,root);tap(*game);tap(*game);require(game->page()==NativeMenuPage::Opening&&!game->careerHome(),"Recovered native checkpoint body did not notify the player");tap(*game);
     require(game->page()==NativeMenuPage::Main&&progress(game->memory())==state,"Checkpoint body recovery changed native state");require(game->requestClose(),"Recovered checkpoint could not be saved");game.reset();
-    const auto path=root/"careers"/(id+".scr-career");for(unsigned n=0;n<3;++n)corrupt(n?std::filesystem::path(path.string()+".bak"+std::to_string(n)):path);
+    NativeCareerStore disk(root);const auto path=cf::find(disk,id).folder/"career.scr-career";for(unsigned n=0;n<3;++n)corrupt(n?std::filesystem::path(path.string()+".bak"+std::to_string(n)):path);
     game=start(pack,root);tap(*game);require(game->careerHome()&&game->menuState().count==1&&!game->activeCareer(),"Unavailable last-used career did not hide Continue and retain New/Browse");game.reset();
     require(std::filesystem::file_size(path)==7,"Unreadable career evidence was overwritten");
 }
@@ -284,7 +279,7 @@ void legacyRecordsNotImported(const std::filesystem::path& pack,const std::files
         state.lapCounter[0]=3;state.crossingArmed[0]=0;state.times[0]={0,0x20,0x10};state.times[human+12]={0,0x40,0};state.times[15]={9,0x59,0x99};
         (void)scr::updateRaceTiming(in,state);timing::writeInputs(memory->data(),in);timing::writeState(memory->data(),state);
         const_cast<RaceScene&>(game->race()).loadNativeState(*memory,data.payload,{});game->update(.12,{});require(game->requestClose(),"Three-lap record did not flush");game.reset();
-        NativeCareerStore store(folder);require(store.readHall().state==CareerFileState::Missing,"Player recreated the legacy Hall");
+        require(!std::filesystem::exists(folder/"hall.scr-hall"),"Player recreated the legacy Hall");
         SharedHallArchive shared(folder/"shared-hall",{ghostTrackContentIdentity(data.payload),1});const auto saved=shared.read();
         require(saved.state==HallArchiveState::Missing,"Injected old winning banks were imported as new attempts");
         (void)expected;(void)ordinal;

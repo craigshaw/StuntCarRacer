@@ -46,7 +46,6 @@ void storage(const std::filesystem::path& root){
     corrupt(path);auto saved=store.readCareer(id);require(saved.state==CareerFileState::Recovered&&saved.generation==3,"Newest valid recovery copy was not selected");
     corrupt(path.string()+".bak1");saved=store.readCareer(id);require(saved.state==CareerFileState::Recovered&&saved.generation==2,"Second recovery copy unavailable");
     std::filesystem::remove(path);require(store.list().size()==1,"Missing head hid recoverable career");
-    require(store.removeCareer(id)&&store.list().empty(),"Deleted career resurrected from backups");
     auto hall=hallTemplate();store.saveHall(hall);require(store.flush(),"Hall write failed");
     auto better=hall;better[0]='A';better[12]=0;better[13]=1;require(mergeNativeHall(hall,better),"Better record not merged");
     better[0]='B';require(!mergeNativeHall(hall,better)&&hall[0]=='A',"Tied record replaced its holder");
@@ -157,15 +156,15 @@ void careerFlow(const std::filesystem::path& pack,const std::filesystem::path& r
     require(game->page()==NativeMenuPage::Matchup,"Reports did not reach the next fixture");
     back(*game);back(*game);choose(*game,1);tap(*game);require(game->enteringName(),"New Career did not open setup");text(*game,"ALPHA");tap(*game);tap(*game);
     require(game->activeCareer()->id!=first,"Duplicate driver name overwrote a career");const auto second=game->activeCareer()->id;
-    back(*game);choose(*game,2);tap(*game);tap(*game,2);tap(*game);tap(*game);
+    back(*game);choose(*game,2);tap(*game);tap(*game,2);tap(*game);
     require(game->activeCareer()->id==first&&game->page()==NativeMenuPage::Main&&game->hasSuspendedSeason(),"Browse bypassed the main menu or lost another career's season");
     resume(*game);require(game->page()==NativeMenuPage::Matchup,"Browsing another career lost its saved fixture");back(*game);back(*game);
-    choose(*game,2);tap(*game);tap(*game,2);tap(*game);tap(*game);
+    choose(*game,2);tap(*game);tap(*game,2);tap(*game);
     require(game->activeCareer()->id==second&&game->page()==NativeMenuPage::Main&&!game->hasSuspendedSeason(),"Season state leaked between career identities");
     back(*game);choose(*game,2);tap(*game);image(*game,root/"list.ppm");
-    tap(*game);choose(*game,1);tap(*game);image(*game,root/"delete.ppm");choose(*game,1);tap(*game);back(*game);
-    require(game->careerHome()&&game->menuState().count==1,"Deleting last-used did not hide Continue");
-    require(game->requestClose(),"Career management close failed");game.reset();NativeCareerStore store(root);require(store.list().size()==1&&store.list()[0].id==first&&store.lastUsed().empty(),"Delete removed wrong identity or retained pointer");
+    tap(*game);require(game->page()==NativeMenuPage::Main,"Browse did not directly open the selected career");
+    require(game->requestClose(),"Career browsing close failed");game.reset();NativeCareerStore store(root);require(store.list().size()==2,"Browsing removed a career");
+
 }
 void failures(const std::filesystem::path& pack,const std::filesystem::path& root){
     auto game=start(pack,root);tap(*game);tap(*game);text(*game,"RECOVER");tap(*game);
@@ -232,7 +231,7 @@ void paging(const std::filesystem::path& pack,const std::filesystem::path& root)
     auto game=start(pack,root);create(*game,"MANY");require(game->requestClose(),"List fixture did not flush");const auto first=game->activeCareer()->id;game.reset();
     {NativeCareerStore store(root);CareerBytes bytes;auto info=decodeCareerInfo(store.readCareer(first).data,&bytes);
         for(unsigned n=0;n<35;++n){info.id=NativeCareerStore::newId();info.name="CAREER "+std::to_string(n);info.lastPlayed+=n+1;store.saveCareer(info,bytes);}require(store.flush()&&store.list().size()==36,"Careers retained the old slot limit");}
-    game=start(pack,root);tap(*game);choose(*game,2);tap(*game);tap(*game,8);tap(*game,2);image(*game,root/"scrolled-list.ppm");tap(*game);tap(*game);
+    game=start(pack,root);tap(*game);choose(*game,2);tap(*game);tap(*game,8);tap(*game,2);image(*game,root/"scrolled-list.ppm");tap(*game);
     require(game->activeCareer()&&game->activeCareer()->id!=first&&game->page()==NativeMenuPage::Main,"Scrolled career could not be explicitly selected");
 }
 void draftsAndRecovery(const std::filesystem::path& pack,const std::filesystem::path& root){
@@ -319,5 +318,5 @@ int main(int argc,char** argv)try{
     if(argc==4)diskVariants(argv[1],argv[3],root/"disk-variants");
     explicitRoots(argv[1],root/"explicit-roots");
     std::filesystem::create_directories(root);storage(root/"storage");checkpointContexts(argv[1]);careerFlow(argv[1],root/"flow");failures(argv[1],root/"failures");practicePolicies(argv[1],root/"policies");leaveRacePersistence(argv[1],root/"leave-race");paging(argv[1],root/"paging");draftsAndRecovery(argv[1],root/"recovery");seasonEndings(argv[1],root/"endings");legacyRecordsNotImported(argv[1],root/"records");
-    std::cout<<"{\"status\":\"passed\",\"checkpoint_contexts\":8,\"checkpoint_phases\":9,\"season_ending_contexts\":8,\"practice_policy_cases\":4,\"listed_careers\":36,\"legacy_record_mode_league_cases\":4,\"finish_before_acknowledgement\":true,\"finish_scoring_matches_uninterrupted\":true,\"interrupted_fixture\":true,\"duplicate_names\":true,\"delete\":true,\"recovery\":true,\"write_retry\":true,\"record_merge\":true,\"legacy_records_not_imported\":true,\"setup_draft\":true,\"conditional_entry_rows\":true,\"three_row_main_menu\":true,\"continue_opens_main_menu\":true,\"resume_season\":true,\"practice_preserves_suspended_season\":true,\"existing_native_careers\":true,\"career_switch_isolation\":true}\n";return 0;
+    std::cout<<"{\"status\":\"passed\",\"checkpoint_contexts\":8,\"checkpoint_phases\":9,\"season_ending_contexts\":8,\"practice_policy_cases\":4,\"listed_careers\":36,\"legacy_record_mode_league_cases\":4,\"finish_before_acknowledgement\":true,\"finish_scoring_matches_uninterrupted\":true,\"interrupted_fixture\":true,\"duplicate_names\":true,\"direct_browse\":true,\"recovery\":true,\"write_retry\":true,\"record_merge\":true,\"legacy_records_not_imported\":true,\"setup_draft\":true,\"conditional_entry_rows\":true,\"three_row_main_menu\":true,\"continue_opens_main_menu\":true,\"resume_season\":true,\"practice_preserves_suspended_season\":true,\"existing_native_careers\":true,\"career_switch_isolation\":true}\n";return 0;
 }catch(const std::exception& e){std::cerr<<e.what()<<'\n';return 1;}

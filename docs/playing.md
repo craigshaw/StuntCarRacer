@@ -55,9 +55,7 @@ Single Player League opens career selection:
   directly into a race or report.
 - **Browse Careers** appears when careers exist, ordered by last played with
   division, league and date. Up/Down scrolls; Left/Right moves three entries.
-  Delete requires confirmation and removes that career's recovery copies.
-  Deleting the last-used career requires explicitly choosing another; Rename
-  and import of original manual-slot careers are unavailable.
+  Confirm a career to open it directly.
 
 The career main menu has **Hall of Fame**, **Practise** and **Start Season**.
 The third row becomes **Resume Season** while a season is pending. Back from
@@ -197,14 +195,10 @@ without resuming racing. There is no return-to-launcher action.
 Each named game lives in `multiplayer/<title>-<short-id>/game.scr-multiplayer`,
 with its roster, configuration, damage, accumulated scores and recovery copies.
 Copy or rename complete folders while the game is closed. Browse Saved Games
-discovers them automatically; titles need not be unique. Duplicate identities
-require Replace, Keep Both or Cancel, with Cancel selected initially. Replace
-keeps the chosen complete version and archives the others inside its recovery
-folder. Keep Both gives the incoming version a separate identity. The game never
-merges scores or selects a winner by date.
+discovers them automatically; titles need not be unique. Confirm an entry to
+open it directly. Each folder is an independent game, including copies with the
+same internal ID. There are no copy-resolution or file-management menus.
 
-Browse also offers Delete Game, with a separate confirmation. Deletion includes
-that game's recovery copies and leaves careers and shared Hall records intact.
 The original slot, save-disc, format, access-file and manual Replay routes are
 retired from the player. Legacy multiplayer saves are not imported.
 
@@ -282,7 +276,6 @@ denies access. The game does not fall back to AppData.
 | `careers/<driver>-<short-id>/` | Career checkpoint, private bests/ghosts and recoveries |
 | `multiplayer/<title>-<short-id>/game.scr-multiplayer` | Named multiplayer game and adjacent recovery generations |
 | `hall-of-fame/original/`, `hall-of-fame/enhanced/` | Independent shared records, recordings and recoveries |
-| `migration.scr-import`, `migration-recovery/` | Import decision/receipts and any preserved unavailable or replaced contents |
 
 Replacing the executable preserves `data/`; do not replace that folder when
 updating the game. Development launches can select another complete root with
@@ -293,29 +286,12 @@ the whole career folder with the game closed; it appears in Browse Careers
 without editing settings. The full stored identity is independent of its name.
 Copying a career does not add its past results to the shared Hall.
 
-If two folders hold the same identity, Browse Careers marks them as copies and
-offers Replace / Keep Both / Cancel. Replace uses the selected version and keeps
-the other complete folders under its `recovery/replaced/` directory. Keep Both
-gives the selected copy a new identity while retaining its progress and bests.
-Cancel leaves both untouched; a conflict cannot load or autosave until resolved.
-Progress is never merged. A format that cannot safely be rekeyed blocks Keep Both.
-Copy to a distinct folder first: overwriting files outside the game bypasses
-these choices. Deleting a career removes its complete folder, including private
-bests and recoveries, while the shared Hall remains independent.
-
-On first use, an empty game folder offers Import copies or Start fresh when it
-finds your old Windows data. Import copies supported assets, settings, careers,
-personal bests, native multiplayer games and both Hall categories. Original files
-stay unchanged. Start fresh records your choice; later launches or another
-Windows user will not silently fill the folder from their old data.
-
-Import saved data in the launcher opens the review again. Choose the old player
-data folder and check the Hall paths. If the executable has moved, choose its old
-Original Hall folder explicitly to include those records. Existing settings/Halls
-are kept unless you select replacement; replacing a Hall retains its previous
-complete contents in migration recovery. Duplicate games use the same Browse
-conflict choices as copied folders. Damaged/unsupported data is retained and
-reported. Old manual multiplayer slots and per-user winning banks are excluded.
+Compatible career and multiplayer folders load by convention. Copies with the
+same internal ID remain independent: choosing one loads and autosaves that folder
+without changing the other. Use the operating system to copy, rename, replace or
+delete folders with the game closed. There is no save import or layout conversion.
+Renaming the last-used folder may require choosing it again through Browse.
+No old Windows profile data is discovered automatically.
 
 A second launch using the same data directory brings the existing window forward
 where accessible, otherwise reports that the folder is in use. A process-held
@@ -327,10 +303,10 @@ Switching saved games or closing waits for writes and offers Retry/Leave unsaved
 if needed. Leaving unsaved can lose progress since the last successful write.
 
 Careers, multiplayer games and shared records keep two previous valid generations.
-Last-used identities are preferences in settings,
+Last-used folders are preferences in settings,
 so losing preferences does not hide saved careers.
 A damaged/missing current file recovers the newest valid copy with a notice.
-With no usable copy a career stays unavailable until explicit selection/creation/deletion.
+With no usable copy a career stays unavailable until another career is selected or created.
 An unreadable or unsupported shared archive is preserved and reports a save
 failure; there is no Hall reset or individual delete action.
 Ghost recordings also keep two recovery copies. An unavailable saved ghost can

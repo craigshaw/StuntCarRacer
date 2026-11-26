@@ -4,36 +4,31 @@ status: accepted
 
 # Portable player data and native multiplayer continuation
 
-Player data will belong to one game folder: assets, settings, careers, multiplayer
-games and the Hall of Fame live under `data/` beside the executable. Everyone
-using that folder shares its data; moving the folder carries the complete game,
-and separate copies are independent. This supersedes
-[ADR 0003](0003-per-user-player-data.md): straightforward copying and ownership
-take priority over supporting unwritable installation folders through implicit
-Windows application-data storage. Portable storage is the default, without a
-marker directory or silent fallback; an explicit data-root override remains for
-development and special installations.
+Assets, settings, careers, multiplayer games and both Hall categories belong in
+`data/` beside the executable. Everyone using the folder shares its data; moving
+it carries the game, and independent copies stay independent. This supersedes
+[ADR 0003](0003-per-user-player-data.md). Straightforward ownership/copying takes
+priority over implicit Windows profile storage. There is no marker or fallback;
+`--data-dir` remains a complete development/special-installation override.
 
-Each career or named multiplayer game has a self-contained folder discovered
-from its contents, with a stable internal identity independent of its name or
-path. Careers include their personal bests, ghosts and recovery copies. Native
-multiplayer autosave and Resume replace the normal virtual save-disc flow and
-retain complete competition state. Copy conflicts offer Replace, Keep Both or
-Cancel; progress is never automatically merged. The independent Hall and the
-simulation/RNG isolation established by [ADR 0001](0001-native-career-checkpoints.md)
-remain in force.
+Each career/named multiplayer game has a self-contained folder discovered from
+its conventional checkpoint filename. Careers include private PBs, ghosts and
+recoveries. A folder identifies the copy selected for loading/autosaving; internal
+IDs bind its contents. Matching IDs in separate folders are allowed without
+rewriting either. Remember last-used folders separately in settings. Renaming a
+folder may require choosing it again, but cannot invalidate its saved contents.
 
-Multiplayer New Game offers every division and Normal/Super League directly,
-with the selected original two-track championship configuration owned by that
-saved game. This removes dependency on single-player unlocks or access files;
-single-player progression and original multiplayer scoring remain unchanged.
-Legacy thirty-slot multiplayer saves are excluded from compatibility and migration:
-there is no requirement for an importer or dedicated preservation/archive step.
-Existing native career, PB and Hall compatibility is retained.
+File operations belong to the operating system. The launcher/game provide no
+saved-data import, conversion, conflict-resolution or management UI/backend.
+Browse opens a selected game directly. Old layouts and original multiplayer slots
+have no migration support. Retain atomic writes, bounded recovery generations and
+existing failure handling. The Hall and simulation/RNG isolation from
+[ADR 0001](0001-native-career-checkpoints.md) remain independent of copied progress.
 
-Stages 1–5 implement portable defaults, copy-based import and explicit
-data-root resolution, process-held ownership, self-contained career folders and
-named native multiplayer autosave/Resume, with shared copy resolution and
-recoverable folder/collection transactions. Final acceptance remains in stage 6.
-See the [design and staged implementation plan](../components/portable-player-data.md)
-for delivery status, compatibility boundaries, migration and verification.
+Native multiplayer autosave/Resume retain complete competition state. New Game
+selects every division and Normal/Super League independently of careers/access
+files, using the original two-track championships, scoring and turn rules.
+Single-player progression remains unchanged; Computer Link stays deferred.
+
+[The implementation plan](../components/portable-player-data.md) records completed
+foundations and pending stage 6 acceptance for the simplified design.

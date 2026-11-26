@@ -6,6 +6,7 @@
 namespace scr::runtime {
 struct PlayerSelections {std::string career,multiplayer;};
 bool validPlayerIdentity(const std::string&)noexcept;
+bool validSavedGameFolder(const std::string&)noexcept;
 bool playerSelectionLine(const std::string&);
 // All preference read/modify/write operations in this process share this lock.
 std::mutex& playerPreferencesMutex();

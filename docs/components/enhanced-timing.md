@@ -306,7 +306,7 @@ Reuse atomic replacement, checksums, backup generations and asynchronous storage
 workers. Unsupported or corrupt data remains protected under the existing
 recovery policy. Category clearing affects the selected private PB and suppresses
 its replacement for the current partial lap, while the other category and Hall
-capture continue. Career deletion covers both private namespaces. Preserve Hall
+capture continue. The complete career folder contains both private namespaces. Preserve Hall
 no-reset/no-delete behaviour and career checkpoint compatibility.
 
 ### Implemented storage foundation
@@ -329,7 +329,7 @@ Original files are neither imported nor reinterpreted.
 
 | Data | Enhanced namespace |
 | --- | --- |
-| Private career PB | `careers/<label>/personal-bests/enhanced/<track>-normal.scr-ebest` or `-super.scr-ebest`; the old flat tree is an explicit import source |
+| Private career PB | `careers/<label>/personal-bests/enhanced/<track>-normal.scr-ebest` or `-super.scr-ebest` |
 | Shared Hall | Installation `hall-enhanced-v1/`; explicit player `--data-dir` uses `hall-of-fame/enhanced/`. Legacy path-only test/tool constructors retain `<original-hall-name>-enhanced-v1/` |
 | Shared index | `index.scr-ehall` and its own two backups, temporary file and lock |
 | Shared lap recording | `ghosts/<attempt-id>.scr-eghost` inside the Enhanced Hall root |
@@ -341,7 +341,7 @@ and two backups, retaining the head on a tie. Writes and queued retries retain
 the fastest candidate and preserve a sole fastest backup before rotating files.
 Unsupported compatibility in any copy blocks replacement; corrupt copies are
 preserved before repair. Clearing one private category leaves the other intact,
-and career deletion removes both private categories without altering the Hall.
+and externally removing a career folder removes both private categories without altering the Hall.
 
 `EnhancedHallArchive` and `EnhancedHallStore` reuse the locked, atomic file
 protocol in `hall_archive_engine.h` with the Original archive. Policies keep
@@ -393,7 +393,7 @@ creates no new attempt.
 `native_enhanced_session.cpp` restores the matching career/track/league PB at race
 entry and resubmits retained unsaved improvements. Original and Enhanced failures
 remain independent; all workers participate in Saved status, Retry, close and
-career departure. Both private categories are forgotten when a career is deleted.
+career departure. Both private caches are forgotten when switching career folders.
 Live Hall delivery uses `enhancedCapturePendingMaximumBytes`, recalculated for
 every possible retained top-20 capture; allocation backpressure cannot silently
 remove a valid live recording.

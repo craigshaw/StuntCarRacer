@@ -97,8 +97,8 @@ Original controls latch acceleration; Modern uses held gas. **Esc / controller
 Start** opens the Game menu while racing; **F10** opens Settings.
 
 Assets, settings, saved games and records live in `data/` beside the executable.
-Move or copy the game folder to carry them with you. Existing players can choose
-to import their old data or start fresh; the original files stay unchanged.
+Move or copy the game folder to carry them with you. Compatible career and
+multiplayer folders are discovered automatically; manage them with the game closed.
 See the [player guide](docs/playing.md) for full controls and save recovery.
 
 ## Build

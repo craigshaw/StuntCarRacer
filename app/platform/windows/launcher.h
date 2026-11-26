@@ -7,9 +7,8 @@
 namespace scr::runtime {
 // Stable native control IDs also form the host integration-test seam.
 enum LauncherControl : unsigned { LauncherAdf=1001,LauncherDetails,LauncherDisplay,LauncherScaling,
-    LauncherMotion,LauncherControls,LauncherNavigation,LauncherReset,LauncherQuit,LauncherPlay,LauncherScaleDetail,LauncherView,LauncherTiming,
-    LauncherImportData,LauncherImportFolder,LauncherImportHall,LauncherImportApply,LauncherImportFresh,LauncherImportBack,LauncherImportSettings,LauncherImportOriginal,LauncherImportEnhanced };
-enum class LauncherAction { None, ChooseAdf, Play, Quit,ChooseImportFolder,ChooseImportHall };
+    LauncherMotion,LauncherControls,LauncherNavigation,LauncherReset,LauncherQuit,LauncherPlay,LauncherScaleDetail,LauncherView,LauncherTiming };
+enum class LauncherAction { None, ChooseAdf, Play, Quit };
 class WindowsLauncher {
 public:
     WindowsLauncher();
@@ -30,7 +29,7 @@ private:
     struct Artwork;
     std::unique_ptr<Artwork> artwork_;
     HWND parent_{};
-    std::array<HWND,22> controls_{};
+    std::array<HWND,13> controls_{};
     std::array<HFONT,4> fonts_{};
     HBRUSH inputBrush_{};
     bool details_{},visible_{true};

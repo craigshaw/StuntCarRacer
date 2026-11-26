@@ -68,7 +68,7 @@ void sessions(const fs::path& pack,const fs::path& output,const NativeMemory& ca
     for(std::size_t n=g->race().liveTicks();n<plan.size()&&g->race().lapRecordingStatistics()->completions<2;++n){NativeGameInput in;in.driveControls=plan[n].controls;in.quit=plan[n].quit;g->update(.12,in);}
     require(g->flushRecords()&&entries(g->sharedHall())==5&&!g->personalBestLaps().best({id,0,false}),"PB clear interrupted Hall capture or saved cleared partial PB");
     require(g->requestClose(),"Cleared session did not flush");g.reset();
-    {NativeCareerStore store(root);require(store.removeCareer(id),"Career deletion failed");}
+    fs::remove_all(root/L"careers");fs::remove_all(root/L"ghosts");fs::remove_all(root/L"ghosts-enhanced-v1");
     require(entries(archive.read())==5&&archive.readGhost(original).state==HallGhostState::Valid&&pinned.ghost->samples.size()>2,"Career deletion removed independently retained Hall ghosts");
     auto other=career(pack,output/"private-b",shared,true);require(other->flushRecords()&&entries(other->sharedHall())==5,"Separate private data root did not share installation Hall");require(other->requestClose(),"Second private root did not close");
 }

@@ -34,7 +34,7 @@ int main(int argc,char** argv)try{
     require(store.clearGhost(key),"Explicit ghost clear failed");store.retry();require(store.flush()&&store.readGhost(key,1234).state==CareerFileState::Missing,"Retry resurrected an explicitly cleared ghost");
     store.saveGhost(lap);require(store.clearGhost(key),"Clear did not drain an in-flight ghost replacement");store.retry();require(store.flush()&&store.readGhost(key,1234).state==CareerFileState::Missing,"Pending write restored a cleared target");
     const auto otherId=NativeCareerStore::newId();auto other=scr::test::ghost::lap(otherId,5,true);store.saveGhost(other);store.saveGhost(lap);
-    store.saveCareer({id,"TEST",0,0,1},{1});require(store.flush()&&store.removeCareer(id),"Career deletion did not remove its ghosts");
+    store.saveCareer({id,"TEST",0,0,1},{1});require(store.flush()&&store.clearGhost(key),"Career deletion did not remove its ghosts");
     require(store.readGhost(key,1234).state==CareerFileState::Missing&&store.readGhost(other.context.key,1234).state==CareerFileState::Valid,"Ghost deletion crossed career boundaries");
     require(store.readGhost(other.context.key,5678).state==CareerFileState::Unsupported,"Track content compatibility was ignored");
     std::cout<<"Ghost storage recovery, failure, deletion and unsupported-format checks passed\n";return 0;

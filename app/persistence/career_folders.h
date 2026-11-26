@@ -4,8 +4,6 @@
 namespace scr::runtime {
 class CareerFolders:public SavedGameFolders {
 public:
-    CareerFolders(std::filesystem::path,NativeCareerStore::Validator,FolderTransactionObserver);
-private:
-    void rekey(const std::filesystem::path&,const std::string&,const std::string&);
+    CareerFolders(std::filesystem::path,NativeCareerStore::Validator);
 };
 } // namespace scr::runtime

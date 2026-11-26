@@ -40,7 +40,7 @@ MultiplayerBytes NativeGameSession::captureMultiplayerCheckpoint(){
 void NativeGameSession::restoreMultiplayerCheckpoint(const MultiplayerBytes& bytes,const NativeMenuInput& held,bool allowUnsaved){
     auto c=decodeNativeMultiplayerCheckpoint(*checkpointBaseline_,bytes);
     auto restoredMenu=std::make_unique<NativeMenuFlow>(*data_.memory,c.menu);restoredMenu->setNavigation(navigation_);
-    if(careerCopyPending()||(careerStore_&&!flushStores()&&!allowUnsaved))throw std::runtime_error("Finish saving before restoring a multiplayer game");
+    if((careerStore_&&!flushStores()&&!allowUnsaved))throw std::runtime_error("Finish saving before restoring a multiplayer game");
     // Everything that can reject the data has completed. Keep the memory object
     // itself alive because native input/name adapters hold references to it.
     *data_.memory=*c.memory;menu_=std::move(restoredMenu);opening_.reset();nameScreen_.reset();saveMenu_.reset();saveReturn_=SaveReturn::None;pendingSave_.reset();

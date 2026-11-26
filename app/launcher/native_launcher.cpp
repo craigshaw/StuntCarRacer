@@ -1,12 +1,9 @@
 #define NOMINMAX
 #define WIN32_LEAN_AND_MEAN
 #include <windows.h>
-#include <shlobj.h>
 #include "launcher/native_launcher.h"
 #include "assets/local_asset_pack.h"
-#include "platform/windows/shared_hall_storage.h"
-#include "persistence/enhanced_hall_store.h"
-#include "persistence/native_career_store.h"
+#include <chrono>
 #include "persistence/windows_file_path.h"
 #include <stdexcept>
 
@@ -16,13 +13,6 @@ std::filesystem::path nativeExecutablePath(){
     if(!count||count>=path.size())throw std::runtime_error("Cannot locate this game executable");path.resize(count);return path;
 }
 NativeLaunchPaths defaultNativeLaunchPaths(){const auto layout=portablePlayerDataLayout(nativeExecutablePath());return {layout.pack,layout.settings,{},layout.root};}
-PlayerImportSource legacyPlayerImportSource(){
-    PWSTR folder{};
-    if(FAILED(SHGetKnownFolderPath(FOLDERID_LocalAppData,KF_FLAG_DEFAULT,nullptr,&folder)))
-        throw std::runtime_error("Cannot locate your Windows application-data folder.");
-    const auto root=std::filesystem::path(folder)/L"Stunt Car Racer";CoTaskMemFree(folder);
-    const auto original=sharedHallPaths(nativeExecutablePath().parent_path()).root;return playerImportSource(root,original,enhancedHallRoot(original));
-}
 std::wstring launcherErrorText(const std::exception& error){
     const auto count=MultiByteToWideChar(CP_UTF8,0,error.what(),-1,nullptr,0);
     if(count<=1)return L"The operation failed. Check the selected file and data folder, then retry.";
@@ -52,15 +42,15 @@ void NativeLauncher::change(unsigned row,int direction){
 }
 void NativeLauncher::resetPreferences(){pending_={};pending_.navigation=NativeMenuNavigation::Original;pending_.timing=TimingCategory::Original;edited_=511;defaultsApproved_=true;}
 bool NativeLauncher::saveForPlay(){
-    if(!ready_||importPage_!=LauncherImportPage::None||importRequired_)return false;
+    if(!ready_)return false;
     auto persisted=pending_;
     if(fullscreenOverride_&&!(edited_&1))persisted.fullscreen=saved_.fullscreen;
     if(interpolationOverride_&&!(edited_&4))persisted.interpolate=saved_.interpolate;
     try{
         if(std::filesystem::exists(paths_.settings)&&!readDisplayPreferences(paths_.settings)){
             if(!defaultsApproved_)throw std::runtime_error("Settings are damaged or unsupported. Choose Restore original defaults to retain that file and save new settings.");
-            if(FolderTransactions::directoryLink(paths_.settings))throw std::runtime_error("Settings file links cannot be replaced");
-            const auto preserved=paths_.settings.wstring()+L".unsupported-"+std::filesystem::path(NativeCareerStore::newId()).wstring();
+            if(windowsPathLink(paths_.settings))throw std::runtime_error("Settings file links cannot be replaced");
+            const auto preserved=paths_.settings.wstring()+L".unsupported-"+std::to_wstring(std::chrono::steady_clock::now().time_since_epoch().count());
             if(!MoveFileExW(windowsFilePath(paths_.settings).c_str(),windowsFilePath(preserved).c_str(),MOVEFILE_WRITE_THROUGH))throw std::runtime_error("Cannot preserve the previous settings file");
         }
         if(!saveDisplayPreferences(paths_.settings,persisted))throw std::runtime_error("Your settings could not be saved. Check that your data folder is writable, then press Play to retry.");

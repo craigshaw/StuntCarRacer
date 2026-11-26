@@ -1,7 +1,6 @@
 param(
     [string]$Adf,
     [string]$DataDirectory = 'working/player-data',
-    [string]$ImportFrom,
     [string]$RecordingsDirectory,
     [switch]$Fullscreen,
     [switch]$Interpolate,
@@ -25,7 +24,6 @@ try {
     $checked = Get-Content (Join-Path $taskRoot 'analysis/native-game/check-results.json') -Raw | ConvertFrom-Json
     $executable = Join-Path $taskRoot $checked.game.path
     $arguments = @('--data-dir', $DataDirectory)
-    if ($ImportFrom) { $arguments += @('--import-from', $ImportFrom) }
     if ($RecordingsDirectory) { $arguments += @('--recordings-dir', $RecordingsDirectory) }
     if ($Fullscreen) { $arguments += '--fullscreen' }
     if ($Interpolate) { $arguments += '--interpolate' }

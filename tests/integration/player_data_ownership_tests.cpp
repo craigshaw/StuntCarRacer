@@ -118,5 +118,23 @@ int wmain(int argc,wchar_t** argv)try{
     }
     {PlayerDataOwnership afterClose(startupRoot);require(afterClose.acquired(),"Player close retained ownership");}
     require(!fs::exists(startupRoot/L"settings.ini")&&!fs::exists(startupRoot/L"assets"),"Closing the isolated launcher wrote settings/assets");
-    std::cout<<"{\"status\":\"passed\",\"checks\":"<<checks<<",\"cross_process\":true,\"crash_release\":true,\"inherited_acl\":true,\"player_startup\":true,\"real_second_account_tested\":false}\n";return 0;
+    // Exercise defaults in the real player from copied/moved/renamed installations,
+    // while inheriting the test's unrelated working directory and no source ADF.
+    auto install=output/L"portable-one";fs::create_directories(install/L"data");
+    fs::copy_file(argv[2],install/L"Game.exe");std::ofstream(install/L"data/keep.txt")<<"preserve";
+    for(unsigned step=0;step<4;++step){
+        if(step==1)fs::rename(install/L"Game.exe",install/L"Renamed.exe");
+        if(step==2){fs::rename(install,output/L"portable-moved");install=output/L"portable-moved";}
+        if(step==3){fs::copy(install,output/L"portable-copy",fs::copy_options::recursive);install=output/L"portable-copy";}
+        const auto program=install/(step?L"Renamed.exe":L"Game.exe"),data=install/L"data";
+        Process player(L"",program.wstring());require(WaitForInputIdle(player.info.hProcess,10000)==0,"Portable launcher did not become idle");HWND window{};
+        {PlayerDataOwnership busy(data);require(!busy.acquired(),"Copied player default did not own executable-local data");
+            for(unsigned n=0;n<1000&&!window;++n){window=FindWindowW(busy.windowClassName().c_str(),nullptr);if(!window)Sleep(10);}}
+        require(window!=nullptr,"Portable default used the working directory or executable basename");
+        require(GetDlgItem(window,1014)==nullptr,"Saved-data management control leaked into launcher");
+        require(SetWindowPos(window,nullptr,-30000,-30000,0,0,SWP_NOSIZE|SWP_NOZORDER|SWP_NOACTIVATE)!=0,"Cannot isolate portable fixture window");
+        require(PostMessageW(window,WM_CLOSE,0,0)!=0&&player.finish()==0,"Copied player did not close");
+        require(fs::file_size(data/L"keep.txt")==8&&!fs::exists(data/L"settings.ini")&&!fs::exists(data/L"assets")&&!fs::exists(data/L"migration.scr-import"),"Portable startup changed data or required an import decision");
+    }
+    std::cout<<"{\"status\":\"passed\",\"checks\":"<<checks<<",\"cross_process\":true,\"crash_release\":true,\"inherited_acl\":true,\"player_startup\":true,\"copied_moved_renamed_player\":true,\"real_second_account_tested\":false}\n";return 0;
 }catch(const std::exception& error){std::cerr<<error.what()<<'\n';return 1;}

@@ -102,19 +102,13 @@ named `multiplayer/` games and both `hall-of-fame/` categories. The player no lo
 accepts `--asset-pack`, `--settings-file` or `--save-file`; direct-race/replay tools
 keep their separate interfaces. `--recordings-dir` explicitly enables recording;
 the development launch helper records only when `-RecordingsDirectory` is supplied.
-`--import-from <old-data-root>` opens an explicit import review. For an old
-ProgramData archive, add `--import-hall-from <old-Original-Hall-folder>`; its
-Enhanced sibling is identified separately. The launcher also offers folder pickers.
-Explicit roots now discover self-contained `careers/<label>/career.scr-career`
-folders, with both PB categories and recovery files inside each career. Copy or
-rename complete career folders while the game is closed; duplicate identities
-offer Replace / Keep Both / Cancel. Last-used IDs share the resolved settings file,
-through coordinated preference writes. An old explicit root offers its own flat
-layout conversion without discovering real AppData. Choose Import explicitly;
-Start fresh preserves the old files and keeps the new folder layout independent.
-See the [import contract](components/player-data-import.md) for validation, recovery
-and conflict handling. Isolated original/development sessions retain legacy codec
-routes; player migration excludes manual multiplayer slot files.
+All roots discover self-contained `careers/<label>/career.scr-career` and
+`multiplayer/<label>/game.scr-multiplayer` folders by convention. Copy/rename
+complete folders with the game closed; each copy loads independently, even when
+internal IDs match. Last-used folder names share the resolved settings file
+through coordinated writes. The launcher and game have no saved-data import,
+conversion or file-management facilities. Isolated original/development sessions
+retain their separate codec interfaces.
 See [scripts](../scripts/README.md), [player data](playing.md#data-and-recovery)
 and [asset import](components/assets.md).
 

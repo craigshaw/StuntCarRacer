@@ -61,7 +61,7 @@ void privateBests(const fs::path& root){
     check(files(root/"ghosts")==originalFiles&&files(root/"careers")==careerFiles,"Enhanced writes changed Original PB or career checkpoint");
     check(store.clearEnhancedBest(pb.key)&&store.readEnhancedBest(pb.key,fixture::catalog).state==CareerFileState::Missing,"Enhanced clear did not remove its generations");
     check(files(root/"ghosts")==originalFiles,"Enhanced clear removed Original PB");
-    store.saveEnhancedBest(pb);check(store.flush(),"PB resave failed");check(store.removeCareer(pb.key.career),"Career deletion failed");
+    store.saveEnhancedBest(pb);check(store.flush(),"PB resave failed");check(store.clearEnhancedBest(pb.key)&&store.clearGhost(original.context.key),"Cannot clear private records");
     check(store.readEnhancedBest(pb.key,fixture::catalog).state==CareerFileState::Missing&&store.readGhost(original.context.key,original.context.trackContentIdentity).state==CareerFileState::Missing,"Career deletion left a private timing category");
     check(store.readEnhancedBest(foreign.key,fixture::catalog).state==CareerFileState::Valid,"Career deletion removed another Enhanced owner");
 }

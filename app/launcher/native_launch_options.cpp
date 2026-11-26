@@ -10,16 +10,14 @@ NativeLaunchOptions parseNativeLaunchOptions(const NativeLaunchPaths& defaults,c
         if(key==L"--interpolate"){options.interpolate=true;continue;}
         if(key==L"--fullscreen"){options.fullscreen=true;continue;}
         if(key==L"--windowed"){options.fullscreen=false;continue;}
-        if(key!=L"--data-dir"&&key!=L"--import-from"&&key!=L"--import-hall-from"&&key!=L"--recordings-dir")
+        if(key!=L"--data-dir"&&key!=L"--recordings-dir")
             throw std::invalid_argument("Unknown game argument. Use --data-dir for the complete player-data folder.");
         if(++n==args.size()||args[n].empty())throw std::invalid_argument("Missing native game argument value");
         const auto value=std::filesystem::absolute(args[n]).lexically_normal();
         if(key==L"--data-dir")root=value;
-        else if(key==L"--import-from")options.importFrom=value;
-        else if(key==L"--import-hall-from")options.importHallFrom=value;
         else recordings=value;
     }
-    options.explicitDataRoot=root.has_value();options.dataLayout=playerDataLayout(root?*root:defaults.dataRoot);const auto& layout=*options.dataLayout;
+    options.dataLayout=playerDataLayout(root?*root:defaults.dataRoot);const auto& layout=*options.dataLayout;
     options.paths={layout.pack,layout.settings,{},layout.root};
     if(recordings)options.paths.recordings=*recordings;
     return options;

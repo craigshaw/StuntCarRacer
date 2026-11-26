@@ -178,7 +178,6 @@ if(WIN32)
     app/persistence/career_folders.cpp
     app/persistence/saved_game_folders.cpp
     app/persistence/native_multiplayer_store.cpp
-    app/persistence/folder_transactions.cpp
     app/persistence/ghost_lap_codec.cpp
     app/persistence/native_career_checkpoint.cpp
     app/persistence/native_multiplayer_checkpoint.cpp
@@ -202,13 +201,11 @@ if(WIN32)
     app/platform/windows/game_display.cpp
     app/launcher/native_launcher.cpp
     app/launcher/native_launch_options.cpp
-    app/launcher/native_data_import.cpp
-    app/persistence/player_data_import.cpp
     app/platform/windows/launcher.cpp
   )
   target_include_directories(scr_host_ui PUBLIC app)
   target_include_directories(scr_host_ui PRIVATE "${PROJECT_BINARY_DIR}/generated")
-  target_link_libraries(scr_host_ui PUBLIC scr_game user32 gdi32 gdiplus shell32 ole32 comctl32)
+  target_link_libraries(scr_host_ui PUBLIC scr_runtime scr_player_data user32 gdi32 gdiplus shell32 ole32 comctl32)
   target_compile_features(scr_host_ui PUBLIC cxx_std_17)
   if(MSVC)
     target_compile_options(scr_host_ui PRIVATE /W4 /utf-8 /permissive-)

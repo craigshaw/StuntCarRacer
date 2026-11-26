@@ -11,14 +11,15 @@ Use the CMake/CTest presets and [development guide](../docs/development.md) to
 choose checks. Private fixtures and retained receipts stay at their existing
 `analysis/` paths; disposable test output belongs under `build/`.
 
-`player_data_import_tests` covers copy-based legacy/folder migration, all PB
-recoveries, full native/RNG continuation and subsequent updates, Hall preservation,
-idempotent/fresh choices, conflicts and unavailable sources. It terminates fifteen
-child imports across collection publication and launches the real copied/moved/
-renamed player from a different working directory without the ADF. Its junction
-fixture requires execution outside the Codex filesystem sandbox, like the existing
-deny-ACL ownership fixture. This is separate from real second-account/clean-machine
-acceptance. See the [import contract](../docs/components/player-data-import.md).
+`career_folder_tests` and `native_multiplayer_store_tests` cover convention-based
+discovery, copied/renamed folders with matching internal IDs, independent writes,
+PB ownership, local backup recovery and source preservation. The career folder
+session suite compares full native memory/RNG and following race updates after
+selecting a copied career directly. The multiplayer saved-session suite retains
+its setup/report/championship and failure matrix with direct folder selection.
+There is no legacy-layout conversion or file-management feature to exercise.
+Final physical-controller, second-account and clean-machine acceptance remains
+separate from automated checks; see the [plan](../docs/components/portable-player-data.md).
 
 `native_multiplayer_checkpoint_tests` validates the asset-free multiplayer format
 and unchanged career bytes. `native_multiplayer_checkpoint_session_tests` compares
@@ -26,9 +27,9 @@ all player counts/divisions/leagues across repeated fresh-session restores, both
 tracks, reports, forfeits, bonuses and reset. See the [checkpoint contract](../docs/components/multiplayer-checkpoints.md)
 for the distinction between natural race finishes and controlled bonus/record
 fixtures. `native_multiplayer_store_tests` checks shared-worker durability,
-folder discovery, copy resolution, rekeyed generations and publication faults.
+folder discovery, independent copies and failed-write retries.
 `native_multiplayer_saved_session_tests` covers named-game setup, autosave/Resume,
-failures/departures, copying/deletion, independent careers/games and four-championship
+failures/departures, copied-folder selection, independent careers/games and four-championship
 completion in both navigation policies. It uses synthetic host input rather than
 physical controller acceptance; its Enhanced record notice is a controlled display
 fixture. Rendered menus and source/fixture/executable receipts stay under `analysis/`.

@@ -9,7 +9,7 @@ The [portable-data and multiplayer-save design](portable-player-data.md) is bein
 implemented in stages. Explicit-root paths, host ownership and self-contained
 career folders and named multiplayer games are in place. Multiplayer uses native
 autosave/Resume on default and explicit roots. Normal launches now use `data/`
-beside the executable, with explicit copy-based migration. Final cross-account
+beside the executable, with convention-based saved-game discovery. Final cross-account
 and clean-machine acceptance remains in stage 6.
 
 ## Transitions
@@ -74,42 +74,29 @@ Private career/index files use bounded, checksummed, versioned envelopes. A seri
 worker writes immutable jobs to a flushed temporary file, atomically replaces
 the head and retains two valid recovery generations. Ignore stale temporary
 files, preserve unknown formats and validate checkpoint bodies during recovery.
-Deletion drains writes before removing all generations. Saved means worker
-completion, not job submission.
+Saved means worker completion, not job submission.
 
-All player launches use `careers/<label>/career.scr-career` and private
-`personal-bests/original/` and `personal-bests/enhanced/` trees inside that folder.
-`SavedGameFolders`, through `CareerFolders` and `NativeMultiplayerStore`, discovers
-immediate child folders by their stored identities;
-names, suffixes and paths do not identify a career. It preserves unavailable
-formats and rejects directory links. Its cache is rebuildable; copy/rename with
-the game closed. Flat career/PB files are read only through explicit import or
-isolated legacy test/tool stores.
+All player launches discover `careers/<label>/career.scr-career` and
+`multiplayer/<label>/game.scr-multiplayer` in immediate child folders. Each career
+owns `personal-bests/original/` and `personal-bests/enhanced/`, including recovery
+files. `SavedGameFolders`, `CareerFolders` and `NativeMultiplayerStore` share
+discovery while keeping mode-specific validation. Missing heads can use local
+backups; unsupported/damaged data is preserved. Links and nested histories are
+not followed. A first atomic checkpoint makes a new folder discoverable.
 
-Duplicate identities require Replace / Keep Both / Cancel before load or autosave.
-The serial worker stages complete folder transactions under `.transactions/`,
-recovers them before discovery and retains replaced versions inside the winner's
-`recovery/replaced/` tree. Keep Both rekeys supported owner-bound metadata and
-every recovery generation, preserving checkpoint bytes, times and RNG. Unknown
-formats block rekeying. Folder deletion uses the same worker/transaction boundary;
-close waits for completion. Career operations do not restore or change the Hall.
-Multiplayer uses `multiplayer/<label>/game.scr-multiplayer` on every player root,
-with the same discovery, recovery, conflict and delete rules. Both modes share one
-serial writer and transaction service; mode callbacks own validation/rekeying.
-Multiplayer rekeying changes only its outer identity, leaving checkpoint bytes
-unchanged. Recovery histories support Windows paths longer than `MAX_PATH`.
+The folder identifies the selected game copy. Internal IDs still bind private
+contents, but matching IDs in separate folders require no conflict resolution or
+rekeying. Writes keep their selected immutable paths. Switching career folders
+clears both PB caches so records cannot leak between copies. Browse selects a
+game directly, with no management actions or technical folder labels. Copy/rename/
+replace/delete complete folders externally with the game closed; no save-data
+import/conversion or folder transaction service exists.
 
-Portable last-used IDs are separate `last-career`/`last-multiplayer` preferences
-in version-11 settings, with serialized read/merge/atomic writes shared by display
-and selection updates. No on-disk catalogue is needed. Legacy flat storage keeps
-`last.scr-index`; older settings/checkpoint readers remain supported.
-
-[Player-data import](player-data-import.md) groups flat careers and both PB
-categories without rewriting their checkpoint/generation bytes. It copies native
-multiplayer folders and both Hall archives, retaining unavailable files and
-reporting them. Collection transactions share the existing journal/recovery
-boundary. A migration record prevents repeated automatic discovery; it does not
-control portable mode or saved-game discovery.
+Last-used folder names are separate `last-career-folder`/`last-multiplayer-folder`
+preferences with coordinated read/merge/atomic writes shared by display and
+selection updates. No on-disk catalogue is needed. A renamed/missing preference
+does not hide saves or choose another matching ID. Flat storage and original
+codecs remain isolated test/tool interfaces, unreachable from the player.
 
 Write failure retains the latest RAM state and last good disk copy. Retry at safe
 boundaries; switching careers and closing must drain writes or offer an explicit

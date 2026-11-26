@@ -3,8 +3,8 @@
 Status: native checkpoint capture/restore and the stage-4 named-game player journey
 are implemented. `NativeMultiplayerStore` supplies durable autosave and the shared
 folder lifecycle; `native_multiplayer_session.cpp` owns setup/home/library routes.
-Portable default paths and copy-based migration are implemented in
-[stage 5](player-data-import.md).
+Portable paths and convention-based discovery follow the
+[player-data contract](portable-player-data.md).
 There is no legacy-slot importer.
 
 `app/persistence/native_multiplayer_checkpoint.*` owns validation and encoding.
@@ -28,8 +28,8 @@ Its checksum covers metadata and the checkpoint. Changing this host identity doe
 not rewrite native driver names, memory or progression. Neither codec creates IDs
 or consumes gameplay randomness. The multiplayer store uses the career actor for
 serialized publication, atomic generation rotation, retries and preference writes.
-Copy conflict resolution rekeys the outer envelopes of all supported generations
-without changing their checkpoints. Unknown owner-bound formats block Keep Both.
+Each selected folder owns its writes. Matching internal IDs in copied folders
+are allowed without rewriting checkpoints or their envelopes.
 
 Checkpoints are limited to 4 MiB including their header; the complete saved-game
 envelope allows an additional 256 bytes. Lengths, delta ranges, flags, names,
@@ -100,13 +100,13 @@ lifecycle captures these boundaries automatically, including a drained prepared
 matchup before the first driving tick. Modal home/library rendering does not mutate
 native memory. Opening Continue does not acknowledge a finish or report. Setup is
 published only after confirmed roster/first save; cancellation removes its failed
-jobs, and close waits for copy/delete/cancel operations.
+jobs before returning to saved-game selection.
 
 ## Verification
 
 `native_multiplayer_checkpoint_tests` is asset-free. Its 448 round trips cover
 2–8 humans, all four divisions, both leagues and every serialized page. It checks
-complete native memory, fragmented deltas, metadata/rekey independence, malformed
+complete native memory, fragmented deltas, metadata/native-state independence, malformed
 and future data, optional displays, and the unchanged career version-1–4 format.
 
 `native_multiplayer_checkpoint_session_tests` compares independently evolving
@@ -125,11 +125,11 @@ archives must keep identical files/generations through restore and notice displa
 
 Existing multiplayer, career/autosave, portable-career and Enhanced UI suites guard
 the player routes. `native_multiplayer_store_tests` adds generation/recovery,
-catalogue-free discovery, preference coordination, identity conflicts/rekeying and
-transaction fault coverage. `native_multiplayer_saved_session_tests` covers both
+catalogue-free discovery, preference coordination, independent copied-folder writes and
+failed-write retry coverage. `native_multiplayer_saved_session_tests` covers both
 navigation policies, 2/8-player setup across every division/league, interrupted
 races, natural pending finishes, report/track/championship resumes, Practice,
-cross-mode/game independence and failed-save/copy/delete/departure handling.
+cross-mode/game independence and failed-save/copy/departure handling.
 The controlled Enhanced notice tests display restoration, not a driven human record.
 Physical-controller acceptance remains separate from synthetic host-input checks.
 Focused original-code comparisons use

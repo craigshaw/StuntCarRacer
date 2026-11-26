@@ -29,16 +29,14 @@ owns oracle ranges, comparison projections and historical test namespaces;
 production neither includes those headers nor links Musashi.
 
 `scr_game` owns career/multiplayer codecs, storage and folder discovery.
-`SavedGameFolders` supplies mode-specific readers/rekeying over shared discovery
-and conflict handling. `FolderTransactions` stages, validates, publishes and recovers complete
-saved-game folders within the owned root. All player launches use
-[portable folders](components/portable-player-data.md). Its collection journal also
-publishes complete imports, including assets/settings and independent Hall archives,
-and completes recovery under the root lock before launcher reads.
+`SavedGameFolders` supplies mode-specific readers over shared convention-based
+discovery. The chosen folder owns writes, including when copied internal IDs
+match; no saved-data conversion, rekeying or folder transaction service is needed.
+All player launches use [portable folders](components/portable-player-data.md).
 Career and [multiplayer checkpoints](components/multiplayer-checkpoints.md) share
 bounded memory-delta primitives while keeping mode-specific formats and validators.
 `NativeMultiplayerStore` shares the career writer's serial queue, retries and
-departure checks, so both modes' folder transactions cannot race. Its named-game
+departure checks, so both modes' saves cannot race. Its named-game
 controller uses the checkpoint adapter; terminal scoring is staged on private memory.
 
 `RaceScene`, presentation poses and `SoftwareRenderer` are shared by live racing
@@ -49,11 +47,9 @@ for build trees, fixture requirements and staging.
 
 ## Startup and race lifetime
 
-`PlayerDataImport` reads old sources without opening their write/recovery stores.
-The launcher runs copy/validation on a worker, records an explicit import/fresh
-decision, and never silently seeds a later launch from Windows profile folders.
-Source discovery is limited to the current user and identified installation;
-moved installations can supply their old Hall folder. See [import](components/player-data-import.md).
+The host resolves and locks one data root before launcher reads/writes. There is
+no Windows profile discovery or saved-data import. Compatible saved-game folders
+are discovered when sessions start.
 The launcher imports assets and saves pending preferences before constructing
 `NativeGameSession`. Setup failures remain recoverable there. The session owns
 menus, race preparation and return; `RaceScene` advances the race and captures

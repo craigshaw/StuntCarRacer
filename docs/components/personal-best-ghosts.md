@@ -175,12 +175,13 @@ shape tables, with no captured memory or original assets. Serialized records fit
 inside the store's 4 MiB file bound. A checksum detects accidental corruption;
 it does not establish authenticity for a future online leaderboard.
 
-`NativeCareerStore` writes `ghosts/<career-id>/<track>-normal.scr-ghost` or
-`<track>-super.scr-ghost` for legacy default storage. Explicit `--data-dir` launches
-put those filenames under `careers/<label>/personal-bests/original/`, beside the
-career checkpoint and independent Enhanced category. The complete folder can be
-copied or renamed while closed. Keep Both rebinds owner IDs in all supported
-generations without changing movement or timing; see [portable data](portable-player-data.md).
+All player launches write Original PBs under
+`careers/<label>/personal-bests/original/<track>-normal.scr-ghost` or
+`<track>-super.scr-ghost`, beside the checkpoint and independent Enhanced category.
+Copy/rename complete folders with the game closed. Matching internal IDs in copies
+keep their PB bindings and are selected/written independently; no rekeying or copy
+resolution is needed. See [portable data](portable-player-data.md). Isolated older
+test/tool stores keep their separate flat paths.
 Writes use the existing serial worker. Best time and poses
 form one immutable job and one checksummed replacement, with two validated
 recovery generations. Loading accepts a good recovery copy; replacement preserves
@@ -194,7 +195,7 @@ Confirmed clear drains the worker, removes that key's pending retry job and
 deletes its head, backups, temporary and damaged copies. It then removes the
 in-memory best and active ghost and cancels the current recording candidate.
 The next completed crossing starts a fresh candidate; the discarded partial lap
-cannot restore the cleared target. Career deletion removes its ghost files too.
+cannot restore the cleared target. Removing a complete career folder externally removes its private ghosts too.
 
 Display settings version 9 adds `practice-ghost`; versions 1–8 migrate with it on.
 F10 Settings previews and applies/cancels the toggle using existing controls.

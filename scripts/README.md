@@ -30,7 +30,7 @@ analysis recipes live in [tools/research](../tools/research/README.md). Their
 existing output and evidence paths under `analysis/` are unchanged.
 
 `start-native-game.ps1` uses one `-DataDirectory` (default `working/player-data/`).
-`-ImportFrom` requests the launcher's copy-based import review; `-RecordingsDirectory`
+`-RecordingsDirectory`
 explicitly enables development recordings. Asset/settings/save file overrides are
 retired from the player helper. `check_native_game.py` verifies a separate clean
 CMake Install prefix before updating `dist/`, preserving an existing `dist/data/`.

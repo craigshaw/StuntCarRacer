@@ -45,7 +45,7 @@ public:
     NativeGameUpdate update(double elapsed,const NativeGameInput&);
     void enableCareers(const std::filesystem::path& dataRoot,const std::filesystem::path& sharedHallRoot={});
     void enableCareers(const std::filesystem::path& dataRoot,HallArchiveLocation original,HallArchiveLocation enhanced,
-        CareerStorageOptions storage={CareerStorageLayout::Folders,{},{}});
+        CareerStorageOptions storage={CareerStorageLayout::Folders,{}});
     bool requestClose();
     void enableMultiplayerGames(const std::filesystem::path& settings={});
     bool multiplayerHome()const noexcept{return multiplayerPanel_==MultiplayerPanel::Home;}
@@ -57,8 +57,7 @@ public:
     MultiplayerBytes captureMultiplayerCheckpoint();
     void restoreMultiplayerCheckpoint(const MultiplayerBytes&,const NativeMenuInput& held={},bool allowUnsaved=false);
     bool closeReady()const noexcept{return closeReady_;}
-    bool closePending()const noexcept{return departure_==Departure::Close||closeAfterCareerCopy_;}
-    bool careerCopyPending()const noexcept{return careerCopy_.valid()||multiplayerWork_.valid();}
+    bool closePending()const noexcept{return departure_==Departure::Close;}
     bool multiplayer()const noexcept{return (*data_.memory)[0x5eb76]!=0;}
     bool competitive()const noexcept{return menu_&&menu_->competitive();}
     std::string saveStatus()const;
@@ -80,9 +79,9 @@ public:
         if(careerPanel_==CareerPanel::None&&multiplayerPanel_!=MultiplayerPanel::None)return multiplayerMenuState();
         if(careerPanel_!=CareerPanel::None){
             NativeMenuRenderState state;state.selected=careerPanel_==CareerPanel::List?listSelection_%3:careerSelection_;state.division=(*data_.memory)[0x1c9ce];
-            if(careerPanel_==CareerPanel::Notice||careerPanel_==CareerPanel::CopyWorking)state.count=0;
+            if(careerPanel_==CareerPanel::Notice)state.count=0;
             else if(careerPanel_==CareerPanel::Home)state.count=unsigned(homeActions_.size()-1);
-            else if(careerPanel_==CareerPanel::Delete||careerPanel_==CareerPanel::SaveError||careerPanel_==CareerPanel::CreateError)state.count=1;
+            else if(careerPanel_==CareerPanel::SaveError||careerPanel_==CareerPanel::CreateError)state.count=1;
             else if(careerPanel_==CareerPanel::List){const auto first=(listSelection_/3)*3;state.count=careerList_.empty()?0:unsigned(std::min<std::size_t>(3,careerList_.size()-first))-1;}
             else state.count=2;
             return state;
@@ -119,7 +118,7 @@ public:
     bool transitioning()const noexcept{return transition_!=Transition::None;}
     void releaseInput(const NativeMenuInput& held={})noexcept;
 private:
-    enum class CareerPanel {None,Home,List,Actions,Delete,Notice,SaveError,CreateError,Departure,Conflict,CopyWorking};
+    enum class CareerPanel {None,Home,List,Notice,SaveError,CreateError,Departure};
     enum class Departure {None,Close,NewCareer,LoadCareer,Multiplayer,MultiplayerSelect,NewMultiplayer,LoadMultiplayer,Mode};
     enum class HomeAction {Continue,NewCareer,Browse};
     std::unique_ptr<NativeMemory> checkpointBaseline_;
@@ -132,13 +131,9 @@ private:
     unsigned draftNameLength_{};
     std::unique_ptr<NativeCareerStore> careerStore_;
     std::unique_ptr<NativeMultiplayerStore> multiplayerStore_;
-    enum class MultiplayerPanel {None,Select,Home,List,Actions,Delete,Conflict,Working,Title,Configuration,CreateError,Notice};
+    enum class MultiplayerPanel {None,Select,Home,List,Title,Configuration,CreateError,Notice};
     MultiplayerPanel multiplayerPanel_{MultiplayerPanel::None};
     MultiplayerPanel multiplayerNoticeReturn_{MultiplayerPanel::Select};
-    enum class MultiplayerWork {Copy,Delete,CancelDraft};
-    MultiplayerWork multiplayerWorkKind_{MultiplayerWork::Copy};
-    std::future<SavedGameCopyResult> multiplayerWork_;
-    std::string multiplayerWorkId_;
     std::optional<SavedGameEntry> activeMultiplayer_,newMultiplayer_;
     MultiplayerBytes multiplayerCheckpoint_,newMultiplayerCheckpoint_;
     bool multiplayerSuspended_{},multiplayerDraft_{},multiplayerPractice_{},multiplayerDirty_{},multiplayerTextFresh_{},multiplayerTextReady_{};
@@ -191,10 +186,6 @@ private:
     bool discardOnDeparture_{};
     unsigned careerSelection_{},listSelection_{};
     std::vector<NativeCareerInfo> careerList_;
-    std::future<CareerCopyResult> careerCopy_;
-    bool closeAfterCareerCopy_{};
-    bool deletingCareer_{};
-    std::string copiedCareerId_;
     std::optional<NativeCareerInfo> activeCareer_,newCareer_;
     CareerBytes checkpoint_,newCheckpoint_,suspendedSeason_;
     std::vector<HomeAction> homeActions_;

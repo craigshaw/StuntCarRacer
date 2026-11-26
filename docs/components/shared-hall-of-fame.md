@@ -34,8 +34,9 @@ contextual Race ghost label appears beside the page control for such a row.
 
 Up/down traverses selectors, visible rows and Page. Left/right changes a filter
 or page; confirmation advances the focused selector or page. Escape/controller B
-returns to the same career. Number keys 1/2/3 focus selectors. There are no Reload
-or Back buttons or permanent instruction line. The existing input clock provides
+returns to the same career. Number keys 1/2/3 focus track/league/type; 4 focuses
+timing. There are no Reload or Back buttons or permanent instruction line.
+The existing input clock provides
 release gates and repeat timing in both navigation policies. Filters and selection
 survive reopening; a fresh snapshot
 follows the selected immutable ID, or clamps nearby if it was displaced.

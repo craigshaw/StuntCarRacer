@@ -9,8 +9,8 @@ from the repository root in PowerShell.
 
 The player uses C++17 and Windows system libraries, including XInput. The checked-in
 presets select x64 Visual Studio 2026 C++ Build Tools (`Visual Studio 18 2026`);
-install its C++ workload and a CMake version supporting that generator. The project
-and preset schema require CMake 3.21 or newer. Another generator can use an ignored
+install its C++ workload and CMake 4.2 or newer for that generator. The project
+and preset schema have a CMake 3.21 floor. Another generator can use an ignored
 `CMakeUserPresets.json` or an explicit configure command.
 
 Python is optional for checks/helpers and is not a compiler or runtime dependency.
@@ -51,10 +51,11 @@ The approved launcher logo is the sole embedded-artwork exception: a local
 `logo.png` must match `setup/branding.json`. Unknown artwork fails configuration;
 replacement requires provenance review and a pin update. Builds without it use
 a text header; `-DSCR_EMBED_LAUNCHER_LOGO=OFF` selects that header explicitly.
-Before distributing the folder, run:
+Before distributing, install to a fresh, unused prefix and check that folder:
 
 ```powershell
-python scripts/check_release.py
+cmake --install build/windows --config Release --prefix build/release-check
+python scripts/check_release.py build/release-check
 ```
 
 This checks a clean distribution's file list, notices, x64 executable and resources.
@@ -62,7 +63,7 @@ Use `--installed` to check a played-in folder without rejecting its `data/`; tha
 check does not certify a distributable bundle. The game wrapper verifies a separate
 clean CMake Install prefix before updating `dist/`.
 Only version information, the Windows manifest and the exact approved logo are
-accepted. The game wrapper also runs it after staging.
+accepted. The installed EXE must match the checked clean copy.
 
 ## Repository layout
 

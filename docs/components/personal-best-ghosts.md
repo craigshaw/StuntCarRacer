@@ -185,8 +185,8 @@ Writes use the existing serial worker. Best time and poses
 form one immutable job and one checksummed replacement, with two validated
 recovery generations. Loading accepts a good recovery copy; replacement preserves
 unreadable files under a damaged-copy name. Unsupported formats/rules/content or
-foreign ownership remain intact and block replacement. Failed writes retain the
-RAM best and last good file. The existing Retry/unsaved-departure flow applies;
+foreign ownership remain intact and block automatic replacement. Failed writes
+retain the RAM best and last good file. The existing Retry/unsaved-departure flow applies;
 race entry also resubmits a retained improvement newer than disk. Saved status
 depends on worker completion.
 

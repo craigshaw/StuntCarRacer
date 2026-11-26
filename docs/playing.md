@@ -14,8 +14,8 @@ display mode in the same window. Mouse, Tab, arrows and controller operate it;
 the Windows file picker uses its normal keyboard/mouse controls.
 
 Launcher edits save on Play; closing discards edits while keeping successful
-imports. Restore original defaults resets settings, including Original menu
-navigation, without changing assets or saves. Missing/new preferences use
+imports. Restore original defaults resets settings, including Original timing and
+menu navigation, without changing assets or saves. Missing/new preferences use
 Responsive navigation. Failed settings writes or startup remain in the launcher
 with an error and retry route.
 
@@ -186,8 +186,8 @@ At a finish message, release fire and press again to continue.
 Quit to Desktop starts with Cancel selected. Escape/B, P or Start cancels back
 to the Game menu. Quitting an unfinished career race resumes later at its saved
 matchup; multiplayer does the same for the current human driver. Quitting, closing
-the window and Alt+F4 all flush saved-game/Hall/ghost writes. If saving fails, Retry/Leave
-Without Saving/Cancel remains available; cancelling returns to the Game menu
+the window and Alt+F4 all flush saved-game/Hall/ghost writes. If saving fails, Retry/
+Leave unsaved/Cancel remains available; cancelling returns to the Game menu
 without resuming racing. There is no return-to-launcher action.
 
 ## Multiplayer saved games
@@ -306,12 +306,13 @@ Careers, multiplayer games and shared records keep two previous valid generation
 Last-used folders are preferences in settings,
 so losing preferences does not hide saved careers.
 A damaged/missing current file recovers the newest valid copy with a notice.
-With no usable copy a career stays unavailable until another career is selected or created.
+With no usable copy, that saved game stays unavailable; choose or create another.
 An unreadable or unsupported shared archive is preserved and reports a save
 failure; there is no Hall reset or individual delete action.
 Ghost recordings also keep two recovery copies. An unavailable saved ghost can
 be explicitly cleared from the Practice Game menu; a write failure keeps the
-best in memory and the last good file. Unsupported formats are left untouched.
+best in memory and the last good file. Automatic loading and saving preserve
+unsupported formats; a confirmed PB clear removes all copies of that selected PB.
 Preferences also replace files atomically; missing settings use defaults and
 supported older versions migrate. Damaged/unsupported settings require explicit
 Restore original defaults in the launcher, preserving the old document before

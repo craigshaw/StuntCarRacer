@@ -12,6 +12,7 @@ evidence together at these locations.
 | Pinned external references | `analysis/reference/vesuri/`, `analysis/reference/musashi/` | Preserve provenance/lock identities; Musashi is test-only |
 | Analysis exports/databases | `analysis/rea/`, `analysis/ghidra/` | Retain useful recovered evidence and source identities |
 | Component verification | Existing component folders under `analysis/`, including `native-game/`, `native-startup/` and `physics-update/` | Keep reports, fixtures and identified historical executables at their recorded paths |
+| Portable data and multiplayer continuation | `analysis/portable-player-data/` | Retain checkpoint/store/session/host receipts and the final stage-6 automated results, update-preservation proof and separate maintainer manual sign-off |
 | Enhanced timing release | `analysis/enhanced-release/` | Retain the scoped final receipt, full Release and affected Debug results, Original comparisons, storage interruption proofs, inspected previews and staged-player identities |
 | Toolchain and cleanup records | `analysis/toolchain/`, `analysis/cleanup/` | Recorded diagnostics and retention receipts |
 | Current disposable outputs | `build/windows/`, `build/windows-oracle/` | Compiler output, CTest logs and synthetic test artifacts can be recreated |

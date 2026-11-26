@@ -278,14 +278,15 @@ in the other.
 
 ## Persistence and compatibility
 
-Preserve existing Original archives, PB files, recovery copies and readers. Give
-Enhanced Hall data a separate versioned namespace beside the current Hall root,
-with its own index, object directory, lock and recovery generations. Give
-Enhanced career PBs their own namespace beside the current `ghosts/` tree for
-legacy paths, or under the career's separate `personal-bests/enhanced/` directory
-with explicit `--data-dir`. Keep category isolation for both layouts.
-This keeps older executables and Original garbage collection from
-interpreting or removing Enhanced objects.
+Preserve Original archive/PB formats, recovery copies and readers. All player
+launches use separate `hall-of-fame/original/` and `hall-of-fame/enhanced/`
+archives under the complete data root. Each has its own index, objects, lock and
+recovery generations. Career PBs use `personal-bests/original/` and
+`personal-bests/enhanced/` within the selected career folder. `--data-dir` changes
+the complete root without changing these conventions. No old-layout conversion
+is supported. Category isolation keeps Original garbage collection from
+interpreting or removing Enhanced objects. Path-only test/tool Hall constructors
+retain their explicitly injected sibling layout.
 
 Keep gameplay-rules identity, track-content identity, timing category, timing
 method version and file-format version distinct. Version the selected estimator
@@ -330,7 +331,7 @@ Original files are neither imported nor reinterpreted.
 | Data | Enhanced namespace |
 | --- | --- |
 | Private career PB | `careers/<label>/personal-bests/enhanced/<track>-normal.scr-ebest` or `-super.scr-ebest` |
-| Shared Hall | Installation `hall-enhanced-v1/`; explicit player `--data-dir` uses `hall-of-fame/enhanced/`. Legacy path-only test/tool constructors retain `<original-hall-name>-enhanced-v1/` |
+| Shared Hall | `hall-of-fame/enhanced/` under the complete player root. Path-only test/tool constructors retain `<original-hall-name>-enhanced-v1/` |
 | Shared index | `index.scr-ehall` and its own two backups, temporary file and lock |
 | Shared lap recording | `ghosts/<attempt-id>.scr-eghost` inside the Enhanced Hall root |
 
@@ -493,8 +494,9 @@ including an empty notice when no Enhanced record was set. The reader retains
 versions 1–3, and unknown methods remain protected. Restored
 finishes can switch categories without rerunning timing/scoring or changing the
 saved artwork. Older finishes show unavailable Enhanced fields rather than
-promoting their Original bitmap or record flags. Multiplayer saves and record
-archive formats are unchanged.
+promoting their Original bitmap or record flags. Record archive formats are
+unchanged by these display extensions. [Native multiplayer checkpoints](multiplayer-checkpoints.md)
+carry their own optional finish and record presentation.
 
 Ghost movement stays on elapsed movement time; scoring penalties never insert
 extra poses or slow playback. Select ordinary Practice PB ghosts from the

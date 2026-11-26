@@ -30,5 +30,5 @@ selects every division and Normal/Super League independently of careers/access
 files, using the original two-track championships, scoring and turn rules.
 Single-player progression remains unchanged; Computer Link stays deferred.
 
-[The implementation plan](../components/portable-player-data.md) records completed
-foundations and pending stage 6 acceptance for the simplified design.
+[The implementation plan](../components/portable-player-data.md) records the completed
+implementation and acceptance for the simplified design.

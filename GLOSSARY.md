@@ -15,13 +15,13 @@ _Avoid_: ROM
 The locally extracted game data used by the native port.
 
 **Game settings**:
-The player's shared choices for display mode, image scaling, motion presentation, driving controls and game-menu navigation.
+The player's shared choices for display, motion presentation, driving controls, menu navigation, timing category and ghost visibility.
 
 **Faithful baseline**:
 The port's original game behaviour against which optional enhancements are defined.
 
 **Game menus**:
-The original game's menu journey, including mode selection, player-name entry, save/load and pre-race screens.
+The port's in-game menu journey, including mode and saved-game selection, player-name entry, pre-race screens and competition reports.
 
 **Responsive navigation**:
 The enhanced game-menu behaviour, with immediate input response and a dedicated Back action while retaining the original appearance and high-level structure.
@@ -53,6 +53,9 @@ The action that opens the main menu of the last-used career or saved multiplayer
 **Resume Season**:
 The action that returns an open career to its suspended season stage, including pending matchups, finish messages and reports.
 
+**Resume Championship**:
+The action that returns an open multiplayer game to its suspended competition stage, including pending matchups, finish messages and reports.
+
 **Career autosave**:
 The automatically retained continuation point for a career.
 
@@ -69,7 +72,7 @@ A saved continuation point for a multiplayer game, retaining completed turns and
 The installation-wide rankings of eligible human lap and three-lap race attempts, shared by all players using that installation and independent of any one career.
 
 **Personal-best lap**:
-The career-owned fastest eligible completed lap for one circuit and Normal/Super league, paired with its ghost regardless of whether it was set in Practice or a league race.
+The career-owned fastest eligible completed lap for one circuit, Normal/Super league and timing category, whether set in Practice or a league race. Its ghost is retained when available.
 
 **Lap ghost**:
 The visual playback of a recorded lap, used as a non-colliding target in Practice. Its source is the career's personal best or a selected Hall rival.
@@ -78,7 +81,7 @@ The visual playback of a recorded lap, used as a non-colliding target in Practic
 A specific Hall lap ghost selected as the fixed target for a Practice challenge.
 
 **Hall challenge**:
-A Practice session against a chosen Hall rival on its track and league, separate from earned career progression.
+A Practice session against a chosen Hall rival on its track, league and timing category, separate from earned career progression.
 
 **Online Hall of Fame**:
 The future collection of ranked records shared across players online, distinct from the existing local Hall of Fame.

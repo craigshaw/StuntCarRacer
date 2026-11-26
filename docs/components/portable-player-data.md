@@ -2,8 +2,8 @@
 
 The accepted design uses convention-based loading with no saved-data import,
 layout conversion or file-management UI. This applies to the launcher and game.
-Stages 1–5 and the simplification are implemented. Stage 6 automated acceptance
-passes; hands-on controller/account/machine checks remain pending.
+All six stages and the simplification are complete, with automated verification
+and maintainer hands-on sign-off.
 [ADR 0004](../adr/0004-portable-player-data.md) records ownership;
 [sessions](sessions.md) and [multiplayer checkpoints](multiplayer-checkpoints.md)
 record the runtime contracts.
@@ -162,7 +162,8 @@ Acquire process-held root ownership before launcher writes. Aliases identify the
 same directory, crash releases the lock, and a second launch activates the existing
 window where possible. Roots inherit ordinary Windows permissions. Unwritable
 storage reports failure through existing startup/save handling without falling
-back to another root or changing ACLs. A real second-account check remains pending.
+back to another root or changing ACLs. Account/ownership checks are part of the
+hands-on acceptance below.
 
 Careers and multiplayer share a serial writer with immutable, path-addressed jobs.
 Use flushed temporary replacement, checksums, bounded files and two valid recovery
@@ -177,7 +178,7 @@ Retry, Continue without saving and departure choices remain. Capture, validation
 discovery and presentation do not consume gameplay RNG. Timing remains 120 ms
 updates, 50 Hz wheel/engine state and 60 Hz host presentation.
 
-## Implementation and remaining acceptance
+## Implementation and acceptance
 
 1. **Layout and ownership — implemented.** Whole-root override, canonical aliases,
    explicit Hall roots, inherited access and process-held crash-released ownership.
@@ -189,11 +190,11 @@ updates, 50 Hz wheel/engine state and 60 Hz host presentation.
    division/league combinations, autosave, Continue/Resume and direct Browse selection.
 5. **Portable defaults — implemented and simplified.** Executable-local data for all
    player launches, complete development override and no conversion/import UI/backend.
-6. **Final acceptance — automated pass; hands-on pending.** The release/fidelity
+6. **Final acceptance — complete.** The release/fidelity
    pass, 13 current portable-save suites, populated-player relocation/shortcut
-   checks and install-update preservation check pass. Use the simplified criteria
-   below. Record hands-on input/account/machine results separately; do not mark an
-   unavailable or simulated manual check as passed.
+   checks and install-update preservation check pass. The maintainer signed off
+   the hands-on checklist. This manual result is user-reported; individual tested
+   devices, accounts, drives and machines were not recorded.
 
 Focused automated coverage includes layout/retired CLI switches, no-write discovery,
 renamed/copied folders with matching IDs, source preservation, PB cache/storage
@@ -230,6 +231,8 @@ The identified automated report is `analysis/native-game/check-results.json`;
 the retained stage-6 report and install-update proof are under
 `analysis/portable-player-data/stage-6/`. The report identifies a populated player
 copy for the hands-on pass; it is test data, not a release distribution.
+`manual-signoff.json` records maintainer acceptance separately from the automated
+report, without per-environment details.
 
 ### Hands-on pass
 

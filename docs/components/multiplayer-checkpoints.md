@@ -73,9 +73,9 @@ an active race is resumed from its prepared matchup.
 `NativeGameSession::captureMultiplayerCheckpoint()` enables native checkpoint
 retention after confirmed setup. `restoreMultiplayerCheckpoint(bytes, held, allowUnsaved)`
 validates on private memory and constructs a validated continuation before
-replacing the active session. Rejection leaves the active state intact. Outstanding
-folder work must finish and existing stores must flush before replacement. The
-default `allowUnsaved=false` enforces that drain; the player may restore its own
+replacing the active session. Rejection leaves the active state intact. Existing
+store writes must flush before replacement. The default `allowUnsaved=false`
+enforces that drain; the player may restore its own
 retained RAM copy after explicit Continue Without Saving, keeping the failure
 visible. Held
 host input is blocked until released. The adapter retains the existing memory
@@ -129,7 +129,8 @@ catalogue-free discovery, preference coordination, independent copied-folder wri
 failed-write retry coverage. `native_multiplayer_saved_session_tests` covers both
 navigation policies, 2/8-player setup across every division/league, interrupted
 races, natural pending finishes, report/track/championship resumes, Practice,
-cross-mode/game independence and failed-save/copy/departure handling.
+cross-mode/game independence, independent external folder copies and failures
+while saving or leaving a game.
 The controlled Enhanced notice tests display restoration, not a driven human record.
 Physical-controller acceptance remains separate from synthetic host-input checks.
 Focused original-code comparisons use

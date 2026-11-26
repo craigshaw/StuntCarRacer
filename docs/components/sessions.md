@@ -9,8 +9,9 @@ The [portable-data and multiplayer-save design](portable-player-data.md) is bein
 implemented in stages. Explicit-root paths, host ownership and self-contained
 career folders and named multiplayer games are in place. Multiplayer uses native
 autosave/Resume on default and explicit roots. Normal launches now use `data/`
-beside the executable, with convention-based saved-game discovery. Final cross-account
-and clean-machine acceptance remains in stage 6.
+beside the executable, with convention-based saved-game discovery. Stage 6
+automated checks pass; hands-on controller, cross-account, other-drive and
+clean-machine acceptance remains pending.
 
 ## Transitions
 

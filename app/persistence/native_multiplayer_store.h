@@ -10,7 +10,7 @@ public:
     ~NativeMultiplayerStore();
     std::vector<SavedGameEntry> list()const{return folders_.list();}
     SavedGameRead read(const std::string&)const;
-    std::filesystem::path save(const NativeMultiplayerInfo&,const MultiplayerBytes&,const std::filesystem::path& folder={});
+    std::filesystem::path save(const NativeMultiplayerInfo&,const MultiplayerBytes&,const std::filesystem::path& folder);
     std::string lastUsed()const;
     SavedGameEntry describe(const NativeMultiplayerInfo&,const MultiplayerBytes&)const;
     void setLastUsed(const std::string&);

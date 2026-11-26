@@ -2,8 +2,9 @@
 
 The accepted design uses convention-based loading with no saved-data import,
 layout conversion or file-management UI. This applies to the launcher and game.
-Stages 1–5 and the simplification are implemented; stage 6 final acceptance remains
-pending. [ADR 0004](../adr/0004-portable-player-data.md) records ownership;
+Stages 1–5 and the simplification are implemented. Stage 6 automated acceptance
+passes; hands-on controller/account/machine checks remain pending.
+[ADR 0004](../adr/0004-portable-player-data.md) records ownership;
 [sessions](sessions.md) and [multiplayer checkpoints](multiplayer-checkpoints.md)
 record the runtime contracts.
 
@@ -188,10 +189,11 @@ updates, 50 Hz wheel/engine state and 60 Hz host presentation.
    division/league combinations, autosave, Continue/Resume and direct Browse selection.
 5. **Portable defaults — implemented and simplified.** Executable-local data for all
    player launches, complete development override and no conversion/import UI/backend.
-6. **Final acceptance — pending.** Validate the simplified release across physical
-   keyboard/controller input, both navigation modes, a real second Windows account,
-   copied/moved installations, another drive, renamed EXE and shortcut working directory.
-   Include a clean install/release-policy check and an update preserving existing data.
+6. **Final acceptance — automated pass; hands-on pending.** The release/fidelity
+   pass, 13 current portable-save suites, populated-player relocation/shortcut
+   checks and install-update preservation check pass. Use the simplified criteria
+   below. Record hands-on input/account/machine results separately; do not mark an
+   unavailable or simulated manual check as passed.
 
 Focused automated coverage includes layout/retired CLI switches, no-write discovery,
 renamed/copied folders with matching IDs, source preservation, PB cache/storage
@@ -200,3 +202,50 @@ retry/departure failures and full native memory/RNG comparisons after Resume and
 subsequent race updates. Retain the multiplayer setup/report/championship matrix
 and Hall independence tests. Use [verification by change](../development.md#choose-verification-by-change)
 and CMake/CTest; original-code comparisons stay in separate test executables.
+
+## Stage 6 acceptance criteria
+
+These criteria apply to the convention-based player. Save imports, old-layout
+conversion, migration receipts, copy conflict resolution, rekeying, folder
+transactions and in-game/launcher file management are excluded. The existing ADF
+asset setup remains part of normal startup. Original save-disc tests may still
+verify the faithful baseline; they do not establish a player compatibility feature.
+
+| Criterion | Required result | Verification |
+| --- | --- | --- |
+| Complete portable installation | Assets, settings, careers, multiplayer games, both PB categories and both Halls remain usable after copying/moving the complete game folder; no original ADF is needed after asset setup | Populated-copy host check, then another drive/clean Windows machine when available |
+| Executable and working directory | Renaming the EXE and launching directly or through a valid shortcut with a different Start in directory uses the same adjacent `data/` | Real-player process/shortcut checks |
+| Convention discovery | Compatible immediate folders appear without preferences/catalogues or prompts; renamed folders and matching internal IDs remain independently selectable | Career/multiplayer folder and session suites |
+| Direct gameplay choices | New, Continue, Browse and Resume work under both navigation policies; Browse opens a game directly; no paths, import/fresh-start, conflict, replace or delete controls appear | Session/launcher checks and hands-on keyboard/controller pass |
+| Continuation and isolation | Careers retain suspended seasons and private PBs; multiplayer retains roster/configuration, damage, scores and pending reports; interrupted races resume at the prepared matchup; Practice does not advance suspended competition | Full native-memory/RNG continuation comparisons, subsequent updates and championship matrix |
+| Records and recovery | Copying/opening games creates no historical Hall attempts; current files use local backups when damaged; unsupported data and unrelated files remain intact; retry/departure failures retain valid disk data and the latest RAM candidate | Storage, Hall, ghost and failure suites |
+| Shared folder ownership | Two accounts with ordinary read/write access see the same saves/settings/records; one account's autosave is visible to the other; competing processes/accounts cannot write together | Automated alias/crash/lock/ACL checks plus a short real-account pass |
+| Packaging and update | A clean install contains only the player/notices; updating an installed copy preserves all existing `data/` content; verification identifies sources, fixtures and the staged EXE | CMake Install and release checks |
+
+Run `scripts/check_native_game.py --verify-original --verify-portable --jobs 1` for the identified
+release/fidelity pass. Its portable-save checks cover the current player routes;
+original slot-codec checks remain a separately identified baseline regression.
+Keep generated fixtures and acceptance copies under ignored `analysis/`/`build/`.
+The identified automated report is `analysis/native-game/check-results.json`;
+the retained stage-6 report and install-update proof are under
+`analysis/portable-player-data/stage-6/`. The report identifies a populated player
+copy for the hands-on pass; it is test data, not a release distribution.
+
+### Hands-on pass
+
+Use an isolated acceptance copy, with the game closed before external copying.
+It contains test saves/records and must not replace a player's actual `data/`.
+
+1. With keyboard and a physical XInput controller, try both navigation policies: open
+   each mode, Continue, Resume, return home, Browse and select another saved game.
+   Confirm one normal race/departure autosave survives closing and reopening.
+2. From another Windows account, open the **same game folder**, confirm the same
+   careers, multiplayer games, settings and records, then make an autosave. Return
+   to the first account and confirm that progress is visible. While one instance
+   owns the folder, a competing launch must activate it or report the folder in use.
+   Both accounts need ordinary Windows write access; there is no profile fallback
+   or game-managed permission change. No second championship playthrough is needed.
+3. Copy the complete acceptance folder to another drive/clean Windows machine,
+   keep its `data/`, and launch without the original ADF. Confirm each mode and both
+   record categories remain available. Report which environments were actually used;
+   an alias on the same drive is not another-drive or clean-machine evidence.

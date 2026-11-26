@@ -10,6 +10,7 @@ and test interface; see [development](../docs/development.md).
 | `start-native-race.ps1`, `start-native-replay.ps1` | Development viewer launch paths |
 | `import_native_assets.py` | Import a supported ADF to the local asset pack |
 | `check_native_*.py` | Focused native integration/original-code checks and receipts |
+| `check_native_game.py --verify-original --verify-portable --jobs 1` | Final game/fidelity acceptance, current convention-based saves and a populated portable-player copy for hands-on checks |
 | `check_native_ghost.py` | Static-track ghost rendering proof, CTest checks and identified visual previews |
 | `check_native_ghost_bridge.py` | Draw Bridge geometry matching, local fades, native league approach and identified previews |
 | `check_native_laps.py` | Saved player ghosts, controls, feedback, storage and timing; `--verify-original` adds original timing/full-race comparisons |
@@ -34,3 +35,7 @@ existing output and evidence paths under `analysis/` are unchanged.
 explicitly enables development recordings. Asset/settings/save file overrides are
 retired from the player helper. `check_native_game.py` verifies a separate clean
 CMake Install prefix before updating `dist/`, preserving an existing `dist/data/`.
+Its optional `--verify-portable` pass adds current career/multiplayer, PB/Hall,
+recovery and populated-copy/shortcut checks. It records physical-controller,
+second-account, other-drive and clean-machine checks as pending, and prepares an
+isolated player with generated test data; it never imports a player's saves.

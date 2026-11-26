@@ -18,8 +18,17 @@ session suite compares full native memory/RNG and following race updates after
 selecting a copied career directly. The multiplayer saved-session suite retains
 its setup/report/championship and failure matrix with direct folder selection.
 There is no legacy-layout conversion or file-management feature to exercise.
-Final physical-controller, second-account and clean-machine acceptance remains
+Final physical-controller, second-account, other-drive and clean-machine acceptance remains
 separate from automated checks; see the [plan](../docs/components/portable-player-data.md).
+
+`player_data_ownership_tests` launches the real player through copied, moved and
+renamed installations, including a real Windows shortcut with a different working
+directory. An optional populated convention-format fixture also exercises asset
+loading and game entry while checking every saved-data byte is preserved. The
+game wrapper's `--verify-portable` pass supplies generated careers, multiplayer,
+Original/Enhanced PBs and both Halls, retaining fixture/executable identities and
+an isolated copy for hands-on tests. Cross-process alias/crash/ACL checks do not
+substitute for a real second Windows account or physical controller.
 
 `native_multiplayer_checkpoint_tests` validates the asset-free multiplayer format
 and unchanged career bytes. `native_multiplayer_checkpoint_session_tests` compares
@@ -30,9 +39,11 @@ fixtures. `native_multiplayer_store_tests` checks shared-worker durability,
 folder discovery, independent copies and failed-write retries.
 `native_multiplayer_saved_session_tests` covers named-game setup, autosave/Resume,
 failures/departures, copied-folder selection, independent careers/games and four-championship
-completion in both navigation policies. It uses synthetic host input rather than
-physical controller acceptance; its Enhanced record notice is a controlled display
-fixture. Rendered menus and source/fixture/executable receipts stay under `analysis/`.
+completion in both navigation policies. A resumed pre-race checkpoint must stay
+in its selected folder without creating another saved game. It uses synthetic
+host input rather than physical controller acceptance; its Enhanced record notice
+is a controlled display fixture. Rendered menus and source/fixture/executable
+receipts stay under `analysis/`.
 
 Hall coverage separates pure ranking/codec tests, the Windows merge/recovery
 store, and accepted-completion delivery. `hall_completion_tests` drives the native

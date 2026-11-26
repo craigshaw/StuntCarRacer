@@ -2,6 +2,10 @@
 #define WIN32_LEAN_AND_MEAN
 #include <windows.h>
 #include <aclapi.h>
+#include <shobjidl.h>
+#include <shellapi.h>
+#include "platform/windows/launcher.h"
+#include <map>
 #include "platform/windows/player_data_ownership.h"
 #include "persistence/player_data_layout.h"
 #include "persistence/shared_hall_store.h"
@@ -25,12 +29,29 @@ std::wstring quote(const std::wstring& value){return L"\""+value+L"\"";}
 struct Process {
     PROCESS_INFORMATION info{};
     explicit Process(const std::wstring& args,const std::wstring& program=executable()){
+        if(fs::path(program).extension()==L".lnk"){
+            SHELLEXECUTEINFOW launch{};launch.cbSize=sizeof(launch);launch.fMask=SEE_MASK_NOCLOSEPROCESS|SEE_MASK_FLAG_NO_UI;
+            launch.lpFile=program.c_str();launch.lpParameters=args.c_str();launch.nShow=SW_HIDE;
+            require(ShellExecuteExW(&launch)&&launch.hProcess,"Cannot launch portable shortcut");info.hProcess=launch.hProcess;return;
+        }
         auto command=quote(program)+L" "+args;STARTUPINFOW startup{};startup.cb=sizeof(startup);startup.dwFlags=STARTF_USESHOWWINDOW;startup.wShowWindow=SW_HIDE;
         require(CreateProcessW(nullptr,command.data(),nullptr,nullptr,FALSE,CREATE_NO_WINDOW,nullptr,nullptr,&startup,&info)!=0,"Cannot launch lock fixture");
     }
     ~Process(){if(WaitForSingleObject(info.hProcess,0)==WAIT_TIMEOUT){TerminateProcess(info.hProcess,99);WaitForSingleObject(info.hProcess,5000);}CloseHandle(info.hThread);CloseHandle(info.hProcess);}
     DWORD finish(){require(WaitForSingleObject(info.hProcess,10000)==WAIT_OBJECT_0,"Lock helper timed out");DWORD code{};require(GetExitCodeProcess(info.hProcess,&code)!=0,"Cannot read helper result");return code;}
 };
+void shortcut(const fs::path& target,const fs::path& file,const fs::path& working){
+    IShellLinkW* link{};require(SUCCEEDED(CoCreateInstance(CLSID_ShellLink,nullptr,CLSCTX_INPROC_SERVER,IID_PPV_ARGS(&link))),"Cannot create shortcut fixture");
+    require(SUCCEEDED(link->SetPath(target.c_str()))&&SUCCEEDED(link->SetWorkingDirectory(working.c_str())),"Cannot configure shortcut fixture");
+    IPersistFile* persist{};require(SUCCEEDED(link->QueryInterface(IID_PPV_ARGS(&persist))),"Cannot persist shortcut fixture");
+    const auto saved=persist->Save(file.c_str(),TRUE);persist->Release();link->Release();require(SUCCEEDED(saved),"Cannot save shortcut fixture");
+}
+std::map<fs::path,std::string> contents(const fs::path& root){
+    std::map<fs::path,std::string> result;
+    for(const auto& file:fs::recursive_directory_iterator(root))if(file.is_regular_file()&&file.path().extension()!=L".lock"){
+        std::ifstream input(file.path(),std::ios::binary);result[file.path().lexically_relative(root)]={std::istreambuf_iterator<char>(input),{}};require(bool(input)||input.eof(),"Cannot read portability fixture");}
+    return result;
+}
 std::vector<BYTE> dacl(const fs::path& path){
     PACL acl{};PSECURITY_DESCRIPTOR sd{};
     require(GetNamedSecurityInfoW(path.c_str(),SE_FILE_OBJECT,DACL_SECURITY_INFORMATION,nullptr,nullptr,&acl,nullptr,&sd)==ERROR_SUCCESS,"Cannot inspect fixture ACL");
@@ -62,7 +83,11 @@ int helper(int argc,wchar_t** argv){
 }
 int wmain(int argc,wchar_t** argv)try{
     if(argc>=3&&std::wstring(argv[1]).find(L"--")==0)return helper(argc,argv);
-    require(argc==3,"Usage: player_data_ownership_tests isolated-output player-executable");
+    require(argc==3||argc==4,"Usage: player_data_ownership_tests isolated-output player-executable [populated-data-fixture]");
+    const auto com=CoInitializeEx(nullptr,COINIT_APARTMENTTHREADED);require(SUCCEEDED(com),"Cannot initialize shortcut fixture");
+    struct ComLifetime {~ComLifetime(){CoUninitialize();}} comLifetime;
+    const fs::path fixture=argc==4?fs::absolute(argv[3]):fs::path{};
+    const auto source=fixture.empty()?std::map<fs::path,std::string>{}:contents(fixture);
     const auto output=fs::absolute(argv[1]);const auto root=output/L"data space-\u00e9-\u8eca";
     std::wstring identity;
     {
@@ -120,21 +145,36 @@ int wmain(int argc,wchar_t** argv)try{
     require(!fs::exists(startupRoot/L"settings.ini")&&!fs::exists(startupRoot/L"assets"),"Closing the isolated launcher wrote settings/assets");
     // Exercise defaults in the real player from copied/moved/renamed installations,
     // while inheriting the test's unrelated working directory and no source ADF.
-    auto install=output/L"portable-one";fs::create_directories(install/L"data");
+    auto install=output/L"portable-one-\u8eca";fs::create_directories(install);
+    if(fixture.empty())fs::create_directories(install/L"data");
+    else{
+        require(fs::exists(fixture/L"assets/stunt-car-racer.scr-assets")&&fs::exists(fixture/L"settings.ini")&&fs::is_directory(fixture/L"careers")&&fs::is_directory(fixture/L"multiplayer")&&fs::is_directory(fixture/L"hall-of-fame"),"Expected a populated convention fixture");
+        fs::copy(fixture,install/L"data",fs::copy_options::recursive);
+    }
     fs::copy_file(argv[2],install/L"Game.exe");std::ofstream(install/L"data/keep.txt")<<"preserve";
-    for(unsigned step=0;step<4;++step){
+    const auto expected=contents(install/L"data");
+    for(unsigned step=0;step<5;++step){
         if(step==1)fs::rename(install/L"Game.exe",install/L"Renamed.exe");
         if(step==2){fs::rename(install,output/L"portable-moved");install=output/L"portable-moved";}
         if(step==3){fs::copy(install,output/L"portable-copy",fs::copy_options::recursive);install=output/L"portable-copy";}
-        const auto program=install/(step?L"Renamed.exe":L"Game.exe"),data=install/L"data";
+        auto program=install/(step?L"Renamed.exe":L"Game.exe");const auto data=install/L"data";
+        if(step==4){const auto working=output/L"other-working-directory";fs::create_directories(working);const auto link=output/L"Portable game.lnk";shortcut(program,link,working);program=link;}
         Process player(L"",program.wstring());require(WaitForInputIdle(player.info.hProcess,10000)==0,"Portable launcher did not become idle");HWND window{};
         {PlayerDataOwnership busy(data);require(!busy.acquired(),"Copied player default did not own executable-local data");
             for(unsigned n=0;n<1000&&!window;++n){window=FindWindowW(busy.windowClassName().c_str(),nullptr);if(!window)Sleep(10);}}
         require(window!=nullptr,"Portable default used the working directory or executable basename");
-        require(GetDlgItem(window,1014)==nullptr,"Saved-data management control leaked into launcher");
+        require(GetDlgItem(window,LauncherTiming+1)==nullptr,"Saved-data management control leaked into launcher");
+        if(!fixture.empty()){
+            HWND play{};for(unsigned n=0;n<1000;++n){play=GetDlgItem(window,LauncherPlay);if(play&&IsWindowEnabled(play))break;Sleep(10);}
+            require(play&&IsWindowEnabled(play),"Relocated player needs its original ADF or cannot read copied assets");
+            require(PostMessageW(window,WM_COMMAND,LauncherPlay,0)!=0,"Cannot start populated portable player");
+            for(unsigned n=0;n<1000&&(GetWindowLongPtrW(play,GWL_STYLE)&WS_VISIBLE);++n)Sleep(10);
+            require(!(GetWindowLongPtrW(play,GWL_STYLE)&WS_VISIBLE)&&WaitForSingleObject(player.info.hProcess,0)==WAIT_TIMEOUT,"Populated portable player could not enter the game");
+        }
         require(SetWindowPos(window,nullptr,-30000,-30000,0,0,SWP_NOSIZE|SWP_NOZORDER|SWP_NOACTIVATE)!=0,"Cannot isolate portable fixture window");
         require(PostMessageW(window,WM_CLOSE,0,0)!=0&&player.finish()==0,"Copied player did not close");
-        require(fs::file_size(data/L"keep.txt")==8&&!fs::exists(data/L"settings.ini")&&!fs::exists(data/L"assets")&&!fs::exists(data/L"migration.scr-import"),"Portable startup changed data or required an import decision");
+        require(contents(data)==expected&&!fs::exists(data/L"migration.scr-import"),"Relocated player changed saved games or required an import decision");
     }
-    std::cout<<"{\"status\":\"passed\",\"checks\":"<<checks<<",\"cross_process\":true,\"crash_release\":true,\"inherited_acl\":true,\"player_startup\":true,\"copied_moved_renamed_player\":true,\"real_second_account_tested\":false}\n";return 0;
+    if(!fixture.empty())require(contents(fixture)==source,"Portable checks modified their source fixture");
+    std::cout<<"{\"status\":\"passed\",\"checks\":"<<checks<<",\"cross_process\":true,\"crash_release\":true,\"inherited_acl\":true,\"player_startup\":true,\"copied_moved_renamed_player\":true,\"shortcut_other_working_directory\":true,\"populated_player_data\":"<<(!fixture.empty()?"true":"false")<<",\"real_second_account_tested\":false}\n";return 0;
 }catch(const std::exception& error){std::cerr<<error.what()<<'\n';return 1;}

@@ -33,8 +33,9 @@
   copying, recovery and the staged implementation plan. Portable defaults,
   self-contained career folders and named multiplayer autosave/Resume are
   implemented. Convention-based loading replaces import/conversion and
-  file-management UI. Final physical-controller, second-account and clean-machine
-  acceptance remains pending.
+  file-management UI. Stage 6 automated release/portable checks pass; hands-on
+  physical-controller, second-account, other-drive and clean-machine checks remain
+  pending.
 
 ## Optional features
 

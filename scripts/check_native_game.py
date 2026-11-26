@@ -5,6 +5,7 @@ import hashlib
 import json
 from pathlib import Path
 import subprocess
+import shutil
 import uuid
 
 from native_build import NATIVE_BUILD, ORACLE_BUILD, build_sources, configure_command
@@ -14,6 +15,81 @@ from import_native_assets import DEFAULT_PACK, ROOT, import_assets
 from check_release import check_release
 
 
+# Current convention-based player acceptance; original slot regressions remain
+# separately identified below as fidelity checks.
+PORTABLE_CHECKS = {
+    'player_data_layout_tests': 'tests/unit/player_data_layout_tests.cpp',
+    **{name: 'tests/integration/' + name + '.cpp' for name in (
+        'career_folder_tests', 'native_career_folder_session_tests',
+        'native_multiplayer_store_tests', 'native_multiplayer_saved_session_tests',
+        'native_multiplayer_checkpoint_session_tests', 'native_practice_ghost_tests',
+        'native_hall_completion_tests', 'native_enhanced_session_tests',
+        'enhanced_store_tests', 'native_ghost_store_tests', 'native_enhanced_ui_tests')},
+    'native_multiplayer_checkpoint_tests': 'tests/unit/native_multiplayer_checkpoint_tests.cpp',
+}
+
+
+def portable_checks(output, pack, executable, ownership_test):
+    pattern = '^(' + '|'.join(PORTABLE_CHECKS) + ')$'
+    build([['ctest', '--preset', 'windows-release', '-R', pattern, '--output-on-failure']], output / 'portable-saves.log')
+    tests = {}
+    test_root = NATIVE_BUILD / 'test-output/Release'
+    for name in PORTABLE_CHECKS:
+        folder = test_root / name
+        text = (folder / 'stdout.txt').read_text()
+        if 'SKIP:' in text:
+            raise RuntimeError('Portable acceptance requires its local fixture: ' + name)
+        report = folder / 'results.json'
+        if report.exists():
+            result = json.loads(report.read_text())
+        else:
+            encoded = next((line for line in reversed(text.splitlines()) if line.startswith('{')), None)
+            result = json.loads(encoded) if encoded else {'status': 'passed', 'output': text.strip()}
+        if result.get('status') != 'passed':
+            raise RuntimeError('Portable acceptance did not pass: ' + name)
+        tests[name] = {'result': result, 'executable': identity(NATIVE_BUILD / 'Release' / (name + '.exe'))}
+    multiplayer = tests['native_multiplayer_saved_session_tests']['result']
+    if (multiplayer.get('setups') != 46 or multiplayer.get('resumes') != 32
+            or multiplayer.get('championships') != 8 or multiplayer.get('failure_lifecycles') != 8
+            or any(multiplayer.get(key) is not True for key in ('both_navigation_modes', 'hall_isolation', 'legacy_routes_excluded'))):
+        raise RuntimeError('Named multiplayer player acceptance is incomplete')
+    # Assemble only freshly generated convention-format test data. This is not a
+    # player import/conversion facility and never reads a real player's data.
+    fixture = output / ('portable-fixture-' + uuid.uuid4().hex)
+    (fixture / 'assets').mkdir(parents=True)
+    shutil.copyfile(pack, fixture / 'assets/stunt-car-racer.scr-assets')
+    provenance = Path(str(pack) + '.json')
+    if provenance.exists():
+        shutil.copyfile(provenance, fixture / 'assets/stunt-car-racer.scr-assets.json')
+    career = test_root / 'native_practice_ghost_tests/league-data'
+    games = test_root / 'native_multiplayer_saved_session_tests/responsive'
+    hall = test_root / 'native_multiplayer_saved_session_tests/responsive-extra/championships/hall-of-fame'
+    shutil.copytree(career / 'careers', fixture / 'careers')
+    enhanced_careers = test_root / 'native_enhanced_session_tests/session/private/careers'
+    for folder in enhanced_careers.iterdir():
+        if folder.is_dir():
+            shutil.copytree(folder, fixture / 'careers' / folder.name)
+    for pattern in ('*/personal-bests/original/*.scr-ghost', '*/personal-bests/enhanced/*.scr-ebest'):
+        if not any((fixture / 'careers').glob(pattern)):
+            raise RuntimeError('Populated portability fixture lacks a PB category: ' + pattern)
+    shutil.copytree(games / 'multiplayer', fixture / 'multiplayer')
+    shutil.copytree(hall, fixture / 'hall-of-fame')
+    settings = (output / 'launcher/display.ini').read_text().splitlines()
+    selections = {}
+    for source, prefix in ((career, 'last-career-folder='), (games, 'last-multiplayer-folder=')):
+        selections[prefix] = next(line for line in (source / 'settings.ini').read_text().splitlines() if line.startswith(prefix))
+    settings = [line for line in settings if not any(line.startswith(key) for key in selections)]
+    (fixture / 'settings.ini').write_bytes(('\n'.join(settings + list(selections.values())) + '\n').encode('utf-8'))
+    host = run_json([ownership_test, output / ('portable-host-' + uuid.uuid4().hex), executable, fixture], output / 'portable-host-results.json')
+    if host.get('populated_player_data') is not True or host.get('shortcut_other_working_directory') is not True:
+        raise RuntimeError('Populated installation/shortcut acceptance is incomplete')
+    files = [{'path': path.relative_to(fixture).as_posix(), 'sha256': hashlib.sha256(path.read_bytes()).hexdigest()}
+             for path in sorted(fixture.rglob('*')) if path.is_file()]
+    return {'status': 'passed', 'tests': tests, 'host': host, 'fixture': str(fixture), 'files': files,
+            'manual_acceptance': {'physical_controller': 'pending', 'second_windows_account': 'pending',
+                                  'another_drive': 'pending', 'clean_machine': 'pending'}}
+
+
 def identity(path):
     return {'path': str(path.relative_to(ROOT)), 'sha256': hashlib.sha256(path.read_bytes()).hexdigest()}
 
@@ -21,6 +97,8 @@ def identity(path):
 def sources():
     paths = {ROOT / record['path'] for record in startup_sources()}
     paths.add(Path(__file__).resolve())
+    paths.update(ROOT / name for name in PORTABLE_CHECKS.values())
+    paths.add(ROOT / "tests/integration/player_data_ownership_tests.cpp")
     paths.add(ROOT / 'tests/integration/native_game_session_tests.cpp')
     paths.add(ROOT / 'tests/integration/native_display_tests.cpp')
     paths.add(ROOT / 'tests/integration/native_launcher_tests.cpp')
@@ -92,6 +170,7 @@ def main():
     parser.add_argument('--adf', type=Path)
     parser.add_argument('--skip-build', action='store_true')
     parser.add_argument('--verify-original', action='store_true')
+    parser.add_argument('--verify-portable', action='store_true', help='Run current save/folder/continuation acceptance and populated-installation probes')
     parser.add_argument('--jobs', type=int, default=4, help='MSBuild worker count; use 1 for serialized verification')
     args = parser.parse_args()
     pack = args.pack.resolve()
@@ -124,6 +203,8 @@ def main():
     executables = {'game': executable, 'test': test, 'opening_test': opening_test, 'startup_test': startup_test,
                    'bridge_test': bridge_test, 'season_test': season_test, 'multiplayer_test': multiplayer_test,
                    'career_test': career_test, 'save_test': save_test, 'store_test': store_test, 'display_test': display_test, 'controls_test': controls_test, 'launcher_test': launcher_test, 'navigation_test': navigation_test, 'autosave_test': autosave_test, 'browser_test': browser_test, 'browser_model_test': browser_model_test}
+    portable_targets = [*PORTABLE_CHECKS, 'player_data_ownership_tests'] if args.verify_portable else []
+    executables.update({name: binary_dir / 'Release' / (name + '.exe') for name in portable_targets})
     if args.skip_build:
         old = json.loads(receipt.read_text())
         if old['sources'] != records or old.get('artwork') != artwork or any(old.get(key) != identity(path) for key, path in executables.items()):
@@ -133,7 +214,7 @@ def main():
                ['cmake', '--build', binary_dir, '--config', 'Release', '--target',
                 'native_game', 'native_game_session_tests', 'native_opening_session_tests', 'native_startup_tests', 'draw_bridge_driving_tests',
                 'native_opponent_session_tests', 'native_multiplayer_session_tests', 'native_career_session_tests',
-                'native_save_session_tests', 'native_save_store_tests', 'native_display_tests', 'native_launcher_tests', 'native_navigation_tests', 'native_autosave_tests', 'native_hall_browser_tests', 'hall_browser_tests', 'drive_input_tests', '--parallel', str(max(1,args.jobs)), '--', '/nr:false']], output / 'build.log')
+                'native_save_session_tests', 'native_save_store_tests', 'native_display_tests', 'native_launcher_tests', 'native_navigation_tests', 'native_autosave_tests', 'native_hall_browser_tests', 'hall_browser_tests', 'drive_input_tests', *portable_targets, '--parallel', str(max(1,args.jobs)), '--', '/nr:false']], output / 'build.log')
         receipt.write_text(json.dumps({'sources': records, 'artwork': artwork, **{key: identity(path) for key, path in executables.items()}}, indent=2) + '\n')
     launcher_args = [launcher_test, pack, output / 'launcher']
     disk = args.adf or ROOT / 'Stunt Car Racer (MicroStyle).adf'
@@ -306,6 +387,7 @@ def main():
         original['multiplayer_races'] = [compare_race(oracle, seed.parent, output) for seed in multiplayer_seeds]
         original['career_races'] = [compare_race(oracle, output / 'career' / ('career-' + str(context) + '-' + str(division)), output)
                                     for context in (0, 11) for division in range(4)]
+    portable = portable_checks(output, pack, executable, binary_dir / 'Release/player_data_ownership_tests.exe') if args.verify_portable else {}
     if sources() != records:
         raise RuntimeError('Sources changed during native game checks')
     if (identity(ROOT / 'logo.png') if (ROOT / 'logo.png').exists() else None) != artwork:
@@ -321,10 +403,15 @@ def main():
         raise RuntimeError('Staged player executable differs from the checked build')
     if identity(clean_release / 'Stunt Car Racer.exe')['sha256'] != identity(staged)['sha256']:
         raise RuntimeError('Clean distribution and installed player differ')
+    if portable:
+        manual_player = output / ('portable-player-' + uuid.uuid4().hex)
+        shutil.copytree(clean_release, manual_player)
+        shutil.copytree(Path(portable['fixture']), manual_player / 'data')
+        portable['manual_player'] = str(manual_player / 'Stunt Car Racer.exe')
     report = {'status': 'passed', 'capture_input': False, 'rom_input': False, 'cpu_emulation': False,
               'pack': identity(pack), 'game': identity(staged), 'build_game': identity(executable), 'sources': records, 'artwork': artwork, 'release': release, 'release_directory': str(clean_release), 'launcher_disk': disk_fixture, 'launcher': launcher,
               'integration': integration, 'navigation': navigation, 'opening': opening, 'startup': startup, 'bridge_driving': bridge,
-              'season': season, 'multiplayer': multiplayer, 'career': career, 'autosave': autosave, 'hall_browser': browser, 'saves': saves, 'save_store': storage, 'display': display, 'controls': controls, 'original_comparisons': original}
+              'season': season, 'multiplayer': multiplayer, 'career': career, 'autosave': autosave, 'hall_browser': browser, 'saves': saves, 'save_store': storage, 'display': display, 'controls': controls, 'original_comparisons': original, 'portable_acceptance': portable}
     (output / 'check-results.json').write_text(json.dumps(report, indent=2) + '\n')
     if original:
         (output / 'original-check-results.json').write_text(json.dumps(report, indent=2) + '\n')

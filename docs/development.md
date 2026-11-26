@@ -151,6 +151,7 @@ refresh its receipt. Install once after the selected checks pass.
 | --- | --- | --- |
 | Game flow, Hall browser, settings, launcher, persistence | `check_native_game.py` | `analysis/native-game/` |
 | Same routes against original rules, screens and driving | `check_native_game.py --verify-original` | `analysis/native-game/` |
+| Final portable-save acceptance plus original comparisons | `check_native_game.py --verify-original --verify-portable --jobs 1` | `analysis/native-game/` |
 | Fresh track/race state and steering | `check_native_startup.py --verify-original` | `analysis/native-startup/` |
 | Opening, raw keyboard/name editor, startup pixels | `check_native_opening.py` | `analysis/native-opening/` |
 | Cockpit events, wheel state, first/repeated races, three-lap fixture | `check_native_cockpit.py` | `analysis/native-cockpit/` |
@@ -175,6 +176,15 @@ original-code comparisons. Presentation changes require simulation/RNG isolation
 checks and visual inspection; interactive devices/windows also need manual checks.
 Documentation-only edits need link, command-reference and source-policy checks.
 The game wrapper and rendering audit accept `--jobs 1` if parallel MSBuild workers are unavailable.
+
+The portable pass adds current convention-based save/Resume suites and launches
+the real player from a populated copied/moved/renamed installation and a Windows
+shortcut. It prepares an isolated player with generated test data for the
+[hands-on acceptance](components/portable-player-data.md#hands-on-pass), recording
+those results separately. It requires the private asset fixture; a skip is not a
+pass. Windows denied-write/ownership checks must run without a filesystem sandbox
+that bypasses the fixture's ACLs. Original slot-codec tests remain fidelity
+regressions, not save-import or conversion requirements.
 
 CTest skips tests with missing private inputs. `ctest --preset windows-release -L unit`
 runs the asset-free native subset. Configure-time `SCR_TEST_ASSET_PACK`,

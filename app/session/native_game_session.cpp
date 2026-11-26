@@ -106,7 +106,7 @@ void NativeGameSession::startRace(){
     if(careerStore_)(void)flushStores();
     if(multiplayerCheckpointEnabled_&&menu_->multiplayer()){
         retainMultiplayerMatchup();
-        if(multiplayerStore_&&activeMultiplayer_&&!multiplayerPractice_){multiplayerCheckpoint_=multiplayerRaceCheckpoint_;multiplayerStore_->save({activeMultiplayer_->id,activeMultiplayer_->name,activeMultiplayer_->lastPlayed},multiplayerCheckpoint_);(void)flushStores();}
+        if(multiplayerStore_&&activeMultiplayer_&&!multiplayerPractice_){multiplayerCheckpoint_=multiplayerRaceCheckpoint_;multiplayerStore_->save({activeMultiplayer_->id,activeMultiplayer_->name,activeMultiplayer_->lastPlayed},multiplayerCheckpoint_,activeMultiplayer_->folder);(void)flushStores();}
     }
     previewPrepared_=false;
     restoreCockpit(*data_.memory);initializeNativeRace(*data_.memory);

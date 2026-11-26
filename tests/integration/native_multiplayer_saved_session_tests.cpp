@@ -64,6 +64,7 @@ void liveFlow(const fs::path& pack,const fs::path& root,NativeMenuNavigation nav
     NativeGameInput controls;controls.driveControls=5;for(unsigned n=0;n<8;++n)game->update(.12,controls);check(game->requestClose(),"Interrupted race did not close safely");
     const_cast<RaceScene&>(game->race()).quitLive();auto expected=std::make_unique<NativeMemory>();game->race().copyLiveExit(*expected);game.reset();
     game=open(pack,root,navigation);continueLast(*game);press(*game);check(game->page()==NativeMenuPage::Matchup&&game->memory()[0x5eb79]==11,"Interrupted race resumed mid-race or advanced human");press(*game);press(*game);for(unsigned n=0;n<8;++n)game->update(.12,controls);
+    check(game->flushRecords()&&entries(pack,root).size()==1,"Resuming a race created an extra multiplayer folder");
     const_cast<RaceScene&>(game->race()).quitLive();auto actual=std::make_unique<NativeMemory>();game->race().copyLiveExit(*actual);check(*actual==*expected,"Restarted prepared fixture diverged in simulation/RNG");
     NativeGameInput leave;leave.leaveRace=true;game->update(0,leave);settle(*game);ready(*game);check(game->page()==NativeMenuPage::Results,"Live departure omitted committed results");++races;
     for(unsigned action=0;action<8&&game->page()!=NativeMenuPage::Matchup;++action){

@@ -16,7 +16,8 @@
   Practice, with an optional translucent ghost. Practice and career races save best laps.
 - **[Enhanced timing](#enhanced-timing).** Millisecond clocks and separate records,
   with Original timing selectable in Settings and the Hall of Fame.
-- **Local multiplayer.** Championships for 2–8 drivers taking turns.
+- **Local multiplayer.** Named games for 2–8 drivers, with autosave and Resume
+  Championship.
 - **Widescreen and ultrawide.** Original and Extended 4:3, 16:9 and 32:9 views,
   keeping the original car artwork at the same scale.
 - **Display options.** Optional 60 FPS smoothing, fullscreen, integer scaling
@@ -95,6 +96,8 @@ Drive with **arrows/WASD** and **Space** for boost, or an XInput controller.
 Original controls latch acceleration; Modern uses held gas. **Esc / controller
 Start** opens the Game menu while racing; **F10** opens Settings.
 
+Assets, settings, saves and records live in `data/` beside the executable.
+Copy the game folder to take them with you.
 See the [player guide](docs/playing.md) for full controls and save recovery.
 
 ## Build

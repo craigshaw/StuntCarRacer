@@ -10,9 +10,8 @@ public:
     ~NativeMultiplayerStore();
     std::vector<SavedGameEntry> list()const{return folders_.list();}
     SavedGameRead read(const std::string&)const;
-    std::filesystem::path save(const NativeMultiplayerInfo&,const MultiplayerBytes&,const std::filesystem::path& folder);
+    SavedGameEntry save(const NativeMultiplayerInfo&,const MultiplayerBytes&,const std::filesystem::path& folder);
     std::string lastUsed()const;
-    SavedGameEntry describe(const NativeMultiplayerInfo&,const MultiplayerBytes&)const;
     void setLastUsed(const std::string&);
     void cancelDraft(const SavedGameEntry&,const std::string& lastUsed);
 private:
@@ -24,7 +23,8 @@ private:
     SavedGameRead generation(const std::filesystem::path&,bool validate=true)const;
     SavedGameRead recoveries(const std::filesystem::path&)const;
     SavedGameEntry describe(const MultiplayerBytes&)const;
-    bool write(const std::filesystem::path&,NativeMultiplayerSave,std::string&);
+    SavedGameEntry describe(const NativeMultiplayerInfo&,const MultiplayerBytes&)const;
+    bool write(const SavedGameEntry&,const MultiplayerBytes& checkpoint,std::string& error);
     std::filesystem::path preferenceKey()const{return worker_.root()/L".multiplayer-preference";}
 };
 } // namespace scr::runtime

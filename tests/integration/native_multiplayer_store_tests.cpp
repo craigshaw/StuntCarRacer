@@ -4,6 +4,7 @@
 #include "persistence/native_multiplayer_store.h"
 #include "persistence/career_file_io.h"
 #include <fstream>
+#include <future>
 #include <iostream>
 #include <map>
 
@@ -26,9 +27,15 @@ struct Library {
 SavedGameEntry entry(const NativeMultiplayerStore& games,const std::string& id){for(const auto& item:games.list())if(item.id==id)return item;throw std::runtime_error("Fixture game missing");}
 void storage(const NativeMemory& baseline,const fs::path& root){
     auto library=std::make_unique<Library>(root,baseline);NativeMultiplayerInfo info{NativeCareerStore::newId(),"FRIDAY",1};fs::path folder;
-    for(unsigned n=1;n<=3;++n){info.lastPlayed=n;folder=library->games.save(info,checkpoint(baseline,n),folder);check(library->io.flush(),"MP generation did not save");}
+    for(unsigned n=1;n<=3;++n){info.lastPlayed=n;folder=library->games.save(info,checkpoint(baseline,n),folder).folder;check(library->io.flush(),"MP generation did not save");}
     auto first=entry(library->games,info.id);const auto head=folder/L"game.scr-multiplayer";
     check(library->games.read(first.key()).generation==3,"MP generation differs");
+    auto damaged=checkpoint(baseline,4);
+    damaged.back()^=1;
+    bool rejected=false;
+    try{library->games.save(info,damaged,folder);}catch(const std::runtime_error&){rejected=true;}
+    check(rejected&&library->io.flush()&&library->games.read(first.key()).generation==3,
+          "Invalid checkpoint was queued or replaced a valid generation");
     for(unsigned n=0;n<3;++n){const auto saved=decodeNativeMultiplayerSave(baseline,bytes(career_files::generationPath(head,n)));check(saved.generation==3-n,"Recovery generations changed");}
     library->games.setLastUsed(first.key());check(library->io.flush(),"MP selection did not save");library.reset();
     const auto renamed=root/L"multiplayer/renamed-\u8eca";fs::rename(folder,renamed);const auto copy=root/L"multiplayer/copy";fs::copy(renamed,copy,fs::copy_options::recursive);const auto original=snapshot(renamed);
@@ -47,8 +54,26 @@ void storage(const NativeMemory& baseline,const fs::path& root){
     check(moved.games.list().size()==1&&moved.games.read("anything").state==SavedGameFileState::Valid&&snapshot(copy)==copied,"Moved game requires original settings or rewrites its source");
     check(!fs::exists(root/L".transactions")&&!fs::exists(root/L"migration.scr-import"),"Save created conversion machinery");
 }
+void repeatedRetry(const fs::path& root){
+    NativeCareerStore store(root);
+    std::promise<void> started,resume;
+    auto resumed=resume.get_future();
+    unsigned attempts=0;
+    store.submitSavedGame(root/L"retry",{},[&](const auto&,std::string& error){
+        if(++attempts==1){error="Injected write failure";return false;}
+        if(attempts==2){started.set_value();resumed.wait();}
+        return true;
+    });
+    check(!store.flush(),"Initial write failure was hidden");
+    store.retry();
+    const bool writing=started.get_future().wait_for(std::chrono::seconds(5))==std::future_status::ready;
+    store.retry();
+    resume.set_value();
+    check(store.flush()&&writing&&attempts==2,"Retry queued a second copy of an in-flight save");
+}
 }
 int main(int argc,char** argv)try{
     check(argc==2,"Usage: native_multiplayer_store_tests isolated-output");const auto baseline=std::make_unique<NativeMemory>();storage(*baseline,fs::absolute(argv[1])/L"storage");
+    repeatedRetry(fs::absolute(argv[1])/L"retry");
     std::cout<<"{\"status\":\"passed\",\"checks\":"<<checks<<",\"independent_copies\":true,\"bounded_recovery\":true}\n";return 0;
 }catch(const std::exception& error){std::cerr<<error.what()<<'\n';return 1;}

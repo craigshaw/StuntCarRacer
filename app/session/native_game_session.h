@@ -91,7 +91,8 @@ public:
     bool openingActive()const noexcept{return careerPanel_==CareerPanel::None&&multiplayerPanel_==MultiplayerPanel::None&&opening_&&!opening_->complete();}
     NativeOpeningPage openingPage()const noexcept{return opening_?opening_->page():NativeOpeningPage::Complete;}
     bool enteringName()const noexcept{return openingActive()&&opening_->page()==NativeOpeningPage::Name;}
-    bool usingTextInput()const noexcept{return enteringName()||bool(saveMenu_)||multiplayerPanel_==MultiplayerPanel::Title;}
+    bool editingName()const noexcept{return enteringName()||multiplayerPanel_==MultiplayerPanel::Title||savePhase()==NativeSaveMenuPhase::SaveName;}
+    bool usingTextInput()const noexcept{return editingName()||bool(saveMenu_);}
     std::optional<NativeSaveMenuPhase> savePhase()const noexcept{return saveMenu_?std::optional{saveMenu_->phase()}:std::nullopt;}
     const NativeMemory& memory()const noexcept{return *data_.memory;}
     const RaceScene& race()const noexcept{return race_;}

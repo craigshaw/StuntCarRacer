@@ -131,7 +131,6 @@ private:
         }
     }
     bool canLeaveRace()const{return inRace()&&!game_->raceEnded();}
-    bool typingName()const{return game_->enteringName()||game_->savePhase()==NativeSaveMenuPhase::SaveName;}
     NativeQuitContext quitContext()const{
         if(game_->multiplayer())return NativeQuitContext::Multiplayer;
         if(game_->activeCareer())return canLeaveRace()&&game_->competitive()?NativeQuitContext::CareerRace:NativeQuitContext::Career;
@@ -367,7 +366,7 @@ private:
                 }
                 return 0;
             }
-            if(gameMenuShortcut(unsigned(key),typingName(),game_->page()==NativeMenuPage::Race,
+            if(gameMenuShortcut(unsigned(key),game_->editingName(),game_->page()==NativeMenuPage::Race,
                 game_->openingActive()&&game_->openingPage()==NativeOpeningPage::Mode)){
                 if(!(data&0x40000000))openGameMenu(window);return 0;
             }
@@ -386,7 +385,7 @@ private:
             if(key<blockedKeys_.size())blockedKeys_[key]=false;
             if(key=='F'&&!game_->usingTextInput())return 0;
             if(settings_.blocksGame()){navigateOverlay(window);return 0;}
-            if(key=='P'&&!typingName())return 0;
+            if(key=='P'&&!game_->editingName())return 0;
             if(suppressInput_||key==VK_F10||key==VK_F11)return 0;
             if(const auto raw=nativeAmigaRawKey(unsigned(key),(unsigned(data)>>16)&255,(data&0x01000000)!=0))rawKeys_.push_back({*raw,false});
             update(window,0);return 0;

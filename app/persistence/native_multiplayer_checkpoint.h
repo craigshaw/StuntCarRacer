@@ -32,8 +32,11 @@ struct NativeMultiplayerSave {
     std::uint64_t generation{};
     MultiplayerBytes checkpoint;
 };
+void validateNativeMultiplayerInfo(const NativeMultiplayerInfo&);
 MultiplayerBytes encodeNativeMultiplayerSave(const NativeMemory& baseline,const NativeMultiplayerSave&);
 NativeMultiplayerSave decodeNativeMultiplayerSave(const NativeMemory& baseline,const MultiplayerBytes&);
-// Inspect a known outer envelope without accepting its checkpoint for play.
+// Envelope operations handle metadata and framing. The store validates the
+// checkpoint before queuing immutable bytes and assigns its generation on write.
+MultiplayerBytes encodeNativeMultiplayerEnvelope(const NativeMultiplayerInfo&,std::uint64_t generation,const MultiplayerBytes& checkpoint);
 NativeMultiplayerSave decodeNativeMultiplayerEnvelope(const MultiplayerBytes&);
 } // namespace scr::runtime

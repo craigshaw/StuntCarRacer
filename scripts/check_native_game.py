@@ -50,7 +50,7 @@ def portable_checks(output, pack, executable, ownership_test):
         tests[name] = {'result': result, 'executable': identity(NATIVE_BUILD / 'Release' / (name + '.exe'))}
     multiplayer = tests['native_multiplayer_saved_session_tests']['result']
     if (multiplayer.get('setups') != 46 or multiplayer.get('resumes') != 32
-            or multiplayer.get('championships') != 8 or multiplayer.get('failure_lifecycles') != 8
+            or multiplayer.get('championships') != 8 or multiplayer.get('failure_lifecycles') != 10
             or any(multiplayer.get(key) is not True for key in ('both_navigation_modes', 'hall_isolation', 'legacy_routes_excluded'))):
         raise RuntimeError('Named multiplayer player acceptance is incomplete')
     # Assemble only freshly generated convention-format test data. This is not a

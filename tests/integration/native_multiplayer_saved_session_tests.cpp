@@ -2,7 +2,9 @@
 #define WIN32_LEAN_AND_MEAN
 #include <windows.h>
 #include "session/native_game_session.h"
+#include "launcher/native_display_settings.h"
 #include "persistence/player_data_layout.h"
+#include "persistence/player_preferences.h"
 #include "persistence/career_file_io.h"
 #include "../support/hall_fixture.h"
 #include "../support/enhanced_record_fixture.h"
@@ -25,18 +27,28 @@ void text(NativeGameSession& game,const std::string& text){ready(game);for(unsig
 std::unique_ptr<NativeGameSession> open(const fs::path& pack,const fs::path& root,NativeMenuNavigation navigation){
     const auto layout=playerDataLayout(root);auto game=std::make_unique<NativeGameSession>(pack,fs::path{},NativeGameStart::OriginalOpening,root/L"saves/legacy.scr-save");game->enableCareers(root,layout.originalHall,layout.enhancedHall,{});game->enableMultiplayerGames();game->setNavigation(navigation);ready(*game);return game;
 }
-void selectMode(NativeGameSession& game){choose(game,1);press(game);check(game.multiplayerSelection(),"Multiplayer mode did not open saved-game selection");}
+void selectMode(NativeGameSession& game){
+    choose(game,1);
+    for(unsigned frame=0;frame<120&&!game.multiplayerSelection();++frame)game.update(1.0/60,input(16));
+    check(game.multiplayerSelection(),"Multiplayer mode did not open saved-game selection");
+    game.update(1.0/60,input(16));
+    check(game.multiplayerSelection(),"Held mode confirmation also chose a saved-game action");
+    ready(game);
+}
 void image(NativeGameSession&,const fs::path&);
 void create(NativeGameSession& game,unsigned count,unsigned division,unsigned league,bool confirmRoster=true,bool existing=false,const fs::path& snapshots={}){
     selectMode(game);check(game.menuState().count==(existing?2u:0u),"Multiplayer selection exposed the wrong saved-game actions");if(existing)choose(game,1);press(game);check(game.usingTextInput()&&!game.enteringName(),"New game did not request its independent title");
     if(!snapshots.empty())image(game,snapshots/L"title.ppm");
-    text(game,"FRIDAY");press(game);check(game.menuState().count==3,"New game omitted configuration");
+    check(!gameMenuShortcut('P',game.editingName(),false,false),"Game menu intercepted P during title entry");
+    text(game,"GRAND PRIX");press(game);check(game.menuState().count==3,"New game omitted configuration");
+    check(gameMenuShortcut('P',game.editingName(),false,false),"Game menu shortcut stayed disabled after title entry");
     if(!snapshots.empty())image(game,snapshots/L"configuration.ppm");
     for(unsigned n=0;n<division;++n){choose(game,0);press(game);}if(league){choose(game,1);press(game);}choose(game,2);press(game);
     for(unsigned n=0;n<count;++n){check(game.enteringName(),"New game omitted roster name");text(game,"DRIVER"+std::to_string(n+1));key(game,0x0d,true);key(game,0x0d,false);ready(game);
         if(n+1<count){choose(game,0);press(game);}else if(count<8){choose(game,1);press(game);}}
     check(game.openingPage()==NativeOpeningPage::LocalStandings&&(existing||!game.activeMultiplayer()),"Draft became active before roster confirmation");if(!snapshots.empty())image(game,snapshots/L"roster.ppm");if(!confirmRoster)return;press(game);
     check(game.multiplayerHome()&&game.activeMultiplayer()&&!game.hasSuspendedChampionship(),"Confirmed roster did not durably create a game home");
+    check(game.activeMultiplayer()->name=="grand prix","Typed title lost a character");
     check(game.activeMultiplayer()->players==count&&game.memory()[0x1c9ce]==division&&game.memory()[0x1c9d0]==league,"Saved-game setup lost unrestricted division/league/roster");++setups;
 }
 void continueLast(NativeGameSession& game){selectMode(game);check(game.menuState().count==2,"Saved game did not expose Continue/New/Browse");press(game);check(game.multiplayerHome(),"Continue bypassed the saved-game home");}
@@ -79,6 +91,28 @@ void liveFlow(const fs::path& pack,const fs::path& root,NativeMenuNavigation nav
     check(game->requestClose()&&fileBytes(root/L"saves/legacy.scr-save")==legacy,"Native journey touched the legacy virtual disk");
 }
 void failures(const fs::path& pack,const fs::path& root,NativeMenuNavigation navigation){
+    {
+        const auto folder=root/L"hall-during-creation";
+        auto game=open(pack,folder,navigation);
+        create(*game,2,0,0,false);
+        check(game->flushRecords(),"Could not drain the draft fixture");
+        const auto hallLock=folder/L"hall-of-fame/original/hall.lock";
+        const auto handle=CreateFileW(hallLock.c_str(),GENERIC_READ,0,nullptr,OPEN_EXISTING,FILE_ATTRIBUTE_NORMAL,nullptr);
+        check(handle!=INVALID_HANDLE_VALUE,"Could not hold the Hall lock");
+        const bool closeBlocked=!game->requestClose()&&game->closePending();
+        CloseHandle(handle);
+        check(closeBlocked,"Close did not detect the unavailable Hall");
+        choose(*game,2);press(*game); // Cancel departure and confirm the roster.
+        press(*game);
+        check(game->activeMultiplayer()&&game->multiplayerHome(),"A Hall error blocked creation of the saved game");
+        const auto saved=entries(pack,folder);
+        check(saved.size()==1&&saved.front().state==SavedGameFileState::Valid&&
+              loadPlayerSelections(folder/L"settings.ini").multiplayer==saved.front().key(),"Created game or its selection was not durable");
+        check(game->saveStatus()=="NOT SAVED","Creating the game hid the outstanding Hall error");
+        press(*game); // Retry the Hall error from the game home.
+        check(game->saveStatus()=="Saved"&&game->multiplayerHome(),"Hall retry did not recover independently");
+        ++failureCases;
+    }
     {const auto folder=root/L"first-save";auto game=open(pack,folder,navigation);create(*game,2,3,11,false);fs::create_directories(folder);{std::ofstream block(folder/L"multiplayer");block<<"blocked category";}
         press(*game);const auto state=progression(game->memory());check(!game->activeMultiplayer()&&game->saveStatus()=="NOT SAVED"&&game->menuState().count==1,"Failed draft entered racing or hid first-save failure");image(*game,folder/L"create-error.ppm");
         check(!game->requestClose()&&game->closePending(),"First-save failure silently closed");choose(*game,2);press(*game);check(!game->closePending()&&progression(game->memory())==state,"Close cancellation discarded setup state/RNG");

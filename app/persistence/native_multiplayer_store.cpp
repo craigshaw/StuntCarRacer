@@ -48,11 +48,13 @@ SavedGameEntry NativeMultiplayerStore::describe(const NativeMultiplayerInfo& inf
 SavedGameRead NativeMultiplayerStore::read(const std::string& id)const{
     try{return recoveries(folders_.directory(id)/L"game.scr-multiplayer");}catch(const std::out_of_range&){return {SavedGameFileState::Missing};}
 }
-bool NativeMultiplayerStore::write(const fs::path& path,NativeMultiplayerSave candidate,std::string& error){
+bool NativeMultiplayerStore::write(const SavedGameEntry& entry,const MultiplayerBytes& checkpoint,std::string& error){
     try{
+        folders_.check(entry.folder);
+        const auto path=entry.folder/L"game.scr-multiplayer";
         SavedGameRead copies[3];for(unsigned n=0;n<3;++n){copies[n]=generation(career_files::generationPath(path,n));
             if(copies[n].state==SavedGameFileState::Unsupported)throw std::runtime_error("An unsupported multiplayer generation is preserved");
-            if(copies[n].state==SavedGameFileState::Valid&&decodeNativeMultiplayerEnvelope(copies[n].data).info.id!=candidate.info.id)throw std::runtime_error("Multiplayer saved-game ownership differs");}
+            if(copies[n].state==SavedGameFileState::Valid&&decodeNativeMultiplayerEnvelope(copies[n].data).info.id!=entry.id)throw std::runtime_error("Multiplayer saved-game ownership differs");}
         const auto newest=std::max({copies[0].generation,copies[1].generation,copies[2].generation});if(newest==std::numeric_limits<std::uint64_t>::max())throw std::runtime_error("Multiplayer save generation exhausted");
         const auto stamp=std::to_wstring(std::chrono::steady_clock::now().time_since_epoch().count());
         for(unsigned n=0;n<3;++n)if(copies[n].state==SavedGameFileState::Corrupt){const auto file=career_files::generationPath(path,n);if(!MoveFileExW(windowsFilePath(file).c_str(),windowsFilePath(file.wstring()+L".damaged-"+stamp).c_str(),MOVEFILE_WRITE_THROUGH))throw std::runtime_error("Cannot preserve a damaged multiplayer generation");}
@@ -60,17 +62,21 @@ bool NativeMultiplayerStore::write(const fs::path& path,NativeMultiplayerSave ca
             if(copies[1].state==SavedGameFileState::Valid&&!career_files::atomicWrite(career_files::generationPath(path,2),copies[1].data,error))return false;
             if(!career_files::atomicWrite(career_files::generationPath(path,1),copies[0].data,error))return false;
         }
-        candidate.generation=newest+1;return career_files::atomicWrite(path,encodeNativeMultiplayerSave(*baseline_,candidate),error);
+        const auto bytes=encodeNativeMultiplayerEnvelope({entry.id,entry.name,entry.lastPlayed},newest+1,checkpoint);
+        if(!career_files::atomicWrite(path,bytes,error))return false;
+        folders_.update(entry,entry.folder);
+        return true;
     }catch(const std::exception& failure){error=failure.what();return false;}
 }
-std::filesystem::path NativeMultiplayerStore::save(const NativeMultiplayerInfo& info,const MultiplayerBytes& checkpoint,const fs::path& selected){
-    NativeMultiplayerSave saved{info,1,checkpoint};const auto bytes=encodeNativeMultiplayerSave(*baseline_,saved);auto entry=describe(bytes);entry.folder=selected;const auto folder=folders_.reserve(entry),path=folder/L"game.scr-multiplayer";
-    worker_.submitSavedGame(path,bytes,[this,path](const auto& data,std::string& error){
-        try{const auto candidate=decodeNativeMultiplayerSave(*baseline_,data);const auto folder=path.parent_path();folders_.check(folder);
-            if(windowsPathLink(path)||windowsPathLink(career_files::generationPath(path,1))||windowsPathLink(career_files::generationPath(path,2)))throw std::runtime_error("Saved-game file links are not followed");
-            const bool okay=write(path,candidate,error);if(okay)folders_.update(describe(data),folder);return okay;
-        }catch(const std::exception& failure){error=failure.what();return false;}
-    });return folder;
+SavedGameEntry NativeMultiplayerStore::save(const NativeMultiplayerInfo& info,const MultiplayerBytes& checkpoint,const fs::path& selected){
+    validateNativeMultiplayerInfo(info);
+    auto entry=describe(info,checkpoint);
+    entry.folder=selected;
+    entry.folder=folders_.reserve(entry);
+    worker_.submitSavedGame(entry.folder/L"game.scr-multiplayer",checkpoint,[this,entry](const auto& data,std::string& error){
+        return write(entry,data,error);
+    });
+    return entry;
 }
 std::string NativeMultiplayerStore::lastUsed()const{return loadPlayerSelections(settings_).multiplayer;}
 void NativeMultiplayerStore::setLastUsed(const std::string& id){

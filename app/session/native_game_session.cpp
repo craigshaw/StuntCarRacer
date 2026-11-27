@@ -296,7 +296,16 @@ NativeGameUpdate NativeGameSession::update(double elapsed,const NativeGameInput&
     if(careerStore_&&menu_)menu_->setHallEnabled(activeCareer_.has_value()&&!multiplayer());
     NativeGameUpdate managed;if(updateMultiplayer(elapsed,held,managed)||updateMultiplayerFinish(elapsed,held,managed)||updateCareers(elapsed,held,managed))return managed;
     const auto oldPage=page();
-    if(navigation_==NativeMenuNavigation::Original){const auto screen=navigationScreen();auto result=updateImpl(elapsed,held);observeCareerState(oldPage);if(screen!=navigationScreen())careerClock_.enterScreen(held.menu);return result;}
+    if(navigation_==NativeMenuNavigation::Original){
+        const auto screen=navigationScreen();
+        auto result=updateImpl(elapsed,held);
+        observeCareerState(oldPage);
+        if(screen!=navigationScreen()){
+            careerClock_.enterScreen(held.menu);
+            multiplayerClock_.enterScreen(held.menu);
+        }
+        return result;
+    }
     NativeGameUpdate initial;finishResponsiveTransitions(initial);
     const auto previous=navigationScreen();
     NativeGameInput input=held;input.menu=navigationClock_.sample(held.menu,elapsed);
@@ -308,6 +317,7 @@ NativeGameUpdate NativeGameSession::update(double elapsed,const NativeGameInput&
     if(previous!=navigationScreen()){
         navigationClock_.enterScreen(held.menu);
         careerClock_.enterScreen(held.menu);
+        multiplayerClock_.enterScreen(held.menu);
         // A menu's initiating Return/arrow must not become text on arrival.
         for(unsigned key=0;key<128;++key)if(key!=0x60&&key!=0x61)(*data_.memory)[0xead6+key]=0;
     }

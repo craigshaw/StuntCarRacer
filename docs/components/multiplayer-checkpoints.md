@@ -28,6 +28,9 @@ Its checksum covers metadata and the checkpoint. Changing this host identity doe
 not rewrite native driver names, memory or progression. Neither codec creates IDs
 or consumes gameplay randomness. The multiplayer store uses the career actor for
 serialized publication, atomic generation rotation, retries and preference writes.
+Autosave decodes the candidate once to validate it and derive its menu summary.
+The writer retains the immutable checkpoint and publishes that summary after
+commit. It validates disk generations before rotating them.
 Each selected folder owns its writes. Matching internal IDs in copied folders
 are allowed without rewriting checkpoints or their envelopes.
 
@@ -98,9 +101,10 @@ pages, name entry and legacy save-disc pages are not accepted checkpoint pages.
 Direct capture during an unsettled transition is rejected. In normal play the
 lifecycle captures these boundaries automatically, including a drained prepared
 matchup before the first driving tick. Modal home/library rendering does not mutate
-native memory. Opening Continue does not acknowledge a finish or report. Setup is
-published only after confirmed roster/first save; cancellation removes its failed
-jobs before returning to saved-game selection.
+native memory. Opening Continue does not acknowledge a finish or report. After
+roster confirmation, the game opens its home when both the first checkpoint and
+last-used folder preference are durable. Hall errors use the regular save-error
+prompt. Cancelling a failed draft clears its jobs before returning to selection.
 
 ## Verification
 

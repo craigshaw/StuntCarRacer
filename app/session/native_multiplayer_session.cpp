@@ -71,13 +71,14 @@ void NativeGameSession::beginMultiplayerRoster(){
     multiplayerPanel_=MultiplayerPanel::None;NativeGameUpdate ignored;handleOpeningAction(opening_->beginMultiplayerName(),makeNativeMenuFrame(*data_.memory,multiplayerDivision_),ignored);releaseInput();
 }
 void NativeGameSession::registerMultiplayer(){
-    newMultiplayer_=SavedGameEntry{NativeCareerStore::newId(),multiplayerTitle_,multiplayerDivision_,multiplayerLeague_,playedNow()};newMultiplayer_->players=(*data_.memory)[0x5eb76]+1;
-    newMultiplayerCheckpoint_=captureMultiplayerCheckpoint();completeMultiplayerCreation();
+    newMultiplayerCheckpoint_=captureMultiplayerCheckpoint();
+    newMultiplayer_=multiplayerStore_->save({NativeCareerStore::newId(),multiplayerTitle_,playedNow()},newMultiplayerCheckpoint_,{});
+    completeMultiplayerCreation();
 }
 void NativeGameSession::completeMultiplayerCreation(){
-    careerStore_->retry();newMultiplayer_->folder=multiplayerStore_->save({newMultiplayer_->id,newMultiplayer_->name,newMultiplayer_->lastPlayed},newMultiplayerCheckpoint_,newMultiplayer_->folder);
-    if(!flushStores()){showMultiplayerPanel(MultiplayerPanel::CreateError);return;}
-    multiplayerStore_->setLastUsed(newMultiplayer_->key());if(!flushStores()){showMultiplayerPanel(MultiplayerPanel::CreateError);return;}
+    if(!careerStore_->flush()){showMultiplayerPanel(MultiplayerPanel::CreateError);return;}
+    multiplayerStore_->setLastUsed(newMultiplayer_->key());
+    if(!careerStore_->flush()){showMultiplayerPanel(MultiplayerPanel::CreateError);return;}
     activeMultiplayer_=*newMultiplayer_;multiplayerCheckpoint_=std::move(newMultiplayerCheckpoint_);lastMultiplayer_=activeMultiplayer_->key();multiplayerSuspended_=false;multiplayerDraft_=false;newMultiplayer_.reset();
     activeCareer_.reset();checkpoint_.clear();suspendedSeason_.clear();multiplayerDirty_=false;showMultiplayerPanel(MultiplayerPanel::Home);
 }
@@ -92,9 +93,13 @@ void NativeGameSession::loadMultiplayer(const std::string& id){
         MultiplayerBytes bytes;SavedGameEntry entry;
         if(activeMultiplayer_&&activeMultiplayer_->key()==id&&!multiplayerCheckpoint_.empty()){bytes=multiplayerCheckpoint_;entry=*activeMultiplayer_;}
         else{if(!usable(saved.state))throw std::runtime_error(saved.state==SavedGameFileState::Unsupported?"Unsupported game version":"Saved game is unavailable");
-            const auto game=decodeNativeMultiplayerSave(*checkpointBaseline_,saved.data);bytes=game.checkpoint;for(const auto& item:multiplayerStore_->list())if(item.key()==id)entry=item;}
-        const auto c=decodeNativeMultiplayerCheckpoint(*checkpointBaseline_,bytes);restoreMultiplayerCheckpoint(bytes);activeMultiplayer_=entry;multiplayerCheckpoint_=std::move(bytes);multiplayerSuspended_=c.menu.competitive;multiplayerDraft_=multiplayerPractice_=multiplayerDirty_=false;
-        activeMultiplayer_->lastPlayed=playedNow();lastMultiplayer_=id;multiplayerStore_->save({activeMultiplayer_->id,activeMultiplayer_->name,activeMultiplayer_->lastPlayed},multiplayerCheckpoint_,activeMultiplayer_->folder);multiplayerStore_->setLastUsed(id);showMultiplayerPanel(MultiplayerPanel::Home);
+            bytes=decodeNativeMultiplayerEnvelope(saved.data).checkpoint;for(const auto& item:multiplayerStore_->list())if(item.key()==id)entry=item;}
+        restoreMultiplayerCheckpoint(bytes);
+        multiplayerCheckpoint_=std::move(bytes);
+        activeMultiplayer_=multiplayerStore_->save({entry.id,entry.name,playedNow()},multiplayerCheckpoint_,entry.folder);
+        multiplayerSuspended_=activeMultiplayer_->competition;
+        multiplayerDraft_=multiplayerPractice_=multiplayerDirty_=false;
+        lastMultiplayer_=id;multiplayerStore_->setLastUsed(id);showMultiplayerPanel(MultiplayerPanel::Home);
         if(saved.state==SavedGameFileState::Recovered){multiplayerNotice_="Game recovery copy restored";multiplayerNoticeReturn_=MultiplayerPanel::Home;showMultiplayerPanel(MultiplayerPanel::Notice);}
     }catch(const std::exception& error){multiplayerNotice_=error.what();multiplayerNoticeReturn_=MultiplayerPanel::Select;showMultiplayerPanel(MultiplayerPanel::Notice);}
 }
@@ -111,9 +116,10 @@ void NativeGameSession::resumeMultiplayer(bool practice){
 }
 void NativeGameSession::saveMultiplayerCheckpoint(bool){
     if(!activeMultiplayer_||multiplayerDraft_||multiplayerPractice_||multiplayerPanel_!=MultiplayerPanel::None||careerPanel_!=CareerPanel::None||openingActive()||transitioning()||!multiplayer())return;
-    multiplayerCheckpoint_=captureMultiplayerCheckpoint();const auto folder=activeMultiplayer_->folder;
-    activeMultiplayer_=multiplayerStore_->describe({activeMultiplayer_->id,activeMultiplayer_->name,playedNow()},multiplayerCheckpoint_);activeMultiplayer_->folder=folder;multiplayerSuspended_=activeMultiplayer_->competition;
-    multiplayerStore_->save({activeMultiplayer_->id,activeMultiplayer_->name,activeMultiplayer_->lastPlayed},multiplayerCheckpoint_,activeMultiplayer_->folder);multiplayerDirty_=false;
+    multiplayerCheckpoint_=captureMultiplayerCheckpoint();
+    activeMultiplayer_=multiplayerStore_->save({activeMultiplayer_->id,activeMultiplayer_->name,playedNow()},multiplayerCheckpoint_,activeMultiplayer_->folder);
+    multiplayerSuspended_=activeMultiplayer_->competition;
+    multiplayerDirty_=false;
 }
 void NativeGameSession::observeMultiplayerState(NativeMenuPage previous){
     if(!multiplayerStore_||!activeMultiplayer_||multiplayerDraft_||multiplayerPanel_!=MultiplayerPanel::None||careerPanel_!=CareerPanel::None||openingActive()||!menu_)return;
@@ -162,7 +168,10 @@ bool NativeGameSession::updateMultiplayer(double elapsed,const NativeGameInput& 
             if(choice==1)cancelMultiplayerDraft();else{while(!multiplayerTitle_.empty()&&multiplayerTitle_.back()==' ')multiplayerTitle_.pop_back();while(!multiplayerTitle_.empty()&&multiplayerTitle_.front()==' ')multiplayerTitle_.erase(0,1);if(!multiplayerTitle_.empty())showMultiplayerPanel(MultiplayerPanel::Configuration);}break;
         case MultiplayerPanel::Configuration:if(choice==0)multiplayerDivision_=(multiplayerDivision_+1)%4;else if(choice==1)multiplayerLeague_=multiplayerLeague_?0:11;else if(choice==2)beginMultiplayerRoster();else cancelMultiplayerDraft();break;
         case MultiplayerPanel::List:if(multiplayerList_.empty())showMultiplayerPanel(MultiplayerPanel::Select);else (void)depart(Departure::LoadMultiplayer,multiplayerList_[multiplayerListChoice_].key());break;
-        case MultiplayerPanel::CreateError:if(choice==0)completeMultiplayerCreation();else cancelMultiplayerDraft();break;
+        case MultiplayerPanel::CreateError:
+            if(choice==0){careerStore_->retry();completeMultiplayerCreation();}
+            else cancelMultiplayerDraft();
+            break;
         case MultiplayerPanel::Notice:showMultiplayerPanel(multiplayerNoticeReturn_);break;
         default:break;
         }

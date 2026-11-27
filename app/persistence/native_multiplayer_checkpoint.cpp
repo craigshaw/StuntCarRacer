@@ -83,10 +83,10 @@ Bytes payload(std::uint32_t magic,const Bytes& bytes,std::size_t maximum){
     const auto size=r.u32();const auto checksum=r.u64();if(size!=bytes.size()-r.position||checksum!=hash(bytes.data()+r.position,size))throw std::runtime_error("Damaged multiplayer checkpoint");
     return {bytes.begin()+r.position,bytes.end()};
 }
-void validateInfo(const NativeMultiplayerInfo& info,std::uint64_t generation){
-    if(!validPlayerIdentity(info.id)||info.title.empty()||info.title.size()>32||!printable(info.title)||
-       info.title.find_first_not_of(' ')==std::string::npos||!generation)throw std::runtime_error("Invalid multiplayer saved-game metadata");
 }
+void validateNativeMultiplayerInfo(const NativeMultiplayerInfo& info){
+    if(!validPlayerIdentity(info.id)||info.title.empty()||info.title.size()>32||!printable(info.title)||
+       info.title.find_first_not_of(' ')==std::string::npos)throw std::runtime_error("Invalid multiplayer saved-game metadata");
 }
 MultiplayerBytes encodeNativeMultiplayerCheckpoint(const NativeMemory& baseline,const NativeMultiplayerCheckpoint& c){
     validate(c);Writer w;w.u64(nativeCheckpointBaselineIdentity(baseline));
@@ -118,15 +118,22 @@ NativeMultiplayerCheckpoint decodeNativeMultiplayerCheckpoint(const NativeMemory
     r.end();validate(c);return c;
 }
 MultiplayerBytes encodeNativeMultiplayerSave(const NativeMemory& baseline,const NativeMultiplayerSave& saved){
-    validateInfo(saved.info,saved.generation);(void)decodeNativeMultiplayerCheckpoint(baseline,saved.checkpoint);
-    Writer w;w.text(saved.info.id);w.text(saved.info.title);w.u64(saved.info.lastPlayed);w.u64(saved.generation);w.u32(std::uint32_t(saved.checkpoint.size()));w.bytes(saved.checkpoint.data(),saved.checkpoint.size());
+    (void)decodeNativeMultiplayerCheckpoint(baseline,saved.checkpoint);
+    return encodeNativeMultiplayerEnvelope(saved.info,saved.generation,saved.checkpoint);
+}
+MultiplayerBytes encodeNativeMultiplayerEnvelope(const NativeMultiplayerInfo& info,std::uint64_t generation,const MultiplayerBytes& checkpoint){
+    validateNativeMultiplayerInfo(info);
+    if(!generation)throw std::runtime_error("Invalid multiplayer save generation");
+    if(checkpoint.size()>nativeMultiplayerCheckpointMaximumBytes)throw std::runtime_error("Multiplayer checkpoint exceeds limit");
+    Writer w;w.text(info.id);w.text(info.title);w.u64(info.lastPlayed);w.u64(generation);w.u32(std::uint32_t(checkpoint.size()));w.bytes(checkpoint.data(),checkpoint.size());
     return envelope(saveMagic,w.data,nativeMultiplayerSaveMaximumBytes);
 }
 NativeMultiplayerSave decodeNativeMultiplayerEnvelope(const MultiplayerBytes& bytes){
     const auto body=payload(saveMagic,bytes,nativeMultiplayerSaveMaximumBytes);Reader r{body};NativeMultiplayerSave saved;
     saved.info.id=r.text(32);saved.info.title=r.text(32);saved.info.lastPlayed=r.u64();saved.generation=r.u64();const auto size=r.u32();
     if(size>nativeMultiplayerCheckpointMaximumBytes)throw std::runtime_error("Multiplayer checkpoint exceeds limit");r.require(size);
-    saved.checkpoint.assign(body.begin()+r.position,body.begin()+r.position+size);r.position+=size;r.end();validateInfo(saved.info,saved.generation);
+    saved.checkpoint.assign(body.begin()+r.position,body.begin()+r.position+size);r.position+=size;r.end();validateNativeMultiplayerInfo(saved.info);
+    if(!saved.generation)throw std::runtime_error("Invalid multiplayer save generation");
     return saved;
 }
 NativeMultiplayerSave decodeNativeMultiplayerSave(const NativeMemory& baseline,const MultiplayerBytes& bytes){auto saved=decodeNativeMultiplayerEnvelope(bytes);(void)decodeNativeMultiplayerCheckpoint(baseline,saved.checkpoint);return saved;}

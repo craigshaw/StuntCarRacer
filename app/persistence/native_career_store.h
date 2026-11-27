@@ -67,7 +67,8 @@ private:
     std::map<std::filesystem::path,Job> latest_;
     std::map<std::filesystem::path,std::string> errors_;
     std::thread worker_;
-    bool stopping_{},writing_{};std::uint64_t serial_{};
+    bool stopping_{};
+    std::uint64_t serial_{},writingSerial_{};
     std::filesystem::path careerPath(const std::string&)const;
     std::filesystem::path ghostPath(const GhostLapKey&)const;
     std::filesystem::path enhancedBestPath(const EnhancedBestKey&)const;

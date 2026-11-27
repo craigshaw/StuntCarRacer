@@ -228,7 +228,7 @@ bool NativeCareerStore::writeFile(const Job& job,std::string& error,const Valida
     }catch(const std::exception& failure){error=failure.what();return false;}
 }
 void NativeCareerStore::run(){
-    for(;;){Job job;{std::unique_lock<std::mutex> lock(mutex_);changed_.wait(lock,[&]{return stopping_||!jobs_.empty();});if(stopping_&&jobs_.empty())return;job=std::move(jobs_.front());jobs_.pop_front();writing_=true;}
+    for(;;){Job job;{std::unique_lock<std::mutex> lock(mutex_);changed_.wait(lock,[&]{return stopping_||!jobs_.empty();});if(stopping_&&jobs_.empty())return;job=std::move(jobs_.front());jobs_.pop_front();writingSerial_=job.serial;}
         std::string error;bool okay=false;
         try{
             if(job.custom)okay=job.custom(job.data,error);
@@ -246,13 +246,20 @@ void NativeCareerStore::run(){
             if(okay&&job.kind==1)folders_.update(decodeCareerInfo(job.data),job.path.parent_path());
             }
         }catch(const std::exception& failure){error=failure.what();}
-        {std::lock_guard<std::mutex> lock(mutex_);if(okay){errors_.erase(job.path);
-                if(job.kind==5||job.custom)if(const auto latest=latest_.find(job.path);latest!=latest_.end()&&latest->second.serial==job.serial)latest_.erase(latest);
-            }else errors_[job.path]=std::move(error);writing_=false;if(jobs_.empty())idle_.notify_all();}
+        {
+            std::lock_guard<std::mutex> lock(mutex_);
+            if(okay){
+                errors_.erase(job.path);
+                const auto latest=latest_.find(job.path);
+                if(latest!=latest_.end()&&latest->second.serial==job.serial)latest_.erase(latest);
+            }else errors_[job.path]=std::move(error);
+            writingSerial_=0;
+            if(jobs_.empty())idle_.notify_all();
+        }
     }
 }
-bool NativeCareerStore::flush(){std::unique_lock<std::mutex> lock(mutex_);idle_.wait(lock,[&]{return !writing_&&jobs_.empty();});return errors_.empty();}
-bool NativeCareerStore::pending()const{std::lock_guard<std::mutex> lock(mutex_);return writing_||!jobs_.empty();}
+bool NativeCareerStore::flush(){std::unique_lock<std::mutex> lock(mutex_);idle_.wait(lock,[&]{return !writingSerial_&&jobs_.empty();});return errors_.empty();}
+bool NativeCareerStore::pending()const{std::lock_guard<std::mutex> lock(mutex_);return writingSerial_||!jobs_.empty();}
 bool NativeCareerStore::failed()const{std::lock_guard<std::mutex> lock(mutex_);return !errors_.empty();}
 bool NativeCareerStore::ghostFailed()const{std::lock_guard<std::mutex> lock(mutex_);return std::any_of(errors_.begin(),errors_.end(),[](const auto& e){return e.first.extension()==L".scr-ghost";});}
 bool NativeCareerStore::enhancedBestFailed()const{std::lock_guard<std::mutex> lock(mutex_);return std::any_of(errors_.begin(),errors_.end(),[](const auto& e){return e.first.extension()==L".scr-ebest";});}
@@ -265,7 +272,17 @@ std::string NativeCareerStore::failureSummary()const{
     if(ghost)return career?"Career and ghosts not saved":"Ghost not saved";
     return "Career progress not saved";
 }
-void NativeCareerStore::retry(){std::lock_guard<std::mutex> lock(mutex_);for(const auto& error:errors_)if(const auto job=latest_.find(error.first);job!=latest_.end())jobs_.push_back(job->second);changed_.notify_one();}
+void NativeCareerStore::retry(){
+    std::lock_guard<std::mutex> lock(mutex_);
+    for(const auto& error:errors_){
+        const auto latest=latest_.find(error.first);
+        if(latest==latest_.end())continue;
+        const auto& job=latest->second;
+        if(job.serial!=writingSerial_&&std::none_of(jobs_.begin(),jobs_.end(),
+            [&](const Job& queued){return queued.serial==job.serial;}))jobs_.push_back(job);
+    }
+    changed_.notify_one();
+}
 void NativeCareerStore::acknowledgeFailures(){std::lock_guard<std::mutex> lock(mutex_);errors_.clear();}
 bool NativeCareerStore::cancelCareerDraft(const NativeCareerInfo& info){
     flush();try{
